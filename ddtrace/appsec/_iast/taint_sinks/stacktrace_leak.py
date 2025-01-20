@@ -1,15 +1,16 @@
 import os
 import re
 
-from .. import oce
-from .._metrics import increment_iast_span_metric, _set_metric_iast_executed_sink
-from .._taint_tracking._errors import iast_taint_log_error
-from ..constants import VULN_STACKTRACE_LEAK
-from ..constants import STACKTRACE_FILE_LINE
-from ..constants import STACKTRACE_EXCEPTION_REGEX
-from ..constants import HTML_TAGS_REMOVE
-from ..taint_sinks._base import VulnerabilityBase
 from ..._constants import IAST_SPAN_TAGS
+from .. import oce
+from .._metrics import _set_metric_iast_executed_sink
+from .._metrics import increment_iast_span_metric
+from .._taint_tracking._errors import iast_taint_log_error
+from ..constants import HTML_TAGS_REMOVE
+from ..constants import STACKTRACE_EXCEPTION_REGEX
+from ..constants import STACKTRACE_FILE_LINE
+from ..constants import VULN_STACKTRACE_LEAK
+from ..taint_sinks._base import VulnerabilityBase
 
 
 @oce.register

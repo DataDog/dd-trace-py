@@ -73,7 +73,7 @@ _html_django_stacktrace = r"""
     .append-bottom { margin-bottom: 10px; }
     .fname { user-select: all; }
   </style>
-  
+
   <script>
     function hideAll(elems) {
       for (var e = 0; e < elems.length; e++) {
@@ -102,7 +102,7 @@ _html_django_stacktrace = r"""
       return false;
     }
   </script>
-  
+
 </head>
 <body>
 <header id="summary">
@@ -177,63 +177,63 @@ _html_django_stacktrace = r"""
   </h2>
   <div id="browserTraceback">
     <ul class="traceback">
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">/home/foobaruser/.pyenv/versions/testsca/lib/python3.12/site-packages/django/core/handlers/exception.py</code>, line 55, in inner
-          
 
-          
+
+        <li class="frame django">
+
+            <code class="fname">/home/foobaruser/.pyenv/versions/testsca/lib/python3.12/site-packages/django/core/handlers/exception.py</code>, line 55, in inner
+
+
+
             <div class="context" id="c127129509161024">
-              
+
                 <ol start="48" class="pre-context" id="pre127129509161024">
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>        return inner</pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>    else:</pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>        @wraps(get_response)</pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>        def inner(request):</pre></li>
-                
+
                   <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>            try:</pre></li>
-                
+
                 </ol>
-              
+
               <ol start="55" class="context-line">
                 <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>                response = get_response(request)
                                ^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
-              
-                <ol start='56' class="post-context" id="post127129509161024">
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>            except Exception as exc:</pre></li>
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>                response = response_for_exception(request, exc)</pre></li>
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>            return response</pre></li>
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>        return inner</pre></li>
-                  
-                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
-                  
-              </ol>
-              
-            </div>
-          
 
-          
-            
+                <ol start='56' class="post-context" id="post127129509161024">
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>            except Exception as exc:</pre></li>
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>                response = response_for_exception(request, exc)</pre></li>
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>            return response</pre></li>
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre>        return inner</pre></li>
+
+                  <li onclick="toggle('pre127129509161024', 'post127129509161024')"><pre></pre></li>
+
+              </ol>
+
+            </div>
+
+
+
+
               <details>
                 <summary class="commands">Local vars</summary>
-            
+
             <table class="vars" id="v127129509161024">
               <thead>
                 <tr>
@@ -242,84 +242,84 @@ _html_django_stacktrace = r"""
                 </tr>
               </thead>
               <tbody>
-                
+
                   <tr>
                     <td>exc</td>
                     <td class="code"><pre>IndexError()</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>get_response</td>
                     <td class="code"><pre>&lt;bound method BaseHandler._get_response of &lt;django.core.handlers.wsgi.WSGIHandler object at 0x739fa54fbf20&gt;&gt;</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>request</td>
                     <td class="code"><pre>&lt;WSGIRequest: GET &#x27;/&#x27;&gt;</pre></td>
                   </tr>
-                
+
               </tbody>
             </table>
             </details>
-          
-        </li>
-      
-        
-        <li class="frame django">
-          
-            <code class="fname">/home/foobaruser/.pyenv/versions/testsca/lib/python3.12/site-packages/django/core/handlers/base.py</code>, line 197, in _get_response
-          
 
-          
+        </li>
+
+
+        <li class="frame django">
+
+            <code class="fname">/home/foobaruser/.pyenv/versions/testsca/lib/python3.12/site-packages/django/core/handlers/base.py</code>, line 197, in _get_response
+
+
+
             <div class="context" id="c127129509160960">
-              
+
                 <ol start="190" class="pre-context" id="pre127129509160960">
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre></pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>        if response is None:</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            wrapped_callback = self.make_view_atomic(callback)</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            # If it is an asynchronous view, run it in a subthread.</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            if iscoroutinefunction(wrapped_callback):</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                wrapped_callback = async_to_sync(wrapped_callback)</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            try:</pre></li>
-                
+
                 </ol>
-              
+
               <ol start="197" class="context-line">
                 <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                response = wrapped_callback(request, *callback_args, **callback_kwargs)
                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
-              
-                <ol start='198' class="post-context" id="post127129509160960">
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            except Exception as e:</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                response = self.process_exception_by_middleware(e, request)</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                if response is None:</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                    raise</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>        # Complain if the view returned None (a common error).</pre></li>
-                  
-              </ol>
-              
-            </div>
-          
 
-          
-            
+                <ol start='198' class="post-context" id="post127129509160960">
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>            except Exception as e:</pre></li>
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                response = self.process_exception_by_middleware(e, request)</pre></li>
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                if response is None:</pre></li>
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>                    raise</pre></li>
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre></pre></li>
+
+                  <li onclick="toggle('pre127129509160960', 'post127129509160960')"><pre>        # Complain if the view returned None (a common error).</pre></li>
+
+              </ol>
+
+            </div>
+
+
+
+
               <details>
                 <summary class="commands">Local vars</summary>
-            
+
             <table class="vars" id="v127129509160960">
               <thead>
                 <tr>
@@ -328,104 +328,104 @@ _html_django_stacktrace = r"""
                 </tr>
               </thead>
               <tbody>
-                
+
                   <tr>
                     <td>callback</td>
                     <td class="code"><pre>&lt;function index_view at 0x739fa76b4d60&gt;</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>callback_args</td>
                     <td class="code"><pre>()</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>callback_kwargs</td>
                     <td class="code"><pre>{}</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>request</td>
                     <td class="code"><pre>&lt;WSGIRequest: GET &#x27;/&#x27;&gt;</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>response</td>
                     <td class="code"><pre>None</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>self</td>
                     <td class="code"><pre>&lt;django.core.handlers.wsgi.WSGIHandler object at 0x739fa54fbf20&gt;</pre></td>
                   </tr>
-                
+
                   <tr>
                     <td>wrapped_callback</td>
                     <td class="code"><pre>&lt;function index_view at 0x739fa76b4d60&gt;</pre></td>
                   </tr>
-                
+
               </tbody>
             </table>
             </details>
-          
-        </li>
-      
-        
-        <li class="frame user">
-          
-            <code class="fname">/home/foobaruser/sources/minimal-django-example/app.py</code>, line 20, in index_view
-          
 
-          
+        </li>
+
+
+        <li class="frame user">
+
+            <code class="fname">/home/foobaruser/sources/minimal-django-example/app.py</code>, line 20, in index_view
+
+
+
             <div class="context" id="c127129509160576">
-              
+
                 <ol start="13" class="pre-context" id="pre127129509160576">
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>            &quot;DIRS&quot;: [&quot;templates&quot;],</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>        },</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    ],</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>)</pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
-                
+
                   <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>def index_view(request):</pre></li>
-                
+
                 </ol>
-              
+
               <ol start="20" class="context-line">
                 <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    raise IndexError()
         ^^^^^^^^^^^^^^^^^^</pre> <span>…</span></li>
               </ol>
-              
-                <ol start='21' class="post-context" id="post127129509160576">
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    return HttpResponse(&quot;&lt;h1&gt;Hello World From Django!&lt;/h1&gt;&quot;)</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>def hello_view(request, name):</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    return render(request, &quot;template.html&quot;, {&quot;name&quot;: name})</pre></li>
-                  
-                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
-                  
-              </ol>
-              
-            </div>
-          
 
-          
-            
+                <ol start='21' class="post-context" id="post127129509160576">
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    return HttpResponse(&quot;&lt;h1&gt;Hello World From Django!&lt;/h1&gt;&quot;)</pre></li>
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>def hello_view(request, name):</pre></li>
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre>    return render(request, &quot;template.html&quot;, {&quot;name&quot;: name})</pre></li>
+
+                  <li onclick="toggle('pre127129509160576', 'post127129509160576')"><pre></pre></li>
+
+              </ol>
+
+            </div>
+
+
+
+
               <details>
                 <summary class="commands">Local vars</summary>
-            
+
             <table class="vars" id="v127129509160576">
               <thead>
                 <tr>
@@ -434,18 +434,18 @@ _html_django_stacktrace = r"""
                 </tr>
               </thead>
               <tbody>
-                
+
                   <tr>
                     <td>request</td>
                     <td class="code"><pre>&lt;WSGIRequest: GET &#x27;/&#x27;&gt;</pre></td>
                   </tr>
-                
+
               </tbody>
             </table>
             </details>
-          
+
         </li>
-      
+
     </ul>
   </div>
 
@@ -484,7 +484,7 @@ Traceback (most recent call last):
     ^^^^^^^^^^^^^^^^^^
 
 Exception Type: IndexError at /
-Exception Value: 
+Exception Value:
 </textarea>
   <br><br>
   <input type="submit" value="Share this traceback on a public website">
@@ -498,28 +498,28 @@ Exception Value:
   <h2>Request information</h2>
 
 
-  
+
     <h3 id="user-info">USER</h3>
     <p>[unable to retrieve the current user]</p>
-  
+
 
   <h3 id="get-info">GET</h3>
-  
+
     <p>No GET data</p>
-  
+
 
   <h3 id="post-info">POST</h3>
-  
+
     <p>No POST data</p>
-  
+
 
   <h3 id="files-info">FILES</h3>
-  
+
     <p>No FILES data</p>
-  
+
 
   <h3 id="cookie-info">COOKIES</h3>
-  
+
     <table class="req">
       <thead>
         <tr>
@@ -528,15 +528,15 @@ Exception Value:
         </tr>
       </thead>
       <tbody>
-        
+
           <tr>
             <td>csrftoken</td>
             <td class="code"><pre>&#x27;********************&#x27;</pre></td>
           </tr>
-        
+
       </tbody>
     </table>
-  
+
 
   <h3 id="meta-info">META</h3>
   <table class="req">
@@ -547,588 +547,588 @@ Exception Value:
       </tr>
     </thead>
     <tbody>
-      
+
         <tr>
           <td>AWS_ASSUME_ROLE_TTL</td>
           <td class="code"><pre>&#x27;1h&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>AWS_SESSION_TTL</td>
           <td class="code"><pre>&#x27;24h&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>AWS_VAULT_BACKEND</td>
           <td class="code"><pre>&#x27;secret-service&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>AWS_VAULT_KEYCHAIN_NAME</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>COLORTERM</td>
           <td class="code"><pre>&#x27;truecolor&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CONTENT_LENGTH</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CONTENT_TYPE</td>
           <td class="code"><pre>&#x27;text/plain&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DBUS_SESSION_BUS_ADDRESS</td>
           <td class="code"><pre>&#x27;unix:path=/run/user/1000/bus,guid=c3ac961ccc4c263877782e00678e0c9e&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DBUS_STARTER_ADDRESS</td>
           <td class="code"><pre>&#x27;unix:path=/run/user/1000/bus,guid=c3ac961ccc4c263877782e00678e0c9e&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DBUS_STARTER_BUS_TYPE</td>
           <td class="code"><pre>&#x27;session&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DESKTOP_SESSION</td>
           <td class="code"><pre>&#x27;ubuntu&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DISPLAY</td>
           <td class="code"><pre>&#x27;:0&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EDITOR</td>
           <td class="code"><pre>&#x27;vim&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL</td>
           <td class="code"><pre>&#x27;Juanjo Alvarez &lt;juanjo@juanjoalvarez.net&gt;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GATEWAY_INTERFACE</td>
           <td class="code"><pre>&#x27;CGI/1.1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GDMSESSION</td>
           <td class="code"><pre>&#x27;ubuntu&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GITLAB_TOKEN</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GNOME_DESKTOP_SESSION_ID</td>
           <td class="code"><pre>&#x27;this-is-deprecated&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GNOME_SETUP_DISPLAY</td>
           <td class="code"><pre>&#x27;:1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GNOME_SHELL_SESSION_MODE</td>
           <td class="code"><pre>&#x27;ubuntu&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GOROOT</td>
           <td class="code"><pre>&#x27;/home/foobaruser/go&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>GTK_MODULES</td>
           <td class="code"><pre>&#x27;gail:atk-bridge&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HDIV_PHP_EXTENSION_PATH</td>
           <td class="code"><pre>&#x27;/home/foobaruser/php/hdiv-php-extension/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HOME</td>
           <td class="code"><pre>&#x27;/home/foobaruser&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_ACCEPT</td>
           <td class="code"><pre>&#x27;text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_ACCEPT_ENCODING</td>
           <td class="code"><pre>&#x27;gzip, deflate, br, zstd&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_ACCEPT_LANGUAGE</td>
           <td class="code"><pre>&#x27;en-US,en;q=0.9&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_CACHE_CONTROL</td>
           <td class="code"><pre>&#x27;max-age=0&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_CONNECTION</td>
           <td class="code"><pre>&#x27;keep-alive&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_COOKIE</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_DNT</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_HOST</td>
           <td class="code"><pre>&#x27;localhost:8000&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_CH_UA</td>
           <td class="code"><pre>&#x27;&quot;Google Chrome&quot;;v=&quot;131&quot;, &quot;Chromium&quot;;v=&quot;131&quot;, &quot;Not_A Brand&quot;;v=&quot;24&quot;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_CH_UA_MOBILE</td>
           <td class="code"><pre>&#x27;?0&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_CH_UA_PLATFORM</td>
           <td class="code"><pre>&#x27;&quot;Linux&quot;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_FETCH_DEST</td>
           <td class="code"><pre>&#x27;document&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_FETCH_MODE</td>
           <td class="code"><pre>&#x27;navigate&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_FETCH_SITE</td>
           <td class="code"><pre>&#x27;none&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_SEC_FETCH_USER</td>
           <td class="code"><pre>&#x27;?1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_UPGRADE_INSECURE_REQUESTS</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>HTTP_USER_AGENT</td>
           <td class="code"><pre>(&#x27;Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) &#x27;
  &#x27;Chrome/131.0.0.0 Safari/537.36&#x27;)</pre></td>
         </tr>
-      
+
         <tr>
           <td>IM_CONFIG_CHECK_ENV</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>IM_CONFIG_PHASE</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>INVOCATION_ID</td>
           <td class="code"><pre>&#x27;161a1822b4c24d129b1f0e3ef745a30f&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>JOURNAL_STREAM</td>
           <td class="code"><pre>&#x27;8:61973&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANG</td>
           <td class="code"><pre>&#x27;en_US.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_ADDRESS</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_IDENTIFICATION</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_MEASUREMENT</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_MONETARY</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_NAME</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_NUMERIC</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_PAPER</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_TELEPHONE</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LC_TIME</td>
           <td class="code"><pre>&#x27;es_ES.UTF-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGNAME</td>
           <td class="code"><pre>&#x27;foobaruser&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LS_COLORS</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LS_OPTIONS</td>
           <td class="code"><pre>&#x27;-N --color=auto -h&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>MANAGERPID</td>
           <td class="code"><pre>&#x27;4414&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>MANPATH</td>
           <td class="code"><pre>&#x27;:/opt/puppetlabs/puppet/share/man&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>OMF_CONFIG</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.config/omf&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>OMF_PATH</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.local/share/omf&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PATH</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.pyenv/versions/testsca/bin:/home/foobaruser/.pyenv/libexec:/home/foobaruser/.pyenv/plugins/python-build/bin:/home/foobaruser/.pyenv/plugins/pyenv-virtualenv/bin:/home/foobaruser/.pyenv/plugins/pyenv-update/bin:/home/foobaruser/.pyenv/plugins/pyenv-installer/bin:/home/foobaruser/.pyenv/plugins/pyenv-doctor/bin:/home/foobaruser/.pyenv/plugins/pyenv-virtualenv/shims:/home/foobaruser/.pyenv/shims:/home/foobaruser/.pyenv/bin:/home/foobaruser/pyenv/bin:/home/foobaruser/.local/bin:/home/foobaruser/sources/graalvm-ce-java11-20.1.0/bin:/home/foobaruser/.fzf/bin:/home/foobaruser/.cargo/bin:/home/foobaruser/.krew/bin:/home/foobaruser/.tfenv/bin:/home/foobaruser/dd/devtools/bin:/usr/local/bin:/home/foobaruser/.local/bin:/home/foobaruser/.krew/bin:/home/foobaruser/.pyenv/bin:/home/foobaruser/.tfenv/bin:/home/foobaruser/dd/devtools/bin:/usr/local/bin:/home/foobaruser/.yarn/bin:/home/foobaruser/.config/yarn/global/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/opt/puppetlabs/bin:/home/foobaruser/bin:/home/foobaruser/sync/work/d/dmd2:/home/foobaruser/sources/nim/bin:/home/foobaruser/.nimble/bin&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PATH_INFO</td>
           <td class="code"><pre>&#x27;/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PWD</td>
           <td class="code"><pre>&#x27;/home/foobaruser/sources/minimal-django-example&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_DIR</td>
           <td class="code"><pre>&#x27;/home/foobaruser/sources/minimal-django-example&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_HOOK_PATH</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.pyenv/pyenv.d:/usr/etc/pyenv.d:/usr/local/etc/pyenv.d:/etc/pyenv.d:/usr/lib/pyenv/hooks:/home/foobaruser/.pyenv/plugins/pyenv-virtualenv/etc/pyenv.d:/home/foobaruser/.pyenv/plugins/pyenv-which-ext/etc/pyenv.d&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_ROOT</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.pyenv&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_SHELL</td>
           <td class="code"><pre>&#x27;fish&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_VERSION</td>
           <td class="code"><pre>&#x27;testsca&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_VIRTUALENV_INIT</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PYENV_VIRTUAL_ENV</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.pyenv/versions/3.12.5/envs/testsca&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>QT_ACCESSIBILITY</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>QT_IM_MODULE</td>
           <td class="code"><pre>&#x27;ibus&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>QUERY_STRING</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>REMOTE_ADDR</td>
           <td class="code"><pre>&#x27;127.0.0.1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>REMOTE_HOST</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>REQUEST_METHOD</td>
           <td class="code"><pre>&#x27;GET&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>RSYNC_PASSWORD</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>RUN_MAIN</td>
           <td class="code"><pre>&#x27;true&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SCRIPT_NAME</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SERVER_NAME</td>
           <td class="code"><pre>&#x27;localhost&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SERVER_PORT</td>
           <td class="code"><pre>&#x27;8000&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SERVER_PROTOCOL</td>
           <td class="code"><pre>&#x27;HTTP/1.1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SERVER_SOFTWARE</td>
           <td class="code"><pre>&#x27;WSGIServer/0.2&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_MANAGER</td>
           <td class="code"><pre>&#x27;local/foobaruser-ThinkPad-P15v-Gen-2i:@/tmp/.ICE-unix/5619,unix/foobaruser-ThinkPad-P15v-Gen-2i:/tmp/.ICE-unix/5619&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SHELL</td>
           <td class="code"><pre>&#x27;/bin/bash&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SHLVL</td>
           <td class="code"><pre>&#x27;1&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SSH_AGENT_LAUNCHER</td>
           <td class="code"><pre>&#x27;gnome-keyring&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SSH_AUTH_SOCK</td>
           <td class="code"><pre>&#x27;/run/user/1000/keyring/ssh&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SYSTEMD_EXEC_PID</td>
           <td class="code"><pre>&#x27;5619&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>TERM</td>
           <td class="code"><pre>&#x27;xterm-256color&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>TILIX_ID</td>
           <td class="code"><pre>&#x27;62221076-149e-426c-bba3-cf14d3a9099a&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>USER</td>
           <td class="code"><pre>&#x27;foobaruser&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>USERNAME</td>
           <td class="code"><pre>&#x27;foobaruser&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>VIRTUAL_ENV</td>
           <td class="code"><pre>&#x27;/home/foobaruser/.pyenv/versions/3.12.5/envs/testsca&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>VTE_VERSION</td>
           <td class="code"><pre>&#x27;6800&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>WAYLAND_DISPLAY</td>
           <td class="code"><pre>&#x27;wayland-0&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XAUTHORITY</td>
           <td class="code"><pre>&#x27;/run/user/1000/.mutter-Xwaylandauth.50H8Z2&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_CONFIG_DIRS</td>
           <td class="code"><pre>&#x27;/etc/xdg/xdg-ubuntu:/etc/xdg&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_CURRENT_DESKTOP</td>
           <td class="code"><pre>&#x27;ubuntu:GNOME&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_DATA_DIRS</td>
           <td class="code"><pre>&#x27;/usr/share/ubuntu:/home/foobaruser/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_MENU_PREFIX</td>
           <td class="code"><pre>&#x27;gnome-&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_RUNTIME_DIR</td>
           <td class="code"><pre>&#x27;/run/user/1000&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_SESSION_CLASS</td>
           <td class="code"><pre>&#x27;user&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_SESSION_DESKTOP</td>
           <td class="code"><pre>&#x27;ubuntu&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XDG_SESSION_TYPE</td>
           <td class="code"><pre>&#x27;wayland&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>XMODIFIERS</td>
           <td class="code"><pre>&#x27;@im=ibus&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.errors</td>
           <td class="code"><pre>&lt;_io.TextIOWrapper name=&#x27;&lt;stderr&gt;&#x27; mode=&#x27;w&#x27; encoding=&#x27;utf-8&#x27;&gt;</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.file_wrapper</td>
           <td class="code"><pre>&lt;class &#x27;wsgiref.util.FileWrapper&#x27;&gt;</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.input</td>
           <td class="code"><pre>&lt;django.core.handlers.wsgi.LimitedStream object at 0x739fa53ad4b0&gt;</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.multiprocess</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.multithread</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.run_once</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.url_scheme</td>
           <td class="code"><pre>&#x27;http&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>wsgi.version</td>
           <td class="code"><pre>(1, 0)</pre></td>
         </tr>
-      
+
     </tbody>
   </table>
 
@@ -1143,117 +1143,117 @@ Exception Value:
       </tr>
     </thead>
     <tbody>
-      
+
         <tr>
           <td>ABSOLUTE_URL_OVERRIDES</td>
           <td class="code"><pre>{}</pre></td>
         </tr>
-      
+
         <tr>
           <td>ADMINS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>ALLOWED_HOSTS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>APPEND_SLASH</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>AUTHENTICATION_BACKENDS</td>
           <td class="code"><pre>[&#x27;django.contrib.auth.backends.ModelBackend&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>AUTH_PASSWORD_VALIDATORS</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>AUTH_USER_MODEL</td>
           <td class="code"><pre>&#x27;auth.User&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CACHES</td>
           <td class="code"><pre>{&#x27;default&#x27;: {&#x27;BACKEND&#x27;: &#x27;django.core.cache.backends.locmem.LocMemCache&#x27;}}</pre></td>
         </tr>
-      
+
         <tr>
           <td>CACHE_MIDDLEWARE_ALIAS</td>
           <td class="code"><pre>&#x27;default&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CACHE_MIDDLEWARE_KEY_PREFIX</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CACHE_MIDDLEWARE_SECONDS</td>
           <td class="code"><pre>600</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_AGE</td>
           <td class="code"><pre>31449600</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_DOMAIN</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_HTTPONLY</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_NAME</td>
           <td class="code"><pre>&#x27;csrftoken&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_PATH</td>
           <td class="code"><pre>&#x27;/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_SAMESITE</td>
           <td class="code"><pre>&#x27;Lax&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_COOKIE_SECURE</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_FAILURE_VIEW</td>
           <td class="code"><pre>&#x27;django.views.csrf.csrf_failure&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_HEADER_NAME</td>
           <td class="code"><pre>&#x27;HTTP_X_CSRFTOKEN&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_TRUSTED_ORIGINS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>CSRF_USE_SESSIONS</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATABASES</td>
           <td class="code"><pre>{&#x27;default&#x27;: {&#x27;ATOMIC_REQUESTS&#x27;: False,
@@ -1274,32 +1274,32 @@ Exception Value:
              &#x27;TIME_ZONE&#x27;: None,
              &#x27;USER&#x27;: &#x27;&#x27;}}</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATABASE_ROUTERS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATA_UPLOAD_MAX_MEMORY_SIZE</td>
           <td class="code"><pre>2621440</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATA_UPLOAD_MAX_NUMBER_FIELDS</td>
           <td class="code"><pre>1000</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATA_UPLOAD_MAX_NUMBER_FILES</td>
           <td class="code"><pre>100</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATETIME_FORMAT</td>
           <td class="code"><pre>&#x27;N j, Y, P&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATETIME_INPUT_FORMATS</td>
           <td class="code"><pre>[&#x27;%Y-%m-%d %H:%M:%S&#x27;,
@@ -1312,12 +1312,12 @@ Exception Value:
  &#x27;%m/%d/%y %H:%M:%S.%f&#x27;,
  &#x27;%m/%d/%y %H:%M&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATE_FORMAT</td>
           <td class="code"><pre>&#x27;N j, Y&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DATE_INPUT_FORMATS</td>
           <td class="code"><pre>[&#x27;%Y-%m-%d&#x27;,
@@ -1332,193 +1332,193 @@ Exception Value:
  &#x27;%d %B %Y&#x27;,
  &#x27;%d %B, %Y&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEBUG</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEBUG_PROPAGATE_EXCEPTIONS</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>DECIMAL_SEPARATOR</td>
           <td class="code"><pre>&#x27;.&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_AUTO_FIELD</td>
           <td class="code"><pre>&#x27;django.db.models.AutoField&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_CHARSET</td>
           <td class="code"><pre>&#x27;utf-8&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_EXCEPTION_REPORTER</td>
           <td class="code"><pre>&#x27;django.views.debug.ExceptionReporter&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_EXCEPTION_REPORTER_FILTER</td>
           <td class="code"><pre>&#x27;django.views.debug.SafeExceptionReporterFilter&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_FROM_EMAIL</td>
           <td class="code"><pre>&#x27;webmaster@localhost&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_INDEX_TABLESPACE</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DEFAULT_TABLESPACE</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>DISALLOWED_USER_AGENTS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_BACKEND</td>
           <td class="code"><pre>&#x27;django.core.mail.backends.smtp.EmailBackend&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_HOST</td>
           <td class="code"><pre>&#x27;localhost&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_HOST_PASSWORD</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_HOST_USER</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_PORT</td>
           <td class="code"><pre>25</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_SSL_CERTFILE</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_SSL_KEYFILE</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_SUBJECT_PREFIX</td>
           <td class="code"><pre>&#x27;[Django] &#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_TIMEOUT</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_USE_LOCALTIME</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_USE_SSL</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>EMAIL_USE_TLS</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>FILE_UPLOAD_DIRECTORY_PERMISSIONS</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>FILE_UPLOAD_HANDLERS</td>
           <td class="code"><pre>[&#x27;django.core.files.uploadhandler.MemoryFileUploadHandler&#x27;,
  &#x27;django.core.files.uploadhandler.TemporaryFileUploadHandler&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>FILE_UPLOAD_MAX_MEMORY_SIZE</td>
           <td class="code"><pre>2621440</pre></td>
         </tr>
-      
+
         <tr>
           <td>FILE_UPLOAD_PERMISSIONS</td>
           <td class="code"><pre>420</pre></td>
         </tr>
-      
+
         <tr>
           <td>FILE_UPLOAD_TEMP_DIR</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>FIRST_DAY_OF_WEEK</td>
           <td class="code"><pre>0</pre></td>
         </tr>
-      
+
         <tr>
           <td>FIXTURE_DIRS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>FORCE_SCRIPT_NAME</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>FORMAT_MODULE_PATH</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>FORMS_URLFIELD_ASSUME_HTTPS</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>FORM_RENDERER</td>
           <td class="code"><pre>&#x27;django.forms.renderers.DjangoTemplates&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>IGNORABLE_404_URLS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>INSTALLED_APPS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>INTERNAL_IPS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGES</td>
           <td class="code"><pre>[(&#x27;af&#x27;, &#x27;Afrikaans&#x27;),
@@ -1621,395 +1621,395 @@ Exception Value:
  (&#x27;zh-hans&#x27;, &#x27;Simplified Chinese&#x27;),
  (&#x27;zh-hant&#x27;, &#x27;Traditional Chinese&#x27;)]</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGES_BIDI</td>
           <td class="code"><pre>[&#x27;he&#x27;, &#x27;ar&#x27;, &#x27;ar-dz&#x27;, &#x27;ckb&#x27;, &#x27;fa&#x27;, &#x27;ug&#x27;, &#x27;ur&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_CODE</td>
           <td class="code"><pre>&#x27;en-us&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_AGE</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_DOMAIN</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_HTTPONLY</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_NAME</td>
           <td class="code"><pre>&#x27;django_language&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_PATH</td>
           <td class="code"><pre>&#x27;/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_SAMESITE</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>LANGUAGE_COOKIE_SECURE</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOCALE_PATHS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGGING</td>
           <td class="code"><pre>{}</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGGING_CONFIG</td>
           <td class="code"><pre>&#x27;logging.config.dictConfig&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGIN_REDIRECT_URL</td>
           <td class="code"><pre>&#x27;/accounts/profile/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGIN_URL</td>
           <td class="code"><pre>&#x27;/accounts/login/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>LOGOUT_REDIRECT_URL</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>MANAGERS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>MEDIA_ROOT</td>
           <td class="code"><pre>&#x27;&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>MEDIA_URL</td>
           <td class="code"><pre>&#x27;/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>MESSAGE_STORAGE</td>
           <td class="code"><pre>&#x27;django.contrib.messages.storage.fallback.FallbackStorage&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>MIDDLEWARE</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>MIGRATION_MODULES</td>
           <td class="code"><pre>{}</pre></td>
         </tr>
-      
+
         <tr>
           <td>MONTH_DAY_FORMAT</td>
           <td class="code"><pre>&#x27;F j&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>NUMBER_GROUPING</td>
           <td class="code"><pre>0</pre></td>
         </tr>
-      
+
         <tr>
           <td>PASSWORD_HASHERS</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PASSWORD_RESET_TIMEOUT</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>PREPEND_WWW</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>ROOT_URLCONF</td>
           <td class="code"><pre>&#x27;__main__&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECRET_KEY</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECRET_KEY_FALLBACKS</td>
           <td class="code"><pre>&#x27;********************&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_CONTENT_TYPE_NOSNIFF</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_CROSS_ORIGIN_OPENER_POLICY</td>
           <td class="code"><pre>&#x27;same-origin&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_HSTS_INCLUDE_SUBDOMAINS</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_HSTS_PRELOAD</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_HSTS_SECONDS</td>
           <td class="code"><pre>0</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_PROXY_SSL_HEADER</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_REDIRECT_EXEMPT</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_REFERRER_POLICY</td>
           <td class="code"><pre>&#x27;same-origin&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_SSL_HOST</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>SECURE_SSL_REDIRECT</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SERVER_EMAIL</td>
           <td class="code"><pre>&#x27;root@localhost&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_CACHE_ALIAS</td>
           <td class="code"><pre>&#x27;default&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_AGE</td>
           <td class="code"><pre>1209600</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_DOMAIN</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_HTTPONLY</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_NAME</td>
           <td class="code"><pre>&#x27;sessionid&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_PATH</td>
           <td class="code"><pre>&#x27;/&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_SAMESITE</td>
           <td class="code"><pre>&#x27;Lax&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_COOKIE_SECURE</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_ENGINE</td>
           <td class="code"><pre>&#x27;django.contrib.sessions.backends.db&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_EXPIRE_AT_BROWSER_CLOSE</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_FILE_PATH</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_SAVE_EVERY_REQUEST</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>SESSION_SERIALIZER</td>
           <td class="code"><pre>&#x27;django.contrib.sessions.serializers.JSONSerializer&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SHORT_DATETIME_FORMAT</td>
           <td class="code"><pre>&#x27;m/d/Y P&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SHORT_DATE_FORMAT</td>
           <td class="code"><pre>&#x27;m/d/Y&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SIGNING_BACKEND</td>
           <td class="code"><pre>&#x27;django.core.signing.TimestampSigner&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>SILENCED_SYSTEM_CHECKS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>STATICFILES_DIRS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>STATICFILES_FINDERS</td>
           <td class="code"><pre>[&#x27;django.contrib.staticfiles.finders.FileSystemFinder&#x27;,
  &#x27;django.contrib.staticfiles.finders.AppDirectoriesFinder&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>STATIC_ROOT</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>STATIC_URL</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>STORAGES</td>
           <td class="code"><pre>{&#x27;default&#x27;: {&#x27;BACKEND&#x27;: &#x27;django.core.files.storage.FileSystemStorage&#x27;},
  &#x27;staticfiles&#x27;: {&#x27;BACKEND&#x27;: &#x27;django.contrib.staticfiles.storage.StaticFilesStorage&#x27;}}</pre></td>
         </tr>
-      
+
         <tr>
           <td>TEMPLATES</td>
           <td class="code"><pre>[{&#x27;BACKEND&#x27;: &#x27;django.template.backends.django.DjangoTemplates&#x27;,
   &#x27;DIRS&#x27;: [&#x27;templates&#x27;]}]</pre></td>
         </tr>
-      
+
         <tr>
           <td>TEST_NON_SERIALIZED_APPS</td>
           <td class="code"><pre>[]</pre></td>
         </tr>
-      
+
         <tr>
           <td>TEST_RUNNER</td>
           <td class="code"><pre>&#x27;django.test.runner.DiscoverRunner&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>THOUSAND_SEPARATOR</td>
           <td class="code"><pre>&#x27;,&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>TIME_FORMAT</td>
           <td class="code"><pre>&#x27;P&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>TIME_INPUT_FORMATS</td>
           <td class="code"><pre>[&#x27;%H:%M:%S&#x27;, &#x27;%H:%M:%S.%f&#x27;, &#x27;%H:%M&#x27;]</pre></td>
         </tr>
-      
+
         <tr>
           <td>TIME_ZONE</td>
           <td class="code"><pre>&#x27;America/Chicago&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>USE_I18N</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>USE_THOUSAND_SEPARATOR</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>USE_TZ</td>
           <td class="code"><pre>True</pre></td>
         </tr>
-      
+
         <tr>
           <td>USE_X_FORWARDED_HOST</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>USE_X_FORWARDED_PORT</td>
           <td class="code"><pre>False</pre></td>
         </tr>
-      
+
         <tr>
           <td>WSGI_APPLICATION</td>
           <td class="code"><pre>None</pre></td>
         </tr>
-      
+
         <tr>
           <td>X_FRAME_OPTIONS</td>
           <td class="code"><pre>&#x27;DENY&#x27;</pre></td>
         </tr>
-      
+
         <tr>
           <td>YEAR_MONTH_FORMAT</td>
           <td class="code"><pre>&#x27;F Y&#x27;</pre></td>
         </tr>
-      
+
     </tbody>
   </table>
 
@@ -2068,6 +2068,7 @@ ValueError: Constraint violation at step 9
 Lorem Ipsum Foobar
 """
 
+
 def test_asm_check_stacktrace_leak_html(iast_context_defaults):
     asm_check_stacktrace_leak(_html_django_stacktrace)
     span_report = _get_span_report()
@@ -2075,7 +2076,10 @@ def test_asm_check_stacktrace_leak_html(iast_context_defaults):
     vulnerabilities_types = [vuln.type for vuln in vulnerabilities]
     assert len(vulnerabilities) == 1
     assert VULN_STACKTRACE_LEAK in vulnerabilities_types
-    assert vulnerabilities[0].evidence.value == "Module: home.foobaruser.sources.minimal-django-example.app\nException: IndexError"
+    assert (
+        vulnerabilities[0].evidence.value
+        == "Module: home.foobaruser.sources.minimal-django-example.app\nException: IndexError"
+    )
 
 
 def test_asm_check_stacktrace_leak_text(iast_context_defaults):
@@ -2085,4 +2089,7 @@ def test_asm_check_stacktrace_leak_text(iast_context_defaults):
     vulnerabilities_types = [vuln.type for vuln in vulnerabilities]
     assert len(vulnerabilities) == 1
     assert VULN_STACKTRACE_LEAK in vulnerabilities_types
-    assert vulnerabilities[0].evidence.value == "Module: usr.local.lib.python3.9.site-packages.constraints\nException: ValueError"
+    assert (
+        vulnerabilities[0].evidence.value
+        == "Module: usr.local.lib.python3.9.site-packages.constraints\nException: ValueError"
+    )

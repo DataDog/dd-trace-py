@@ -22,6 +22,7 @@ from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
 from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
 
+
 MessageMapContainer = None
 try:
     from google._upb._message import MessageMapContainer  # type: ignore[no-redef]
@@ -425,4 +426,3 @@ def _on_flask_finalize_request_post(response, _):
         asm_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
-

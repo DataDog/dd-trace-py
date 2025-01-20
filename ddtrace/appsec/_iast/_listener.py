@@ -1,9 +1,10 @@
-from ddtrace.appsec._iast._handlers import _on_django_func_wrapped, _on_flask_finalize_request_post
+from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
+from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
 from ddtrace.appsec._iast._handlers import _on_django_patch
+from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
-from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_http_meta_iast
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast

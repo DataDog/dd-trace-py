@@ -10,17 +10,19 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION, VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
 from tests.utils import override_global_config
+
 
 TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
 
@@ -36,11 +38,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
     def setUp(self):
         with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
@@ -68,11 +70,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"})
             assert resp.status_code == 200
@@ -120,10 +122,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post(
                 "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
@@ -180,9 +182,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
             assert resp.status_code == 200
@@ -232,9 +234,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
             assert resp.status_code == 200
@@ -301,11 +303,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return request.query_string, 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post("/sqli/hello/1000/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
@@ -364,11 +366,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             oce.reconfigure()
 
@@ -431,10 +433,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master2")
@@ -492,10 +494,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.get("/sqli/parameter/?table=sqlite_master")
             assert resp.status_code == 200
@@ -547,11 +549,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post("/sqli/", data={"sqlite_master": "unused"})
             assert resp.status_code == 200
@@ -605,11 +607,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.get("/sqli/", query_string={"sqlite_master": "unused"})
             assert resp.status_code == 200
@@ -670,11 +672,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post(
                 "/sqli/body/", data=json.dumps(dict(json_body="master")), content_type="application/json"
@@ -735,9 +737,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post(
                 "/sqli/body/",
@@ -800,9 +802,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post(
                 "/sqli/body/",
@@ -865,9 +867,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post(
                 "/sqli/body/",
@@ -949,9 +951,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             # random json with all kind of types
             json_data = {
@@ -1073,13 +1075,13 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return {"Response": value}, 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _asm_enabled=True,
-                    _api_security_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post(
                 "/sqli/body/", data=json.dumps(dict(json_body="master")), content_type="application/json"
@@ -1116,9 +1118,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                )
+            dict(
+                _iast_enabled=True,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
             assert resp.status_code == 200
@@ -1168,10 +1170,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1205,10 +1207,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1234,10 +1236,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1263,10 +1265,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/insecure_cookie/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1301,10 +1303,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/insecure_cookie_empty/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1331,10 +1333,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/no_http_only_cookie/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1369,11 +1371,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post("/no_http_only_cookie_empty/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1400,10 +1402,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/no_samesite_cookie/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1438,10 +1440,10 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.post("/no_samesite_cookie_empty/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1466,11 +1468,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             return resp
 
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             resp = self.client.post("/cookie_secure/", data={"name": "test"})
             assert resp.status_code == 200
@@ -1486,7 +1488,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         @self.app.route("/stacktrace_leak/")
         def stacktrace_leak():
             from flask import Response
-            return Response("""Traceback (most recent call last):
+
+            return Response(
+                """Traceback (most recent call last):
   File "/usr/local/lib/python3.9/site-packages/some_module.py", line 42, in process_data
     result = complex_calculation(data)
   File "/usr/local/lib/python3.9/site-packages/another_module.py", line 158, in complex_calculation
@@ -1508,14 +1512,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 ValueError: Constraint violation at step 9
 
 Lorem Ipsum Foobar
-""")
+"""
+            )
 
-        with (override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
-        )):
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
             resp = self.client.get("/stacktrace_leak/")
             assert resp.status_code == 200
 
@@ -1527,10 +1532,9 @@ Lorem Ipsum Foobar
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_STACKTRACE_LEAK
-            assert vulnerability["evidence"] == {"valueParts":
-                [
-                    {"value": "Module: usr.local.lib.python3.9.site-packages.constraints\nException: ValueError"
-                     }
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "Module: usr.local.lib.python3.9.site-packages.constraints\nException: ValueError"}
                 ]
             }
 
@@ -1542,10 +1546,10 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
     def setUp(self):
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                    _iast_request_sampling=100.0,
-                )
+            dict(
+                _iast_enabled=False,
+                _iast_request_sampling=100.0,
+            )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4")
@@ -1599,9 +1603,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                )
+            dict(
+                _iast_enabled=False,
+            )
         ):
             resp = self.client.post(
                 "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
@@ -1633,9 +1637,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                )
+            dict(
+                _iast_enabled=False,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"master": "not_user_agent"})
             assert resp.status_code == 200
@@ -1665,9 +1669,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                )
+            dict(
+                _iast_enabled=False,
+            )
         ):
             resp = self.client.post("/sqli/sqlite_master/", data={"name": "test"}, headers={"user-agent": "master"})
             assert resp.status_code == 200
@@ -1693,9 +1697,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return request.query_string, 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                )
+            dict(
+                _iast_enabled=False,
+            )
         ):
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
             assert resp.status_code == 200
@@ -1721,9 +1725,9 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(
-                dict(
-                    _iast_enabled=False,
-                )
+            dict(
+                _iast_enabled=False,
+            )
         ):
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")

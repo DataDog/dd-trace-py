@@ -32,8 +32,9 @@ IDEA_DEF = "idea"
 STACKTRACE_RE_DETECT = re.compile(r"Traceback \(most recent call last\):")
 HTML_TAGS_REMOVE = re.compile(r"<[^>]*>")
 STACKTRACE_FILE_LINE = re.compile(r'^File\s+"([^"]+)"(?:,\s+line\s+(\d+))?,\s+in\s+(.*)$')
-STACKTRACE_EXCEPTION_REGEX = re.compile(r'^(?P<exc>[A-Za-z_]\w*(?:Error|Exception|Interrupt|Fault|Warning))'
-                                 r'(?:\s*:\s*(?P<msg>.*))?$')
+STACKTRACE_EXCEPTION_REGEX = re.compile(
+    r"^(?P<exc>[A-Za-z_]\w*(?:Error|Exception|Interrupt|Fault|Warning))" r"(?:\s*:\s*(?P<msg>.*))?$"
+)
 
 DEFAULT_WEAK_HASH_ALGORITHMS = {MD5_DEF, SHA1_DEF}
 

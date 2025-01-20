@@ -557,8 +557,6 @@ def _on_block_decided(callback):
     core.on("flask.block.request.content", callback, "block_requested")
 
 
-
-
 def _get_headers_if_appsec():
     if asm_config._asm_enabled:
         return get_headers()
