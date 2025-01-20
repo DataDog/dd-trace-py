@@ -1,4 +1,4 @@
-from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
+from ddtrace.appsec._iast._handlers import _on_django_func_wrapped, _on_flask_finalize_request_post
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response

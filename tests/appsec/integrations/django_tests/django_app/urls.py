@@ -81,4 +81,5 @@ urlpatterns = [
     handler("appsec/validate_querydict/$", views.validate_querydict, name="validate_querydict"),
     path("appsec/path-params/<int:year>/<str:month>/", views.path_params_view, name="path-params-view"),
     path("appsec/checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
+    path("appsec/stacktrace_leak/", views.stacktrace_leak_view),
 ]

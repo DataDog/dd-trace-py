@@ -273,3 +273,7 @@ def validate_querydict(request):
     return HttpResponse(
         "x=%s, all=%s, keys=%s, urlencode=%s" % (str(res), str(lres), str(keys), qd.urlencode()), status=200
     )
+
+def stacktrace_leak_view(request):
+    from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _html_django_stacktrace
+    return HttpResponse(_html_django_stacktrace)

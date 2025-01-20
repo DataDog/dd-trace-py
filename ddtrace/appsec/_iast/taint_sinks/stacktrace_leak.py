@@ -5,8 +5,6 @@ from .. import oce
 from .._metrics import increment_iast_span_metric, _set_metric_iast_executed_sink
 from .._taint_tracking._errors import iast_taint_log_error
 from ..constants import VULN_STACKTRACE_LEAK
-from .. import _is_iast_enabled
-from .._iast_request_context import is_iast_request_enabled
 from ..constants import STACKTRACE_FILE_LINE
 from ..constants import STACKTRACE_EXCEPTION_REGEX
 from ..constants import HTML_TAGS_REMOVE

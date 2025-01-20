@@ -405,7 +405,6 @@ def _on_set_request_tags_iast(request, span, flask_config):
         )
 
 
-# JJJ try except... el decode podria fallar
 def _on_django_finalize_response_pre(response):
     if not _is_iast_enabled() or not is_iast_request_enabled():
         return
@@ -422,7 +421,7 @@ def _on_flask_finalize_request_post(response, _):
         return
 
     try:
-        content = response.content.decode("utf-8")
+        content = response[0].decode("utf-8")
         asm_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)

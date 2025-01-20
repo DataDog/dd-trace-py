@@ -7,7 +7,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
-from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_CMDI, VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
@@ -885,4 +885,25 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
         assert "path" not in vulnerability["location"].keys()
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
+        assert vulnerability["hash"]
+
+@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+def test_django_stacktrace_leak(client, test_spans):
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
+        oce.reconfigure()
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/stacktrace_leak/",
+        )
+
+        assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert loaded["sources"] == []
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+        assert vulnerability["evidence"] == {"valueParts": [{"value": "Module: home.foobaruser.sources.minimal-django-example.app\nException: IndexError"}]}
         assert vulnerability["hash"]
