@@ -61,3 +61,6 @@ INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
 FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
 EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
 EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
+
+SPAN_LINKS = "_ml_obs.span_links"
+NAME = "_ml_obs.name"

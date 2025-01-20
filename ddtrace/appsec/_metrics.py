@@ -1,7 +1,7 @@
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
-from ddtrace.appsec._ddwaf import version as _version
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._processor import ddwaf
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -10,7 +10,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 log = get_logger(__name__)
 
-DDWAF_VERSION = _version()
+DDWAF_VERSION = ddwaf.version()
 
 
 @deduplication

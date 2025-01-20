@@ -41,7 +41,7 @@ def _aux_appsec_get_root_span(
     if cookies is None:
         cookies = {}
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
     # Set cookies
     client.cookies.load(cookies)
     if payload is None:
