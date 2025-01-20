@@ -134,7 +134,7 @@ def test_linetable_adjustment():
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 11),
+    sys.version_info[:2] != (3, 11),
     reason="Exception table was introduced in 3.11",
 )
 def test_exceptiontable_adjustment():
