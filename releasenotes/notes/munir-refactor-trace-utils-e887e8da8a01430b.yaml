@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates all attributes in ``ddtrace.contrib.trace_utils_async`` and ``ddtrace.contrib.redis_utils``.
+    Replaces ``ddtrace.contrib.trace_utils_async.with_traced_module(...)`` with ``ddtrace.contrib.trace_utils.with_traced_module_async(...)``.  
+    Moves public attributes defined in ``ddtrace.contrib.redis_utils.*`` to ``ddtrace.contrib.trace_utils``.
