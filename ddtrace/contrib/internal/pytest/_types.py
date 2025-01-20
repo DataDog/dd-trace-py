@@ -1,6 +1,6 @@
 import typing as t
 
-from ddtrace.contrib.pytest._utils import _get_pytest_version_tuple
+from ddtrace.contrib.internal.pytest._utils import _get_pytest_version_tuple
 
 
 if _get_pytest_version_tuple() >= (7, 0, 0):

@@ -173,7 +173,7 @@ def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, o
 @pytest.fixture
 def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
     pin = Pin.get_from(openai)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+    pin.tracer._configure(trace_processors=[FilterOrg()])
 
     yield pin.tracer
 
@@ -186,7 +186,7 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(openai, tracer=mock_tracer)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+    pin.tracer._configure(trace_processors=[FilterOrg()])
 
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.

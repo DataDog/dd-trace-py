@@ -40,7 +40,9 @@ class BaseLLMIntegration:
         self._log_writer = None
         self._statsd = None
         self.integration_config = integration_config
-        self._span_pc_sampler = RateSampler(sample_rate=integration_config.span_prompt_completion_sample_rate)
+        self._span_pc_sampler = RateSampler(
+            sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
+        )
 
         if self.metrics_enabled:
             self._statsd = get_dogstatsd_client(get_stats_url(), namespace=self._integration_name)

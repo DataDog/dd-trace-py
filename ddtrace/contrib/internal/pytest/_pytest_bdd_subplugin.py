@@ -13,13 +13,13 @@ import sys
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _get_test_id_from_item
-from ddtrace.contrib.pytest_bdd import get_version
-from ddtrace.contrib.pytest_bdd._plugin import _extract_span
-from ddtrace.contrib.pytest_bdd._plugin import _get_step_func_args_json
-from ddtrace.contrib.pytest_bdd._plugin import _store_span
-from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
-from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
+from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
+from ddtrace.contrib.internal.pytest_bdd._plugin import _extract_span
+from ddtrace.contrib.internal.pytest_bdd._plugin import _get_step_func_args_json
+from ddtrace.contrib.internal.pytest_bdd._plugin import _store_span
+from ddtrace.contrib.internal.pytest_bdd.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest_bdd.constants import STEP_KIND
+from ddtrace.contrib.internal.pytest_bdd.patch import get_version
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
