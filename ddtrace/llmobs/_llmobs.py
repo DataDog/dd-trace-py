@@ -31,6 +31,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -91,6 +92,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = LLMObsSpanWriter(
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
@@ -152,13 +154,13 @@ class LLMObs(Service):
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
-            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE))
+            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
         if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
             meta["output"]["messages"] = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
-            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE))
+            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:
