@@ -1,6 +1,7 @@
 import os
 import re
 
+from ..._asm_request_context import set_stacktrace_reported, get_stacktrace_reported
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
@@ -19,8 +20,16 @@ class StacktraceLeak(VulnerabilityBase):
     skip_location = True
 
 
+def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
+    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
+    _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
+    evidence = "Module: %s\nException: %s" % (module, exc_name)
+    StacktraceLeak.report(evidence_value=evidence)
+    set_stacktrace_reported()
+
+
 def asm_check_stacktrace_leak(content: str) -> None:
-    if not content:
+    if get_stacktrace_reported() or not content:
         return
 
     try:

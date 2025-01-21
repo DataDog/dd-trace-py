@@ -1,4 +1,4 @@
-from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
+from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre, _on_django_technical_500_response
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
@@ -23,6 +23,7 @@ def iast_listen():
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.func.wrapped", _on_django_func_wrapped)
+    core.on("django.technical_500_response", _on_django_technical_500_response)
     core.on("flask.patch", _on_flask_patch)
     core.on("flask.request_init", _on_request_init)
     core.on("flask._patched_request", _on_pre_tracedrequest_iast)

@@ -1,5 +1,6 @@
 from collections.abc import MutableMapping
 import functools
+import traceback
 
 from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
@@ -20,8 +21,7 @@ from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
-from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
-
+from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak, asm_report_stacktrace_leak_from_django_debug_page
 
 MessageMapContainer = None
 try:
@@ -415,6 +415,20 @@ def _on_django_finalize_response_pre(response):
         asm_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
+    if not _is_iast_enabled() or not is_iast_request_enabled() or not exc_value:
+        return
+
+    try:
+        exc_name = exc_type.__name__
+        module = tb.tb_frame.f_globals.get("__name__", "")
+        # JJJ mark the vulnerability as generated so we dont have to
+        # check for the stacktrace in the body (context?)
+        asm_report_stacktrace_leak_from_django_debug_page(exc_name, module)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak on 500 response view", exc_info=True)
 
 
 def _on_flask_finalize_request_post(response, _):

@@ -279,3 +279,12 @@ def stacktrace_leak_view(request):
     from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_html_django_stacktrace
 
     return HttpResponse(_load_html_django_stacktrace())
+
+
+def stacktrace_leak_500_view(request):
+    try:
+        raise Exception("FooBar Exception")
+    except Exception as e:
+        from django.views.debug import technical_500_response
+        import sys
+        return technical_500_response(request, *sys.exc_info())

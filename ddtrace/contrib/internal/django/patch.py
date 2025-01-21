@@ -694,6 +694,22 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     view = func(*args, **kwargs)
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
+@trace_utils.with_traced_module
+def traced_technical_500_response(django, pin, func, instance, args, kwargs):
+    """
+    Wrapper for django's views.debug.technical_500_response
+    """
+    response = func(*args, **kwargs)
+    try:
+        request = get_argument_value(args, kwargs, 0, "request")
+        exc_type = get_argument_value(args, kwargs, 1, "exc_type")
+        exc_value = get_argument_value(args, kwargs, 2, "exc_value")
+        tb = get_argument_value(args, kwargs, 3, "tb")
+        core.dispatch("django.technical_500_response", (request, response, exc_type, exc_value, tb))
+    except Exception:
+        log.debug("Error while trying to trace Django technical 500 response", exc_info=True)
+    return response
+
 
 @trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
@@ -890,6 +906,7 @@ def _patch(django):
             trace_utils.wrap(m, "re_path", traced_urls_path(django))
 
     when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
+    when_imported("django.views.debug")(lambda m: trace_utils.wrap(m, "technical_500_response", traced_technical_500_response(django)))
 
     @when_imported("channels.routing")
     def _(m):

@@ -50,6 +50,7 @@ _CONTEXT_CALL: Literal["context"] = "context"
 _WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
 _TELEMETRY_WAF_RESULTS: Literal["t_waf_results"] = "t_waf_results"
+_STACKTRACE_LEAK_REPORTED: Literal["stacktrace_reported"] = "stacktrace_reported"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
@@ -271,6 +272,14 @@ def set_waf_address(address: str, value: Any) -> None:
     if env and env.span:
         root = env.span._local_root or env.span
         root._set_ctx_item(address, value)
+
+
+def set_stacktrace_reported():
+    set_value(_STACKTRACE_LEAK_REPORTED, _STACKTRACE_LEAK_REPORTED, True)
+
+
+def get_stacktrace_reported():
+    return get_value(_STACKTRACE_LEAK_REPORTED, _STACKTRACE_LEAK_REPORTED, False)
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:
