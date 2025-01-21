@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_VALUE_EMPTY
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_VERSION
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
 
 

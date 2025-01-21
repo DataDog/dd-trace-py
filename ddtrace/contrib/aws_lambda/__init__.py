@@ -39,9 +39,6 @@ For additional configuration refer to
 `Instrumenting Python Serverless Applications by Datadog <https://docs.datadoghq.com/serverless/installation/python>`_.
 """
 
-from ddtrace.contrib.internal.aws_lambda.patch import get_version
-from ddtrace.contrib.internal.aws_lambda.patch import patch
-from ddtrace.contrib.internal.aws_lambda.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.aws_lambda.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aws_lambda.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.aws_lambda.patch import unpatch  # noqa: F401
