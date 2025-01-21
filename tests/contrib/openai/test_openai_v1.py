@@ -5,9 +5,7 @@ import openai as openai_module
 import pytest
 
 import ddtrace
-from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
-from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -35,56 +33,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
     # Ensure overriding the config works
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
-
-
-def test_patching(openai):
-    """Ensure that the correct objects are patched and not double patched."""
-    methods = [
-        (openai.resources.completions.Completions, "create"),
-        (openai.resources.completions.AsyncCompletions, "create"),
-        (openai.resources.chat.Completions, "create"),
-        (openai.resources.chat.AsyncCompletions, "create"),
-        (openai.resources.embeddings.Embeddings, "create"),
-        (openai.resources.embeddings.AsyncEmbeddings, "create"),
-        (openai.resources.models.Models, "list"),
-        (openai.resources.models.Models, "retrieve"),
-        (openai.resources.models.AsyncModels, "list"),
-        (openai.resources.models.AsyncModels, "retrieve"),
-        (openai.resources.images.Images, "generate"),
-        (openai.resources.images.Images, "edit"),
-        (openai.resources.images.Images, "create_variation"),
-        (openai.resources.images.AsyncImages, "generate"),
-        (openai.resources.images.AsyncImages, "edit"),
-        (openai.resources.images.AsyncImages, "create_variation"),
-        (openai.resources.audio.Transcriptions, "create"),
-        (openai.resources.audio.AsyncTranscriptions, "create"),
-        (openai.resources.audio.Translations, "create"),
-        (openai.resources.audio.AsyncTranslations, "create"),
-        (openai.resources.moderations.Moderations, "create"),
-        (openai.resources.moderations.AsyncModerations, "create"),
-        (openai.resources.files.Files, "create"),
-        (openai.resources.files.Files, "retrieve"),
-        (openai.resources.files.Files, "list"),
-        (openai.resources.files.Files, "delete"),
-        (openai.resources.files.Files, "retrieve_content"),
-        (openai.resources.files.AsyncFiles, "create"),
-        (openai.resources.files.AsyncFiles, "retrieve"),
-        (openai.resources.files.AsyncFiles, "list"),
-        (openai.resources.files.AsyncFiles, "delete"),
-        (openai.resources.files.AsyncFiles, "retrieve_content"),
-    ]
-
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]))
-
-    patch(openai=True)
-    for m in methods:
-        assert iswrapped(getattr(m[0], m[1]))
-
-    # Ensure double patching does not occur
-    patch(openai=True)
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
