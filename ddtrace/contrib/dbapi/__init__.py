@@ -21,8 +21,8 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import sql
 from ...trace import Pin
-from ..trace_utils import ext_service
-from ..trace_utils import iswrapped
+from ..internal.trace_utils import ext_service
+from ..internal.trace_utils import iswrapped
 
 
 log = get_logger(__name__)

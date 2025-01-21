@@ -19,10 +19,10 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import wrap
-from ddtrace.contrib.trace_utils_async import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover

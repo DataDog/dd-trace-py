@@ -5,7 +5,7 @@ from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.connection import patch_conn
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db

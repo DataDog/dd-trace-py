@@ -65,11 +65,8 @@ import warnings as _w
 
 with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
-    from . import patch as _  # noqa: F401, I001
+    from . import patch as _  # noqa: I001,F401
 
-from ddtrace.contrib.internal.httplib.patch import get_version
-from ddtrace.contrib.internal.httplib.patch import patch
-from ddtrace.contrib.internal.httplib.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.httplib.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.httplib.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.httplib.patch import unpatch  # noqa: F401

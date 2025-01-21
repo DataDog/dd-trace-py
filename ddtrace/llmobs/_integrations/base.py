@@ -10,7 +10,7 @@ from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.contrib.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client

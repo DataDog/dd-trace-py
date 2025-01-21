@@ -6,6 +6,7 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import parse
@@ -67,7 +68,7 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    url = trace_utils._sanitized_url(request.url)
+    url = _sanitized_url(request.url)
     method = ""
     if request.method is not None:
         method = request.method.upper()
