@@ -9,5 +9,4 @@ features:
                       - [Answer Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/): measures how relevant the LLM response is to the user input.
                       - [Context Precision](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/):  measures how effectively the context is used in the generated response.
 
-                      # (TODI): UPDATE TO CORRECT LINK LATER!!!
-                      For more information, please see the [RAGAS Integration documentation](https://docs.datadoghq.com/llm_observability/submit_evaluations/ragas_integration).
+                      To learn more, see the [LLM Observability evaluations guide](https://docs.datadoghq.com/llm_observability/submit_evaluations/).
