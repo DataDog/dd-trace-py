@@ -24,6 +24,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -85,6 +86,7 @@ class LLMObs(Service):
 
         self._llmobs_span_writer = LLMObsSpanWriter(
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
@@ -108,7 +110,7 @@ class LLMObs(Service):
         self._annotation_context_lock = forksafe.RLock()
         self.tracer.on_start_span(self._do_annotations)
 
-    def _do_annotations(self, span):
+    def _do_annotations(self, span: Span) -> None:
         # get the current span context
         # only do the annotations if it matches the context
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
