@@ -9,6 +9,7 @@ from ddtrace.appsec._iast._handlers import _on_request_init
 from ddtrace.appsec._iast._handlers import _on_set_http_meta_iast
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
+from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
 from ddtrace.internal import core
 
@@ -27,6 +28,7 @@ def iast_listen():
     core.on("flask._patched_request", _on_pre_tracedrequest_iast)
     core.on("flask.set_request_tags", _on_set_request_tags_iast)
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
+    core.on("asgi.finalize_response", _on_asgi_finalize_response)
 
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)

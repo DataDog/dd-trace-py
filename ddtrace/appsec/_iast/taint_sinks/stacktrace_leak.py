@@ -71,7 +71,7 @@ def asm_check_stacktrace_leak(content: str) -> None:
         module_name = None
         if module_path:
             mod_no_ext = re.sub(r"\.py$", "", module_path)
-            parts = []
+            parts: list[str] = []
             while True:
                 head, tail = os.path.split(mod_no_ext)
                 if tail:
