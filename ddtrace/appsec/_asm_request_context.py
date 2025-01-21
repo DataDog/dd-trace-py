@@ -100,6 +100,7 @@ class ASM_Environment:
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
+        self.stacktrace_reported: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -274,12 +275,27 @@ def set_waf_address(address: str, value: Any) -> None:
         root._set_ctx_item(address, value)
 
 
-def set_stacktrace_reported():
-    set_value(_STACKTRACE_LEAK_REPORTED, _STACKTRACE_LEAK_REPORTED, True)
+def is_stacktrace_reported():
+    env = _get_asm_context()
+    if env is None:
+        return False
+    return env.stacktrace_reported is not None
 
 
-def get_stacktrace_reported():
-    return get_value(_STACKTRACE_LEAK_REPORTED, _STACKTRACE_LEAK_REPORTED, False)
+def get_stacktrace_reported() -> Dict[str, Any]:
+    env = _get_asm_context()
+    if env is None:
+        return {}
+    return env.stacktrace_reported or {}
+
+
+def set_stacktrace_reported(blocked: bool) -> None:
+    env = _get_asm_context()
+    if env is None:
+        info = add_context_log(log, "appsec.asm_context.warning::set_stacktrace_reported::no_active_context")
+        log.warning(info)
+        return
+    env.blocked = blocked
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:

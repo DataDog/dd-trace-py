@@ -25,7 +25,7 @@ def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
     _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
     evidence = "Module: %s\nException: %s" % (module, exc_name)
     StacktraceLeak.report(evidence_value=evidence)
-    set_stacktrace_reported()
+    set_stacktrace_reported(True)
 
 
 def asm_check_stacktrace_leak(content: str) -> None:
