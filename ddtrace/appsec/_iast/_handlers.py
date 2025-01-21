@@ -18,8 +18,6 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tain
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
 
-from .._asm_request_context import is_stacktrace_reported
-from .._asm_request_context import set_stacktrace_reported
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
 from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
@@ -410,6 +408,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
+    from .._asm_request_context import is_stacktrace_reported
     if is_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
         return
 
@@ -433,6 +432,8 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
+    from .._asm_request_context import is_stacktrace_reported
+
     if is_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
         return
 
@@ -455,6 +456,8 @@ def _on_asgi_finalize_response(body, _):
 
 
 def _on_werkzeug_render_debugger_html(html):
+    from .._asm_request_context import set_stacktrace_reported
+
     if not _is_iast_enabled() or not is_iast_request_enabled() or not html:
         return
 

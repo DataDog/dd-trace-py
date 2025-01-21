@@ -279,7 +279,7 @@ def is_stacktrace_reported() -> bool:
     env = _get_asm_context()
     if env is None:
         return False
-    return env.stacktrace_reported is not None
+    return env.stacktrace_reported
 
 
 def get_stacktrace_reported() -> bool:
