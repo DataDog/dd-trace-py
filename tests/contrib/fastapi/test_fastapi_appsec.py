@@ -10,7 +10,7 @@ from tests.utils import override_global_config
 
 def _aux_appsec_prepare_tracer(tracer, asm_enabled=True):
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
 
 
 def get_response_body(response):

@@ -173,7 +173,7 @@ def trace_app(app, tracer, service="aiohttp-web"):
     }
 
     # the tracer must work with asynchronous Context propagation
-    tracer.configure(context_provider=context_provider)
+    tracer._configure(context_provider=context_provider)
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one

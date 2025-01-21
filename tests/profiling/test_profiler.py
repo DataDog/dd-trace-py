@@ -240,7 +240,7 @@ def test_tracer_url():
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar")
+    t._configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
@@ -253,7 +253,7 @@ def test_tracer_url_https():
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar", https=True)
+    t._configure(hostname="foobar", https=True)
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
@@ -266,7 +266,7 @@ def test_tracer_url_uds_hostname():
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar", uds_path="/foobar")
+    t._configure(hostname="foobar", uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
@@ -279,7 +279,7 @@ def test_tracer_url_uds():
     from ddtrace.profiling import profiler
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(uds_path="/foobar")
+    t._configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
@@ -293,7 +293,7 @@ def test_tracer_url_configure_after():
     from tests.profiling.test_profiler import _check_url
 
     prof = profiler.Profiler(tracer=t)
-    t.configure(hostname="foobar")
+    t._configure(hostname="foobar")
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
