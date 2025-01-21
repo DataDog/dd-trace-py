@@ -276,6 +276,6 @@ def validate_querydict(request):
 
 
 def stacktrace_leak_view(request):
-    from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _html_django_stacktrace
+    from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_html_django_stacktrace
 
-    return HttpResponse(_html_django_stacktrace)
+    return HttpResponse(_load_html_django_stacktrace())
