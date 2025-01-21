@@ -16,7 +16,6 @@ from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import urlencode
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.utils import asm_context
 from tests.utils import override_env
 from tests.utils import override_global_config
 

@@ -275,27 +275,27 @@ def set_waf_address(address: str, value: Any) -> None:
         root._set_ctx_item(address, value)
 
 
-def is_stacktrace_reported():
+def is_stacktrace_reported() -> bool:
     env = _get_asm_context()
     if env is None:
         return False
     return env.stacktrace_reported is not None
 
 
-def get_stacktrace_reported() -> Dict[str, Any]:
+def get_stacktrace_reported() -> Dict[bool, Any]:
     env = _get_asm_context()
     if env is None:
         return {}
     return env.stacktrace_reported or {}
 
 
-def set_stacktrace_reported(blocked: bool) -> None:
+def set_stacktrace_reported(reported: bool) -> None:
     env = _get_asm_context()
     if env is None:
         info = add_context_log(log, "appsec.asm_context.warning::set_stacktrace_reported::no_active_context")
         log.warning(info)
         return
-    env.blocked = blocked
+    env.stacktrace_reported = reported
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:
