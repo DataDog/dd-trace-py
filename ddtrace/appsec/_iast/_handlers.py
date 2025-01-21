@@ -314,7 +314,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
     if _is_iast_enabled() and is_iast_request_enabled():
         try:
             res = []
-            for element in list(value):
+            for element in value:
                 if not is_pyobject_tainted(element):
                     res.append(
                         taint_pyobject(
