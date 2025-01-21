@@ -51,7 +51,6 @@ LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
-LIBRARY_CONFIG_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "library_config"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
@@ -556,14 +555,6 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.library_config._library_config",
-                source_dir=LIBRARY_CONFIG_DIR,
-                optional=False,
-            )
-        )
-
         # Echion doesn't build on 3.7, so just skip it outright for now
         if sys.version_info >= (3, 8) and sys.version_info < (3, 13):
             ext_modules.append(
@@ -671,6 +662,13 @@ setup(
         RustExtension(
             "ddtrace.internal.core._core",
             path="src/core/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+        RustExtension(
+            "ddtrace.internal.config._config",
+            path="src/config/Cargo.toml",
             py_limited_api="auto",
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",

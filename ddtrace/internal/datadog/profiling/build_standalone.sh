@@ -78,7 +78,6 @@ target_dirs["ddup"]="ddup"
 target_dirs["crashtracker"]="crashtracker"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
-target_dirs["library_config"]="library_config"
 
 # Compiler options
 declare -A compiler_args
@@ -220,8 +219,6 @@ print_help() {
   echo "  ddup_test (also builds dd_wrapper_test)"
   echo "  crashtracker (also builds dd_wrapper)"
   echo "  crashtracker_test (also builds dd_wrapper_test)"
-  echo "  library_config (also builds dd_wrapper)"
-  echo "  library_config_test (also builds dd_wrapper_test)"
 }
 
 print_cmake_args() {
@@ -346,7 +343,6 @@ add_target() {
       targets+=("stack_v2")
       targets+=("ddup")
       targets+=("crashtracker")
-      targets+=("library_config")
       ;;
     dd_wrapper)
       # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
@@ -361,9 +357,6 @@ add_target() {
       ;;
     crashtracker)
       targets+=("crashtracker")
-      ;;
-    library_config)
-      targets+=("library_config")
       ;;
     *)
       echo "Unknown target: $1"
