@@ -17,7 +17,7 @@ from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -137,7 +137,7 @@ class BaseLLMIntegration:
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
                 span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
         telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
             name="span.start",
             value=1,
             tags=(

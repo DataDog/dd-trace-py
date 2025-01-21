@@ -28,6 +28,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -526,7 +527,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
     ) -> Span:
         telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
             name="span.start",
             value=1,
             tags=(
