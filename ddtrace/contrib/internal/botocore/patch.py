@@ -17,9 +17,9 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core

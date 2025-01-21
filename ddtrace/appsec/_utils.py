@@ -22,7 +22,7 @@ def parse_response_body(raw_body):
 
     from ddtrace.appsec import _asm_request_context
     from ddtrace.appsec._constants import SPAN_DATA_NAMES
-    from ddtrace.contrib.trace_utils import _get_header_value_case_insensitive
+    from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
         return
