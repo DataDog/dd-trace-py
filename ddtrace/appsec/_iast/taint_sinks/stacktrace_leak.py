@@ -1,7 +1,7 @@
 import os
 import re
 
-from ..._asm_request_context import set_stacktrace_reported, get_stacktrace_reported
+from ..._asm_request_context import set_stacktrace_reported
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
@@ -29,7 +29,7 @@ def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
 
 
 def asm_check_stacktrace_leak(content: str) -> None:
-    if get_stacktrace_reported() or not content:
+    if not content:
         return
 
     try:
@@ -96,7 +96,7 @@ def asm_check_stacktrace_leak(content: str) -> None:
 
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
         _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
-        evidence = "Module: %s\nException: %s" % (module_name, exception_line)
+        evidence = "Module: %s\nException: %s" % (module_name.strip(), exception_line.strip())
         StacktraceLeak.report(evidence_value=evidence)
     except Exception as e:
         iast_taint_log_error("[IAST] error in check stacktrace leak. {}".format(e))

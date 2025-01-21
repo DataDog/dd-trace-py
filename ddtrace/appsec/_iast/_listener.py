@@ -1,4 +1,5 @@
-from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre, _on_django_technical_500_response
+from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre, _on_django_technical_500_response, \
+    _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
@@ -30,6 +31,7 @@ def iast_listen():
     core.on("flask.set_request_tags", _on_set_request_tags_iast)
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("asgi.finalize_response", _on_asgi_finalize_response)
+    core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
 
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)

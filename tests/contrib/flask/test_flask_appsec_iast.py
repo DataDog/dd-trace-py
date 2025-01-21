@@ -1,5 +1,6 @@
 import json
 import sys
+import traceback
 
 from flask import request
 from importlib_metadata import version
@@ -1534,10 +1535,47 @@ Lorem Ipsum Foobar
             assert vulnerability["type"] == VULN_STACKTRACE_LEAK
             assert vulnerability["evidence"] == {
                 "valueParts": [
-                    {"value": "Module: usr.local.lib.python3.9.site-packages.constraints\nException: ValueError"}
+                    {"value": "Module: \".usr.local.lib.python3.9.site-packages.constraints.py\"\nException: ValueError"}
                 ]
             }
 
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_stacktrace_leak_from_debug_page(self):
+        @self.app.route("/stacktrace_leak_debug/")
+        def stacktrace_leak():
+            from flask import Response
+            from werkzeug.debug.tbtools import DebugTraceback
+            try:
+                raise ValueError()
+            except ValueError as exc:
+                dt = DebugTraceback(
+                    exc,
+                    traceback.TracebackException.from_exception(exc),
+                )
+
+                # Render the debugger HTML
+                html = dt.render_debugger_html(evalex=False, secret="test_secret", evalex_trusted=False)
+                return Response(html, mimetype='text/html')
+        with override_global_config(
+                dict(
+                    _iast_enabled=True,
+                    _deduplication_enabled=False,
+                )
+        ):
+            resp = self.client.get("/stacktrace_leak_debug/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+            assert "valueParts" in vulnerability["evidence"]
+            assert "tests.contrib.flask.test_flask_appsec_iast" in vulnerability["evidence"]["valueParts"][0]["value"]
+            assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)

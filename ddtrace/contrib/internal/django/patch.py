@@ -951,6 +951,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.conf.urls, "url")
     trace_utils.unwrap(django.contrib.auth.login, "login")
     trace_utils.unwrap(django.contrib.auth.authenticate, "authenticate")
+    trace_utils.unwrap(django.view.debug.technical_500_response, "technical_500_response")
     if django.VERSION >= (2, 0, 0):
         trace_utils.unwrap(django.urls, "path")
         trace_utils.unwrap(django.urls, "re_path")

@@ -909,7 +909,7 @@ def test_django_stacktrace_leak(client, test_spans, tracer):
         assert vulnerability["type"] == VULN_STACKTRACE_LEAK
         assert vulnerability["evidence"] == {
             "valueParts": [
-                {"value": "Module: home.foobaruser.sources.minimal-django-example.app\nException: IndexError"}
+                {"value": "Module: \".home.foobaruser.sources.minimal-django-example.app.py\"\nException: IndexError"}
             ]
         }
         assert vulnerability["hash"]
