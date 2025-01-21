@@ -10,7 +10,7 @@ from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
@@ -61,7 +61,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
     with override_global_config(dict(_asm_enabled=False)):
-        tracer.configure(api_version="v0.4", appsec_enabled=False)
+        tracer._configure(api_version="v0.4", appsec_enabled=False)
         telemetry_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -108,7 +108,8 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
             _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
         )
     ):
-        AppSecSpanProcessor()
+        processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1

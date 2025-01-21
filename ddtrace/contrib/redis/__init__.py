@@ -52,7 +52,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular redis instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular redis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import redis
     from ddtrace.trace import Pin
@@ -76,9 +76,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.redis.patch import get_version
-from ddtrace.contrib.internal.redis.patch import patch
 
-
-__all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.redis.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.redis.patch import patch  # noqa: F401

@@ -7,7 +7,7 @@ import pytest
 import ddtrace
 from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
-from ddtrace.contrib.trace_utils import iswrapped
+from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -1112,7 +1112,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -1160,7 +1160,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin.tracer._configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -1548,7 +1548,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")

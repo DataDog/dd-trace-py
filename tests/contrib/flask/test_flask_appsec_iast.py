@@ -48,7 +48,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer.configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -1496,7 +1496,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer.configure(api_version="v0.4")
+            self.tracer._configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):

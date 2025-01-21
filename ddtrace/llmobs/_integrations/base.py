@@ -10,7 +10,7 @@ from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -40,7 +40,9 @@ class BaseLLMIntegration:
         self._log_writer = None
         self._statsd = None
         self.integration_config = integration_config
-        self._span_pc_sampler = RateSampler(sample_rate=integration_config.span_prompt_completion_sample_rate)
+        self._span_pc_sampler = RateSampler(
+            sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
+        )
 
         if self.metrics_enabled:
             self._statsd = get_dogstatsd_client(get_stats_url(), namespace=self._integration_name)
