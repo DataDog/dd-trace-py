@@ -134,12 +134,12 @@ def _is_evaluation_span(span: Span) -> bool:
     nearest LLMObs span ancestor. Default to 'False'
     """
     is_evaluation_span = span._get_ctx_item(IS_EVALUATION_SPAN)
-    if is_evaluation_span is not None:
+    if is_evaluation_span:
         return is_evaluation_span
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
         is_evaluation_span = llmobs_parent._get_ctx_item(IS_EVALUATION_SPAN)
-        if is_evaluation_span is not None:
+        if is_evaluation_span:
             return is_evaluation_span
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
     return is_evaluation_span or False

@@ -52,7 +52,7 @@ RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
 # All ragas traces have this context item set so we can differentiate
 # spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_SPAN = "_is_evaluation_span"
+IS_EVALUATION_SPAN = "_ml_obs.evaluation_span"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"

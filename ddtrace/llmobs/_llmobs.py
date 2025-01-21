@@ -5,7 +5,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 import ddtrace
@@ -127,7 +126,13 @@ class LLMObs(Service):
         is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
         is_evaluation_span = False
         try:
-            span_event, is_evaluation_span = self._llmobs_span_event(span)
+            span_event = self._llmobs_span_event(span)
+
+            is_evaluation_span = _is_evaluation_span(span)
+            if is_evaluation_span:
+                span._set_ctx_item(IS_EVALUATION_SPAN, is_evaluation_span)
+                span_event["tags"].append("{}:ragas".format(constants.RUNNER_IS_INTEGRATION_SPAN_TAG))
+
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error(
@@ -140,7 +145,7 @@ class LLMObs(Service):
                 self._evaluator_runner.enqueue(span_event, span)
 
     @classmethod
-    def _llmobs_span_event(cls, span: Span) -> Tuple[Dict[str, Any], bool]:
+    def _llmobs_span_event(cls, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
@@ -187,9 +192,6 @@ class LLMObs(Service):
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
 
-        is_evaluation_span = _is_evaluation_span(span)
-        span._set_ctx_item(IS_EVALUATION_SPAN, is_evaluation_span)
-
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
@@ -209,15 +211,11 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = cls._llmobs_tags(
-            span, ml_app, session_id, is_ragas_integration_span=is_evaluation_span
-        )
-        return llmobs_span_event, is_evaluation_span
+        llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
+        return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(
-        span: Span, ml_app: str, session_id: Optional[str] = None, is_ragas_integration_span: bool = False
-    ) -> List[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
         tags = {
             "version": config.version or "",
             "env": config.env or "",
@@ -233,8 +231,6 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
-        if is_ragas_integration_span:
-            tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)
