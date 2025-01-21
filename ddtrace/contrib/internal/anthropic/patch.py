@@ -11,9 +11,9 @@ from ddtrace.contrib.internal.anthropic.utils import handle_non_streamed_respons
 from ddtrace.contrib.internal.anthropic.utils import tag_params_on_span
 from ddtrace.contrib.internal.anthropic.utils import tag_tool_result_input_on_span
 from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_input_on_span
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
