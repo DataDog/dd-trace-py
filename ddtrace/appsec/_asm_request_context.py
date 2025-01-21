@@ -282,11 +282,11 @@ def is_stacktrace_reported() -> bool:
     return env.stacktrace_reported is not None
 
 
-def get_stacktrace_reported() -> Dict[bool, Any]:
+def get_stacktrace_reported() -> bool:
     env = _get_asm_context()
     if env is None:
-        return {}
-    return env.stacktrace_reported or {}
+        return False
+    return env.stacktrace_reported
 
 
 def set_stacktrace_reported(reported: bool) -> None:
