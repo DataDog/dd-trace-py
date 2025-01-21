@@ -37,7 +37,6 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -124,23 +123,15 @@ class LLMObs(Service):
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
-        is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
-        is_evaluation_span = False
         try:
             span_event = self._llmobs_span_event(span)
-
-            is_evaluation_span = _is_evaluation_span(span)
-            if is_evaluation_span:
-                span._set_ctx_item(IS_EVALUATION_SPAN, is_evaluation_span)
-                span_event["tags"].append("{}:ragas".format(constants.RUNNER_IS_INTEGRATION_SPAN_TAG))
-
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or not is_llm_span or is_evaluation_span:
+            if not span_event or not span._get_ctx_item(SPAN_KIND) == "llm" or _is_evaluation_span(span):
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
@@ -237,6 +228,8 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
+        if _is_evaluation_span(span):
+            tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)

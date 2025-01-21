@@ -143,7 +143,7 @@ def _is_evaluation_span(span: Span) -> bool:
         if is_evaluation_span:
             return is_evaluation_span
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return is_evaluation_span or False
+    return False
 
 
 def _get_ml_app(span: Span) -> str:
