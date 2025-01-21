@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: Fix scenarios when distributed tracing headers would be extracted and possibly activated when a trace was already started.
