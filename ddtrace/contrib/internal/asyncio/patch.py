@@ -1,11 +1,11 @@
 import asyncio
+import sys
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Pin
-import sys
 
 
 PY_VERSION = sys.version_info[:2]
@@ -78,4 +78,3 @@ def is_task_eagerly_scheduled():
     event_loop = asyncio.get_event_loop()
     task_factory = event_loop.get_task_factory()
     return task_factory is None and PY_VERSION >= (3, 12) or task_factory is asyncio.eager_task_factory
-        
