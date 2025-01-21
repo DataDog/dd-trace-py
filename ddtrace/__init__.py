@@ -7,6 +7,7 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Configuration for the whole tracer from file. Do it before anything else happens.
 from ddtrace.internal.config import PyConfigurator
+
 configurator = PyConfigurator(debug_logs=False)
 configurator.set_envp(["%s=%s" % (k, v) for k, v in os.environ.items()])
 configurator.set_args(sys.argv)

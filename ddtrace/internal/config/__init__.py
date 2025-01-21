@@ -1,1 +1,1 @@
-from ._config import PyConfigurator # noqa:F401
+from ._config import PyConfigurator  # noqa:F401

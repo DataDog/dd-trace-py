@@ -14,8 +14,8 @@ set(FETCHCONTENT_DOWNLOADS_DIR
 include_guard(GLOBAL)
 include(FetchContent)
 
-# Used for local building: set the path to the local libdatadog source
-IF(DEFINED ENV{DD_LIBDATADOG_LOCAL_PATH})
+# Used for local building: set the path to the local libdatadog source
+if(DEFINED ENV{DD_LIBDATADOG_LOCAL_PATH})
     set(FETCHCONTENT_SOURCE_DIR_LIBDATADOG "$ENV{DD_LIBDATADOG_LOCAL_PATH}")
     message(STATUS "Using local libdatadog source at ${FETCHCONTENT_SOURCE_DIR_LIBDATADOG}")
 endif()
