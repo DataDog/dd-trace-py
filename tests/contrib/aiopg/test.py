@@ -4,11 +4,12 @@ import aiopg
 from psycopg2 import extras
 import pytest
 
-# project
-from ddtrace import Pin
 from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+# project
+from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer

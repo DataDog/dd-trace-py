@@ -130,7 +130,7 @@ def test_env_rules_cause_matching_span_to_be_sampled():
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
+        tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span)
 
@@ -142,7 +142,7 @@ def test_env_rules_dont_cause_non_matching_span_to_be_sampled():
         assert sampling_rules[0]._service_matcher.pattern == "test_ser"
         assert sampling_rules[0]._name_matcher.pattern == "test_na"
         tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
+        tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
@@ -154,7 +154,7 @@ def test_single_span_rules_not_applied_when_span_sampled_by_trace_sampling():
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
+        tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer, trace_sampling=True)
         assert sampling_rules[0].match(span) is True
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)

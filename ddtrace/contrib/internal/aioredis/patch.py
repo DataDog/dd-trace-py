@@ -27,7 +27,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

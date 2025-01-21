@@ -2,7 +2,6 @@ import contextlib
 
 import pymongo
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -15,6 +14,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
+from ddtrace.trace import Pin
 
 from ....internal.schema import schematize_service_name
 
