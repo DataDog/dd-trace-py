@@ -5,8 +5,9 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._iast import _is_iast_enabled
-from ddtrace.appsec._iast._iast_request_context import in_iast_context, get_iast_stacktrace_reported, \
-    set_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context import in_iast_context
+from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
