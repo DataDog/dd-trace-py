@@ -2,8 +2,8 @@ from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
 import os
-import time
 import threading
+import time
 
 import mock
 import pytest
