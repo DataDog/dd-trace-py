@@ -18,10 +18,13 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tain
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
 
+from .._asm_request_context import get_stacktrace_reported
+from .._asm_request_context import set_stacktrace_reported
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
-from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak, asm_report_stacktrace_leak_from_django_debug_page
-from .._asm_request_context import get_stacktrace_reported, set_stacktrace_reported
+from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+from .taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
+
 
 MessageMapContainer = None
 try:

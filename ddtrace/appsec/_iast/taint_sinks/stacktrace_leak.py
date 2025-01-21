@@ -41,7 +41,7 @@ def asm_check_stacktrace_leak(content: str) -> None:
         lines = [line.strip() for line in text.splitlines() if line.strip()]
 
         file_lines = []
-        exception_line = None
+        exception_line = ''
 
         for i, line in enumerate(lines):
             if line.startswith("Traceback (most recent call last):"):
@@ -77,7 +77,7 @@ def asm_check_stacktrace_leak(content: str) -> None:
         # Attempt to convert a path like "/myproj/foo/bar.py" into "foo.bar"
         # or "myproj.foo.bar" depending on your directory structure.
         # This is a *best effort* approach (it can be environment-specific).
-        module_name = None
+        module_name = ''
         if module_path:
             mod_no_ext = re.sub(r"\.py$", "", module_path)
             parts: list[str] = []
