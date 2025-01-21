@@ -558,9 +558,6 @@ class Config(object):
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
 
-        # When True any active span is ignored when extracting trace context from headers
-        self._extract_ignore_active_span = asbool(os.getenv("_DD_TRACE_EXTRACT_IGNORE_ACTIVE_SPAN", False))
-
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
