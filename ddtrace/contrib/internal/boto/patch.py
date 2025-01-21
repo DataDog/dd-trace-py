@@ -19,7 +19,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 # Original boto client class

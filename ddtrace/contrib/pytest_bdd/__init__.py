@@ -21,27 +21,18 @@ Please follow the instructions for enabling `pytest` integration.
    for more details.
 
 """
+from ddtrace.contrib.internal.pytest_bdd.patch import get_version
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-from ddtrace import config
 
-
-# pytest-bdd default settings
-config._add(
-    "pytest_bdd",
-    dict(
-        _default_service="pytest_bdd",
-    ),
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
 )
-
-
-def get_version():
-    # type: () -> str
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    return str(importlib_metadata.version("pytest-bdd"))
 
 
 __all__ = ["get_version"]
