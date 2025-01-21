@@ -13,19 +13,12 @@ https://docs.datadoghq.com/security/application_security/threats/add-user-info/?
 
 
 def get_version() -> str:
-    deprecate(
-        "The flask_login module is deprecated and will be deleted.", message="", category=DDTraceDeprecationWarning
-    )
     return ""
 
 
 def patch():
-    deprecate(
-        "The flask_login module is deprecated and will be deleted.", message="", category=DDTraceDeprecationWarning
-    )
+    pass
 
 
 def unpatch():
-    deprecate(
-        "The flask_login module is deprecated and will be deleted.", message="", category=DDTraceDeprecationWarning
-    )
+    pass

@@ -23,18 +23,6 @@ The Selenium integration can be configured using the following options:
 DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS: The time in milliseconds to wait after flushing the RUM session.
 """
 
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
 from ..internal.selenium.patch import get_version  # noqa: F401
 from ..internal.selenium.patch import patch  # noqa: F401
 from ..internal.selenium.patch import unpatch  # noqa: F401
-
-
-deprecate(
-    ("%s is deprecated" % (__name__)),
-    message="Avoid using this package directly. "
-    "Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
-    category=DDTraceDeprecationWarning,
-    removal_version="3.0.0",
-)
