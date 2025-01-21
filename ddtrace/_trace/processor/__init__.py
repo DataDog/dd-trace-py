@@ -9,6 +9,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
+from ddtrace._trace.sampler import BaseSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
@@ -25,9 +26,8 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BaseSampler
 
 
 try:
@@ -392,6 +392,6 @@ class SpanAggregator(SpanProcessor):
         if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
+                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)

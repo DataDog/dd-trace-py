@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    ASM: This introduces the support for command injection for Exploit Prevention. With previous support of shell injection with os.system, 
+    this provides automatic instrumentation for subprocess module functions and os.spawn* functions, 
+    ensuring monitoring and blocking for Exploit Prevention on those endpoints.

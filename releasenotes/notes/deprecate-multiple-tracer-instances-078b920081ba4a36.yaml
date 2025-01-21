@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates the use of multiple tracer instances in the same process. The global tracer (``ddtrace.tracer``) `should be used instead.

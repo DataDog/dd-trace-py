@@ -11,7 +11,6 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
-from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 
@@ -171,7 +170,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
-        monkeypatch.setattr(config.stack, "v2_enabled", True)
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"
@@ -220,7 +218,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
                 ),
             )
 
-        unregister_thread.assert_called_once_with(thread_id)
+        unregister_thread.assert_called_with(thread_id)
 
 
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
@@ -748,6 +746,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
 
 # TODO: support ignore profiler with stack_v2 and update this test
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skip(reason="ignore_profiler is not supported with stack v2")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task"),

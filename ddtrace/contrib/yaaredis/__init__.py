@@ -50,10 +50,10 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular yaaredis instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular yaaredis instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import yaaredis
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     client = yaaredis.StrictRedis(host="localhost", port=6379)
 
@@ -66,22 +66,18 @@ To configure particular yaaredis instances use the :class:`Pin <ddtrace.Pin>` AP
         await client.get("my-key")
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.yaaredis.patch` directly
+import warnings as _w
 
 
-required_modules = ["yaaredis", "yaaredis.client"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.yaaredis.patch` directly
-        import warnings as _w
+# Expose public methods
+from ddtrace.contrib.internal.yaaredis.patch import get_version
+from ddtrace.contrib.internal.yaaredis.patch import patch
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.yaaredis.patch import get_version
-        from ddtrace.contrib.internal.yaaredis.patch import patch
-
-        __all__ = ["patch", "get_version"]
+__all__ = ["patch", "get_version"]

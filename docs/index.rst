@@ -52,6 +52,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`algoliasearch`                             | >= 2.5.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`anthropic`                                 | >= 0.28.0     | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`aredis`                                    | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 3.0        | No             |
@@ -172,6 +174,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`urllib3`                                   | >= 1.25.8     | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`vertexai`                                  | >= 1.71.1     | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`vertica`                                   | >= 0.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`wsgi`                                      | \*            | No             |
@@ -182,7 +186,7 @@ contacting support.
 
 .. [1] Libraries that are automatically instrumented when the
   :ref:`ddtrace-run<ddtracerun>` command is used or the ``import ddtrace.auto`` import
-  is used. Always use ``patch()``, ``patch_all()``, and ``import ddtrace.auto`` as soon
+  is used. Always use ``import ddtrace.auto`` as soon
   as possible in your Python entrypoint.
 
 .. [2] only the synchronous client

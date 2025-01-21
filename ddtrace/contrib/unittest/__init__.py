@@ -34,15 +34,18 @@ Global Configuration
 
    Default: ``True``
 """
-from ddtrace.internal.utils.importlib import require_modules
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-from .patch import get_version
-from .patch import patch
-from .patch import unpatch
+from ..internal.unittest.patch import get_version  # noqa: F401
+from ..internal.unittest.patch import patch  # noqa: F401
+from ..internal.unittest.patch import unpatch  # noqa: F401
 
 
-required_modules = ["unittest"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        __all__ = ["patch", "unpatch", "get_version"]
+deprecate(
+    ("%s is deprecated" % (__name__)),
+    message="Avoid using this package directly. "
+    "Use ``ddtrace.auto`` or the ``ddtrace-run`` command to enable and configure this integration.",
+    category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
+)

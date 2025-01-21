@@ -34,7 +34,7 @@ Instance Configuration
 To configure the mariadb integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     from ddtrace import patch
 
     # Make sure to patch before importing mariadb
@@ -52,23 +52,20 @@ To configure the mariadb integration on an per-connection basis use the
     cursor.execute("SELECT 6*7 AS the_answer;")
 
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["mariadb"]
+# Required to allow users to import from  `ddtrace.contrib.mariadb.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.mariadb.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.mariadb.patch import get_version
-        from ddtrace.contrib.internal.mariadb.patch import patch
-        from ddtrace.contrib.internal.mariadb.patch import unpatch
+# Expose public methods
+from ddtrace.contrib.internal.mariadb.patch import get_version
+from ddtrace.contrib.internal.mariadb.patch import patch
+from ddtrace.contrib.internal.mariadb.patch import unpatch
 
-        __all__ = ["patch", "unpatch", "get_version"]
+
+__all__ = ["patch", "unpatch", "get_version"]

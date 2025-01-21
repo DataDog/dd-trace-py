@@ -368,6 +368,26 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT:
+     default: |
+         ``continue``
+     
+     description: |
+         String for how to handle incoming request headers that are extracted for propagation of trace info.
+
+         The supported values are ``continue``, ``restart``, and ``ignore``.
+
+         After extracting the headers for propagation, this configuration determines what is done with them.
+
+         The default value is ``continue`` which always propagates valid headers.
+         ``ignore`` ignores all incoming headers and ``restart`` turns the first extracted valid propagation header 
+         into a span link and propagates baggage if present.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="ignore"`` to ignore all incoming headers and to start a root span without a parent.
+
+     version_added:
+       v2.20.0:
+
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
          ``tracecontext,datadog``
@@ -557,10 +577,10 @@ Test Visibility
      default: True
      
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
-        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
-        ``false`` will skip querying the API and disable code coverage
-        collection and test skipping.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
+        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
+        test skipping.
      
      version_added:
         v1.13.0:
@@ -590,6 +610,22 @@ Test Visibility
      
      version_added:
         v2.16.0:
+
+   DD_PYTEST_USE_NEW_PLUGIN_BETA:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
+        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
+        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
+        improved coverage collection for `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
+        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
+        for more information.
+
+     version_added:
+        v2.18.0:
 
    DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
      type: Integer
