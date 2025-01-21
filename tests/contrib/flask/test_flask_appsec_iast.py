@@ -1535,7 +1535,7 @@ Lorem Ipsum Foobar
             assert vulnerability["type"] == VULN_STACKTRACE_LEAK
             assert vulnerability["evidence"] == {
                 "valueParts": [
-                    {"value": "Module: \".usr.local.lib.python3.9.site-packages.constraints.py\"\nException: ValueError"}
+                    {"value": 'Module: ".usr.local.lib.python3.9.site-packages.constraints.py"\nException: ValueError'}
                 ]
             }
 
@@ -1545,6 +1545,7 @@ Lorem Ipsum Foobar
         def stacktrace_leak():
             from flask import Response
             from werkzeug.debug.tbtools import DebugTraceback
+
             try:
                 raise ValueError()
             except ValueError as exc:
@@ -1555,12 +1556,13 @@ Lorem Ipsum Foobar
 
                 # Render the debugger HTML
                 html = dt.render_debugger_html(evalex=False, secret="test_secret", evalex_trusted=False)
-                return Response(html, mimetype='text/html')
+                return Response(html, mimetype="text/html")
+
         with override_global_config(
-                dict(
-                    _iast_enabled=True,
-                    _deduplication_enabled=False,
-                )
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
         ):
             resp = self.client.get("/stacktrace_leak_debug/")
             assert resp.status_code == 200
@@ -1576,6 +1578,7 @@ Lorem Ipsum Foobar
             assert "valueParts" in vulnerability["evidence"]
             assert "tests.contrib.flask.test_flask_appsec_iast" in vulnerability["evidence"]["valueParts"][0]["value"]
             assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
+
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)

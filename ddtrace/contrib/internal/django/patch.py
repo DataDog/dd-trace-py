@@ -694,6 +694,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     view = func(*args, **kwargs)
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
+
 @trace_utils.with_traced_module
 def traced_technical_500_response(django, pin, func, instance, args, kwargs):
     """
@@ -906,7 +907,9 @@ def _patch(django):
             trace_utils.wrap(m, "re_path", traced_urls_path(django))
 
     when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
-    when_imported("django.views.debug")(lambda m: trace_utils.wrap(m, "technical_500_response", traced_technical_500_response(django)))
+    when_imported("django.views.debug")(
+        lambda m: trace_utils.wrap(m, "technical_500_response", traced_technical_500_response(django))
+    )
 
     @when_imported("channels.routing")
     def _(m):

@@ -1,4 +1,3 @@
-import sys
 from inspect import unwrap
 
 import flask
@@ -425,8 +424,6 @@ def patched_render_debugger_html(wrapped, instance, args, kwargs):
     res = wrapped(*args, **kwargs)
     core.dispatch("werkzeug.render_debugger_html", (res,))
     return res
-
-
 
 
 def patched_add_url_rule(wrapped, instance, args, kwargs):

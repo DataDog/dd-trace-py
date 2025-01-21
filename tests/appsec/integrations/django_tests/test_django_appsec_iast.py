@@ -909,7 +909,7 @@ def test_django_stacktrace_leak(client, test_spans, tracer):
         assert vulnerability["type"] == VULN_STACKTRACE_LEAK
         assert vulnerability["evidence"] == {
             "valueParts": [
-                {"value": "Module: \".home.foobaruser.sources.minimal-django-example.app.py\"\nException: IndexError"}
+                {"value": 'Module: ".home.foobaruser.sources.minimal-django-example.app.py"\nException: IndexError'}
             ]
         }
         assert vulnerability["hash"]
@@ -918,10 +918,12 @@ def test_django_stacktrace_leak(client, test_spans, tracer):
 @pytest.fixture
 def debug_mode():
     from django.conf import settings
+
     original_debug = settings.DEBUG
     settings.DEBUG = True
     yield
     settings.DEBUG = original_debug
+
 
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_stacktrace_from_technical_500_response(client, test_spans, tracer, debug_mode):

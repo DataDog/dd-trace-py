@@ -284,7 +284,9 @@ def stacktrace_leak_view(request):
 def stacktrace_leak_500_view(request):
     try:
         raise Exception("FooBar Exception")
-    except Exception as e:
-        from django.views.debug import technical_500_response
+    except Exception:
         import sys
+
+        from django.views.debug import technical_500_response
+
         return technical_500_response(request, *sys.exc_info())
