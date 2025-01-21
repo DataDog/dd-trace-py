@@ -334,7 +334,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
 
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             headers = {
                 "x-datadog-trace-id": "1234",
@@ -377,7 +377,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -392,7 +392,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
 
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -422,11 +422,11 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    tracer._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -456,7 +456,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         # Ensure span is user keep
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
     finally:
-        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -470,7 +470,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -515,13 +515,13 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
     tracer,  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    tracer._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -563,7 +563,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
-        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -578,7 +578,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -632,7 +632,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -647,7 +647,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -701,7 +701,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811

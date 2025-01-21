@@ -13,11 +13,7 @@ class PingFilter(TraceFilter):
         return None if trace and trace[0].trace_id == 1 else trace
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer._configure(trace_processors=[PingFilter()])
 
 
 def tracer_shutdown(request):

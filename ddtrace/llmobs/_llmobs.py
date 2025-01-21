@@ -49,6 +49,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
@@ -210,6 +211,11 @@ class LLMObs(Service):
         llmobs_span_event["tags"] = cls._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
+
+        span_links = span._get_ctx_item(SPAN_LINKS)
+        if isinstance(span_links, list):
+            llmobs_span_event["span_links"] = span_links
+
         return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
