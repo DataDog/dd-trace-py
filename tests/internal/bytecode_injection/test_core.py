@@ -108,28 +108,36 @@ def test_linetable_adjustment():
 
     for idx, (original_offset, original_line_start) in enumerate(selected_line_starts):
         assert original_line_start == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
+        bytecode_injected_size = 8
+        # skip extended args
+        while injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size] == 144:
+            bytecode_injected_size += 2
 
         # offset of line points to the same instructions
         assert (
             original_code.co_code[original_offset]
-            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size]
         ), "The corresponding opcode is the same"
 
         if original_code.co_code[original_offset] in dis.hasjrel:
             # In case of a jump, we assert that the (dereferenced) target is the same
             # DEV: expand to reverse jumps
             original_arg = original_code.co_code[original_offset + 1]
-            injected_arg = injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+            injected_arg = injected_code.co_code[
+                selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1
+            ]
 
             # dereferencing the jump target (DEV: only depth 1, for now)
             assert (
                 original_code.co_code[original_offset + (original_arg << 1)]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + (injected_arg << 1)]
+                == injected_code.co_code[
+                    selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + (injected_arg << 1)
+                ]
             ), "The corresponding target opcode is the same"
         else:
             assert (
                 original_code.co_code[original_offset + 1]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1]
             ), "The corresponding argument is the same"
 
 
