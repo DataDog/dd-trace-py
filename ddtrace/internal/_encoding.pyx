@@ -19,7 +19,7 @@ from ._utils cimport PyBytesLike_Check
 # DEV: This only occurs because there is a `constants.py` module
 #   in both `ddtrace` and `ddtrace.internal`
 
-from ..constants import _ORIGIN_KEY
+from ..constants import ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
@@ -79,10 +79,10 @@ cdef inline const char * string_to_buff(str s):
         return <const char *> s
 
 
-# This is a borrowed reference but should be fine as we don't expect _ORIGIN_KEY
+# This is a borrowed reference but should be fine as we don't expect ORIGIN_KEY
 # to get GC'd.
-cdef const char * _ORIGIN_KEY = string_to_buff(_ORIGIN_KEY)
-cdef size_t _ORIGIN_KEY_LEN = <size_t> len(_ORIGIN_KEY)
+cdef const char * ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
+cdef size_t ORIGIN_KEY_LEN = <size_t> len(ORIGIN_KEY)
 
 
 cdef inline int array_prefix_size(stdint.uint32_t l):
@@ -243,7 +243,7 @@ cdef class MsgpackStringTable(StringTable):
         self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
-        self.index(_ORIGIN_KEY)
+        self.index(ORIGIN_KEY)
         self._reset_size = self.pk.length
 
     def __dealloc__(self):
@@ -334,7 +334,7 @@ cdef class MsgpackStringTable(StringTable):
         StringTable.reset(self)
         assert self._next_id == 1
 
-        PyDict_SetItem(self._table, _ORIGIN_KEY, 1)
+        PyDict_SetItem(self._table, ORIGIN_KEY, 1)
         self._next_id = 2
         self.pk.length = self._reset_size
         self._sp_len = 0
@@ -637,7 +637,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     if ret != 0:
                         break
                 if dd_origin is not NULL:
-                    ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
+                    ret = pack_bytes(&self.pk, ORIGIN_KEY, ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
                     if ret != 0:

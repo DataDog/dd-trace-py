@@ -25,7 +25,7 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
@@ -1461,7 +1461,7 @@ def test_ctx(tracer, test_spans):
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
     assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
-    assert _ORIGIN_KEY not in s1.get_tags()
+    assert ORIGIN_KEY not in s1.get_tags()
 
     t = test_spans.pop_traces()
     assert len(t) == 1
@@ -1536,7 +1536,7 @@ def test_ctx_distributed(tracer, test_spans):
     trace = test_spans.pop_traces()
     assert len(trace) == 1
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-    assert s2.get_tag(_ORIGIN_KEY) == "somewhere"
+    assert s2.get_tag(ORIGIN_KEY) == "somewhere"
 
 
 def test_manual_keep(tracer, test_spans):

@@ -21,7 +21,7 @@ from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
@@ -37,7 +37,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from tests.utils import DummyTracer
 
 
-_ORIGIN_KEY = _ORIGIN_KEY.encode()
+ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
 def span_to_tuple(span):
@@ -123,7 +123,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
     def __init__(self, *args, **kwargs):
         super(RefMsgpackEncoderV05, self).__init__(*args, **kwargs)
         self.string_table = ListStringTable()
-        self.string_table.index(_ORIGIN_KEY)
+        self.string_table.index(ORIGIN_KEY)
 
     def _index_or_value(self, value):
         if value is None:
@@ -145,7 +145,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
             return super(RefMsgpackEncoderV05, self).encode([list(self.string_table), obj])
         finally:
             self.string_table = ListStringTable()
-            self.string_table.index(_ORIGIN_KEY)
+            self.string_table.index(ORIGIN_KEY)
 
 
 REF_MSGPACK_ENCODERS = {
@@ -627,7 +627,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
+    assert all((_[item][ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
 @allencodings
@@ -715,7 +715,7 @@ def test_custom_msgpack_encode_v05():
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {}, {}, 0],
@@ -730,7 +730,7 @@ def string_table_test(t, origin_key=False):
 
     assert 0 == t.index("")
     if origin_key:
-        assert 1 == t.index(_ORIGIN_KEY)
+        assert 1 == t.index(ORIGIN_KEY)
 
     id1 = t.index("foobar")
     assert len(t) == 2 + origin_key
@@ -751,7 +751,7 @@ def test_msgpack_string_table():
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", ORIGIN_KEY, b"foobar", b"foobaz"], None]
 
     assert len(t) == 2
     assert "foobar" not in t
