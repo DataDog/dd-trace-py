@@ -50,7 +50,6 @@ _CONTEXT_CALL: Literal["context"] = "context"
 _WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
 _TELEMETRY_WAF_RESULTS: Literal["t_waf_results"] = "t_waf_results"
-_STACKTRACE_LEAK_REPORTED: Literal["stacktrace_reported"] = "stacktrace_reported"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
@@ -100,7 +99,6 @@ class ASM_Environment:
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
-        self.stacktrace_reported: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -273,29 +271,6 @@ def set_waf_address(address: str, value: Any) -> None:
     if env and env.span:
         root = env.span._local_root or env.span
         root._set_ctx_item(address, value)
-
-
-def is_stacktrace_reported() -> bool:
-    env = _get_asm_context()
-    if env is None:
-        return False
-    return env.stacktrace_reported
-
-
-def get_stacktrace_reported() -> bool:
-    env = _get_asm_context()
-    if env is None:
-        return False
-    return env.stacktrace_reported
-
-
-def set_stacktrace_reported(reported: bool) -> None:
-    env = _get_asm_context()
-    if env is None:
-        info = add_context_log(log, "appsec.asm_context.warning::set_stacktrace_reported::no_active_context")
-        log.warning(info)
-        return
-    env.stacktrace_reported = reported
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:

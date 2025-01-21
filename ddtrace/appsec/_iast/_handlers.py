@@ -5,7 +5,8 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._iast import _is_iast_enabled
-from ddtrace.appsec._iast._iast_request_context import in_iast_context
+from ddtrace.appsec._iast._iast_request_context import in_iast_context, get_iast_stacktrace_reported, \
+    set_iast_stacktrace_reported
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
@@ -408,9 +409,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    from .._asm_request_context import is_stacktrace_reported
-
-    if is_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
+    if get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
         return
 
     try:
@@ -433,9 +432,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    from .._asm_request_context import is_stacktrace_reported
-
-    if is_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
+    if get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
         return
 
     try:
@@ -457,13 +454,11 @@ def _on_asgi_finalize_response(body, _):
 
 
 def _on_werkzeug_render_debugger_html(html):
-    from .._asm_request_context import set_stacktrace_reported
-
     if not _is_iast_enabled() or not is_iast_request_enabled() or not html:
         return
 
     try:
         asm_check_stacktrace_leak(html)
-        set_stacktrace_reported(True)
+        set_iast_stacktrace_reported(True)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
