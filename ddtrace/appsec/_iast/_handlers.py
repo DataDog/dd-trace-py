@@ -409,6 +409,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     from .._asm_request_context import is_stacktrace_reported
+
     if is_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
         return
 
