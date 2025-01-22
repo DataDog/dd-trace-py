@@ -446,7 +446,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    if get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
+    if not response or get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled():
         return
 
     try:
@@ -469,7 +469,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    if get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled() or not response:
+    if not response or get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled():
         return
 
     try:
