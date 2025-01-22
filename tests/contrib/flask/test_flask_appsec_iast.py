@@ -1541,6 +1541,11 @@ Lorem Ipsum Foobar
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_stacktrace_leak_from_debug_page(self):
+        try:
+            from werkzeug.debug.tbtools import DebugTraceback
+        except ImportError:
+            return  # this version of werkzeug does not have the DebugTraceback
+
         @self.app.route("/stacktrace_leak_debug/")
         def stacktrace_leak():
             from flask import Response
