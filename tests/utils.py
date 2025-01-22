@@ -160,7 +160,6 @@ def override_global_config(values):
         "_llmobs_enabled",
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
-        "_extract_ignore_active_span",
         "_llmobs_agentless_enabled",
         "_data_streams_enabled",
     ]
