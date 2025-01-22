@@ -4,6 +4,7 @@ from typing import Union
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -122,6 +123,35 @@ def get_llmobs_metrics_tags_google(integration_name, span):
     usage = {}
     input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
     output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
+    total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
+
+    if input_tokens is not None:
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+    if output_tokens is not None:
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if total_tokens is not None:
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    return usage
+
+def get_llmobs_metrics_tags(integration_name, span):
+    usage = {}
+
+    # bedrock integration tags usage under meta instead of metrics
+    if integration_name == "bedrock":
+        input_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
+        output_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        usage[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        return usage
+    
+    prompt_tokens_name = "prompt_tokens"
+    completion_tokens_name = "completion_tokens"
+    if integration_name in INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS:
+        prompt_tokens_name = "input_tokens"
+        completion_tokens_name = "output_tokens"
+    input_tokens = span.get_metric("%s.response.usage.%s" % (integration_name, prompt_tokens_name))
+    output_tokens = span.get_metric("%s.response.usage.%s" % (integration_name, completion_tokens_name))
     total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
 
     if input_tokens is not None:
