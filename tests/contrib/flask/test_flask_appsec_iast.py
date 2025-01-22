@@ -1549,7 +1549,6 @@ Lorem Ipsum Foobar
         @self.app.route("/stacktrace_leak_debug/")
         def stacktrace_leak():
             from flask import Response
-            from werkzeug.debug.tbtools import DebugTraceback
 
             try:
                 raise ValueError()
