@@ -115,6 +115,8 @@ ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/appsec/            @DataDog/asm-python
+ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
