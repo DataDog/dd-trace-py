@@ -508,6 +508,9 @@ static PyTypeObject MemallocIterEvents_Type = {
 #ifdef _PY38_AND_LATER
     0, /* tp_vectorcall */
 #endif
+#ifdef _PY38
+    0, /* tp_print */
+#endif
 };
 
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
