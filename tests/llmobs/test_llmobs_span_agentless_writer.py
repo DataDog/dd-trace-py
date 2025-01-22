@@ -20,14 +20,14 @@ INTAKE_ENDPOINT = "%s/api/v2/llmobs" % INTAKE_URL
 
 def test_writer_start(mock_writer_logs):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1000, timeout=1)
         llmobs_span_writer.start()
         mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", INTAKE_URL)])
 
 
 def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1000, timeout=1)
         for _ in range(1001):
             llmobs_span_writer.enqueue({})
         mock_writer_logs.warning.assert_called_with(
@@ -39,7 +39,7 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
     mock_writer_logs, mock_http_writer_send_payload_response
 ):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1000, timeout=1)
         llmobs_span_writer.enqueue(_large_event())
         llmobs_span_writer.enqueue(_large_event())
         llmobs_span_writer.enqueue(_large_event())
@@ -56,7 +56,7 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
 
 def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1000, timeout=1)
         llmobs_span_writer.enqueue(_oversized_llm_event())
         llmobs_span_writer.enqueue(_oversized_retrieval_event())
         llmobs_span_writer.enqueue(_oversized_workflow_event())
@@ -77,7 +77,7 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
 
 def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_completion_event())
         llmobs_span_writer.periodic()
@@ -87,7 +87,7 @@ def test_send_completion_event(mock_writer_logs, mock_http_writer_logs, mock_htt
 
 def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_chat_completion_event())
         llmobs_span_writer.periodic()
@@ -97,7 +97,7 @@ def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_logs, moc
 
 def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put_response_forbidden):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="<bad-api-key>")):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1, timeout=1)
         llmobs_span_writer.start()
         llmobs_span_writer.enqueue(_completion_event())
         llmobs_span_writer.periodic()
@@ -111,7 +111,7 @@ def test_send_completion_bad_api_key(mock_http_writer_logs, mock_http_writer_put
 
 def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=0.01, timeout=1)
         llmobs_span_writer.start()
         mock_writer_logs.reset_mock()
 
@@ -127,7 +127,7 @@ def test_send_timed_events(mock_writer_logs, mock_http_writer_logs, mock_http_wr
 
 def test_send_multiple_events(mock_writer_logs, mock_http_writer_logs, mock_http_writer_send_payload_response):
     with override_global_config(dict(_dd_site=DATADOG_SITE, _dd_api_key="foobar.baz")):
-        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
+        llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=0.01, timeout=1)
         llmobs_span_writer.start()
         mock_writer_logs.reset_mock()
 
@@ -159,6 +159,7 @@ import time
 
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from tests.llmobs.test_llmobs_span_agentless_writer import INTAKE_URL
 from tests.llmobs.test_llmobs_span_agentless_writer import _completion_event
 
 with mock.patch(
@@ -168,7 +169,7 @@ with mock.patch(
         body="{}",
     ),
 ):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=0.01, timeout=1)
+    llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=0.01, timeout=1)
     llmobs_span_writer.start()
     llmobs_span_writer.enqueue(_completion_event())
 """,

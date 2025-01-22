@@ -22,7 +22,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -237,6 +236,7 @@ class LLMObsSpanWriter(HTTPWriter):
         interval: float,
         timeout: float,
         is_agentless: bool = True,
+        agentless_url: str = "",
         dogstatsd=None,
         sync_mode=False,
         reuse_connections=None,
@@ -244,8 +244,10 @@ class LLMObsSpanWriter(HTTPWriter):
         headers = {}
         clients = []  # type: List[WriterClientBase]
         if is_agentless:
+            if not agentless_url:
+                raise ValueError("agentless_url is required for agentless mode")
             clients.append(LLMObsAgentlessEventClient())
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, config._dd_site)
+            intake_url = agentless_url
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
