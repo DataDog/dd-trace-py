@@ -78,6 +78,20 @@ benchmarks-pr-comment:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
+check-big-regressions:
+  stage: benchmarks
+  needs: [ microbenchmarks, benchmark-serverless ]
+  when: on_success
+  tags: ["arch:amd64"]
+  image: $MICROBENCHMARKS_CI_IMAGE
+  script:
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    - bp-runner bp-runner.fail-on-regression.yml --debug
+  variables:
+    # Gitlab and BP specific env vars. Do not modify.
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+
 benchmark-serverless:
   stage: benchmarks
   image: $SLS_CI_IMAGE
