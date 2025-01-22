@@ -7,7 +7,6 @@ IAST_PATCH = {
     "header_injection": True,
     "weak_cipher": True,
     "weak_hash": True,
-    "stacktrace_leak": True,
 }
 
 
