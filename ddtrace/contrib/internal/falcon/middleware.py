@@ -1,14 +1,10 @@
 import sys
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -27,26 +23,30 @@ class TraceMiddleware(object):
     def process_request(self, req, resp):
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
-        trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
-        span = self.tracer.trace(
-            schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
-            service=self.service,
+        with core.context_with_data(
+            "falcon.request",
+            span_name=schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
-        )
-        span.set_tag_str(COMPONENT, config.falcon.integration_name)
+            service=self.service,
+            tags={},
+            tracer=self.tracer,
+            distributed_headers=headers,
+            distributed_headers_config=config.falcon,
+            headers_case_sensitive=True,
+            analytics_sample_rate=config.falcon.get_analytics_sample_rate(use_global_config=True),
+        ) as ctx, ctx.span as req_span:
+            ctx.set_item("req_span", req_span)
+            core.dispatch("web.request", (ctx, config.falcon))
 
-        # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-        span.set_tag(SPAN_MEASURED_KEY)
-
-        # set analytics sample rate with global config enabled
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
-
-        trace_utils.set_http_meta(
-            span, config.falcon, method=req.method, url=req.url, query=req.query_string, request_headers=req.headers
-        )
+            trace_utils.set_http_meta(
+                req_span,
+                config.falcon,
+                method=req.method,
+                url=req.url,
+                query=req.query_string,
+                request_headers=req.headers,
+            )
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()

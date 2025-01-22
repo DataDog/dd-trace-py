@@ -799,8 +799,14 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
 
     for context_name in (
+        # web frameworks
         "aiohttp.request",
         "bottle.request",
+        "cherrypy.request",
+        "falcon.request",
+        "molten.request",
+        "pyramid.request",
+        "sanic.request",
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
@@ -811,6 +817,7 @@ def listen():
         "django.template.render",
         "django.process_exception",
         "django.func.wrapped",
+        # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
         "botocore.patched_kinesis_api_call",
