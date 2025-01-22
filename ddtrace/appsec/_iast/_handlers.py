@@ -22,8 +22,6 @@ from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
-from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
-from .taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
 
 
 MessageMapContainer = None
@@ -450,6 +448,8 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
         return
 
     try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
         content = response.content.decode("utf-8", errors="ignore")
         asm_check_stacktrace_leak(content)
     except Exception:
@@ -461,6 +461,8 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
         return
 
     try:
+        from .taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
+
         exc_name = exc_type.__name__
         module = tb.tb_frame.f_globals.get("__name__", "")
         asm_report_stacktrace_leak_from_django_debug_page(exc_name, module)
@@ -473,6 +475,8 @@ def _on_flask_finalize_request_post(response, _):
         return
 
     try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
         content = response[0].decode("utf-8", errors="ignore")
         asm_check_stacktrace_leak(content)
     except Exception:
@@ -484,6 +488,8 @@ def _on_asgi_finalize_response(body, _):
         return
 
     try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
         content = body.decode("utf-8", errors="ignore")
         asm_check_stacktrace_leak(content)
     except Exception:
@@ -495,6 +501,8 @@ def _on_werkzeug_render_debugger_html(html):
         return
 
     try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
         asm_check_stacktrace_leak(html)
         set_iast_stacktrace_reported(True)
     except Exception:
