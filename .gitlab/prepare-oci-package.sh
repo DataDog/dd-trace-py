@@ -26,6 +26,11 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
+if [ "$OS" == "windows" ]; then
+  echo "Windows packages are not supported. Exiting"
+  exit 0
+fi
+
 echo "Cleaning up binaries for ${ARCH}"
 if [ "${ARCH}" == "arm64" ]; then
   echo "Removing x86_64 binaries"
