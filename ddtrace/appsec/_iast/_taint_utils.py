@@ -335,7 +335,7 @@ class LazyTaintDict:
 
         self._obj = original_dict
         self._origins = origins
-        self.ORIGIN_KEY = origins[0] if origins[0] else OriginType.PARAMETER_NAME
+        self._origin_key = origins[0] if origins[0] else OriginType.PARAMETER_NAME
         self._origin_value = origins[1] if origins[1] else OriginType.PARAMETER
         self._override_pyobject_tainted = override_pyobject_tainted
 
@@ -471,7 +471,7 @@ class LazyTaintDict:
 
     def keys(self):
         for k in self._obj.keys():
-            yield self._taint(k, k, self.ORIGIN_KEY)
+            yield self._taint(k, k, self._origin_key)
 
     def pop(self, *args):
         return self._taint(self._obj.pop(*args), "pop")

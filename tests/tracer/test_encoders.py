@@ -37,7 +37,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from tests.utils import DummyTracer
 
 
-ORIGIN_KEY = ORIGIN_KEY.encode()
+_ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
 def span_to_tuple(span):
@@ -627,7 +627,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    assert all((_[item][ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
+    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
 @allencodings
@@ -715,7 +715,7 @@ def test_custom_msgpack_encode_v05():
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {}, {}, 0],
@@ -751,7 +751,7 @@ def test_msgpack_string_table():
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", ORIGIN_KEY, b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
 
     assert len(t) == 2
     assert "foobar" not in t

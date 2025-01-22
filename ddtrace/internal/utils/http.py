@@ -24,9 +24,9 @@ from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
-from ddtrace.internal.constants import W3C_TRACESTATEORIGIN_KEY
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.http import HTTPSConnection
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -153,7 +153,7 @@ def w3c_get_dd_list_member(context):
     if context.dd_origin:
         tags.append(
             "{}:{}".format(
-                W3C_TRACESTATEORIGIN_KEY,
+                W3C_TRACESTATE_ORIGIN_KEY,
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", context.dd_origin)),
             )
         )
