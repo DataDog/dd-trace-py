@@ -40,17 +40,17 @@ async def trace_middleware(app, handler):
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
         # Create a new context based on the propagated information.
         
-        breakpoint()
         with core.context_with_data(
             "aiohttp.request",
-            distributed_headers=request.headers,
-            headers_case_sensitive=True,
             span_name=schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
-            distributed_headers_config=app[CONFIG_KEY],
             span_type=SpanTypes.WEB,
             service=service,
-            tags={COMPONENT: config.aiohttp.integration_name},
+            tags={},
             tracer=tracer,
+            distributed_headers=request.headers,
+            distributed_headers_config=config.aiohttp,
+            distributed_headers_config_override=app[CONFIG_KEY]["distributed_tracing_enabled"],
+            headers_case_sensitive=True,
             analytics_enabled=analytics_enabled,
             analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True)
         ) as ctx, ctx.span as req_span:

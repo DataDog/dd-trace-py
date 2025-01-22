@@ -113,7 +113,10 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     distributed_headers_config = ctx.get_item("distributed_headers_config")
     if distributed_headers_config:
         trace_utils.activate_distributed_headers(
-            tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
+            tracer,
+            int_config=distributed_headers_config,
+            request_headers=ctx["distributed_headers"],
+            override=ctx.get_item("distributed_headers_config_override")
         )
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
@@ -130,7 +133,6 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(SPAN_MEASURED_KEY)
-
 
     anayltics_enabled = ctx.get_item('analytics_enabled')
     analytics_sample_rate = ctx.get_item('analytics_sample_rate', True)
@@ -787,7 +789,7 @@ def listen():
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
 
     # web frameworks general handlers
-    core.on("aiohttp.request", _on_web_framework_request)
+    core.on("web.request", _on_web_framework_request)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
