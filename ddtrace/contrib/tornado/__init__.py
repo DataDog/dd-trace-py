@@ -76,11 +76,6 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': False,
-            'settings': {
-                'FILTERS':  [
-                    FilterRequestsOnUrl(r'http://test\\.example\\.com'),
-                ],
-            },
         },
     }
 
@@ -114,20 +109,17 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.tornado.patch import get_version
-from ddtrace.contrib.internal.tornado.patch import patch
-from ddtrace.contrib.internal.tornado.patch import unpatch
+
+from ddtrace.contrib.internal.tornado.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.tornado.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.tornado.patch import unpatch  # noqa: F401
 from ddtrace.contrib.internal.tornado.stack_context import TracerStackContext
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.contrib.internal.tornado.stack_context import run_with_trace_context
 
 
 __all__ = [
-    "patch",
-    "unpatch",
     "context_provider",
     "run_with_trace_context",
     "TracerStackContext",
-    "get_version",
 ]

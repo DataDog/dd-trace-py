@@ -15,9 +15,6 @@ Configuration
 ~~~~~~~~~~~~~
 
 """
-# Expose public methods
-from ..internal.avro.patch import get_version
-from ..internal.avro.patch import patch
 
-
-__all__ = ["patch", "get_version"]
+from ..internal.avro.patch import get_version  # noqa: F401
+from ..internal.avro.patch import patch  # noqa: F401

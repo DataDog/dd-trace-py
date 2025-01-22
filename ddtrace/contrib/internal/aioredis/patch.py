@@ -12,8 +12,8 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
-from ddtrace.contrib.redis_utils import _run_redis_command_async
 from ddtrace.contrib.redis_utils import determine_row_count
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -27,7 +27,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

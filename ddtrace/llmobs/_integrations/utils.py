@@ -1,3 +1,6 @@
+from typing import Tuple
+from typing import Union
+
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -163,3 +166,41 @@ def get_system_instructions_from_google_model(model_instance):
         elif Part is not None and isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
+
+
+LANGCHAIN_ROLE_MAPPING = {
+    "human": "user",
+    "ai": "assistant",
+    "system": "system",
+}
+
+
+def format_langchain_io(
+    messages,
+):
+    """
+    Formats input and output messages for serialization to JSON.
+    Specifically, makes sure that any schema messages are converted to strings appropriately.
+    """
+    if isinstance(messages, dict):
+        formatted = {}
+        for key, value in messages.items():
+            formatted[key] = format_langchain_io(value)
+        return formatted
+    if isinstance(messages, list):
+        return [format_langchain_io(message) for message in messages]
+    return get_content_from_langchain_message(messages)
+
+
+def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
+    """
+    Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+    """
+    if isinstance(message, str):
+        return message
+    try:
+        content = getattr(message, "__dict__", {}).get("content", str(message))
+        role = getattr(message, "role", LANGCHAIN_ROLE_MAPPING.get(getattr(message, "type"), ""))
+        return (role, content) if role else content
+    except AttributeError:
+        return str(message)

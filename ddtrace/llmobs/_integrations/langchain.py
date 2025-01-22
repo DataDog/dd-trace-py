@@ -28,6 +28,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs.utils import Document
 
 
@@ -312,10 +313,10 @@ class LangChainIntegration(BaseLLMIntegration):
             inputs = kwargs
         formatted_inputs = ""
         if inputs is not None:
-            formatted_inputs = self.format_io(inputs)
+            formatted_inputs = format_langchain_io(inputs)
         formatted_outputs = ""
         if not span.error and outputs is not None:
-            formatted_outputs = self.format_io(outputs)
+            formatted_outputs = format_langchain_io(outputs)
         span._set_ctx_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
 
     def _llmobs_set_meta_tags_from_embedding(
@@ -346,7 +347,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
             ):
                 if is_workflow:
-                    formatted_inputs = self.format_io(input_texts)
+                    formatted_inputs = format_langchain_io(input_texts)
                     span._set_ctx_item(input_tag_key, formatted_inputs)
                 else:
                     if isinstance(input_texts, str):
@@ -392,7 +393,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
         input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
-            formatted_inputs = self.format_io(input_query)
+            formatted_inputs = format_langchain_io(input_query)
             span._set_ctx_item(INPUT_VALUE, formatted_inputs)
         if span.error or not output_documents or not isinstance(output_documents, list):
             span._set_ctx_item(OUTPUT_VALUE, "")
@@ -407,7 +408,7 @@ class LangChainIntegration(BaseLLMIntegration):
             metadata = getattr(d, "metadata", {})
             doc["name"] = metadata.get("name", doc["id"])
             documents.append(doc)
-        span._set_ctx_item(OUTPUT_DOCUMENTS, self.format_io(documents))
+        span._set_ctx_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
@@ -420,10 +421,10 @@ class LangChainIntegration(BaseLLMIntegration):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
-            formatted_input = self.format_io(tool_input)
+            formatted_input = format_langchain_io(tool_input)
         formatted_outputs = ""
         if not span.error and tool_output is not None:
-            formatted_outputs = self.format_io(tool_output)
+            formatted_outputs = format_langchain_io(tool_output)
         span._set_ctx_items(
             {
                 SPAN_KIND: "tool",
@@ -536,33 +537,3 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
-
-    def format_io(
-        self,
-        messages,
-    ):
-        """
-        Formats input and output messages for serialization to JSON.
-        Specifically, makes sure that any schema messages are converted to strings appropriately.
-        """
-        if isinstance(messages, dict):
-            formatted = {}
-            for key, value in messages.items():
-                formatted[key] = self.format_io(value)
-            return formatted
-        if isinstance(messages, list):
-            return [self.format_io(message) for message in messages]
-        return self.get_content_from_message(messages)
-
-    def get_content_from_message(self, message) -> str:
-        """
-        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
-        """
-        if isinstance(message, str):
-            return message
-        try:
-            content = getattr(message, "__dict__", {}).get("content", str(message))
-            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
-            return (role, content) if role else content
-        except AttributeError:
-            return str(message)

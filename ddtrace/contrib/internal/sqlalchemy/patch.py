@@ -3,7 +3,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.settings.asm import config as asm_config
 
 from .engine import _wrap_create_engine

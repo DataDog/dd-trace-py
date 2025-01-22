@@ -1,4 +1,3 @@
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -8,13 +7,14 @@ from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.trace import Pin
 
 
 class Psycopg3TracedConnection(dbapi.TracedConnection):
