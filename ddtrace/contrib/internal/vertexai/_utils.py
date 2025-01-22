@@ -183,7 +183,7 @@ def tag_request(span, integration, instance, args, kwargs):
     """
     # instance is either a chat session or a model itself
     model_instance = instance if isinstance(instance, GenerativeModel) else instance._model
-    contents = get_argument_value(args, kwargs, 0, "contents")
+    contents = get_argument_value(args, kwargs, 0, "content")
     history = _get_attr(instance, "_history", [])
     if history:
         if isinstance(contents, list):

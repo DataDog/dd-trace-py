@@ -45,7 +45,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         metadata = llmobs_get_metadata_google(kwargs, instance)
 
         system_instruction = get_system_instructions_from_google_model(instance)
-        input_contents = get_argument_value(args, kwargs, 0, "contents")
+        input_contents = get_argument_value(args, kwargs, 0, "content")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
         output_messages = [{"content": ""}]
