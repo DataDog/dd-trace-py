@@ -18,10 +18,7 @@ def start():
 
 
 def restart(join=False):
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast import enable_iast_propagation
-
-        enable_iast_propagation()
+    pass
 
 
 def stop(join=False):
