@@ -1,6 +1,7 @@
 import itertools
 import re
 import sys
+import time
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
@@ -1126,6 +1127,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
+        time.sleep(1)
         context = Context()
         if not headers or not config._propagation_style_extract:
             return context
