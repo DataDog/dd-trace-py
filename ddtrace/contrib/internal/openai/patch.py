@@ -195,7 +195,7 @@ def unpatch():
         import openai.api_requestor
 
         unwrap(openai.api_requestor, "_make_session")
-        wrap(openai.util, "convert_to_openai_object")
+        unwrap(openai.util, "convert_to_openai_object")
 
         for resource, method_hook_dict in _RESOURCES.items():
             if deep_getattr(openai.api_resources, resource) is None:
@@ -224,7 +224,7 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
     return
 
 
-def _patched_make_session(func, args, kwargs):
+def _patched_make_session(func, instance, args, kwargs):
     """Patch for `openai.api_requestor._make_session` which sets the service name on the
     requests session so that spans from the requests integration will use the service name openai.
     This is done so that the service break down will include OpenAI time spent querying the OpenAI backend.

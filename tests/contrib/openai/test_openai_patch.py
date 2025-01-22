@@ -100,11 +100,12 @@ class TestOpenaiPatch(PatchTestCase.Base):
                 self.assert_wrapped(openai.api_resources.file.File.retrieve)
                 self.assert_wrapped(openai.api_resources.file.File.list)
                 self.assert_wrapped(openai.api_resources.file.File.delete)
-                self.assert_wrapped(openai.api_resources.file.File.aretrieve_content)
+                self.assert_wrapped(openai.api_resources.file.File.download)
                 self.assert_wrapped(openai.api_resources.file.File.acreate)
                 self.assert_wrapped(openai.api_resources.file.File.aretrieve)
                 self.assert_wrapped(openai.api_resources.file.File.alist)
                 self.assert_wrapped(openai.api_resources.file.File.adelete)
+                self.assert_wrapped(openai.api_resources.file.File.adownload)
 
     def assert_not_module_patched(self, openai):
         if OPENAI_VERSION >= (1, 0, 0):
@@ -189,11 +190,12 @@ class TestOpenaiPatch(PatchTestCase.Base):
                 self.assert_not_wrapped(openai.api_resources.file.File.retrieve)
                 self.assert_not_wrapped(openai.api_resources.file.File.list)
                 self.assert_not_wrapped(openai.api_resources.file.File.delete)
-                self.assert_not_wrapped(openai.api_resources.file.File.aretrieve_content)
+                self.assert_not_wrapped(openai.api_resources.file.File.download)
                 self.assert_not_wrapped(openai.api_resources.file.File.acreate)
                 self.assert_not_wrapped(openai.api_resources.file.File.aretrieve)
                 self.assert_not_wrapped(openai.api_resources.file.File.alist)
                 self.assert_not_wrapped(openai.api_resources.file.File.adelete)
+                self.assert_not_wrapped(openai.api_resources.file.File.adownload)
 
     def assert_not_module_double_patched(self, openai):
         if OPENAI_VERSION >= (1, 0, 0):
@@ -278,8 +280,9 @@ class TestOpenaiPatch(PatchTestCase.Base):
                 self.assert_not_double_wrapped(openai.api_resources.file.File.retrieve)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.list)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.delete)
-                self.assert_not_double_wrapped(openai.api_resources.file.File.aretrieve_content)
+                self.assert_not_double_wrapped(openai.api_resources.file.File.download)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.acreate)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.aretrieve)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.alist)
                 self.assert_not_double_wrapped(openai.api_resources.file.File.adelete)
+                self.assert_not_double_wrapped(openai.api_resources.file.File.adownload)
