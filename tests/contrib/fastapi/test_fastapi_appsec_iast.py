@@ -19,6 +19,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -34,8 +36,6 @@ from tests.utils import override_global_config
 TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
-if sys.version_info > (3, 12):
-    pytest.skip(reason="IAST only supports Py3.12 and older", allow_module_level=True)
 
 
 def _aux_appsec_prepare_tracer(tracer):
@@ -78,9 +78,6 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
-        from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
 
@@ -110,12 +107,41 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.parameter"
 
 
+def test_query_param_name_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        query_params = [k for k in request.query_params.keys() if k == "iast_queryparam"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html?iast_queryparam=test1234",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_queryparam"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 15
+        assert result["ranges_origin"] == "http.request.parameter.name"
+
+
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
-        from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-
         query_params = request.headers.get("iast_header")
         ranges_result = get_tainted_ranges(query_params)
 
@@ -143,6 +169,38 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.header"
+
+
+def test_header_name_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        query_params = [k for k in request.headers.keys() if k == "iast_header"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html",
+            headers={"iast_header": "test1234"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_header"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 11
+        assert result["ranges_origin"] == "http.request.header.name"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")

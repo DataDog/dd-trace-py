@@ -7,7 +7,7 @@ from typing import List
 import wrapt
 
 from ddtrace import config
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger

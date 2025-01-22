@@ -101,7 +101,7 @@ _COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
 def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
-    from ddtrace.contrib.trace_utils import _normalize_tag_name
+    from ddtrace.contrib.internal.trace_utils import _normalize_tag_name
 
     for k in headers:
         if isinstance(k, tuple):
@@ -218,7 +218,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return WAF_DATA_NAMES.SQLI_ADDRESS in self._addresses_to_keep
 
     def on_span_start(self, span: Span) -> None:
-        from ddtrace.contrib import trace_utils
+        from ddtrace.contrib.internal import trace_utils
 
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()

@@ -10,7 +10,7 @@ from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
