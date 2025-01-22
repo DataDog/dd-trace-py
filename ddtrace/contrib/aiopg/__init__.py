@@ -26,8 +26,5 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.aiopg.patch import get_version
-from ddtrace.contrib.internal.aiopg.patch import patch
-
-
-__all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.aiopg.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aiopg.patch import patch  # noqa: F401

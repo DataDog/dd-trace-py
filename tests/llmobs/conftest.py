@@ -1,4 +1,9 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
+import json
 import os
+import threading
+import time
 
 import mock
 import pytest
@@ -151,11 +156,31 @@ def reset_ragas_faithfulness_llm():
 
 
 @pytest.fixture
+def reset_ragas_answer_relevancy_llm():
+    import ragas
+
+    previous_llm = ragas.metrics.answer_relevancy.llm
+    yield
+    ragas.metrics.answer_relevancy.llm = previous_llm
+
+
+@pytest.fixture
 def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
     patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
     LLMObsMockRagas = patcher.start()
     LLMObsMockRagas.return_value = 1.0
     yield RagasFaithfulnessEvaluator
+    patcher.stop()
+
+
+@pytest.fixture
+def mock_ragas_answer_relevancy_calculate_similarity():
+    import numpy
+
+    patcher = mock.patch("ragas.metrics.answer_relevancy.calculate_similarity")
+    MockRagasCalcSim = patcher.start()
+    MockRagasCalcSim.return_value = numpy.array([1.0, 1.0, 1.0])
+    yield MockRagasCalcSim
     patcher.stop()
 
 
@@ -175,15 +200,79 @@ def llmobs_env():
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.events = []
+        self._events = []
 
     def enqueue(self, event):
-        self.events.append(event)
+        self._events.append(event)
+        super().enqueue(event)
+
+    def events(self):
+        return self._events
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+def llmobs_span_writer(_llmobs_backend):
+    url, _ = _llmobs_backend
+    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
+    sw._headers["DD-API-KEY"] = "<test-key>"
+    yield sw
+
+
+class LLMObsServer(BaseHTTPRequestHandler):
+    """A mock server for the LLMObs backend used to capture the requests made by the client.
+
+    Python's HTTPRequestHandler is a bit weird and uses a class rather than an instance
+    for running an HTTP server so the requests are stored in a class variable and reset in the pytest fixture.
+    """
+
+    requests = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def do_POST(self) -> None:
+        content_length = int(self.headers["Content-Length"])
+        body = self.rfile.read(content_length).decode("utf-8")
+        self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+
+@pytest.fixture
+def _llmobs_backend():
+    LLMObsServer.requests = []
+    # Create and start the HTTP server
+    server = HTTPServer(("localhost", 0), LLMObsServer)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    # Provide the server details to the test
+    server_address = f"http://{server.server_address[0]}:{server.server_address[1]}"
+
+    yield server_address, LLMObsServer.requests
+
+    # Stop the server after the test
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.fixture
+def llmobs_backend(_llmobs_backend):
+    _, reqs = _llmobs_backend
+
+    class _LLMObsBackend:
+        def wait_for_num_events(self, num, attempts=1000):
+            for _ in range(attempts):
+                if len(reqs) == num:
+                    return [json.loads(r["body"]) for r in reqs]
+                # time.sleep will yield the GIL so the server can process the request
+                time.sleep(0.001)
+            else:
+                raise TimeoutError(f"Expected {num} events, got {len(reqs)}")
+
+    return _LLMObsBackend()
 
 
 @pytest.fixture
@@ -211,4 +300,4 @@ def llmobs(
 
 @pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+    return llmobs_span_writer.events()

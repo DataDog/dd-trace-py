@@ -8,6 +8,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
+from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -17,6 +19,8 @@ logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
+    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
+    RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
 }
 
 
@@ -111,20 +115,12 @@ class EvaluatorRunner(PeriodicService):
             self._buffer = []
 
         try:
-            if not _wait_sync:
-                for evaluator in self.evaluators:
-                    self.executor.map(
-                        lambda span_event: evaluator.run_and_submit_evaluation(span_event),
-                        [
-                            span_event
-                            for span_event, span in span_events_and_spans
-                            if self.sampler.sample(evaluator.LABEL, span)
-                        ],
-                    )
-            else:
-                for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
+            for evaluator in self.evaluators:
+                for span_event, span in span_events_and_spans:
+                    if self.sampler.sample(evaluator.LABEL, span):
+                        if not _wait_sync:
+                            self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
+                        else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)
