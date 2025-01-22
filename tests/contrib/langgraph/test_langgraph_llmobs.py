@@ -14,6 +14,7 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
             break
     assert found
 
+
 def _find_span_by_name(llmobs_events, name):
     for event in llmobs_events:
         if event["name"] == name:
@@ -118,7 +119,6 @@ class TestLangGraphLLMObs:
         c_span = _find_span_by_name(llmobs_events, "c")
         d_span = _find_span_by_name(llmobs_events, "d")
 
- 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(d_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")

@@ -1,45 +1,59 @@
 from collections import Counter
 
+
 def assert_has_spans(spans, expected):
     resources = [span.resource for span in spans]
     assert len(resources) == len(expected)
     assert Counter(resources) == Counter(expected)
 
+
 def assert_simple_graph_spans(spans):
-    assert_has_spans(spans, expected=[
-        "langgraph.graph.state.CompiledStateGraph.LangGraph",
-        "langgraph.utils.runnable.RunnableSeq.a",
-        "langgraph.utils.runnable.RunnableSeq.b",
-    ])
+    assert_has_spans(
+        spans,
+        expected=[
+            "langgraph.graph.state.CompiledStateGraph.LangGraph",
+            "langgraph.utils.runnable.RunnableSeq.a",
+            "langgraph.utils.runnable.RunnableSeq.b",
+        ],
+    )
 
 
 def assert_conditional_graph_spans(spans, which):
-    assert_has_spans(spans, expected=[
-        "langgraph.graph.state.CompiledStateGraph.LangGraph",
-        "langgraph.utils.runnable.RunnableSeq.a",
-        f"langgraph.utils.runnable.RunnableSeq.{which}",
-    ])
+    assert_has_spans(
+        spans,
+        expected=[
+            "langgraph.graph.state.CompiledStateGraph.LangGraph",
+            "langgraph.utils.runnable.RunnableSeq.a",
+            f"langgraph.utils.runnable.RunnableSeq.{which}",
+        ],
+    )
 
 
 def assert_subgraph_spans(spans):
-    assert_has_spans(spans, expected=[
-        "langgraph.graph.state.CompiledStateGraph.LangGraph",
-        "langgraph.utils.runnable.RunnableSeq.a",
-        "langgraph.graph.state.CompiledStateGraph.LangGraph",
-        "langgraph.utils.runnable.RunnableSeq.b1",
-        "langgraph.utils.runnable.RunnableSeq.b2",
-        "langgraph.utils.runnable.RunnableSeq.b3",
-    ])
+    assert_has_spans(
+        spans,
+        expected=[
+            "langgraph.graph.state.CompiledStateGraph.LangGraph",
+            "langgraph.utils.runnable.RunnableSeq.a",
+            "langgraph.graph.state.CompiledStateGraph.LangGraph",
+            "langgraph.utils.runnable.RunnableSeq.b1",
+            "langgraph.utils.runnable.RunnableSeq.b2",
+            "langgraph.utils.runnable.RunnableSeq.b3",
+        ],
+    )
 
 
 def assert_fanning_graph_spans(spans):
-    assert_has_spans(spans, expected=[
-        "langgraph.graph.state.CompiledStateGraph.LangGraph",
-        "langgraph.utils.runnable.RunnableSeq.a",
-        "langgraph.utils.runnable.RunnableSeq.b",
-        "langgraph.utils.runnable.RunnableSeq.c",
-        "langgraph.utils.runnable.RunnableSeq.d",
-    ])
+    assert_has_spans(
+        spans,
+        expected=[
+            "langgraph.graph.state.CompiledStateGraph.LangGraph",
+            "langgraph.utils.runnable.RunnableSeq.a",
+            "langgraph.utils.runnable.RunnableSeq.b",
+            "langgraph.utils.runnable.RunnableSeq.c",
+            "langgraph.utils.runnable.RunnableSeq.d",
+        ],
+    )
 
 
 def test_simple_graph(simple_graph, mock_tracer):
