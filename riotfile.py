@@ -2504,7 +2504,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==1.1.1", "==1.30.1"],
                         "pillow": "==9.5.0",

@@ -62,7 +62,6 @@ class TestOpenaiPatch(PatchTestCase.Base):
             self.assert_wrapped(openai.resources.files.AsyncFiles.list)
             self.assert_wrapped(openai.resources.files.AsyncFiles.delete)
             self.assert_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
-
         else:
             self.assert_wrapped(openai.api_resources.completion.Completion.create)
             self.assert_wrapped(openai.api_resources.completion.Completion.acreate)
@@ -152,7 +151,6 @@ class TestOpenaiPatch(PatchTestCase.Base):
             self.assert_not_wrapped(openai.resources.files.AsyncFiles.list)
             self.assert_not_wrapped(openai.resources.files.AsyncFiles.delete)
             self.assert_not_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
-
         else:
             self.assert_not_wrapped(openai.api_resources.completion.Completion.create)
             self.assert_not_wrapped(openai.api_resources.completion.Completion.acreate)
@@ -242,7 +240,6 @@ class TestOpenaiPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.list)
             self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.delete)
             self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
-
         else:
             self.assert_not_double_wrapped(openai.api_resources.completion.Completion.create)
             self.assert_not_double_wrapped(openai.api_resources.completion.Completion.acreate)

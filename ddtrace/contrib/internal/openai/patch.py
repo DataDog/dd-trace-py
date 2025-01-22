@@ -82,8 +82,9 @@ if OPENAI_VERSION >= (1, 0, 0):
 else:
     _RESOURCES = {
         "model.Model": {
-            "list": _endpoint_hooks._ListHook,
-            "retrieve": _endpoint_hooks._RetrieveHook,
+            "list": _endpoint_hooks._ModelListHook,
+            "retrieve": _endpoint_hooks._ModelRetrieveHook,
+            "delete": _endpoint_hooks._ModelDeleteHook,
         },
         "completion.Completion": {
             "create": _endpoint_hooks._CompletionHook,
@@ -107,10 +108,10 @@ else:
             "create": _endpoint_hooks._ModerationHook,
         },
         "file.File": {
-            # File.list() and File.retrieve() share the same underlying method as Model.list() and Model.retrieve()
-            # which means they are already wrapped
+            "list": _endpoint_hooks._FileListHook,
+            "retrieve": _endpoint_hooks._FileRetrieveHook,
             "create": _endpoint_hooks._FileCreateHook,
-            "delete": _endpoint_hooks._DeleteHook,
+            "delete": _endpoint_hooks._FileDeleteHook,
             "download": _endpoint_hooks._FileDownloadHook,
         },
     }
