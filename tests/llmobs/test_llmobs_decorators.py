@@ -828,3 +828,28 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
     )
+
+
+def construct_link(span_event, link_from, link_to):
+    return {
+        "trace_id": span_event["trace_id"],
+        "span_id": span_event["span_id"],
+        "attributes": {"from": link_from, "to": link_to},
+    }
+
+
+def test_decorator_records_span_links(llmobs, llmobs_events):
+    @workflow
+    def f(inp):
+        return 1
+
+    @task
+    def g(inp):
+        return inp
+
+    f(g("test_input"))
+
+    assert not llmobs_events[0]["span_links"]
+    assert len(llmobs_events[1]["span_links"]) == 2
+    assert llmobs_events[1]["span_links"][0] == construct_link(llmobs_events[0], "input", "input")
+    assert llmobs_events[1]["span_links"][1] == construct_link(llmobs_events[0], "output", "input")
