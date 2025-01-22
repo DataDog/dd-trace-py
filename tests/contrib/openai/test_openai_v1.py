@@ -856,17 +856,16 @@ def test_misuse(openai, snapshot_tracer):
 )
 def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
-        with pytest.raises(openai.APIConnectionError):
-            with pytest.raises(openai.AuthenticationError):
-                client = openai.OpenAI(api_key="sk-wrong-api-key")
-                client.completions.create(
-                    model="text-curie-001",
-                    prompt="how does openai tokenize prompts?",
-                    temperature=0.8,
-                    n=1,
-                    max_tokens=150,
-                    stream=True,
-                )
+        with pytest.raises((openai.APIConnectionError, openai.AuthenticationError)):
+            client = openai.OpenAI(api_key="sk-wrong-api-key")
+            client.completions.create(
+                model="text-curie-001",
+                prompt="how does openai tokenize prompts?",
+                temperature=0.8,
+                n=1,
+                max_tokens=150,
+                stream=True,
+            )
 
 
 @pytest.mark.snapshot

@@ -238,7 +238,7 @@ def _patched_make_session(func, instance, args, kwargs):
     return session
 
 
-def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
+def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
@@ -247,7 +247,7 @@ def _traced_endpoint(endpoint_hook, integration, pin, args, kwargs):
         span.set_tag_str("openai.user.api_key", openai_api_key)
     try:
         # Start the hook
-        hook = endpoint_hook().handle_request(pin, integration, span, args, kwargs)
+        hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
         hook.send(None)
 
         resp, err = yield
@@ -275,7 +275,7 @@ def _patched_endpoint(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
         integration = openai._datadog_integration
-        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
+        g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
@@ -300,7 +300,7 @@ def _patched_endpoint_async(openai, patch_hook):
     @with_traced_module
     async def patched_endpoint(openai, pin, func, instance, args, kwargs):
         integration = openai._datadog_integration
-        g = _traced_endpoint(patch_hook, integration, pin, args, kwargs)
+        g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
         resp, err = None, None
         try:
