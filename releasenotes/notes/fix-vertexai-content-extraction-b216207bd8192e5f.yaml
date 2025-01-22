@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    vertexai: Fixes chat.send_message content keyword argument extraction.
