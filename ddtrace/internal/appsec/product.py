@@ -15,16 +15,13 @@ def start():
 
 def restart(join=False):
     if asm_config._asm_enabled or config._remote_config_enabled:
-        from ddtrace.appsec._remoteconfiguration import APPSEC_PRODUCTS
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+        from ddtrace.appsec._remoteconfiguration import _forksafe_appsec_rc
 
-        remoteconfig_poller.start_subscribers_by_product(APPSEC_PRODUCTS)
+        _forksafe_appsec_rc()
 
 
 def stop(join=False):
-    from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
-
-    disable_appsec_rc()
+    pass
 
 
 def at_exit(join=False):
