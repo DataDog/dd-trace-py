@@ -26,8 +26,8 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-if [ "$OS" == "windows" ]; then
-  echo "Windows packages are not supported. Exiting"
+if [ "$OS" != "linux" ]; then
+  echo "Only linux packages are supported. Exiting"
   exit 0
 fi
 
