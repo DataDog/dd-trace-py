@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.

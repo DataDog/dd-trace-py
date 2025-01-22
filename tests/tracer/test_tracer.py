@@ -30,7 +30,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV04
 from ddtrace.internal._encoding import MsgpackEncoderV05

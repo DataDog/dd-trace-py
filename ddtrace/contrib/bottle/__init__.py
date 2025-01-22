@@ -42,9 +42,25 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.bottle.patch import get_version
-from ddtrace.contrib.internal.bottle.patch import patch
+from ddtrace.contrib.internal.bottle.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.bottle.patch import patch  # noqa: F401
 from ddtrace.contrib.internal.bottle.trace import TracePlugin
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["TracePlugin", "patch", "get_version"]
+def __getattr__(name):
+    if name in ("get_version", "patch"):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+
+
+__all__ = ["TracePlugin"]
