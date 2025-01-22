@@ -10,6 +10,7 @@ from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -35,47 +36,40 @@ async def trace_middleware(app, handler):
         # application configs
         tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
-        distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
-        # Create a new context based on the propagated information.
-        trace_utils.activate_distributed_headers(
-            tracer,
-            int_config=config.aiohttp,
-            request_headers=request.headers,
-            override=distributed_tracing,
-        )
-
-        # trace the handler
-        request_span = tracer.trace(
-            schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
-            service=service,
-            span_type=SpanTypes.WEB,
-        )
-        request_span.set_tag(SPAN_MEASURED_KEY)
-
-        request_span.set_tag_str(COMPONENT, config.aiohttp.integration_name)
-
-        # set span.kind tag equal to type of request
-        request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-        # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
-        if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, app[CONFIG_KEY].get("analytics_sample_rate", True))
+        # Create a new context based on the propagated information.
+        
+        breakpoint()
+        with core.context_with_data(
+            "aiohttp.request",
+            distributed_headers=request.headers,
+            headers_case_sensitive=True,
+            span_name=schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
+            distributed_headers_config=app[CONFIG_KEY],
+            span_type=SpanTypes.WEB,
+            service=service,
+            tags={COMPONENT: config.aiohttp.integration_name},
+            tracer=tracer,
+            analytics_enabled=analytics_enabled,
+            analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True)
+        ) as ctx, ctx.span as req_span:
+            ctx.set_item("req_span", req_span)
+            core.dispatch("web.request", (ctx, config.aiohttp))
 
-        # attach the context and the root span to the request; the Context
-        # may be freely used by the application code
-        request[REQUEST_CONTEXT_KEY] = request_span.context
-        request[REQUEST_SPAN_KEY] = request_span
-        request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
-        try:
-            response = await handler(request)
-            if isinstance(response, web.StreamResponse):
-                request.task.add_done_callback(lambda _: finish_request_span(request, response))
-            return response
-        except Exception:
-            request_span.set_traceback()
-            raise
+            # attach the context and the root span to the request; the Context
+            # may be freely used by the application code
+            request[REQUEST_CONTEXT_KEY] = req_span.context
+            request[REQUEST_SPAN_KEY] = req_span
+            request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
+            try:
+                response = await handler(request)
+                if isinstance(response, web.StreamResponse):
+                    request.task.add_done_callback(lambda _: finish_request_span(request, response))
+                return response
+            except Exception:
+                req_span.set_traceback()
+                raise
 
     return attach_context
 
