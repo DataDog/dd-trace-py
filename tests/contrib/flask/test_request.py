@@ -355,8 +355,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
-        with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
-            test_headers= {
+        test_headers= {
                 'x-dd-proxy': 'aws-apigateway',
                 'x-dd-proxy-request-time-ms': '1736973768000',
                 'x-dd-proxy-path': '/',
@@ -366,14 +365,34 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 'x-datadog-trace-id': '1',
                 'x-datadog-parent-id': '2',
                 'x-datadog-origin': 'rum',
-                'x-datadog-sampling-priority': '1'
+                'x-datadog-sampling-priority': '2'
             }
 
+        # Without the feature enabled, we should not be creating the inferred span
+        self.client.get("/", headers=test_headers)
+        web_span = self.find_span_by_name(self.get_spans(), "flask.request")
+        aws_gateway_span = web_span._parent
+        assert aws_gateway_span is None
+        assert web_span.sampled == True
+        assert web_span.parent_id == 2
+        assert web_span.trace_id == 1
+
+        # With the feature enabled
+        with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
             self.reset()
             self.client.get("/", headers=test_headers)
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
-            assert aws_gateway_span._parent is not None #TODO fix distributed tracing
+
+            # Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+
+            # Assert test specific behavior
+            assert web_span.trace_id == aws_gateway_span.trace_id
+            assert web_span.sampled is True
+            assert aws_gateway_span.parent_id == 2
+            assert aws_gateway_span.trace_id == 1
 
 
     def test_request_query_string(self):

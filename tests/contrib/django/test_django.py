@@ -1777,10 +1777,10 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
                 'x-dd-proxy-stage': 'stage'
             }
 
+    # When the inferred proxy feature is not enabled, there should be no inferred span
     resp = client.get("/", headers=test_headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
-
     web_span = test_spans.find_span(name="django.request")
     assert web_span._parent is None
 
@@ -1838,22 +1838,44 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
                 'x-datadog-trace-id': '1',
                 'x-datadog-parent-id': '2',
                 'x-datadog-origin': 'rum',
-                'x-datadog-sampling-priority': '1'
+                'x-datadog-sampling-priority': '2'
             }
-
+    # Without the feature enabled, we should not be creating the inferred span
     resp = client.get("/", headers=test_headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
 
     web_span = test_spans.find_span(name="django.request")
-    assert web_span._parent is None
+    aws_gateway_span = web_span._parent
+    assert aws_gateway_span is None
+    web_span.assert_matches(
+        name="django.request",
+        trace_id=1,
+        parent_id=2,
+        metrics={
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
+        sampled=True,
+    )
 
     with override_global_config(dict(_inferred_proxy_services_enabled="true")):
         test_spans.reset()
         client.get("/", headers=test_headers)
         web_span = test_spans.find_span(name="django.request")
         aws_gateway_span = web_span._parent
-        assert aws_gateway_span._parent is not None #TODO fix distributed tracing
+
+        # Assert common behavior including aws gateway metadata
+        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+        # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
+        web_span.assert_matches(
+            name="django.request",
+            trace_id=1,
+            sampled=True,
+        )
+        assert aws_gateway_span.trace_id == 1
+        assert aws_gateway_span.parent_id == 2
+        assert aws_gateway_span.sampled is True
 
 def test_trace_query_string_integration_enabled(client, test_spans):
     with override_http_config("django", dict(trace_query_string=True)):

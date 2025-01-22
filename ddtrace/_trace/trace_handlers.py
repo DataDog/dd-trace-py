@@ -116,6 +116,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
         )
+
+    # "distributed_context" is only set by a handful of integrations including botocore
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
@@ -125,7 +127,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_headers_config and config._inferred_proxy_services_enabled and ctx.get_item("headers", None):
         inferred_proxy_result = create_inferred_proxy_span_if_headers_exist(
             headers=ctx.get_item("headers"),
-            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_span(),
+            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_trace_context(),
             tracer=tracer,
         )
 
