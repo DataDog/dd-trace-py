@@ -3,7 +3,7 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-#[pyclass(name = "PyConfigurator", module = "ddtrace.internal._core")]
+#[pyclass(name = "PyConfigurator", module = "ddtrace.internal._native")]
 pub struct PyConfigurator {
     configurator: Box<Configurator>,
     envp: Vec<String>,

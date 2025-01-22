@@ -1,5 +1,5 @@
 [package]
-name = "ddtrace-config"
+name = "ddtrace-native"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,13 +10,14 @@ opt-level = 3
 
 [dependencies]
 pyo3 = { version = "0.22.3", features = ["extension-module"] }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", tag = "v15.0.0" }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v15.0.0" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v15.0.0" }
 
 [build-dependencies]
 pyo3-build-config = "0.21.2"
 
 [lib]
-name = "_config"
+name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
 
