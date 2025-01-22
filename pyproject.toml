@@ -55,9 +55,9 @@ ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
+ddtrace = "ddtrace.contrib.internal.pytest.plugin"
+"ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
+"ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
 
 [project.entry-points.'ddtrace.products']
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
@@ -176,6 +176,7 @@ exclude-modules = '''
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
+  | ddtrace.internal.coverage.instrumentation_py3_13
 )
 '''
 
@@ -203,12 +204,6 @@ build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", 
 test-command = ["python {project}/tests/smoke_test.py"]
 # Skip trying to test arm64 builds on Intel Macs
 test-skip = "*-macosx_universal2:arm64"
-
-[tool.cibuildwheel.macos.environment]
-# Workaround for Macos 11.0 versioning issue, a.k.a.
-# `platform.mac_ver()` reports incorrect MacOS version at 11.0
-# See: https://stackoverflow.com/a/65402241
-SYSTEM_VERSION_COMPAT = "0"
 
 [tool.ruff]
 exclude = [

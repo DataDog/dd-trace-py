@@ -171,8 +171,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         http_req = fn_args[0]
 
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
-        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
-        http_req.POST = taint_structure(http_req.POST, OriginType.BODY, OriginType.BODY)
         if (
             getattr(http_req, "_body", None) is not None
             and len(getattr(http_req, "_body", None)) > 0
@@ -202,6 +200,8 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             except AttributeError:
                 log.debug("IAST can't set attribute http_req.body", exc_info=True)
 
+        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+        http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
         http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
         http_req.path = taint_pyobject(
             http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
@@ -297,7 +297,6 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-
     if _is_iast_enabled() and is_iast_request_enabled():
         try:
             if not is_pyobject_tainted(value):
@@ -305,6 +304,29 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
                 if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
                     origin = OriginType.COOKIE
                 return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    return value
+
+
+def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
+    value = wrapped(*args, **kwargs)
+    if _is_iast_enabled() and is_iast_request_enabled():
+        try:
+            res = []
+            for element in value:
+                if not is_pyobject_tainted(element):
+                    res.append(
+                        taint_pyobject(
+                            pyobject=element,
+                            source_name=origin_to_str(origin),
+                            source_value=element,
+                            source_origin=origin,
+                        )
+                    )
+                else:
+                    res.append(element)
+            return res
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     return value
@@ -333,6 +355,13 @@ def _on_iast_fastapi_patch():
     )
     _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "QueryParams.keys",
+        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+    )
+    _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
     # Header sources
     try_wrap_function_wrapper(
         "starlette.datastructures",
@@ -345,6 +374,13 @@ def _on_iast_fastapi_patch():
         functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
     )
     _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "Headers.keys",
+        functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
+    )
+    _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
 
     # Path source
     try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
@@ -367,3 +403,39 @@ def _on_iast_fastapi_patch():
 
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+
+def _on_pre_tracedrequest_iast(ctx):
+    current_span = ctx.span
+    _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
+
+
+def _on_set_request_tags_iast(request, span, flask_config):
+    if _is_iast_enabled():
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
+        if not is_iast_request_enabled():
+            return
+
+        request.cookies = taint_structure(
+            request.cookies,
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
+            override_pyobject_tainted=True,
+        )
+
+        request.args = taint_structure(
+            request.args,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
+        request.form = taint_structure(
+            request.form,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )

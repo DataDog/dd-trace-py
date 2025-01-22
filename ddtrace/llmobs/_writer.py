@@ -22,7 +22,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -55,8 +54,7 @@ class LLMObsSpanEvent(TypedDict):
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    span_id: str
-    trace_id: str
+    join_on: Dict[str, Dict[str, str]]
     metric_type: str
     label: str
     categorical_value: str
@@ -107,6 +105,13 @@ class BaseLLMObsWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
 
+        if not self._headers.get("DD-API-KEY"):
+            logger.warning(
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
+                "Ensure this configuration is set before running your application.",
+            )
+            return
+
         data = self._data(events)
         enc_llm_events = safe_json(data)
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
@@ -154,7 +159,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/v1/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
@@ -237,6 +242,7 @@ class LLMObsSpanWriter(HTTPWriter):
         interval: float,
         timeout: float,
         is_agentless: bool = True,
+        agentless_url: str = "",
         dogstatsd=None,
         sync_mode=False,
         reuse_connections=None,
@@ -244,8 +250,10 @@ class LLMObsSpanWriter(HTTPWriter):
         headers = {}
         clients = []  # type: List[WriterClientBase]
         if is_agentless:
+            if not agentless_url:
+                raise ValueError("agentless_url is required for agentless mode")
             clients.append(LLMObsAgentlessEventClient())
-            intake_url = "%s.%s" % (AGENTLESS_BASE_URL, config._dd_site)
+            intake_url = agentless_url
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
