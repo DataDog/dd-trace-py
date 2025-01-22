@@ -24,7 +24,7 @@ class TraceMiddleware(object):
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
 
-        with core.context_with_data(
+        ctx = core.context_with_data(
             "falcon.request",
             span_name=schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
@@ -35,18 +35,19 @@ class TraceMiddleware(object):
             distributed_headers_config=config.falcon,
             headers_case_sensitive=True,
             analytics_sample_rate=config.falcon.get_analytics_sample_rate(use_global_config=True),
-        ) as ctx, ctx.span as req_span:
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.falcon))
+        )
+        req_span = ctx.span
+        ctx.set_item("req_span", req_span)
+        core.dispatch("web.request", (ctx, config.falcon))
 
-            trace_utils.set_http_meta(
-                req_span,
-                config.falcon,
-                method=req.method,
-                url=req.url,
-                query=req.query_string,
-                request_headers=req.headers,
-            )
+        trace_utils.set_http_meta(
+            req_span,
+            config.falcon,
+            method=req.method,
+            url=req.url,
+            query=req.query_string,
+            request_headers=req.headers,
+        )
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()
