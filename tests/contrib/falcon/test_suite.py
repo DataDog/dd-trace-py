@@ -1,6 +1,6 @@
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
@@ -226,7 +226,7 @@ class FalconTestCase(FalconTestMixin):
         """OpenTracing version of test_200."""
         writer = self.tracer._writer
         ot_tracer = init_tracer("my_svc", self.tracer)
-        ot_tracer._dd_tracer.configure(writer=writer)
+        ot_tracer._dd_tracer._configure(writer=writer)
 
         with ot_tracer.start_active_span("ot_span"):
             out = self.make_test_call("/200", expected_status_code=200)

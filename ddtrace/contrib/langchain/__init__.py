@@ -113,11 +113,10 @@ integrations which trace HTTP requests to LLM providers, as well as the
 ``openai`` integration which traces requests to the OpenAI library.
 
 Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangChain integration::
-
     from ddtrace import config, patch
 
     # Note: be sure to configure the integration before calling ``patch()``!
-    # eg. config.langchain["logs_enabled"] = True
+    # config.langchain["logs_enabled"] = True
 
     patch(langchain=True)
 
@@ -207,23 +206,16 @@ Global Configuration
    Default: ``0.1``
 
 """  # noqa: E501
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.langchain.patch` directly
+import warnings as _w
 
 
-required_modules = ["langchain"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.langchain.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        # Expose public methods
-        from ddtrace.contrib.internal.langchain.patch import get_version
-        from ddtrace.contrib.internal.langchain.patch import patch
-        from ddtrace.contrib.internal.langchain.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.langchain.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.langchain.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.langchain.patch import unpatch  # noqa: F401

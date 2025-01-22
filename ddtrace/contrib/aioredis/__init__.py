@@ -1,12 +1,3 @@
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
-
-deprecate(
-    "The aioredis integration is deprecated.",
-    message="Please use the redis integration with redis>=4.2.0 instead.",
-    category=DDTraceDeprecationWarning,
-)
 """
 The aioredis integration instruments aioredis requests. Version 1.3 and above are fully
 supported.
@@ -64,27 +55,19 @@ To configure the aioredis integration on a per-instance basis use the
 ``Pin`` API::
 
     import aioredis
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     myaioredis = aioredis.Aioredis()
     Pin.override(myaioredis, service="myaioredis")
 """
-from ddtrace.internal.utils.importlib import require_modules  # noqa:E402
+import warnings as _w  # noqa: E402
 
 
-required_modules = ["aioredis"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    # Required to allow users to import from  `ddtrace.contrib.aioredis.patch` directly
+    from . import patch as _  # noqa: I001,F401
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.aioredis.patch` directly
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        from ddtrace.contrib.internal.aioredis.patch import get_version
-        from ddtrace.contrib.internal.aioredis.patch import patch
-        from ddtrace.contrib.internal.aioredis.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.aioredis.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aioredis.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.aioredis.patch import unpatch  # noqa: F401

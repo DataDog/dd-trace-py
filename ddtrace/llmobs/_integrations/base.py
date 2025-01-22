@@ -6,11 +6,11 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -22,8 +22,8 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
-from ddtrace.sampler import RateSampler
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -40,7 +40,9 @@ class BaseLLMIntegration:
         self._log_writer = None
         self._statsd = None
         self.integration_config = integration_config
-        self._span_pc_sampler = RateSampler(sample_rate=integration_config.span_prompt_completion_sample_rate)
+        self._span_pc_sampler = RateSampler(
+            sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
+        )
 
         if self.metrics_enabled:
             self._statsd = get_dogstatsd_client(get_stats_url(), namespace=self._integration_name)
@@ -133,7 +135,7 @@ class BaseLLMIntegration:
                 # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
                 # in these cases to avoid conflicting with the later propagated tags.
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
-                span.set_tag_str(PARENT_ID_KEY, str(parent_id))
+                span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
         return span
 
     @classmethod

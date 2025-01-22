@@ -58,22 +58,15 @@ The integration can be configured per instance::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["http.client"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        from ddtrace.contrib.internal.httplib.patch import get_version
-        from ddtrace.contrib.internal.httplib.patch import patch
-        from ddtrace.contrib.internal.httplib.patch import unpatch
+import warnings as _w
 
 
-__all__ = ["patch", "unpatch", "get_version"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: I001,F401
+
+from ddtrace.contrib.internal.httplib.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.httplib.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.httplib.patch import unpatch  # noqa: F401

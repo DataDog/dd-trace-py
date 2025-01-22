@@ -23,13 +23,16 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "bytecode>=0.15.0; python_version>='3.12'",
+    "bytecode>=0.16.0; python_version>='3.13.0'",
+    "bytecode>=0.15.0; python_version~='3.12.0'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
     "envier~=0.5",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
+    "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "typing_extensions",
@@ -52,9 +55,9 @@ ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
 [project.entry-points.pytest11]
-ddtrace = "ddtrace.contrib.pytest.plugin"
-"ddtrace.pytest_bdd" = "ddtrace.contrib.pytest_bdd.plugin"
-"ddtrace.pytest_benchmark" = "ddtrace.contrib.pytest_benchmark.plugin"
+ddtrace = "ddtrace.contrib.internal.pytest.plugin"
+"ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
+"ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
 
 [project.entry-points.'ddtrace.products']
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
@@ -172,6 +175,7 @@ exclude-modules = '''
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11
   | ddtrace.internal.coverage.instrumentation_py3_12
+  | ddtrace.internal.coverage.instrumentation_py3_13
 )
 '''
 
@@ -199,12 +203,6 @@ build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", 
 test-command = ["python {project}/tests/smoke_test.py"]
 # Skip trying to test arm64 builds on Intel Macs
 test-skip = "*-macosx_universal2:arm64"
-
-[tool.cibuildwheel.macos.environment]
-# Workaround for Macos 11.0 versioning issue, a.k.a.
-# `platform.mac_ver()` reports incorrect MacOS version at 11.0
-# See: https://stackoverflow.com/a/65402241
-SYSTEM_VERSION_COMPAT = "0"
 
 [tool.ruff]
 exclude = [

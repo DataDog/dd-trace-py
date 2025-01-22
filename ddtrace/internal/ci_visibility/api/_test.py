@@ -5,6 +5,8 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestId
@@ -16,14 +18,19 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
+from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
-from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
+from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -50,6 +57,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         is_atr_retry: bool = False,
         resource: Optional[str] = None,
         is_new: bool = False,
+        is_quarantined: bool = False,
     ):
         self._parameters = parameters
         super().__init__(
@@ -69,6 +77,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.PARAMETERS, parameters)
 
         self._is_new = is_new
+        self._is_quarantined = is_quarantined
 
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
@@ -77,8 +86,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._atr_is_retry = is_atr_retry
         self._atr_retries: List[TestVisibilityTest] = []
 
-        # Currently unsupported
-        self._is_benchmark = None
+        self._is_benchmark = False
+        self._benchmark_duration_data: Optional[BenchmarkDurationData] = None
+
+        # Some parameters can be overwritten:
+        self._overwritten_suite_name: Optional[str] = None
 
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
@@ -92,6 +104,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             test.NAME: self.name,
         }
 
+    def _set_item_tags(self) -> None:
+        """Overrides parent tags for cases where they need to be modified"""
+        if self._is_benchmark:
+            self.set_tag(test.TYPE, BENCHMARK)
+
+        if self._overwritten_suite_name is not None:
+            self.set_tag(test.SUITE, self._overwritten_suite_name)
+
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
@@ -100,13 +120,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
         # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched).
-        if self.is_new():
+        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
+        # test as new.
+        session = self.get_session()
+        if self.is_new() and session is not None and not session.efd_is_faulty_session():
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
+
+    def _set_quarantine_tags(self) -> None:
+        if self._is_quarantined:
+            self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -119,20 +145,21 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self._span.set_exc_info(self._exc_info.exc_type, self._exc_info.exc_value, self._exc_info.exc_traceback)
 
     def _telemetry_record_event_created(self):
-        record_event_created(
-            event_type=self._event_type_metric_name,
+        record_event_created_test(
             test_framework=self._session_settings.test_framework_metric_name,
-            is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
+            is_benchmark=self._is_benchmark,
         )
 
     def _telemetry_record_event_finished(self):
-        record_event_finished(
-            event_type=self._event_type_metric_name,
+        record_event_finished_test(
             test_framework=self._session_settings.test_framework_metric_name,
-            is_benchmark=self._is_benchmark if self._is_benchmark is not None else None,
-            is_new=self._is_new if self._is_new is not None else None,
+            is_benchmark=self._is_benchmark,
+            is_new=self.is_new(),
             is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
+            is_quarantined=self.is_quarantined(),
+            is_rum=self._is_rum(),
+            browser_driver=self._get_browser_driver(),
         )
 
     def finish_test(
@@ -143,6 +170,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         override_finish_time: Optional[float] = None,
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
+
+        self.set_tag(test.TYPE, SpanTypes.TEST)
+
         if status is not None:
             self.set_status(status)
         if reason is not None:
@@ -187,6 +217,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 
+    def overwrite_attributes(
+        self,
+        name: Optional[str] = None,
+        suite_name: Optional[str] = None,
+        parameters: Optional[str] = None,
+        codeowners: Optional[List[str]] = None,
+    ) -> None:
+        if name is not None:
+            self.name = name
+        if suite_name is not None:
+            self._overwritten_suite_name = suite_name
+        if parameters is not None:
+            self.set_parameters(parameters)
+        if codeowners is not None:
+            self._codeowners = codeowners
+
     def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
 
@@ -198,6 +244,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # NOTE: this is a hack because tests with parameters cannot currently be counted as new (due to EFD design
         # decisions)
         return self._is_new and (self._parameters is None)
+
+    def is_quarantined(self):
+        return self._session_settings.quarantine_settings.enabled and (
+            self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
+        )
 
     #
     # EFD (Early Flake Detection) functionality
@@ -323,6 +374,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             codeowners=self._codeowners,
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
+            is_quarantined=self.is_quarantined(),
             is_atr_retry=True,
         )
         retry_test.parent = self.parent
@@ -369,7 +421,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._atr_get_retry_test(retry_number).start()
 
     def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
-        self._atr_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
+        retry_test = self._atr_get_retry_test(retry_number)
+
+        if retry_number >= self._session_settings.atr_settings.max_retries:
+            if self.atr_get_final_status() == TestStatus.FAIL and self.is_quarantined():
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+
+        retry_test.finish_test(status, exc_info=exc_info)
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
@@ -379,3 +437,31 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             return TestStatus.PASS
 
         return TestStatus.FAIL
+
+    #
+    # Selenium / RUM functionality
+    #
+    def _is_rum(self):
+        if self._span is None:
+            return False
+        return self._span.get_tag("is_rum_active") == "true"
+
+    def _get_browser_driver(self):
+        if self._span is None:
+            return None
+        return self._span.get_tag("test.browser.driver")
+
+    #
+    # Benchmark test functionality
+    #
+    def set_benchmark_data(self, duration_data: Optional[BenchmarkDurationData], is_benchmark: bool = True):
+        self._benchmark_duration_data = duration_data
+        self._is_benchmark = is_benchmark
+
+        if self._benchmark_duration_data is not None:
+            self.set_tag(BENCHMARK_INFO, "Time")
+
+            for tag, attr in BENCHMARK_TAG_MAP.items():
+                value = getattr(self._benchmark_duration_data, tag)
+                if value is not None:
+                    self.set_tag(attr, value)

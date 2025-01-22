@@ -8,7 +8,8 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
 
     # Be sure to import pymongo and not pymongo.MongoClient directly,
     # otherwise you won't have access to the patched version
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import pymongo
 
     # If not patched yet, you can patch pymongo specifically
@@ -35,22 +36,16 @@ Global Configuration
    Default: ``"pymongo"``
 
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["pymongo"]
+# Required to allow users to import from  `ddtrace.contrib.pymongo.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.pymongo.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.pymongo.patch import get_version
-        from ddtrace.contrib.internal.pymongo.patch import patch
 
-        __all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.pymongo.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.pymongo.patch import patch  # noqa: F401

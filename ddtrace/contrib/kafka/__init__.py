@@ -31,7 +31,7 @@ Global Configuration
 To configure the kafka integration using the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     from ddtrace import patch
 
     # Make sure to patch before importing confluent_kafka
@@ -41,23 +41,17 @@ To configure the kafka integration using the
 
     Pin.override(confluent_kafka, service="custom-service-name")
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["confluent_kafka"]
+# Required to allow users to import from  `ddtrace.contrib.kafka.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.kafka.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.kafka.patch import get_version
-        from ddtrace.contrib.internal.kafka.patch import patch
-        from ddtrace.contrib.internal.kafka.patch import unpatch
 
-        __all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.kafka.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.kafka.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.kafka.patch import unpatch  # noqa: F401

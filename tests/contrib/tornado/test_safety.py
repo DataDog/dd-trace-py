@@ -3,8 +3,8 @@ import threading
 from tornado import httpclient
 from tornado.testing import gen_test
 
-from ddtrace.contrib.tornado import patch
-from ddtrace.contrib.tornado import unpatch
+from ddtrace.contrib.internal.tornado.patch import patch
+from ddtrace.contrib.internal.tornado.patch import unpatch
 from ddtrace.ext import http
 
 from . import web

@@ -1,9 +1,14 @@
-from ddtrace.contrib.pytest.plugin import is_enabled as is_ddtrace_enabled
+from ddtrace.contrib.internal.pytest_benchmark.plugin import *  # noqa: F403
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-def pytest_configure(config):
-    if config.pluginmanager.hasplugin("benchmark") and config.pluginmanager.hasplugin("ddtrace"):
-        if is_ddtrace_enabled(config):
-            from ._plugin import _PytestBenchmarkPlugin
+def __getattr__(name):
+    deprecate(
+        ("%s.%s is deprecated" % (__name__, name)),
+        category=DDTraceDeprecationWarning,
+    )
 
-            config.pluginmanager.register(_PytestBenchmarkPlugin(), "_datadog-pytest-benchmark")
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)

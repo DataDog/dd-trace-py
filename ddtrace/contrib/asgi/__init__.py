@@ -55,18 +55,26 @@ Configuration
 .. __: https://asgi.readthedocs.io/
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import get_version  # noqa: F401
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-required_modules = []
+def __getattr__(name):
+    if name in ("get_version",):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.asgi.patch` directly
-        from . import middleware as _  # noqa: F401, I001
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
 
-        from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
-        from ddtrace.contrib.internal.asgi.middleware import get_version
-        from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
-        __all__ = ["TraceMiddleware", "span_from_scope", "get_version"]
+__all__ = ["TraceMiddleware", "span_from_scope"]

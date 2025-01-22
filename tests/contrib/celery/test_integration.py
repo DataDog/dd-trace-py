@@ -1,6 +1,5 @@
 from collections import Counter
 import os
-import socket
 import subprocess
 from time import sleep
 
@@ -9,13 +8,13 @@ from celery.exceptions import Retry
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.celery import patch
-from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.internal.celery.patch import patch
+from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import flaky
 
@@ -194,7 +193,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -239,7 +238,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -635,7 +634,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.routing_key") == "celery"
             assert async_span.get_tag("component") == "celery"
             assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == socket.gethostname()
+            assert async_span.get_tag("out.host") == "memory://"
 
         run_span = self.find_span(name="celery.run")
         assert run_span.name == "celery.run"

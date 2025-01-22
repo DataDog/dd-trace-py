@@ -5,7 +5,8 @@ Only supports tracing for the synchronous client.
 ``import ddtrace.auto`` will automatically patch your Consul client to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import consul
 
     # If not patched yet, you can patch consul specifically
@@ -19,23 +20,16 @@ Only supports tracing for the synchronous client.
     Pin.override(client, service='consul-kv')
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.consul.patch` directly
+import warnings as _w
 
 
-required_modules = ["consul"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.consul.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        # Expose public methods
-        from ddtrace.contrib.internal.consul.patch import get_version
-        from ddtrace.contrib.internal.consul.patch import patch
-        from ddtrace.contrib.internal.consul.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.consul.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.consul.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.consul.patch import unpatch  # noqa: F401

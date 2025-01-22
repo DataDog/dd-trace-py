@@ -5,18 +5,23 @@ from vertexai.generative_models import Part
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import get_generation_config_google
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
 from ddtrace.llmobs._utils import _get_attr
 
 
 class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, integration, span, is_chat):
+    def __init__(self, generator, model_instance, integration, span, args, kwargs, is_chat, history):
         self._generator = generator
+        self._model_instance = model_instance
         self._dd_integration = integration
         self._dd_span = span
-        self._chunks = []
+        self._args = args
+        self._kwargs = kwargs
         self.is_chat = is_chat
+        self._chunks = []
+        self._history = history
 
 
 class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
@@ -41,6 +46,12 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         finally:
+            if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
+                self._kwargs["instance"] = self._model_instance
+                self._kwargs["history"] = self._history
+                self._dd_integration.llmobs_set_tags(
+                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
+                )
             self._dd_span.finish()
 
 
@@ -66,28 +77,13 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
         else:
             tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         finally:
+            if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
+                self._kwargs["instance"] = self._model_instance
+                self._kwargs["history"] = self._history
+                self._dd_integration.llmobs_set_tags(
+                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
+                )
             self._dd_span.finish()
-
-
-def get_system_instruction_texts_from_model(instance):
-    """
-    Extract system instructions from model and convert to []str for tagging.
-    """
-    raw_system_instructions = _get_attr(instance, "_system_instruction", [])
-    if isinstance(raw_system_instructions, str):
-        return [raw_system_instructions]
-    elif isinstance(raw_system_instructions, Part):
-        return [_get_attr(raw_system_instructions, "text", "")]
-    elif not isinstance(raw_system_instructions, list):
-        return []
-
-    system_instructions = []
-    for elem in raw_system_instructions:
-        if isinstance(elem, str):
-            system_instructions.append(elem)
-        elif isinstance(elem, Part):
-            system_instructions.append(_get_attr(elem, "text", ""))
-    return system_instructions
 
 
 def extract_info_from_parts(parts):
@@ -200,7 +196,7 @@ def tag_request(span, integration, instance, args, kwargs):
         generation_config_dict = (
             generation_config if isinstance(generation_config, dict) else generation_config.to_dict()
         )
-    system_instructions = get_system_instruction_texts_from_model(model_instance)
+    system_instructions = get_system_instructions_from_google_model(model_instance)
     stream = kwargs.get("stream", None)
 
     if generation_config_dict is not None:
@@ -219,7 +215,7 @@ def tag_request(span, integration, instance, args, kwargs):
             integration.trunc(str(text)),
         )
 
-    if isinstance(contents, str) or isinstance(contents, dict):
+    if isinstance(contents, str):
         span.set_tag_str("vertexai.request.contents.0.text", integration.trunc(str(contents)))
         return
     elif isinstance(contents, Part):

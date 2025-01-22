@@ -17,13 +17,14 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
-from ddtrace import Pin
+import ddtrace
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -49,6 +50,7 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -126,7 +128,7 @@ def patch_conn(django, conn):
     for tag, attr in DB_CONN_ATTR_BY_TAG.items():
         if attr in settings_dict:
             try:
-                tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+                tags[tag] = _convert_to_string(conn.settings_dict.get(attr))
             except Exception:
                 tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags
@@ -147,7 +149,12 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        pin = Pin(service, tags=tags, tracer=pin.tracer)
+        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Remove this if statement when the `tracer` argument is removed
+        if pin.tracer is ddtrace.tracer:
+            pin = Pin(service, tags=tags)
+        else:
+            pin = Pin(service, tags=tags, tracer=pin.tracer)
 
         cursor = func(*args, **kwargs)
 
@@ -215,7 +222,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         "django.cache",
         span_name="django.cache",
         span_type=SpanTypes.CACHE,
-        service=config.django.cache_service_name,
+        service=schematize_service_name(config.django.cache_service_name),
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,

@@ -44,18 +44,25 @@ Use a specific ``Cache`` implementation with::
 
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
+from ddtrace.contrib.internal.flask_cache.tracers import get_version  # noqa: F401
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-required_modules = ["flask_cache", "flask_caching"]
+def __getattr__(name):
+    if name in ("get_version",):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
 
-with require_modules(required_modules) as missing_modules:
-    if len(missing_modules) < len(required_modules):
-        # Required to allow users to import from `ddtrace.contrib.aiohttp.patch` directly
-        from . import tracers as _  # noqa: F401, I001
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
 
-        # Expose public methods
-        from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
-        from ddtrace.contrib.internal.flask_cache.tracers import get_version
 
-        __all__ = ["get_traced_cache", "get_version"]
+__all__ = ["get_traced_cache"]

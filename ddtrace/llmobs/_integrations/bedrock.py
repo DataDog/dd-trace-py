@@ -19,7 +19,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
-from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
@@ -29,12 +28,17 @@ class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
     def _llmobs_set_tags(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None, operation: str = ""
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span.set_tag(PARENT_ID_KEY, parent_id)
+            span._set_ctx_item(PARENT_ID_KEY, parent_id)
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
@@ -43,20 +47,20 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = kwargs.get("prompt", "")
         input_messages = self._extract_input_message(prompt)
-
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("bedrock.request.model") or "")
-        span.set_tag_str(MODEL_PROVIDER, span.get_tag("bedrock.request.model_provider") or "")
-
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
-        span.set_tag_str(METADATA, safe_json(parameters))
-        if span.error or response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-        else:
+        output_messages = [{"content": ""}]
+        if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
-        metrics = self._llmobs_metrics(span, response)
-        span.set_tag_str(METRICS, safe_json(metrics))
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("bedrock.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("bedrock.request.model_provider") or "",
+                INPUT_MESSAGES: input_messages,
+                METADATA: parameters,
+                METRICS: self._llmobs_metrics(span, response),
+                OUTPUT_MESSAGES: output_messages,
+            }
+        )
 
     @staticmethod
     def _llmobs_metrics(span: Span, response: Optional[Dict[str, Any]]) -> Dict[str, Any]:

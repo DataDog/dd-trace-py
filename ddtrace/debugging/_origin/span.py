@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
 import sys
+import time
 
 # from threading import current_thread
 from types import FrameType
@@ -24,10 +25,10 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 # from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.span import Span
@@ -170,7 +171,7 @@ class EntrySpanWrappingContext(WrappingContext):
         #     span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
         #     self.set("context", context)
-        #     self.set("start_time", compat.monotonic_ns())
+        #     self.set("start_time", time.monotonic_ns())
 
         return self
 
@@ -181,7 +182,7 @@ class EntrySpanWrappingContext(WrappingContext):
             # No snapshot was created
             return
 
-        signal.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+        signal.do_exit(retval, exc_info, time.monotonic_ns() - self.get("start_time"))
 
     def __return__(self, retval):
         self._close_signal(retval=retval)
@@ -209,15 +210,19 @@ class SpanCodeOriginProcessor(SpanProcessor):
             code = frame.f_code
             filename = code.co_filename
 
-            if is_user_code(Path(filename)):
+            if is_user_code(filename):
                 n = next(seq)
                 if n >= co_config.max_user_frames:
                     break
 
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.file", filename)
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
-                # DEV: Without a function object we cannot infer the function
-                # and any potential class name.
+                try:
+                    (f,) = functions_for_code(code)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.type", f.__module__)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.method", f.__qualname__)
+                except ValueError:
+                    continue
 
                 # TODO[gab]: This will be enabled as part of the live debugger/distributed debugging
                 # if ld_config.enabled:

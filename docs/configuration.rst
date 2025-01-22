@@ -10,6 +10,12 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
+Common Configurations
+---------------------
+
+For common configuration variables (not language specific), see `Configure the Datadog Tracing Library`_.
+
+
 Unified Service Tagging
 -----------------------
 
@@ -176,18 +182,6 @@ Traces
          Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
       version_added:
          v2.17.0:
-
-   DD_TRACE_ENABLED:
-     type: Boolean
-     default: True
-     
-     description: |
-         Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
-         generated.
-     
-     version_added:
-       v0.41.0: |
-           Formerly named ``DATADOG_TRACE_ENABLED``
 
    DD_TRACE_HEADER_TAGS:
      description: |
@@ -374,6 +368,26 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT:
+     default: |
+         ``continue``
+     
+     description: |
+         String for how to handle incoming request headers that are extracted for propagation of trace info.
+
+         The supported values are ``continue``, ``restart``, and ``ignore``.
+
+         After extracting the headers for propagation, this configuration determines what is done with them.
+
+         The default value is ``continue`` which always propagates valid headers.
+         ``ignore`` ignores all incoming headers and ``restart`` turns the first extracted valid propagation header 
+         into a span link and propagates baggage if present.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="ignore"`` to ignore all incoming headers and to start a root span without a parent.
+
+     version_added:
+       v2.20.0:
+
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
          ``tracecontext,datadog``
@@ -438,6 +452,29 @@ AppSec
      default: None
      description: Whether to enable/disable SCA (Software Composition Analysis).
 
+   DD_APPSEC_MAX_STACK_TRACES:
+     type: Integer
+     default: 2
+     description: Maximum number of stack traces reported for each trace.
+
+   DD_APPSEC_MAX_STACK_TRACE_DEPTH:
+     type: Integer
+     default: 32
+     description: Maximum number of frames in a stack trace report. 0 means no limit.
+
+   DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT:
+     type: Integer
+     default: 75
+     description: |
+       Percentage of reported stack trace frames to be taken from the top of the stack in case of a stack trace truncation.
+       For example, if DD_APPSEC_MAX_STACK_TRACE_DEPTH is set to 25 and DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT is set to 60,
+       if a stack trace has more than 25 frames, the top 15 (25*0.6=15)frames and the bottom 10 frames will be reported.
+
+   DD_APPSEC_STACK_TRACE_ENABLED:
+     type: Boolean
+     default: True
+     description: Whether to enable stack traces in reports for ASM. Currently used for exploit prevention reports.
+
    DD_IAST_ENABLED:
      type: Boolean
      default: False
@@ -484,6 +521,11 @@ AppSec
      
      version_added:
         v1.17.0:
+
+   DD_IAST_STACK_TRACE_ENABLED:
+     type: Boolean
+     default: True
+     description: Whether to enable stack traces in reports for Code Security/IAST.
 
    DD_IAST_VULNERABILITIES_PER_REQUEST:
      type: Integer
@@ -535,10 +577,10 @@ Test Visibility
      default: True
      
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
-        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
-        ``false`` will skip querying the API and disable code coverage
-        collection and test skipping.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
+        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
+        test skipping.
      
      version_added:
         v1.13.0:
@@ -569,6 +611,33 @@ Test Visibility
      version_added:
         v2.16.0:
 
+   DD_PYTEST_USE_NEW_PLUGIN_BETA:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
+        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
+        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
+        improved coverage collection for `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
+        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
+        for more information.
+
+     version_added:
+        v2.18.0:
+
+   DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
+     type: Integer
+     default: 500
+
+     description: |
+        Configures how long, in milliseconds, the Selenium integration will wait after invoking the RUM flush function
+        during calls to the driver's ``quit()`` or ``close()`` methods. This helps ensure that the call to the
+        asynchronous function finishes before the driver is closed.
+
+     version_added:
+        v2.18.0:
 
 Agent
 -----
@@ -842,6 +911,8 @@ Other
 
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+.. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
 
 
 Profiling

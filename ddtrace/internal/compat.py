@@ -56,32 +56,16 @@ from urllib.parse import urlencode  # noqa: E402
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
     if isinstance(s, str):
         return s
-
     if isinstance(s, bytes):
         return s.decode(encoding, errors)
-
-    # Skip the check for Mock objects as they are used in tests
-    from unittest.mock import Mock
-
-    if isinstance(s, Mock):
-        return str(s)
-
     raise TypeError("Expected str or bytes but received %r" % (s.__class__))
 
 
 def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
     if isinstance(s, bytes):
         return s
-
-    # Skip the check for Mock objects as they are used in tests
-    from unittest.mock import Mock
-
-    if isinstance(s, Mock):
-        return bytes(s)
-
     if not isinstance(s, str):
         raise TypeError("Expected str or bytes but received %r" % (s.__class__))
-
     return s.encode(encoding, errors)
 
 
@@ -120,41 +104,6 @@ def is_integer(obj):
     # >>> isinstance(True, int)
     # True
     return isinstance(obj, int) and not isinstance(obj, bool)
-
-
-try:
-    from time import time_ns
-except ImportError:
-    from time import time as _time
-
-    def time_ns():
-        # type: () -> int
-        return int(_time() * 10e5) * 1000
-
-
-try:
-    from time import monotonic
-except ImportError:
-    from ddtrace.vendor.monotonic import monotonic
-
-
-try:
-    from time import monotonic_ns
-except ImportError:
-
-    def monotonic_ns():
-        # type: () -> int
-        return int(monotonic() * 1e9)
-
-
-try:
-    from time import process_time_ns
-except ImportError:
-    from time import clock as _process_time  # type: ignore[attr-defined]
-
-    def process_time_ns():
-        # type: () -> int
-        return int(_process_time() * 1e9)
 
 
 main_thread = threading.main_thread()
@@ -218,9 +167,6 @@ def get_connection_response(
     https://github.com/python/cpython/commit/3c43fcba8b67ea0cec4a443c755ce5f25990a6cf
     """
     return conn.getresponse()
-
-
-CONTEXTVARS_IS_AVAILABLE = True
 
 
 try:

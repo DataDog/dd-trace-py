@@ -40,25 +40,37 @@ explicitly to the list. For example::
 
 """
 
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.pyramid.patch` directly
+import warnings as _w
 
 
-required_modules = ["pyramid"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.pyramid.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+from ddtrace.contrib.internal.pyramid.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.pyramid.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.pyramid.trace import includeme
+from ddtrace.contrib.internal.pyramid.trace import trace_pyramid
+from ddtrace.contrib.internal.pyramid.trace import trace_tween_factory
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
-        # Expose public methods
-        from ddtrace.contrib.internal.pyramid.patch import get_version
-        from ddtrace.contrib.internal.pyramid.patch import patch
-        from ddtrace.contrib.internal.pyramid.trace import includeme
-        from ddtrace.contrib.internal.pyramid.trace import trace_pyramid
-        from ddtrace.contrib.internal.pyramid.trace import trace_tween_factory
 
-        __all__ = ["patch", "trace_pyramid", "trace_tween_factory", "includeme", "get_version"]
+def __getattr__(name):
+    if name in ("patch", "get_version"):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+
+
+__all__ = ["trace_pyramid", "trace_tween_factory", "includeme"]

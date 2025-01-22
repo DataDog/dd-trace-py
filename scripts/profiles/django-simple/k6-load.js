@@ -1,5 +1,4 @@
 import http from 'k6/http';
-import { sleep } from 'k6';
 
 export const options = {
     duration: '60s',
@@ -7,5 +6,5 @@ export const options = {
 };
 
 export default function () {
-    const res = http.get('http://127.0.0.1:8000/accounts/signup/');
+    const res = http.get('http://127.0.0.1:8080/polls/123/vote/');
 }

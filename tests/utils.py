@@ -23,6 +23,7 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
+from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -122,6 +123,7 @@ def override_global_config(values):
         "_health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
+        "_propagation_behavior_extract",
         "_x_datadog_tags_max_length",
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
@@ -181,6 +183,7 @@ def override_global_config(values):
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     ddtrace.settings.asm.config._eval_asm_can_be_enabled()
     try:
+        core.dispatch("test.config.override")
         yield
     finally:
         # Reset all to their original values
@@ -611,7 +614,7 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self.configure(*args, **kwargs)
+        self._configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -643,6 +646,9 @@ class DummyTracer(Tracer):
         return traces
 
     def configure(self, *args, **kwargs):
+        self._configure(*args, **kwargs)
+
+    def _configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
@@ -653,7 +659,7 @@ class DummyTracer(Tracer):
             kwargs["writer"] = DummyWriter(
                 trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
             )
-        super(DummyTracer, self).configure(*args, **kwargs)
+        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
@@ -1153,11 +1159,6 @@ def snapshot(
         else:
             clsname = ""
 
-        if include_tracer:
-            tracer = Tracer()
-        else:
-            tracer = ddtrace.tracer
-
         module = inspect.getmodule(wrapped)
 
         # Use the fully qualified function name as a unique test token to
@@ -1171,14 +1172,14 @@ def snapshot(
         with snapshot_context(
             token,
             ignores=ignores,
-            tracer=tracer,
+            tracer=ddtrace.tracer,
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
         ):
             # Run the test.
             if include_tracer:
-                kwargs["tracer"] = tracer
+                kwargs["tracer"] = ddtrace.tracer
             return wrapped(*args, **kwargs)
 
     return wrapper
@@ -1337,7 +1338,7 @@ def _should_skip(condition=None, until: int = None):
         until = dt.datetime(3000, 1, 1)
     else:
         until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.utcnow() < until.replace(tzinfo=None):
+    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
     if condition is not None and not condition:
         return False

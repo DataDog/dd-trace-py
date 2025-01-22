@@ -1,7 +1,7 @@
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG release-1.11.0)
+    GIT_TAG v1.15.2)
 set(gtest_force_shared_crt
     ON
     CACHE BOOL "" FORCE)
@@ -11,6 +11,24 @@ set(INSTALL_GTEST
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
+
+if(DO_VALGRIND)
+    find_program(
+        VALGRIND_EXECUTABLE
+        NAMES valgrind
+        PATHS /usr/bin /usr/local/bin)
+
+    if(VALGRIND_EXECUTABLE)
+        set(MEMORYCHECK_COMMAND "${VALGRIND_EXECUTABLE}")
+        set(MEMORYCHECK_COMMAND_OPTIONS
+            "--leak-check=full --show-leak-kinds=definite --errors-for-leak-kinds=definite --trace-children=yes --error-exitcode=1 --log-fd=1 --suppressions=${CMAKE_CURRENT_SOURCE_DIR}/valgrind.supp"
+        )
+    else()
+        message(FATAL_ERROR "Valgrind not found")
+    endif()
+
+    include(CTest)
+endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
@@ -29,8 +47,7 @@ function(dd_wrapper_add_test name)
     endif()
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name}
-            RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()
 

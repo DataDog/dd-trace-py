@@ -3,7 +3,8 @@
 ``import ddtrace.auto`` will automatically patch your Cluster instance to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     from cassandra.cluster import Cluster
 
     # If not patched yet, you can patch cassandra specifically
@@ -21,22 +22,16 @@
     session = cluster.connect("my_keyspace")
     session.execute("select id from my_table limit 10;")
 """
-from ddtrace.internal.utils.importlib import require_modules
 
 
-required_modules = ["cassandra.cluster"]
+# Required to allow users to import from  `ddtrace.contrib.cassandra.patch` directly
+import warnings as _w
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.cassandra.patch` directly
-        import warnings as _w
 
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.cassandra.patch import patch
-        from ddtrace.contrib.internal.cassandra.session import get_version
 
-        __all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.cassandra.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.cassandra.session import get_version  # noqa: F401

@@ -1,75 +1,29 @@
 import os
-from unittest import mock
 
-import pytest
-
-import ddtrace
-from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_MEAN
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_RUN
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_HD15IQR
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_IQR
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_IQR_OUTLIERS
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_LD15IQR
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MAX
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MEAN
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MEDIAN
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_MIN
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_N
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_OPS
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_OUTLIERS
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_Q1
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_Q3
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIERS
-from ddtrace.contrib.pytest_benchmark.constants import STATISTICS_TOTAL
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_MEAN
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_RUN
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_HD15IQR
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_IQR
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_IQR_OUTLIERS
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_LD15IQR
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_MAX
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_MEAN
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_MEDIAN
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_MIN
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_N
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_OPS
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_OUTLIERS
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_Q1
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_Q3
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_STDDEV
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_STDDEV_OUTLIERS
+from ddtrace.contrib.internal.pytest_benchmark.constants import STATISTICS_TOTAL
 from ddtrace.ext.test import TEST_TYPE
-from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from tests.ci_visibility.test_encoder import _patch_dummy_writer
-from tests.utils import TracerTestCase
-from tests.utils import override_env
+from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
-class PytestTestCase(TracerTestCase):
-    @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch, git_repo):
-        self.testdir = testdir
-        self.monkeypatch = monkeypatch
-        self.git_repo = git_repo
-
-    @pytest.fixture(autouse=True)
-    def _dummy_check_enabled_features(self):
-        """By default, assume that _check_enabled_features() returns an ITR-disabled response.
-
-        Tests that need a different response should re-patch the CIVisibility object.
-        """
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(False, False, False, False),
-        ):
-            yield
-
-    def inline_run(self, *args):
-        """Execute test script with test tracer."""
-
-        class CIVisibilityPlugin:
-            @staticmethod
-            def pytest_configure(config):
-                if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-
-        with override_env(dict(DD_API_KEY="foobar.baz")):
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
-
-    def subprocess_run(self, *args):
-        """Execute test script with test tracer."""
-        return self.testdir.runpytest_subprocess(*args)
-
+class PytestTestCase(PytestTestCaseBase):
     def test_span_contains_benchmark(self):
         """Test with benchmark."""
         py_file = self.testdir.makepyfile(
@@ -93,54 +47,24 @@ class PytestTestCase(TracerTestCase):
         assert spans[0].get_tag(TEST_TYPE) == "benchmark"
         assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
 
-        assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), float) or isinstance(
-            spans[0].get_metric(BENCHMARK_MEAN), int
-        )
+        assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), (float, int))
         assert isinstance(spans[0].get_metric(BENCHMARK_RUN), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_HD15IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int) or isinstance(
-            spans[0].get_metric(STATISTICS_IQR_OUTLIERS), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_LD15IQR), float) or isinstance(
-            spans[0].get_metric(STATISTICS_LD15IQR), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MAX), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MAX), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MEAN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MEAN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MEDIAN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MEDIAN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_MIN), float) or isinstance(
-            spans[0].get_metric(STATISTICS_MIN), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_OPS), float) or isinstance(
-            spans[0].get_metric(STATISTICS_OPS), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_IQR), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_LD15IQR), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_MAX), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_MEAN), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_MEDIAN), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_MIN), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_OPS), (float, int))
         assert isinstance(spans[0].get_tag(STATISTICS_OUTLIERS), str)
-        assert isinstance(spans[0].get_metric(STATISTICS_Q1), float) or isinstance(
-            spans[0].get_metric(STATISTICS_Q1), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_Q3), float) or isinstance(
-            spans[0].get_metric(STATISTICS_Q3), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_Q1), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_Q3), (float, int))
         assert isinstance(spans[0].get_metric(STATISTICS_N), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), float) or isinstance(
-            spans[0].get_metric(STATISTICS_STDDEV), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), float) or isinstance(
-            spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), int
-        )
-        assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), float) or isinstance(
-            spans[0].get_metric(STATISTICS_TOTAL), int
-        )
+        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), (float, int))
+        assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), (float, int))
 
         assert spans[0].get_metric(BENCHMARK_MEAN) > 0.0002
         assert spans[0].get_metric(BENCHMARK_RUN) > 0

@@ -518,11 +518,17 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    def test_chat_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_chat_completion_stream_explicit_no_tokens(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
         """
+
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
             with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
                 with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
@@ -534,7 +540,11 @@ class TestLLMObsOpenaiV1:
                     expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
                     client = openai.OpenAI()
                     resp = client.chat.completions.create(
-                        model=model, messages=input_messages, stream=True, user="ddtrace-test"
+                        model=model,
+                        messages=input_messages,
+                        stream=True,
+                        user="ddtrace-test",
+                        stream_options={"include_usage": False},
                     )
                     for chunk in resp:
                         resp_model = chunk.model
@@ -547,7 +557,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"stream": True, "user": "ddtrace-test"},
+                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -557,20 +567,14 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
     def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        """
-        Ensure llmobs records are emitted for chat completion endpoints when configured
-        with the `stream_options={"include_usage": True}`.
-        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
-        """
+        """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
             resp_model = model
             input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
             expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
             client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model=model, messages=input_messages, stream=True, stream_options={"include_usage": True}
-            )
+            resp = client.chat.completions.create(model=model, messages=input_messages, stream=True)
             for chunk in resp:
                 resp_model = chunk.model
         span = mock_tracer.pop_traces()[0][0]
@@ -671,7 +675,6 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
                 stream=True,
-                stream_options={"include_usage": True},
             )
             for chunk in resp:
                 resp_model = chunk.model
@@ -866,38 +869,6 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
-
-    def test_unserializable_param_is_handled(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        with pytest.raises(Exception):
-            model = "babbage-002"
-            client = openai.OpenAI()
-            client.completions.create(
-                model=model,
-                prompt="Hello world",
-                temperature=0.8,
-                n=object(),
-                stop=".",
-                max_tokens=10,
-                user="ddtrace-test",
-            )
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        expected_span = _expected_llmobs_llm_span_event(
-            span,
-            model_name=model,
-            model_provider="openai",
-            input_messages=[{"content": "Hello world"}],
-            output_messages=[{"content": ""}],
-            metadata={"temperature": 0.8, "max_tokens": 10, "n": mock.ANY, "stop": ".", "user": "ddtrace-test"},
-            token_metrics={},
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-        )
-        mock_llmobs_writer.enqueue.assert_called_with(expected_span)
-        actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
-        assert "[Unserializable object: <object object at " in actual_span["meta"]["metadata"]["n"]
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from typing import Any
@@ -52,9 +51,9 @@ from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -63,7 +62,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -954,17 +953,22 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
 
     def _on_span_finished(span: Span, streamed_chunks):
+        maybe_parser = instance.steps[-1] if instance.steps else None
         if (
             streamed_chunks
             and langchain_core
-            and isinstance(instance.steps[-1], langchain_core.output_parsers.JsonOutputParser)
+            and isinstance(maybe_parser, langchain_core.output_parsers.JsonOutputParser)
         ):
-            # it's possible that the chain has a json output parser
-            # this will have already concatenated the chunks into a json object
+            # it's possible that the chain has a json output parser type
+            # this will have already concatenated the chunks into an object
 
-            # it's also possible the json output parser isn't the last step,
+            # it's also possible the this parser type isn't the last step,
             # but one of the last steps, in which case we won't act on it here
-            content = json.dumps(streamed_chunks[-1])
+            result = streamed_chunks[-1]
+            if maybe_parser.__class__.__name__ == "JsonOutputParser":
+                content = safe_json(result)
+            else:
+                content = str(result)
         else:
             # best effort to join chunks together
             content = "".join([str(chunk) for chunk in streamed_chunks])
@@ -1402,8 +1406,8 @@ def unpatch():
 
 def taint_outputs(instance, inputs, outputs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
     try:
         ranges = None
@@ -1425,8 +1429,8 @@ def taint_outputs(instance, inputs, outputs):
 
 def taint_parser_output(func, instance, args, kwargs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
     result = func(*args, **kwargs)
     try:

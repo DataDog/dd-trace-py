@@ -201,25 +201,17 @@ Example::
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
 
-from ddtrace.internal.utils.importlib import require_modules
+
+# Required to allow users to import from  `ddtrace.contrib.django.patch` directly
+import warnings as _w
 
 
-required_modules = ["django"]
+with _w.catch_warnings():
+    _w.simplefilter("ignore", DeprecationWarning)
+    from . import patch as _  # noqa: F401, I001
 
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # Required to allow users to import from `ddtrace.contrib.django.patch` directly
-        import warnings as _w
-
-        with _w.catch_warnings():
-            _w.simplefilter("ignore", DeprecationWarning)
-            from . import patch as _  # noqa: F401, I001
-
-        # Expose public methods
-        from ddtrace.contrib.internal.django.patch import get_version
-        from ddtrace.contrib.internal.django.patch import patch
-        from ddtrace.contrib.internal.django.patch import patch as _patch
-        from ddtrace.contrib.internal.django.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "_patch", "get_version"]
+from ddtrace.contrib.internal.django.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.django.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.django.patch import patch as _patch  # noqa: F401
+from ddtrace.contrib.internal.django.patch import unpatch  # noqa: F401
