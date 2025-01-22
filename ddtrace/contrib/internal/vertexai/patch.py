@@ -80,6 +80,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
                 kwargs["history"] = history
+                kwargs["is_chat"] = is_chat
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
@@ -115,6 +116,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
                 kwargs["history"] = history
+                kwargs["is_chat"] = is_chat
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations

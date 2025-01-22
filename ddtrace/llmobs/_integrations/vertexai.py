@@ -42,10 +42,11 @@ class VertexAIIntegration(BaseLLMIntegration):
     ) -> None:
         instance = kwargs.get("instance", None)
         history = kwargs.get("history", [])
+        is_chat = kwargs.get("is_chat", False)
         metadata = llmobs_get_metadata_google(kwargs, instance)
 
         system_instruction = get_system_instructions_from_google_model(instance)
-        input_contents = get_argument_value(args, kwargs, 0, "content")
+        input_contents = get_argument_value(args, kwargs, 0, "content" if is_chat else "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
         output_messages = [{"content": ""}]
