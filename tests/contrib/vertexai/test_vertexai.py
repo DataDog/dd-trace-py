@@ -48,6 +48,17 @@ def test_vertexai_completion(vertexai):
         ),
     )
 
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion")
+def test_vertexai_completion_kw_content(vertexai):
+    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    llm.generate_content(
+        contents="Why do bears hibernate?",
+        generation_config=vertexai.generative_models.GenerationConfig(
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+        ),
+    )
+
 
 @pytest.mark.snapshot(
     token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion_error",
@@ -279,6 +290,18 @@ def test_vertexai_chat(vertexai):
     chat = llm.start_chat()
     chat.send_message(
         "Why do bears hibernate?",
+        generation_config=vertexai.generative_models.GenerationConfig(
+            stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+        ),
+    )
+
+@pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion", ignores=["resource"])
+def test_vertexai_chat_kw_content(vertexai):
+    llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
+    llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
+    chat = llm.start_chat()
+    chat.send_message(
+        content="Why do bears hibernate?",
         generation_config=vertexai.generative_models.GenerationConfig(
             stop_sequences=["x"], max_output_tokens=30, temperature=1.0
         ),
