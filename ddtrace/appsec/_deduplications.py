@@ -14,7 +14,6 @@ class deduplication:
     def __init__(self, func) -> None:
         self.func = func
         self.reported_logs: OrderedDict[int, float] = OrderedDict()
-        self.deduplication_enabled = asm_config._asm_deduplication_enabled
 
     def _extract(self, args):
         return args
@@ -29,9 +28,12 @@ class deduplication:
         """
         self.reported_logs.clear()
 
+    def _check_deduplication(self):
+        return asm_config._asm_deduplication_enabled
+
     def __call__(self, *args, **kwargs):
         result = None
-        if self.deduplication_enabled:
+        if self._check_deduplication():
             raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))
             last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF) + self._time_lapse
             current = monotonic()

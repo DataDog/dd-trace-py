@@ -28,9 +28,8 @@ CWD = os.path.abspath(os.getcwd())
 
 
 class taint_sink_deduplication(deduplication):
-    def __init__(self, func) -> None:
-        super(taint_sink_deduplication, self).__init__(func)
-        self.deduplication_enabled = asm_config._iast_deduplication_enabled
+    def _check_deduplication(self):
+        return asm_config._iast_deduplication_enabled
 
     def _extract(self, args):
         # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
