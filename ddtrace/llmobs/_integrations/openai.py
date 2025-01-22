@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -275,12 +276,4 @@ class OpenAIIntegration(BaseLLMIntegration):
                 OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
-        prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens")
-        completion_tokens = span.get_metric("openai.response.usage.completion_tokens")
-        if prompt_tokens is None or completion_tokens is None:
-            return {}
-        return {
-            INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-            OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-            TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
-        }
+        return get_llmobs_metrics_tags("openai", span)
