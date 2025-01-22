@@ -9,9 +9,9 @@ import httpx
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import DummyTracer
@@ -195,8 +195,8 @@ from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 
 @pytest.mark.asyncio
@@ -254,8 +254,8 @@ from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 @pytest.mark.asyncio
 async def test(scope, tracer, test_spans):

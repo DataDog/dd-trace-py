@@ -4,7 +4,7 @@ import copy
 import pytest
 
 import ddtrace
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
 
@@ -118,13 +118,13 @@ def tracer_appsec_standalone(request, tracer):
 
         # Remove the environment variables as they are unexpected args for the tracer configure
         request.param.pop("DD_APPSEC_SCA_ENABLED", None)
-        tracer.configure(api_version="v0.4", **request.param)
+        tracer._configure(api_version="v0.4", **request.param)
 
         yield tracer, request_param_copy
 
     # Reset tracer configuration
     ddtrace.config._reset()
-    tracer.configure(api_version="v0.4", appsec_enabled=False, appsec_standalone_enabled=False, iast_enabled=False)
+    tracer._configure(api_version="v0.4", appsec_enabled=False, appsec_standalone_enabled=False, iast_enabled=False)
 
 
 def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):

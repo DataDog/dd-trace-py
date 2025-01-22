@@ -55,7 +55,7 @@ To configure the integration on an per-connection basis use the
 
     # Make sure to import MySQLdb and not the 'connect' function,
     # otherwise you won't have access to the patched version
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     import MySQLdb
 
     # This will report a span with the default settings
@@ -84,9 +84,6 @@ import warnings as _w
 with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
-# Expose public methods
-from ddtrace.contrib.internal.mysqldb.patch import get_version
-from ddtrace.contrib.internal.mysqldb.patch import patch
 
-
-__all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.mysqldb.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.mysqldb.patch import patch  # noqa: F401

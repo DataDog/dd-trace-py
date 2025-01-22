@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    rq: Ensures the implementation details of the rq integration are internal to ddtrace library.
+    In ``ddtrace>=3.0.0`` this integration should only be enabled and configured via ``ddtrace.patch(..)``, ``import ddtrace.auto`` or the ``ddtrace-run`` command.

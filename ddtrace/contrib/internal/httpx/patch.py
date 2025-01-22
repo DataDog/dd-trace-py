@@ -8,9 +8,9 @@ from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib.trace_utils import distributed_tracing_enabled
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import ensure_binary
@@ -22,8 +22,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)

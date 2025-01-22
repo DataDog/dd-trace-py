@@ -488,7 +488,7 @@ def expected_ragas_trace_tags():
         "env:",
         "service:tests.llmobs",
         "source:integration",
-        "ml_app:dd-ragas-unnamed-ml-app",
+        "ml_app:unnamed-ml-app",
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
         "error:0",
@@ -531,28 +531,27 @@ def _llm_span_with_expected_ragas_inputs_in_messages(ragas_inputs=None):
 
 
 class DummyEvaluator:
-    LABEL = "dummy"
-
-    def __init__(self, llmobs_service):
+    def __init__(self, llmobs_service, label="dummy"):
         self.llmobs_service = llmobs_service
+        self.LABEL = label
 
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
             span_context=span,
-            label=DummyEvaluator.LABEL,
+            label=self.LABEL,
             value=1.0,
             metric_type="score",
         )
 
 
-def _dummy_evaluator_eval_metric_event(span_id, trace_id):
+def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
         join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
-        label=DummyEvaluator.LABEL,
+        label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
     )
 
@@ -573,6 +572,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": "1.0"},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
@@ -589,6 +589,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
                 "span.kind": "workflow",
                 "input": {"value": mock.ANY},
                 "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
@@ -707,6 +708,64 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "span.kind": "task",
                 "output": {"value": "1.0"},
                 "metadata": {"faithful_statements": 1, "num_statements": 1},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]
+
+
+def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.answer_relevancy",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {"answer_classifications": mock.ANY, "strictness": mock.ANY},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.calculate_similarity",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),

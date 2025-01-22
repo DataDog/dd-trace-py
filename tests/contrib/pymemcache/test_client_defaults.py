@@ -2,10 +2,11 @@
 import pymemcache
 import pytest
 
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
+
 # project
-from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import override_config
 
 from .test_client_mixin import TEST_HOST

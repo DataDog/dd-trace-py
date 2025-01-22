@@ -1,9 +1,9 @@
-from ddtrace.contrib.langchain import get_version
-from ddtrace.contrib.langchain import patch
-from ddtrace.contrib.langchain import unpatch
-from ddtrace.contrib.langchain.constants import text_embedding_models
-from ddtrace.contrib.langchain.constants import vectorstore_classes
-from ddtrace.contrib.langchain.patch import PATCH_LANGCHAIN_V0
+from ddtrace.contrib.internal.langchain.constants import text_embedding_models
+from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
+from ddtrace.contrib.internal.langchain.patch import PATCH_LANGCHAIN_V0
+from ddtrace.contrib.internal.langchain.patch import get_version
+from ddtrace.contrib.internal.langchain.patch import patch
+from ddtrace.contrib.internal.langchain.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

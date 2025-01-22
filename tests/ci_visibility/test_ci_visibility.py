@@ -123,7 +123,10 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._service == "test-service"
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_processors
+            )
             CIVisibility.disable()
 
 
@@ -150,7 +153,10 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._service == "test-repo"  # Inherited from environment
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_processors
+            )
             CIVisibility.disable()
 
 
@@ -1114,7 +1120,7 @@ def test_civisibility_enable_respects_passed_in_tracer():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
         tracer = ddtrace.Tracer()
-        tracer.configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
         CIVisibility.enable(tracer=tracer)
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
