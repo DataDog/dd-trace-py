@@ -152,8 +152,8 @@ jobs:
 
             unzip -d extracted_wheel {wheel} &&
             pushd extracted_wheel &&
-            echo ${otool -L ddtrace/internal/datadog/profiling/libdd_wrapper-unknown-arm64.dylib} &&
-            echo ${otool -L ddtrace/internal/datadog/profiling/ddup/_ddup.cpython-*-darwin.so} &&
+            echo $(otool -L ddtrace/internal/datadog/profiling/libdd_wrapper-unknown-arm64.dylib) &&
+            echo $(otool -L ddtrace/internal/datadog/profiling/ddup/_ddup.cpython-*-darwin.so) &&
             popd &&
             delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
