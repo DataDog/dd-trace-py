@@ -756,6 +756,12 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="dd_trace_api",
+            command="pytest {cmdargs} tests/contrib/dd_trace_api",
+            pkgs={"/root/dd-trace-api-py": latest, "requests": latest},
+            pys=select_pys(),
+        ),
         # Django  Python version support
         # 2.2     3.5, 3.6, 3.7, 3.8  3.9
         # 3.2     3.6, 3.7, 3.8, 3.9, 3.10

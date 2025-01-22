@@ -37,6 +37,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
+    "dd_trace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
