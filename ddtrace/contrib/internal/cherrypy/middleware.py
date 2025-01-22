@@ -75,7 +75,7 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        with core.context_with_data(
+        ctx = core.context_with_data(
             "cherrypy.request",
             span_name=SPAN_NAME,
             span_type=SpanTypes.WEB,
@@ -85,11 +85,13 @@ class TraceTool(cherrypy.Tool):
             distributed_headers=cherrypy.request.headers,
             distributed_headers_config=config.cherrypy,
             headers_case_sensitive=True,
-        ) as ctx, ctx.span as req_span:
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.cherrypy))
+        )
+        req_span = ctx.span
 
-            cherrypy.request._datadog_span = req_span
+        ctx.set_item("req_span", req_span)
+        core.dispatch("web.request", (ctx, config.cherrypy))
+
+        cherrypy.request._datadog_span = req_span
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)

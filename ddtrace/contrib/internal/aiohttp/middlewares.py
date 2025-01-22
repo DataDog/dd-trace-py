@@ -35,7 +35,7 @@ async def trace_middleware(app, handler):
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
         # Create a new context based on the propagated information.
 
-        with core.context_with_data(
+        ctx = core.context_with_data(
             "aiohttp.request",
             span_name=schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
@@ -48,23 +48,25 @@ async def trace_middleware(app, handler):
             headers_case_sensitive=True,
             analytics_enabled=analytics_enabled,
             analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True),
-        ) as ctx, ctx.span as req_span:
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.aiohttp))
+        )
+        req_span = ctx.span
 
-            # attach the context and the root span to the request; the Context
-            # may be freely used by the application code
-            request[REQUEST_CONTEXT_KEY] = req_span.context
-            request[REQUEST_SPAN_KEY] = req_span
-            request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
-            try:
-                response = await handler(request)
-                if isinstance(response, web.StreamResponse):
-                    request.task.add_done_callback(lambda _: finish_request_span(request, response))
-                return response
-            except Exception:
-                req_span.set_traceback()
-                raise
+        ctx.set_item("req_span", req_span)
+        core.dispatch("web.request", (ctx, config.aiohttp))
+
+        # attach the context and the root span to the request; the Context
+        # may be freely used by the application code
+        request[REQUEST_CONTEXT_KEY] = req_span.context
+        request[REQUEST_SPAN_KEY] = req_span
+        request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
+        try:
+            response = await handler(request)
+            if isinstance(response, web.StreamResponse):
+                request.task.add_done_callback(lambda _: finish_request_span(request, response))
+            return response
+        except Exception:
+            req_span.set_traceback()
+            raise
 
     return attach_context
 
