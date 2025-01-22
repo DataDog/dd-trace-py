@@ -2,16 +2,11 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asyncio import context_provider
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
@@ -39,7 +34,7 @@ async def trace_middleware(app, handler):
         # DEV: aiohttp is special case maintains separate configuration from config api
         analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
         # Create a new context based on the propagated information.
-        
+
         with core.context_with_data(
             "aiohttp.request",
             span_name=schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
@@ -52,7 +47,7 @@ async def trace_middleware(app, handler):
             distributed_headers_config_override=app[CONFIG_KEY]["distributed_tracing_enabled"],
             headers_case_sensitive=True,
             analytics_enabled=analytics_enabled,
-            analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True)
+            analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True),
         ) as ctx, ctx.span as req_span:
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request", (ctx, config.aiohttp))

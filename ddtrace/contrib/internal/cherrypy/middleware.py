@@ -11,12 +11,10 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import compat
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -77,20 +75,21 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        trace_utils.activate_distributed_headers(
-            self._tracer, int_config=config.cherrypy, request_headers=cherrypy.request.headers
-        )
-
-        cherrypy.request._datadog_span = self._tracer.trace(
-            SPAN_NAME,
-            service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
+        with core.context_with_data(
+            "cherrypy.request",
+            span_name=SPAN_NAME,
             span_type=SpanTypes.WEB,
-        )
+            service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
+            tags={},
+            tracer=self._tracer,
+            distributed_headers=cherrypy.request.headers,
+            distributed_headers_config=config.cherrypy,
+            headers_case_sensitive=True,
+        ) as ctx, ctx.span as req_span:
+            ctx.set_item("req_span", req_span)
+            core.dispatch("web.request", (ctx, config.cherrypy))
 
-        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy.integration_name)
-
-        # set span.kind to the type of request being performed
-        cherrypy.request._datadog_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+            cherrypy.request._datadog_span = req_span
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)

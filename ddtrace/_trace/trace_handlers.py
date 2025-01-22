@@ -116,7 +116,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
             tracer,
             int_config=distributed_headers_config,
             request_headers=ctx["distributed_headers"],
-            override=ctx.get_item("distributed_headers_config_override")
+            override=ctx.get_item("distributed_headers_config_override"),
         )
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
@@ -134,8 +134,8 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(SPAN_MEASURED_KEY)
 
-    anayltics_enabled = ctx.get_item('analytics_enabled')
-    analytics_sample_rate = ctx.get_item('analytics_sample_rate', True)
+    anayltics_enabled = ctx.get_item("analytics_enabled")
+    analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
 
     # Configure trace search sample rate
     if (config._analytics_enabled and anayltics_enabled is not False) or anayltics_enabled is True:
@@ -800,6 +800,7 @@ def listen():
 
     for context_name in (
         "aiohttp.request",
+        "bottle.request",
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
