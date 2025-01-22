@@ -1,4 +1,6 @@
+from collections import Counter
 from dataclasses import dataclass
+from dataclasses import field
 import typing as t
 from weakref import WeakKeyDictionary as wkdict
 
@@ -28,6 +30,8 @@ def _sessions_to_debug_tag(sessions: t.Iterable["Session"]) -> str:
 class Session:
     ident: SessionId
     level: int
+    _counts: t.Counter[str] = field(default_factory=Counter)  # probe ID counter
+    _trace_context: t.Optional[t.Any] = None
 
     @classmethod
     def activate_distributed(cls, context: t.Any) -> None:
@@ -60,6 +64,16 @@ class Session:
     def unlink_from_trace(self, trace_context: t.Optional[t.Any] = None):
         SessionManager.unlink_session_from_trace(self, trace_context)
 
+    def count_probe(self, probe_id: str) -> None:
+        self._counts.update([probe_id])
+
+        trace_context = self._trace_context
+        if trace_context is not None:
+            trace_context._metrics[f"_dd.ld.probe_id.{probe_id}"] = self._counts[probe_id]
+
+    def get_probe_count(self, probe_id: str) -> int:
+        return self._counts.get(probe_id, 0)
+
     @classmethod
     def from_trace(cls) -> t.List["Session"]:
         return SessionManager.get_sessions_for_trace()
@@ -68,6 +82,10 @@ class Session:
     def lookup(cls, ident: SessionId) -> t.Optional["Session"]:
         return SessionManager.lookup_session(ident)
 
+    @classmethod
+    def is_active(cls, ident: SessionId) -> bool:
+        return SessionManager.is_session_active(ident)
+
 
 class SessionManager:
     _sessions_trace_map: t.MutableMapping[
@@ -75,12 +93,13 @@ class SessionManager:
     ] = wkdict()  # Trace context to Sessions mapping
 
     @classmethod
-    def link_session_to_trace(cls, session, trace_context: t.Optional[t.Any] = None) -> None:
+    def link_session_to_trace(cls, session: Session, trace_context: t.Optional[t.Any] = None) -> None:
         context = trace_context or tracer.current_trace_context()
         if context is None:
             # Nothing to link to
             return
 
+        session._trace_context = context
         cls._sessions_trace_map.setdefault(context, {})[session.ident] = session
 
     @classmethod
@@ -107,3 +126,11 @@ class SessionManager:
             return None
 
         return cls._sessions_trace_map.get(context, {}).get(ident)
+
+    @classmethod
+    def is_session_active(cls, ident: SessionId) -> bool:
+        context = tracer.current_trace_context()
+        if context is None:
+            return False
+
+        return ident in cls._sessions_trace_map.get(context, {})

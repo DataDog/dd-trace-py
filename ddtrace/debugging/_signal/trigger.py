@@ -23,6 +23,13 @@ class Trigger(LogSignal):
 
     def _link_session(self) -> None:
         probe = t.cast(SessionMixin, self.probe)
+
+        if Session.is_active(probe.session_id):
+            # This trigger probe has already been triggered along the current
+            # trace. We don't want to create a new session for the same
+            # session ID.
+            return
+
         session = Session(probe.session_id, probe.level)
 
         # Link the session to the running trace

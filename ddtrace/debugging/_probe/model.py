@@ -14,7 +14,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
-from ddtrace.debugging._session import SessionId
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
@@ -247,6 +246,10 @@ class LogProbeMixin(AbstractProbeMixIn):
     take_snapshot: bool
     limits: CaptureLimits = field(compare=False)
 
+    @property
+    def __budget__(self) -> int:
+        return 10 if self.take_snapshot else 100
+
 
 @dataclass
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
@@ -305,7 +308,7 @@ class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, Spa
 
 @dataclass
 class SessionMixin:
-    session_id: SessionId
+    session_id: str
     level: int
 
 

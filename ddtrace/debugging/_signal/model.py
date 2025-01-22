@@ -45,6 +45,7 @@ class SignalState(str, Enum):
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
     SKIP_RATE = "SKIP_RATE"
+    SKIP_BUDGET = "SKIP_BUDGET"
     COND_ERROR = "COND_ERROR"
     DONE = "DONE"
 
@@ -132,16 +133,25 @@ class Signal(abc.ABC):
         # Check that we emit signals from probes with a session ID only if the
         # session is active. If the probe has no session ID, or the session ID
         # is active, we can proceed with the signal emission.
-        session_id = self.probe.tags.get("sessionId")
+        session_id = self.probe.tags.get("session_id")
         if session_id is not None:
             session = Session.lookup(session_id)
-            if session is None or session.level == 0:
-                return False
+            return session is not None and session.level >= 1
         return True
+
+    def _budget_exceeded(self) -> bool:
+        session = self.session
+        if session is not None:
+            probe = self.probe
+            session.count_probe(probe.probe_id)
+            if session.get_probe_count(probe.probe_id) > getattr(probe, "__budget__", float("inf")):
+                self.state = SignalState.SKIP_BUDGET
+                return True
+        return False
 
     @property
     def session(self):
-        session_id = self.probe.tags.get("sessionId")
+        session_id = self.probe.tags.get("session_id")
         return Session.lookup(session_id) if session_id is not None else None
 
     @property
@@ -174,6 +184,9 @@ class Signal(abc.ABC):
         if self._rate_limit_exceeded():
             return
 
+        if self._budget_exceeded():
+            return
+
         self.enter(scope)
 
     def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
@@ -204,6 +217,9 @@ class Signal(abc.ABC):
             if self._rate_limit_exceeded():
                 return
 
+            if self._budget_exceeded():
+                return
+
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
         self.state = SignalState.DONE
@@ -223,6 +239,9 @@ class Signal(abc.ABC):
             return
 
         if self._rate_limit_exceeded():
+            return
+
+        if self._budget_exceeded():
             return
 
         self.line(scope)

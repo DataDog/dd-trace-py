@@ -213,7 +213,7 @@ class TriggerProbeFactory(ProbeFactory):
     def update_args(cls, args, attribs):
         args.update(
             rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
-            session_id=attribs["sessionId"],
+            session_id=attribs["session_id"],
             level=int(attribs["level"]),
             condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,

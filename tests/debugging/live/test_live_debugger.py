@@ -53,7 +53,7 @@ class SpanProbeTestCase(TracerTestCase):
                     module="tests.submod.traced_stuff",
                     func_qname="middle",
                     evaluate_at=ProbeEvalTiming.EXIT,
-                    tags={"sessionId": "test-session-id"},
+                    tags={"session_id": "test-session-id"},
                     rate=0.0,
                 ),
             )
@@ -66,3 +66,39 @@ class SpanProbeTestCase(TracerTestCase):
         # Check that the function probe has been triggered always, regardless of
         # the rate limit.
         assert Counter(s.probe.probe_id for s in d.snapshots)["snapshot-probe"] == 10
+
+    def test_live_debugger_budget(self):
+        from tests.submod.traced_stuff import middle
+        from tests.submod.traced_stuff import traced_entrypoint
+
+        with debugger() as d:
+            snapshot_probe = create_snapshot_function_probe(
+                probe_id="snapshot-probe",
+                module="tests.submod.traced_stuff",
+                func_qname="middle",
+                evaluate_at=ProbeEvalTiming.EXIT,
+                tags={"session_id": "test-session-id"},
+                rate=0.0,
+            )
+            d.add_probes(
+                create_trigger_function_probe(
+                    probe_id="trigger-probe",
+                    module="tests.submod.traced_stuff",
+                    func_qname="entrypoint",
+                    session_id="test-session-id",
+                    level=2,
+                ),
+                snapshot_probe,
+            )
+
+            n_calls = 2 * snapshot_probe.__budget__
+            with self.tracer.trace("test") as trace:
+                traced_entrypoint(self.tracer)
+                for _ in range(n_calls):
+                    middle(self.tracer)
+
+            # Check that we cap at the budget of the probe.
+            assert Counter(s.probe.probe_id for s in d.snapshots)["snapshot-probe"] == snapshot_probe.__budget__
+
+            # There is an extra call from traced_entrypoint
+            assert trace.get_metric("_dd.ld.probe_id.snapshot-probe") == n_calls + 1
