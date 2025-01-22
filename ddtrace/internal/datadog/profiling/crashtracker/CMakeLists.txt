@@ -58,7 +58,7 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/.." INSTALL_RPATH_USE_LINK_PATH TRUE)
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
