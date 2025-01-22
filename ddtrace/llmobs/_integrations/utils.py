@@ -118,21 +118,6 @@ def extract_message_from_part_google(part, role=None):
         message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
     return message
 
-
-def get_llmobs_metrics_tags_google(integration_name, span):
-    usage = {}
-    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
-    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
-    total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
-
-    if input_tokens is not None:
-        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-    if output_tokens is not None:
-        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-    if total_tokens is not None:
-        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-    return usage
-
 def get_llmobs_metrics_tags(integration_name, span):
     usage = {}
 
