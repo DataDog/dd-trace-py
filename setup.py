@@ -351,7 +351,6 @@ class CMakeBuild(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
-            "-DCMAKE_OSX_DEPLOYMENT_TARGET=13.0",
         ]
 
         if BUILD_PROFILING_NATIVE_TESTS:
