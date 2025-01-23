@@ -1,4 +1,5 @@
 import os
+from sys import addaudithook
 
 import dd_trace_api
 from wrapt import wrap_function_wrapper as _w
@@ -14,6 +15,16 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
 
+_DD_HOOK_PREFIX = "dd.hooks."
+
+
+def _hook(name, args):
+    if not dd_trace_api.__datadog_patch:
+        return
+    if name.startswith(_DD_HOOK_PREFIX):
+        print(f"Triggered hook with name {name}")
+
+
 def get_version() -> str:
     return getattr(dd_trace_api, "__version__", "")
 
@@ -22,9 +33,11 @@ def patch():
     if getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = True
+    addaudithook(_hook)
 
 
 def unpatch():
     if not getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = False
+    # NB sys.addaudithook's cannot be removed
