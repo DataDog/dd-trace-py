@@ -357,21 +357,30 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
     else:
         user_id = None
 
-    if not result_user:
-        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+    user_id_found, user_extra = info_retriever.get_user_info(
+        login=django_config.include_user_login,
+        email=django_config.include_user_email,
+        name=django_config.include_user_realname,
+    )
+    if user_extra.get("login") is None:
+        user_extra["login"] = user_id
+    user_id = user_id_found or user_id
+    with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+        if not result_user:
             exists = info_retriever.user_exists()
-            user_id_found, user_extra = info_retriever.get_user_info(
-                login=django_config.include_user_login,
-                email=django_config.include_user_email,
-                name=django_config.include_user_realname,
-            )
-            if user_extra.get("login") is None:
-                user_extra["login"] = user_id
-            user_id = user_id_found or user_id
-
             track_user_login_failure_event(
                 pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
             )
+        elif in_asm_context():
+            res = call_waf_callback(
+                custom_data={
+                    "REQUEST_USER_ID": str(user_id) if user_id else None,
+                    "REQUEST_USERNAME": user_extra.get("login"),
+                },
+                force_sent=True,
+            )
+            if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+                raise BlockingException(get_blocked())
 
     return False, None
 
