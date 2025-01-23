@@ -118,6 +118,7 @@ def extract_message_from_part_google(part, role=None):
         message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
     return message
 
+
 def get_llmobs_metrics_tags(integration_name, span):
     usage = {}
 
@@ -129,7 +130,7 @@ def get_llmobs_metrics_tags(integration_name, span):
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
         usage[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
         return usage
-    
+
     prompt_tokens_name = "prompt_tokens"
     completion_tokens_name = "completion_tokens"
     if integration_name in INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS:
