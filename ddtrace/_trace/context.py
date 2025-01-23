@@ -12,9 +12,9 @@ from typing import Tuple
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _USER_ID_KEY
-from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
@@ -72,7 +72,7 @@ class Context(object):
         self._is_remote: bool = is_remote
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
-            self._meta[ORIGIN_KEY] = dd_origin
+            self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[_SAMPLING_PRIORITY_KEY] = sampling_priority
         if span_links is not None:
@@ -180,17 +180,17 @@ class Context(object):
     @property
     def dd_origin(self) -> Optional[Text]:
         """Get the origin of the trace."""
-        return self._meta.get(ORIGIN_KEY)
+        return self._meta.get(_ORIGIN_KEY)
 
     @dd_origin.setter
     def dd_origin(self, value: Optional[Text]) -> None:
         """Set the origin of the trace."""
         with self._lock:
             if value is None:
-                if ORIGIN_KEY in self._meta:
-                    del self._meta[ORIGIN_KEY]
+                if _ORIGIN_KEY in self._meta:
+                    del self._meta[_ORIGIN_KEY]
                 return
-            self._meta[ORIGIN_KEY] = value
+            self._meta[_ORIGIN_KEY] = value
 
     @property
     def dd_user_id(self) -> Optional[Text]:

@@ -2,9 +2,9 @@ import pytest
 import tornado
 
 from ddtrace import config
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
@@ -464,7 +464,7 @@ class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
         assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -503,7 +503,7 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
         assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -537,7 +537,7 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
         assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 

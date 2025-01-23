@@ -16,7 +16,7 @@ _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
 _APM_ENABLED_METRIC_KEY = "_dd.apm.enabled"
 
-ORIGIN_KEY = "_dd.origin"
+_ORIGIN_KEY = ORIGIN_KEY = "_dd.origin"
 _USER_ID_KEY = USER_ID_KEY = "_dd.p.usr.id"
 _HOSTNAME_KEY = HOSTNAME_KEY = "_dd.hostname"
 _RUNTIME_FAMILY = RUNTIME_FAMILY = "_dd.runtime_family"
@@ -63,6 +63,7 @@ _DEPRECATED_MODULE_ATTRIBUTES = [
     "SAMPLING_RULE_DECISION",
     "SAMPLING_LIMIT_DECISION",
     "USER_ID_KEY",
+    "ORIGIN_KEY",
     "HOSTNAME_KEY",
     "RUNTIME_FAMILY",
     "BASE_SERVICE_KEY",

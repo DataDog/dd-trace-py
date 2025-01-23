@@ -4,8 +4,8 @@ import subprocess
 import pytest
 
 from ddtrace import config
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import flaky
@@ -90,7 +90,7 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert span.trace_id == 100
         assert span.parent_id == 42
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(ORIGIN_KEY) == "synthetics"
+        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
 
     def test_distributed_tracing_patterned(self):
         # ensure the Context is properly created
@@ -113,7 +113,7 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert span.trace_id == 100
         assert span.parent_id == 42
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(ORIGIN_KEY) == "synthetics"
+        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
 
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
@@ -142,7 +142,7 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert span.trace_id != 100
         assert span.parent_id != 42
         assert span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert span.get_tag(_ORIGIN_KEY) != "synthetics"
 
 
 class TestSchematization(PyramidBase):
