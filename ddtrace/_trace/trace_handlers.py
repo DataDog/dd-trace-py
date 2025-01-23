@@ -119,6 +119,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
             request_headers=ctx["distributed_headers"],
             override=ctx.get_item("distributed_headers_config_override"),
         )
+
+    # "distributed_context" is only set by a handful of integrations including botocore
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context

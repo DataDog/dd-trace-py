@@ -45,15 +45,18 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
         "Successfully extracted inferred span info", proxy_context, " for proxy: ", proxy_context["proxy_system_name"]
     )
 
+    proxy_method = proxy_context['method']
+    proxy_path = proxy_context['path']
+    proxy_resource_name = proxy_method + " " + proxy_path
+
     span = tracer.start_span(
         proxy_span_info["span_name"],
         service=proxy_context.get("domain_name", config._get_service()),
         resource=proxy_span_info["span_name"],
         span_type=SpanTypes.WEB,
-        activate=True,
-        child_of=child_of,
-    )
-    span.start_ns = int(proxy_context["request_time"]) * 100000000
+
+    span.start_ns = proxy_context['request_time'] * 1000000
+
 
     log.debug("Successfully created inferred proxy span.")
 
@@ -61,6 +64,17 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
 
     # we need a callback to finish the api gateway span, this callback will be added to the child spans finish callbacks
     def finish_callback(_):
+        web_span = _
+        # Fill in other details from the web span once we know it
+        if web_span and span:
+            span.set_tag('http.status_code', web_span.get_tag('http.status_code'))
+            span.error = web_span.error
+            if web_span.get_tag(ERROR_MSG):
+                span.set_tag(ERROR_MSG, web_span.get_tag(ERROR_MSG))
+            if web_span.get_tag(ERROR_TYPE):
+                span.set_tag(ERROR_TYPE, web_span.get_tag(ERROR_TYPE))
+            if web_span.get_tag(ERROR_STACK):
+                span.set_tag(ERROR_STACK, web_span.get_tag(ERROR_STACK))
         span.finish()
 
     headers = delete_inferred_header_keys(headers)
