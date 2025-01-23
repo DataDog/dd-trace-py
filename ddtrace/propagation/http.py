@@ -40,8 +40,8 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
+from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
@@ -101,6 +101,7 @@ _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
 _POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
 _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
+_POSSIBLE_HTTP_BAGGAGE_HEADER = _possible_header(_HTTP_HEADER_BAGGAGE)
 
 
 # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
@@ -877,20 +878,6 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
-class _NOP_Propagator:
-    @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> None
-        return None
-
-    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
-    # but if it changes then we might want it
-    @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context , Dict[str, str]) -> Dict[str, str]
-        return headers
-
-
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
@@ -937,7 +924,7 @@ class _BaggageHeader:
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
-        header_value = headers.get(_HTTP_HEADER_BAGGAGE)
+        header_value = _extract_header_value(_POSSIBLE_HTTP_BAGGAGE_HEADER, headers)
 
         if not header_value:
             return Context(baggage={})
@@ -962,7 +949,6 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
-    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
     _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
 
@@ -973,12 +959,12 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
-    def _extract_configured_contexts_avail(normalized_headers):
+    def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
         for prop_style in config._propagation_style_extract:
             propagator = _PROP_STYLES[prop_style]
-            context = propagator._extract(normalized_headers)
+            context = propagator._extract(normalized_headers)  # type: ignore
             # baggage is handled separately
             if prop_style == _PROPAGATION_STYLE_BAGGAGE:
                 continue
@@ -988,6 +974,24 @@ class HTTPPropagator(object):
         return contexts, styles_w_ctx
 
     @staticmethod
+    def _context_to_span_link(context: Context, style: str, reason: str) -> Optional[SpanLink]:
+        # encoding expects at least trace_id and span_id
+        if context.span_id and context.trace_id:
+            return SpanLink(
+                context.trace_id,
+                context.span_id,
+                flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
+                tracestate=(
+                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
+                ),
+                attributes={
+                    "reason": reason,
+                    "context_headers": style,
+                },
+            )
+        return None
+
+    @staticmethod
     def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
         primary_context = contexts[0]
         links = []
@@ -995,23 +999,14 @@ class HTTPPropagator(object):
         for context in contexts[1:]:
             style_w_ctx = styles_w_ctx[contexts.index(context)]
             # encoding expects at least trace_id and span_id
-            if context.span_id and context.trace_id and context.trace_id != primary_context.trace_id:
-                links.append(
-                    SpanLink(
-                        context.trace_id,
-                        context.span_id,
-                        flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
-                        tracestate=(
-                            context._meta.get(W3C_TRACESTATE_KEY, "")
-                            if style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT
-                            else None
-                        ),
-                        attributes={
-                            "reason": "terminated_context",
-                            "context_headers": style_w_ctx,
-                        },
-                    )
+            if context.trace_id and context.trace_id != primary_context.trace_id:
+                link = HTTPPropagator._context_to_span_link(
+                    context,
+                    style_w_ctx,
+                    "terminated_context",
                 )
+                if link:
+                    links.append(link)
             # if trace_id matches and the propagation style is tracecontext
             # add the tracestate to the primary context
             elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
@@ -1057,6 +1052,8 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        if not config._propagation_style_inject:
+            return
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
                 "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
@@ -1129,17 +1126,19 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        if not headers:
-            return Context()
+        context = Context()
+        if not headers or not config._propagation_style_extract:
+            return context
         try:
+            style = ""
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-            context = Context()
             # tracer configured to extract first only
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)
+                    style = prop_style
                     if config.propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
@@ -1147,6 +1146,9 @@ class HTTPPropagator(object):
             # loop through all extract propagation styles
             else:
                 contexts, styles_w_ctx = HTTPPropagator._extract_configured_contexts_avail(normalized_headers)
+                # check that styles_w_ctx is not empty
+                if styles_w_ctx:
+                    style = styles_w_ctx[0]
 
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
@@ -1158,9 +1160,12 @@ class HTTPPropagator(object):
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
                     if context:
-                        context._baggage = baggage_context._baggage
+                        context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
+            if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+                link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
+                context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 
             return context
 

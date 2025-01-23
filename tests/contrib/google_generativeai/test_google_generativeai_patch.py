@@ -1,6 +1,6 @@
-from ddtrace.contrib.google_generativeai import get_version
-from ddtrace.contrib.google_generativeai import patch
-from ddtrace.contrib.google_generativeai import unpatch
+from ddtrace.contrib.internal.google_generativeai.patch import get_version
+from ddtrace.contrib.internal.google_generativeai.patch import patch
+from ddtrace.contrib.internal.google_generativeai.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

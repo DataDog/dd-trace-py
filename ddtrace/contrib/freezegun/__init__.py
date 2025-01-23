@@ -13,10 +13,7 @@ Configuration
 The freezegun integration is not configurable, but may be disabled using DD_PATCH_MODULES=freezegun:false .
 """
 
-# Expose public methods
-from ..internal.freezegun.patch import get_version
-from ..internal.freezegun.patch import patch
-from ..internal.freezegun.patch import unpatch
 
-
-__all__ = ["get_version", "patch", "unpatch"]
+from ..internal.freezegun.patch import get_version  # noqa: F401
+from ..internal.freezegun.patch import patch  # noqa: F401
+from ..internal.freezegun.patch import unpatch  # noqa: F401

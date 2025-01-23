@@ -2,7 +2,8 @@
 
 ``import ddtrace.auto`` will automatically patch the pymemcache ``Client``::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
 
     # If not patched yet, patch pymemcache specifically
     patch(pymemcache=True)
@@ -39,10 +40,7 @@ import warnings as _w
 with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
-# Expose public methods
-from ddtrace.contrib.internal.pymemcache.patch import get_version
-from ddtrace.contrib.internal.pymemcache.patch import patch
-from ddtrace.contrib.internal.pymemcache.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.pymemcache.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.pymemcache.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.pymemcache.patch import unpatch  # noqa: F401

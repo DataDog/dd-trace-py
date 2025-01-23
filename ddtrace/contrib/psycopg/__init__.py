@@ -50,7 +50,7 @@ Instance Configuration
 To configure the psycopg integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     import psycopg
 
     db = psycopg.connect(connection_factory=factory)
@@ -68,10 +68,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.psycopg.patch import get_version
-from ddtrace.contrib.internal.psycopg.patch import get_versions
-from ddtrace.contrib.internal.psycopg.patch import patch
 
-
-__all__ = ["patch", "get_version", "get_versions"]
+from ddtrace.contrib.internal.psycopg.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.psycopg.patch import patch  # noqa: F401

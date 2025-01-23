@@ -13,11 +13,11 @@ from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
-from ...pin import Pin
+from ...trace import Pin
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
-from ..trace_utils import ext_service
-from ..trace_utils import iswrapped
+from ..internal.trace_utils import ext_service
+from ..internal.trace_utils import iswrapped
 
 
 log = get_logger(__name__)
