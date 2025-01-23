@@ -1330,6 +1330,9 @@ def test_est_tokens():
     )  # oracle: 92
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1352,6 +1355,9 @@ def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapsh
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
     ignores=[
@@ -1381,6 +1387,9 @@ async def test_azure_openai_acompletion(openai, azure_openai_config, openai_vcr,
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1403,6 +1412,9 @@ def test_azure_openai_chat_completion(openai, azure_openai_config, openai_vcr, s
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1425,6 +1437,9 @@ async def test_azure_openai_chat_acompletion(openai, azure_openai_config, openai
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1444,6 +1459,9 @@ def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapsho
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],

@@ -469,7 +469,10 @@ class _DeleteHook(_EndpointHook):
             span.set_tag_str("openai.request.model", args[0] if len(args) >= 1 else kwargs.get("model", ""))
         elif endpoint.endswith("/files"):
             span.resource = "deleteFile"
-            span.set_tag_str("openai.request.file_id", args[0] if len(args) >= 1 else kwargs.get("file_id", ""))
+            if len(args) >= 1:
+                span.set_tag_str("openai.request.file_id", args[0])
+            else:
+                span.set_tag_str("openai.request.file_id", kwargs.get("file_id", kwargs.get("sid", "")))
         span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
