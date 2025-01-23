@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined
+    inside unittest classes to be successful.
