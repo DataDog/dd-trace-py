@@ -155,7 +155,7 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
-def test_multiprocessing( method, tmp_path):
+def test_multiprocessing(method, tmp_path):
     if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
     filename = str(tmp_path / "pprof")
