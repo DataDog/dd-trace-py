@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.propagation import _utils as utils
 from ddtrace.propagation import http
 
+
 class HTTPPropagationExtract(bm.Scenario):
     headers: str
     extra_headers: int
