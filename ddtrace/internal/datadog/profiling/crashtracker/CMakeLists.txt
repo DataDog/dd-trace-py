@@ -46,6 +46,10 @@ add_library(${EXTENSION_NAME} SHARED ${CRASHTRACKER_CPP_SRC})
 add_ddup_config(${EXTENSION_NAME})
 # Cython generates code that produces errors for the following, so relax compile options
 target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
+# tp_print is marked deprecated in Python 3.8, but cython still generates code using it
+if("${Python3_VERSION_MINOR}" STREQUAL "8")
+    target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-deprecated-declarations)
+endif()
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
