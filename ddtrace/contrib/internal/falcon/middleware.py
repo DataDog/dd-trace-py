@@ -1,7 +1,6 @@
 import sys
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 from ddtrace.internal import core
@@ -84,20 +83,12 @@ class TraceMiddleware(object):
 
         route = req.root_path or "" + req.uri_template
 
-        trace_utils.set_http_meta(
-            span,
-            config.falcon,
-            status_code=status,
-            response_headers=resp._headers,
-            route=route,
-        )
-
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
         config.falcon.hooks.emit("request", span, req, resp)
 
         core.dispatch(
-            "web.request.finish", (span, config.falcon, None, None, status, None, None, None, resp._headers, True)
+            "web.request.finish", (span, config.falcon, None, None, status, None, None, resp._headers, route, True)
         )
 
 
