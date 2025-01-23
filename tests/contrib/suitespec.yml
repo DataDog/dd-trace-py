@@ -244,8 +244,6 @@ components:
     - ddtrace/contrib/valkey/*
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/_trace/utils_valkey.py
-    - ddtrace/contrib/valkey_utils.py
-    - ddtrace/contrib/trace_utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
     - ddtrace/contrib/vertica/*
