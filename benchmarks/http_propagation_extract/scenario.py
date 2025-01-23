@@ -6,7 +6,6 @@ from ddtrace import config
 from ddtrace.propagation import _utils as utils
 from ddtrace.propagation import http
 
-
 class HTTPPropagationExtract(bm.Scenario):
     headers: str
     extra_headers: int
@@ -29,6 +28,8 @@ class HTTPPropagationExtract(bm.Scenario):
     def run(self):
         if self.styles:
             config._propagation_style_extract = self.styles.split(",") if ("," in self.styles) else [self.styles]
+            if "none" in config._propagation_style_extract:
+                config._propagation_style_extract.remove("none")
 
         headers = self.generate_headers()
 
