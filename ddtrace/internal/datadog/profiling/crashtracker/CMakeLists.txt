@@ -99,6 +99,9 @@ elseif(UNIX)
                                                                                  ${CRASHTRACKER_EXE_TARGET_NAME})
 endif()
 
+# To let crashtracker find Python library at runtime
+set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 if(Python3_LIBRARIES)
     target_link_libraries(crashtracker_exe PRIVATE dd_wrapper ${Python3_LIBRARIES})
 else()
