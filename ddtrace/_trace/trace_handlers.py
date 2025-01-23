@@ -123,32 +123,21 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
-    # Inferred Proxy Spans
-    inferred_proxy_result = [None, None, None]
-    if distributed_headers_config and config._inferred_proxy_services_enabled and ctx.get_item("headers", None):
-        inferred_proxy_result = create_inferred_proxy_span_if_headers_exist(
-            headers=ctx.get_item("headers"),
-            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_span(),
-            tracer=tracer,
-        )
-
-        # use the inferred proxy span as the new parent span
-        if inferred_proxy_result and inferred_proxy_result[0] and not call_trace:
-            span_kwargs["child_of"] = inferred_proxy_result[0]
-
-        if inferred_proxy_result and inferred_proxy_result[2]:
-            ctx.set_item("headers", inferred_proxy_result[2])
+    # dispatch event for checking headers and possibly making an inferred proxy span
+    core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+    # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
+    span_kwargs = ctx.get_item("span_kwargs")
 
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
 
-    # add callback to finish inferred proxy span when this span finishes
-    if inferred_proxy_result and inferred_proxy_result[0] and inferred_proxy_result[1]:
-        span._on_finish_callbacks.append(inferred_proxy_result[1])
-
     ctx.span = span
+
+    # dispatch event for inferred proxy finish
+    core.dispatch("inferred_proxy.finish", (ctx,))
+
     return span
 
 
@@ -186,6 +175,38 @@ def _on_web_framework_finish_request(
     )
     if finish:
         span.finish()
+
+
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+    if not config._inferred_proxy_services_enabled:
+        return
+
+    # Inferred Proxy Spans
+    if distributed_headers_config and ctx.get_item("distributed_headers", None):
+        create_inferred_proxy_span_if_headers_exist(
+            ctx,
+            headers=ctx.get_item("distributed_headers"),
+            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_span(),
+            tracer=tracer,
+        )
+        inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+
+        # use the inferred proxy span as the new parent span
+        if inferred_proxy_span:
+            span_kwargs["child_of"] = inferred_proxy_span
+            ctx.set_item("span_kwargs", span_kwargs)
+
+
+def _on_inferred_proxy_finish(ctx):
+    if not config._inferred_proxy_services_enabled:
+        return
+
+    inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+    inferred_proxy_finish_callback = ctx.get_item("inferred_proxy_finish_callback")
+
+    # add callback to finish inferred proxy span when this span finishes
+    if inferred_proxy_span and inferred_proxy_finish_callback and ctx.span:
+        ctx.span._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -826,6 +847,10 @@ def listen():
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
+
+    # inferred proxy handlers
+    core.on("infered_proxy.start", _on_inferred_proxy_start)
+    core.on("infered_proxy.finish", _on_inferred_proxy_finish)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
