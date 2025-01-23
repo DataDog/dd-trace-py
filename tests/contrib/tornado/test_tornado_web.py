@@ -212,13 +212,13 @@ class TestTornadoWeb(TornadoTestCase):
     def test_http_exception_500_handler_ignored_exception(self):
         # it should trace a handler that raises a Tornado HTTPError
         # The exception should NOT be set on the span
-        prev_error_statuses = config.http_server.error_statuses
+        prev_error_statuses = config._http_server.error_statuses
         try:
-            config.http_server.error_statuses = "501-599"
+            config._http_server.error_statuses = "501-599"
             response = self.fetch("/http_exception_500/")
             assert 500 == response.code
         finally:
-            config.http_server.error_statuses = prev_error_statuses
+            config._http_server.error_statuses = prev_error_statuses
 
         traces = self.pop_traces()
         assert 1 == len(traces)

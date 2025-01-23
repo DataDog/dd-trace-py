@@ -348,6 +348,8 @@ class Config(object):
         "ci_visibility_log_level": ("_ci_visibility_log_level", "DD_CIVISIBILITY_LOG_LEVEL"),
         "test_session_name": ("_test_session_name", "DD_TEST_SESSION_NAME"),
         "logs_injection": ("_logs_injection", "DD_LOGS_INJECTION"),
+        "http_server": ("_http_server", "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"),
+        "http": ("_http", "DD_TRACE_HEADER_TAGS"),
     }
 
     class _HTTPServerConfig(object):
@@ -375,15 +377,7 @@ class Config(object):
         @cachedmethod()
         def is_error_code(self, status_code):
             # type: (int) -> bool
-            """Returns a boolean representing whether or not a status code is an error code.
-            Error status codes by default are 500-599.
-            You may also enable custom error codes::
-
-                from ddtrace import config
-                config.http_server.error_statuses = '401-404,419'
-
-            Ranges and singular error codes are permitted and can be separated using commas.
-            """
+            """Returns a boolean representing whether or not a status code is an error code."""
             for error_range in self.error_ranges:
                 if error_range[0] <= status_code <= error_range[1]:
                     return True
@@ -425,7 +419,7 @@ class Config(object):
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
         self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
 
-        self.http = HttpConfig(header_tags=self._trace_http_header_tags)
+        self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
         self._remote_config_poll_interval = _get_config(
             ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
@@ -494,7 +488,7 @@ class Config(object):
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
-        self.http_server = self._HTTPServerConfig()
+        self._http_server = self._HTTPServerConfig()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -690,6 +684,13 @@ class Config(object):
         return self._extra_services
 
     def get_from(self, obj):
+        deprecate(
+            "ddtrace.config.get_from is deprecated",
+            message="Use the `config` attribute directly.",
+        )
+        self._get_from(obj)
+
+    def _get_from(self, obj):
         """Retrieves the configuration for the given object.
         Any object that has an attached `Pin` must have a configuration
         and if a wrong object is given, an empty `dict` is returned
@@ -741,7 +742,12 @@ class Config(object):
         :return: self
         :rtype: HttpConfig
         """
-        self.http.trace_headers(whitelist)
+        deprecate(
+            "ddtrace.config.trace_headers is deprecated",
+            message="Use the environment variable DD_TRACE_HEADER_TAGS instead.",
+            removal_version="3.0.0",
+        )
+        self._http.trace_headers(whitelist)
         return self
 
     def header_is_traced(self, header_name):
@@ -752,12 +758,16 @@ class Config(object):
         :type header_name: str
         :rtype: bool
         """
-        return self.http.header_is_traced(header_name)
+        deprecate(
+            "ddtrace.config.header_is_traced is deprecated",
+            removal_version="3.0.0",
+        )
+        return self._http.header_is_traced(header_name)
 
     @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
-        return self.http._header_tag_name(header_name)
+        return self._http._header_tag_name(header_name)
 
     def _get_service(self, default=None):
         """
@@ -882,7 +892,7 @@ class Config(object):
                 trace_sampling_rules = lib_config["tracing_sampling_rules"]
                 if trace_sampling_rules:
                     # returns None if no rules
-                    trace_sampling_rules = self.convert_rc_trace_sampling_rules(trace_sampling_rules)
+                    trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules)
                     if trace_sampling_rules:
                         base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
@@ -914,7 +924,7 @@ class Config(object):
         code_headers = header_tags_conf._code_value or {}
         non_rc_header_tags = {**code_headers, **env_headers}
         selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-        self.http = HttpConfig(header_tags=selected_header_tags)
+        self._http = HttpConfig(header_tags=selected_header_tags)
 
     def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
@@ -926,6 +936,14 @@ class Config(object):
         return {k: v for k, v in pairs}
 
     def enable_remote_configuration(self):
+        deprecate(
+            "ddtrace.config.enable_remote_configuration(...) is deprecated",
+            message="Use DD_TRACE_REMOTE_CONFIG_ENABLED instead.",
+            version="3.0.0",
+        )
+        self._enable_remote_configuration()
+
+    def _enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
         from ddtrace.internal.flare.flare import Flare
@@ -963,6 +981,14 @@ class Config(object):
         return tags
 
     def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+        deprecate(
+            "ddtrace.config.convert_rc_trace_sampling_rules(...) is deprecated",
+            message="Use DD_REMOTE_CONFIGURATION_ENABLED instead.",
+            version="3.0.0",
+        )
+        return self._convert_rc_trace_sampling_rules(rc_rules)
+
+    def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:
         [
           {

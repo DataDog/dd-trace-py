@@ -108,7 +108,7 @@ def finish_request_span(request, response):
     # DEV: aiohttp is special case maintains separate configuration from config api
     trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
-        trace_query_string = config.http.trace_query_string
+        trace_query_string = config._http.trace_query_string
     if trace_query_string:
         request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
