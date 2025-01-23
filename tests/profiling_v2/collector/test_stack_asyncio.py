@@ -7,6 +7,7 @@ import pytest
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
+        DD_PROFILING_STACK_V2_ENABLED="true",
     ),
 )
 def test_asyncio():
