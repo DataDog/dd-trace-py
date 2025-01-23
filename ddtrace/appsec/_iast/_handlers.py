@@ -319,7 +319,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
                     res.append(
                         taint_pyobject(
                             pyobject=element,
-                            source_name=origin_to_str(origin),
+                            source_name=element,
                             source_value=element,
                             source_origin=origin,
                         )
