@@ -5,7 +5,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace import Span
-from ddtrace.internal.utils import get_argument_value, ArgumentError
+from ddtrace.internal.utils import ArgumentError
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
