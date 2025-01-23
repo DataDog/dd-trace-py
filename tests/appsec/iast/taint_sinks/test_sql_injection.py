@@ -16,6 +16,10 @@ DDBBS = [
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlite3",
     ),
     (
+        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_pymysql.py",
+        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_pymysql",
+    ),
+    (
         "tests/appsec/iast/fixtures/taint_sinks/sql_injection_psycopg2.py",
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_psycopg2",
     ),

@@ -29,6 +29,7 @@ suites:
   appsec_iast:
     env:
       TEST_POSTGRES_HOST: postgres
+      TEST_MYSQL_HOST: mysql
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -43,6 +44,7 @@ suites:
     runner: riot
     services:
       - postgres
+      - mysql
     snapshot: true
     timeout: 25m
   appsec_iast_memcheck:
