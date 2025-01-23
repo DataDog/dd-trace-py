@@ -483,7 +483,7 @@ def test_set_http_meta(
             assert core.get_item("http.request.path_params", span=span) == path_params
 
 
-@mock.patch("ddtrace.settings.config.log")
+@mock.patch("ddtrace.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [

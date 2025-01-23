@@ -11,7 +11,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.settings.config import Config
+from ddtrace.settings._config import Config
 
 
 def get_version() -> str:
