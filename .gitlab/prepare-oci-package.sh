@@ -1,6 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 
+if [ "$OS" != "linux" ]; then
+  echo "Only linux packages are supported. Exiting"
+  exit 0
+fi
+
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
 fi
@@ -25,11 +30,6 @@ mkdir -p sources/ddtrace_pkgs
 BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
-
-if [ "$OS" != "linux" ]; then
-  echo "Only linux packages are supported. Exiting"
-  exit 0
-fi
 
 echo "Cleaning up binaries for ${ARCH}"
 if [ "${ARCH}" == "arm64" ]; then
