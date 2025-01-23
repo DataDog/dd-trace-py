@@ -175,7 +175,7 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,  # global_config needed for analytics sample rate
+            config.django._global_config,  # global_config needed for analytics sample rate
             "{}-{}".format("django", alias),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
@@ -213,7 +213,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-    tags = {COMPONENT: config.django.integration_name, "django.cache.backend": cache_backend}
+    tags = {COMPONENT: config.django._integration_name, "django.cache.backend": cache_backend}
     if args:
         keys = utils.quantize_key_values(args[0])
         tags["django.cache.key"] = keys
@@ -323,7 +323,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config.django.integration_name}
+        tags = {COMPONENT: config.django._integration_name}
         with core.context_with_data(
             "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
         ) as ctx, ctx.span:
@@ -344,7 +344,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config.django.integration_name}
+        tags = {COMPONENT: config.django._integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
         ) as ctx, ctx.span:
@@ -485,7 +485,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
-        tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        tags={COMPONENT: config.django._integration_name, SPAN_KIND: SpanKind.SERVER},
         distributed_headers_config=config.django,
         distributed_headers=request_headers,
         pin=pin,
@@ -581,7 +581,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     else:
         resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
 
-    tags = {COMPONENT: config.django.integration_name}
+    tags = {COMPONENT: config.django._integration_name}
     if template_name:
         tags["django.template.name"] = template_name
     engine = getattr(instance, "engine", None)

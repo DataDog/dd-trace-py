@@ -397,7 +397,7 @@ async def test_invalid_response_type_empty(tracer, client, test_spans):
 
 @pytest.mark.asyncio
 async def test_http_request_header_tracing(tracer, client, test_spans):
-    config.sanic.http.trace_headers(["my-header"])
+    config.sanic._http.trace_headers(["my-header"])
 
     response = await client.get(
         "/hello",

@@ -121,7 +121,7 @@ def _wrap_urlopen(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.urllib3.integration_name)
+        span.set_tag_str(COMPONENT, config.urllib3._integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

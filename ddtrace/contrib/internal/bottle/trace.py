@@ -52,7 +52,7 @@ class TracePlugin(object):
                 resource=resource,
                 span_type=SpanTypes.WEB,
             ) as s:
-                s.set_tag_str(COMPONENT, config.bottle.integration_name)
+                s.set_tag_str(COMPONENT, config.bottle._integration_name)
 
                 # set span.kind to the type of request being performed
                 s.set_tag_str(SPAN_KIND, SpanKind.SERVER)

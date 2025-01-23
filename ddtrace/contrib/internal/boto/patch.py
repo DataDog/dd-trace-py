@@ -88,7 +88,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.boto.integration_name)
+        span.set_tag_str(COMPONENT, config.boto._integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
@@ -192,7 +192,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # set analytics sample rate
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
-        span.set_tag_str(COMPONENT, config.boto.integration_name)
+        span.set_tag_str(COMPONENT, config.boto._integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

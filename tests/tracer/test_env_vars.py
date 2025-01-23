@@ -113,8 +113,8 @@ config._add(
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 );
-assert config.django.http_tag_query_string == %s;
-assert config.requests.http_tag_query_string == %s
+assert config.django._http_tag_query_string == %s;
+assert config.requests._http_tag_query_string == %s
 """
                 % (
                     django_expected_http_tag_query_string,

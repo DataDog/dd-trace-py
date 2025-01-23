@@ -58,7 +58,7 @@ def trace_prerun(*args, **kwargs):
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
     # set component tag equal to name of integration
-    span.set_tag_str(COMPONENT, config.celery.integration_name)
+    span.set_tag_str(COMPONENT, config.celery._integration_name)
 
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()
@@ -129,7 +129,7 @@ def trace_before_publish(*args, **kwargs):
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)
 
-    span.set_tag_str(COMPONENT, config.celery.integration_name)
+    span.set_tag_str(COMPONENT, config.celery._integration_name)
 
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)

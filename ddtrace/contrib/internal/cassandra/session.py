@@ -211,7 +211,7 @@ def _start_span_and_set_tags(
         service=pin.service,
         span_type=SpanTypes.CASSANDRA,
     )
-    span.set_tag_str(COMPONENT, config.cassandra.integration_name)
+    span.set_tag_str(COMPONENT, config.cassandra._integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag(SPAN_MEASURED_KEY)

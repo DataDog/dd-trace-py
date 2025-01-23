@@ -135,7 +135,7 @@ def _get_perform_request_coro(transport):
             if pin.tags:
                 span.set_tags(pin.tags)
 
-            span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
+            span.set_tag_str(COMPONENT, config.elasticsearch._integration_name)
 
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

@@ -208,7 +208,7 @@ def _create_sanic_request_span(request):
         resource=resource,
         span_type=SpanTypes.WEB,
     )
-    span.set_tag_str(COMPONENT, config.sanic.integration_name)
+    span.set_tag_str(COMPONENT, config.sanic._integration_name)
 
     # set span.kind to the type of operation being performed
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

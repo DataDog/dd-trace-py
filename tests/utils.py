@@ -226,7 +226,7 @@ def override_http_config(integration, values):
         >>> with self.override_http_config('flask', dict(trace_query_string=True)):
             # Your test
     """
-    options = getattr(ddtrace.config, integration).http
+    options = getattr(ddtrace.config.integration)._http
 
     original = {
         "_header_tags": options._header_tags,

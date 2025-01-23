@@ -75,7 +75,7 @@ class TraceBottleTest(TracerTestCase):
         else:
             assert http.QUERY_STRING not in s.get_tags()
 
-        if ddtrace.config.bottle.http_tag_query_string:
+        if ddtrace.config.bottle._http_tag_query_string:
             assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie" + fqs
         else:
             assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
@@ -496,7 +496,7 @@ class TraceBottleTest(TracerTestCase):
         root.assert_matches(name="http.server.request")
 
     def test_http_request_header_tracing(self):
-        config.bottle.http.trace_headers(["my-header"])
+        config.bottle._http.trace_headers(["my-header"])
 
         # setup our test app
         @self.app.route("/home/")
@@ -521,7 +521,7 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("http.request.headers.my-header") == "my_value"
 
     def test_http_response_header_tracing(self):
-        config.bottle.http.trace_headers(["my-response-header"])
+        config.bottle._http.trace_headers(["my-response-header"])
 
         # setup our test app
         @self.app.route("/home/")

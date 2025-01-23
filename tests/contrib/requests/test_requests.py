@@ -575,7 +575,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         # Enabled when explicitly configured
         with self.override_config("requests", {}):
-            config.requests.http.trace_headers(["my-header"])
+            config.requests._http.trace_headers(["my-header"])
             self.session.get(URL_200, headers={"my-header": "my_value"})
             spans = self.pop_spans()
         assert len(spans) == 1

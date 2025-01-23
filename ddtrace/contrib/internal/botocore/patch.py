@@ -161,7 +161,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     with core.context_with_data(
         "botocore.instrumented_lib_function",
         span_name="{}.{}".format(original_func.__module__, original_func.__name__),
-        tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
+        tags={COMPONENT: config.botocore._integration_name, SPAN_KIND: SpanKind.CLIENT},
     ) as ctx, ctx.span:
         return original_func(*args, **kwargs)
 

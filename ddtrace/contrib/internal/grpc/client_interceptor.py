@@ -191,7 +191,7 @@ class _ClientInterceptor(
             resource=client_call_details.method,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc._integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

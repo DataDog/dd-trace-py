@@ -34,7 +34,7 @@ class TraceMiddleware(object):
             service=self.service,
             span_type=SpanTypes.WEB,
         )
-        span.set_tag_str(COMPONENT, config.falcon.integration_name)
+        span.set_tag_str(COMPONENT, config.falcon._integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
@@ -97,7 +97,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        config.falcon.hooks.emit("request", span, req, resp)
+        config.falcon._hooks.emit("request", span, req, resp)
 
         # Close the span
         span.finish()

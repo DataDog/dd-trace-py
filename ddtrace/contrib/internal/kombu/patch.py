@@ -112,7 +112,7 @@ def traced_receive(func, instance, args, kwargs):
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+        s.set_tag_str(COMPONENT, config.kombu._integration_name)
 
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -142,7 +142,7 @@ def traced_publish(func, instance, args, kwargs):
         service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s.set_tag_str(COMPONENT, config.kombu.integration_name)
+        s.set_tag_str(COMPONENT, config.kombu._integration_name)
 
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)

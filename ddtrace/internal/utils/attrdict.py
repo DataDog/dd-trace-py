@@ -35,7 +35,7 @@ class AttrDict(dict):
             # Update any existing key
             self[key] = value
         elif hasattr(self, key):
-            # Allow overwriting an existing attribute, e.g. `self.global_config = dict()`
+            # Allow overwriting an existing attribute, e.g. `self._global_config = dict()`
             object.__setattr__(self, key, value)
         else:
             # Set a new key

@@ -20,7 +20,7 @@ _PAYLOAD_TAGGER = AWSPayloadTagging()
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
-    span.set_tag_str(COMPONENT, config.botocore.integration_name)
+    span.set_tag_str(COMPONENT, config.botocore._integration_name)
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag(SPAN_MEASURED_KEY)

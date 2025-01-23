@@ -147,7 +147,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    span.set_tag_str(COMPONENT, config.aioredis.integration_name)
+    span.set_tag_str(COMPONENT, config.aioredis._integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag_str(redisx.RAWCMD, query)
@@ -215,7 +215,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag_str(COMPONENT, config.aioredis.integration_name)
+        span.set_tag_str(COMPONENT, config.aioredis._integration_name)
         span.set_tag_str(db.SYSTEM, redisx.APP)
         span.set_tags(
             {

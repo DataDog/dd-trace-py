@@ -22,7 +22,7 @@ class Hooks:
 
     Example::
 
-        @config.falcon.hooks.on('request')
+        @config.falcon._hooks.on('request')
         def on_request(span, request, response):
             pass
     """
@@ -52,12 +52,12 @@ class Hooks:
             def on_request(span, request, response):
                 pass
 
-            config.falcon.hooks.register('request', on_request)
+            config.falcon._hooks.register('request', on_request)
 
 
         If no function is provided then a decorator is returned::
 
-            @config.falcon.hooks.register('request')
+            @config.falcon._hooks.register('request')
             def on_request(span, request, response):
                 pass
 
@@ -80,7 +80,7 @@ class Hooks:
         return None
 
     # Provide shorthand `on` method for `register`
-    # >>> @config.falcon.hooks.on('request')
+    # >>> @config.falcon._hooks.on('request')
     #     def on_request(span, request, response):
     #        pass
     on = register
@@ -96,11 +96,11 @@ class Hooks:
 
         Example::
 
-            @config.falcon.hooks.on('request')
+            @config.falcon._hooks.on('request')
             def on_request(span, request, response):
                 pass
 
-            config.falcon.hooks.deregister('request', on_request)
+            config.falcon._hooks.deregister('request', on_request)
 
         :param hook: The name of the hook to register the function for
         :type hook: object

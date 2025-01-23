@@ -96,7 +96,7 @@ def _connect(func, instance, args, kwargs):
         with pin.tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
-            span.set_tag_str(COMPONENT, config.mysqldb.integration_name)
+            span.set_tag_str(COMPONENT, config.mysqldb._integration_name)
 
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

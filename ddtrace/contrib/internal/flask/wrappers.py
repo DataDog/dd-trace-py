@@ -32,7 +32,7 @@ def _wrap_call(
 ):
     args = args or []
     kwargs = kwargs or {}
-    tags = {COMPONENT: config.flask.integration_name}
+    tags = {COMPONENT: config.flask._integration_name}
     if signal:
         tags["flask.signal"] = signal
     with core.context_with_data(

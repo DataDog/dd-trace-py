@@ -529,7 +529,7 @@ async def test_request_headers(snapshot_context):
     }
 
     try:
-        config.httpx.http.trace_headers(["Some-Request-Header", "Some-Response-Header"])
+        config.httpx._http.trace_headers(["Some-Request-Header", "Some-Response-Header"])
         with snapshot_context(wait_for_num_traces=1):
             resp = httpx.get(url, headers=headers)
             assert resp.status_code == 200
@@ -539,7 +539,7 @@ async def test_request_headers(snapshot_context):
                 resp = await client.get(url, headers=headers)
                 assert resp.status_code == 200
     finally:
-        config.httpx.http = HttpConfig()
+        config.httpx._http = HttpConfig()
 
 
 @pytest.mark.asyncio

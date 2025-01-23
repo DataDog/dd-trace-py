@@ -97,7 +97,7 @@ class EngineTracer(object):
             span_type=SpanTypes.SQL,
             resource=statement,
         )
-        span.set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
+        span.set_tag_str(COMPONENT, config.sqlalchemy._integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

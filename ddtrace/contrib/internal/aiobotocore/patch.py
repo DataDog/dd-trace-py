@@ -77,7 +77,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         operation_name = "{}.read".format(self._self_parent_span.name)
 
         with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
-            span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+            span.set_tag_str(COMPONENT, config.aiobotocore._integration_name)
 
             # set span.kind tag equal to type of request
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
@@ -120,7 +120,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         service=ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.aiobotocore.integration_name)
+        span.set_tag_str(COMPONENT, config.aiobotocore._integration_name)
 
         # set span.kind tag equal to type of request
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

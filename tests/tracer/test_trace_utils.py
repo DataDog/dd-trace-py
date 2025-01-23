@@ -558,7 +558,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 def test_set_http_meta_headers_useragent(
     mock_store_headers, user_agent_key, user_agent_value, expected_keys, expected, span, int_config
 ):
-    int_config.myint.http._header_tags = {"enabled": True}
+    int_config.myint._http._header_tags = {"enabled": True}
     assert int_config.myint.is_header_tracing_configured is True
     trace_utils.set_http_meta(
         span,
@@ -574,7 +574,7 @@ def test_set_http_meta_headers_useragent(
 
 @mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
-    int_config.myint.http._header_tags = {"enabled": True}
+    int_config.myint._http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
         span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=True
     )
@@ -587,7 +587,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
 
 @mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
-    int_config.myint.http._header_tags = {"enabled": True}
+    int_config.myint._http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
         span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
     )
@@ -759,7 +759,7 @@ def test_get_request_header_client_ip_peer_ip_selection(headers_dict, peer_ip, e
 
 def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False)):
-        int_config.myint.http._header_tags = {"enabled": True}
+        int_config.myint._http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
             span,
@@ -773,7 +773,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
 
 def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
     with override_global_config(dict(_asm_enabled=False, _retrieve_client_ip=False)):
-        int_config.myint.http._header_tags = {"enabled": True}
+        int_config.myint._http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
             span,
@@ -787,7 +787,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
 
 def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
     with override_global_config(dict(_asm_enabled=False, _retrieve_client_ip=True)):
-        int_config.myint.http._header_tags = {"enabled": True}
+        int_config.myint._http._header_tags = {"enabled": True}
         assert int_config.myint.is_header_tracing_configured is True
         trace_utils.set_http_meta(
             span,

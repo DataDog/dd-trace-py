@@ -58,7 +58,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         with pin.tracer.trace("%s.connect" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.aiohttp.integration_name)
+            span.set_tag(COMPONENT, config.aiohttp._integration_name)
             result = await self.__wrapped__.connect(req, *args, **kwargs)
             return result
 
@@ -66,7 +66,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         with pin.tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.aiohttp.integration_name)
+            span.set_tag(COMPONENT, config.aiohttp._integration_name)
             result = await self.__wrapped__._create_connection(req, *args, **kwargs)
             return result
 
@@ -90,7 +90,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             HTTPPropagator.inject(span.context, headers)
             kwargs["headers"] = headers
 
-        span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+        span.set_tag_str(COMPONENT, config.aiohttp_client._integration_name)
 
         # set span.kind tag equal to type of request
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

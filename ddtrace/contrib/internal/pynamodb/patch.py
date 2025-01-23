@@ -64,7 +64,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.pynamodb, "pynamodb"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
+        span.set_tag_str(COMPONENT, config.pynamodb._integration_name)
         span.set_tag_str(db.SYSTEM, "dynamodb")
 
         # set span.kind to the type of operation being performed

@@ -93,7 +93,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str(COMPONENT, config.asyncpg._integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed
@@ -112,7 +112,7 @@ async def _traced_query(pin, method, query, args, kwargs):
         service=ext_service(pin, config.asyncpg),
         span_type=SpanTypes.SQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str(COMPONENT, config.asyncpg._integration_name)
         span.set_tag_str(db.SYSTEM, DBMS_NAME)
 
         # set span.kind to the type of request being performed

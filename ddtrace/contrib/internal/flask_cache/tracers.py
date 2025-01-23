@@ -86,7 +86,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
                 service=self._datadog_service,
             )
 
-            s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
+            s.set_tag_str(COMPONENT, config.flask_cache._integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             # set span tags

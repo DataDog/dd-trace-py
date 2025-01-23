@@ -136,7 +136,7 @@ def _datadog_trace_operation(operation, wrapped):
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    span.set_tag_str(COMPONENT, config.pymongo.integration_name)
+    span.set_tag_str(COMPONENT, config.pymongo._integration_name)
 
     # set span.kind to the operation type being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
@@ -259,7 +259,7 @@ def _trace_cmd(cmd, socket_instance, address):
         service=trace_utils.ext_service(pin, config.pymongo),
     )
 
-    s.set_tag_str(COMPONENT, config.pymongo.integration_name)
+    s.set_tag_str(COMPONENT, config.pymongo._integration_name)
     s.set_tag_str(db.SYSTEM, mongox.SERVICE)
 
     # set span.kind to the type of operation being performed

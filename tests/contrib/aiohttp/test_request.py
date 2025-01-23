@@ -91,7 +91,7 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, l
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
-    config.aiohttp.http.trace_headers(["my-header"])
+    config.aiohttp._http.trace_headers(["my-header"])
     request = await client.request("GET", "/", headers={"my-header": "my_value"})
     await request.text()
 
@@ -110,7 +110,7 @@ async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, 
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
 
-    config.aiohttp.http.trace_headers(["my-response-header"])
+    config.aiohttp._http.trace_headers(["my-response-header"])
     request = await client.request("GET", "/response_headers/")
     await request.text()
 

@@ -146,7 +146,7 @@ class _ClientInterceptor:
             resource=method_as_str,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc_aio_client._integration_name)
 
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

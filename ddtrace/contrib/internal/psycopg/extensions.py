@@ -36,7 +36,7 @@ def get_psycopg2_extensions(psycopg_module):
                 service=self._datadog_service,
                 span_type=SpanTypes.SQL,
             ) as s:
-                s.set_tag_str(COMPONENT, config.psycopg.integration_name)
+                s.set_tag_str(COMPONENT, config.psycopg._integration_name)
                 s.set_tag_str(db.SYSTEM, config.psycopg.dbms_name)
 
                 # set span.kind to the type of operation being performed

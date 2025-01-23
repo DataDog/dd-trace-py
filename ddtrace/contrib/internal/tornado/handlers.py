@@ -45,7 +45,7 @@ def execute(func, handler, args, kwargs):
             span_type=SpanTypes.WEB,
         )
 
-        request_span.set_tag_str(COMPONENT, config.tornado.integration_name)
+        request_span.set_tag_str(COMPONENT, config.tornado._integration_name)
 
         # set span.kind to the type of operation being performed
         request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

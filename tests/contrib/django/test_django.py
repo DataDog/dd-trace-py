@@ -208,7 +208,7 @@ def test_disallowed_host(client, test_spans):
 
 def test_http_header_tracing_disabled(client, test_spans):
     with override_config("django", {}):
-        config.django.http._reset()
+        config.django._http._reset()
         headers = {
             get_wsgi_header("my-header"): "my_value",
         }
@@ -225,7 +225,7 @@ def test_http_header_tracing_disabled(client, test_spans):
 
 def test_http_header_tracing_enabled(client, test_spans):
     with override_config("django", {}):
-        config.django.http.trace_headers(["my-header", "my-response-header"])
+        config.django._http.trace_headers(["my-header", "my-response-header"])
 
         headers = {
             get_wsgi_header("my-header"): "my_value",

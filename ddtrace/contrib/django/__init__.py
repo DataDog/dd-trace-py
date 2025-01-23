@@ -117,7 +117,7 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.django.http['trace_query_string']
+.. py:data:: ddtrace.config.django._http['trace_query_string']
 
    Whether or not to include the query string as a tag.
 

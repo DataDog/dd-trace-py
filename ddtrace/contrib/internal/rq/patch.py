@@ -69,7 +69,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         integration_config=config.rq_worker,
         tags={
-            COMPONENT: config.rq.integration_name,
+            COMPONENT: config.rq._integration_name,
             SPAN_KIND: SpanKind.PRODUCER,
             QUEUE_NAME: instance.name,
             JOB_ID: job.get_id(),
@@ -92,7 +92,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         ),
         pin=pin,
         service=trace_utils.int_service(pin, config.rq),
-        tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
+        tags={COMPONENT: config.rq._integration_name, JOB_ID: job_id},
     ) as ctx, ctx.span:
         return func(*args, **kwargs)
 
@@ -113,7 +113,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             resource=job.func_name,
             distributed_headers_config=config.rq_worker,
             distributed_headers=job.meta,
-            tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
+            tags={COMPONENT: config.rq._integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
         ) as ctx, ctx.span:
             try:
                 return func(*args, **kwargs)
@@ -142,7 +142,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
         span_name="rq.job.perform",
         resource=job.func_name,
         pin=pin,
-        tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
+        tags={COMPONENT: config.rq._integration_name, JOB_ID: job.get_id()},
     ) as ctx, ctx.span:
         return func(*args, **kwargs)
 
@@ -158,7 +158,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         ),
         service=trace_utils.ext_service(pin, config.rq_worker),
         pin=pin,
-        tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
+        tags={COMPONENT: config.rq._integration_name, JOB_ID: job_ids},
     ) as ctx, ctx.span:
         return func(*args, **kwargs)
 

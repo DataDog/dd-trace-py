@@ -28,7 +28,7 @@ def _set_span_tags(
     span, pin, config_integration, args: Optional[List], instance, query: Optional[List], is_cluster: bool = False
 ):
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag_str(COMPONENT, config_integration.integration_name)
+    span.set_tag_str(COMPONENT, config_integration._integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
     span.set_tag(SPAN_MEASURED_KEY)
     if query is not None:

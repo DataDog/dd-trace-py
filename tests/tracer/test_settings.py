@@ -40,10 +40,10 @@ class TestConfig(BaseTestCase):
         # Integration usage
         config = Config()
         config._add("django", dict())
-        config.django.http.trace_query_string = True
+        config.django._http.trace_query_string = True
         assert config.http.trace_query_string is None
         assert config.django.trace_query_string is True
-        assert config.django.http.trace_query_string is True
+        assert config.django._http.trace_query_string is True
 
 
 class TestHttpConfig(BaseTestCase):

@@ -87,7 +87,7 @@ class TraceTool(cherrypy.Tool):
             span_type=SpanTypes.WEB,
         )
 
-        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy.integration_name)
+        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy._integration_name)
 
         # set span.kind to the type of request being performed
         cherrypy.request._datadog_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

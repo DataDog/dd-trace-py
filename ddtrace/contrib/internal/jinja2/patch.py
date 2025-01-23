@@ -62,7 +62,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     template_name = str(instance.name or DEFAULT_TEMPLATE_NAME)
     with pin.tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+        span.set_tag_str(COMPONENT, config.jinja2._integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         try:
@@ -86,7 +86,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
         try:
             return wrapped(*args, **kwargs)
         finally:
-            span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+            span.set_tag_str(COMPONENT, config.jinja2._integration_name)
 
             span.resource = template_name
             span.set_tag_str("jinja2.template_name", template_name)

@@ -186,7 +186,7 @@ def _create_span(pin, method, invocation_metadata, method_kind):
         resource=method,
     )
 
-    span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
+    span.set_tag_str(COMPONENT, config.grpc_aio_server._integration_name)
 
     # set span.kind to the type of operation being performed
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

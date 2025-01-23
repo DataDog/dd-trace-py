@@ -179,7 +179,7 @@ def traced_produce(func, instance, args, kwargs):
         core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(COMPONENT, config.kafka._integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
 
@@ -262,7 +262,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span.set_tag_str(COMPONENT, config.kafka.integration_name)
+        span.set_tag_str(COMPONENT, config.kafka._integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         if cluster_id:
             span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)

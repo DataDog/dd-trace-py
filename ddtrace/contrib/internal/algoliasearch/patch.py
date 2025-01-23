@@ -124,7 +124,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag_str(COMPONENT, config.algoliasearch.integration_name)
+        span.set_tag_str(COMPONENT, config.algoliasearch._integration_name)
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

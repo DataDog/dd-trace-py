@@ -66,7 +66,7 @@ def wrap_function(name):
             resource=resource,
             span_type=SpanTypes.HTTP,
         ) as span:
-            span.set_tag_str(COMPONENT, config.consul.integration_name)
+            span.set_tag_str(COMPONENT, config.consul._integration_name)
 
             span.set_tag_str(net.TARGET_HOST, instance.agent.http.host)
 

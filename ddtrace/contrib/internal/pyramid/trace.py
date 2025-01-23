@@ -56,7 +56,7 @@ def trace_render(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+        span.set_tag_str(COMPONENT, config.pyramid._integration_name)
 
         return func(*args, **kwargs)
 
@@ -78,7 +78,7 @@ def trace_tween_factory(handler, registry):
 
             span_name = schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND)
             with tracer.trace(span_name, service=service, resource="404", span_type=SpanTypes.WEB) as span:
-                span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+                span.set_tag_str(COMPONENT, config.pyramid._integration_name)
 
                 # set span.kind to the type of operation being performed
                 span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

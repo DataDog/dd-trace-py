@@ -253,7 +253,7 @@ class FalconTestCase(FalconTestMixin):
         assert dd_span.error == 0
 
     def test_falcon_request_hook(self):
-        @config.falcon.hooks.on("request")
+        @config.falcon._hooks.on("request")
         def on_falcon_request(span, request, response):
             span.set_tag("my.custom", "tag")
 
@@ -275,7 +275,7 @@ class FalconTestCase(FalconTestMixin):
 
     def test_http_header_tracing(self):
         with self.override_config("falcon", {}):
-            config.falcon.http.trace_headers(["my-header", "my-response-header"])
+            config.falcon._http.trace_headers(["my-header", "my-response-header"])
             self.make_test_call("/200", headers={"my-header": "my_value"})
             traces = self.tracer.pop_traces()
 

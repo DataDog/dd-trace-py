@@ -52,7 +52,7 @@ async def trace_middleware(app, handler):
         )
         request_span.set_tag(SPAN_MEASURED_KEY)
 
-        request_span.set_tag_str(COMPONENT, config.aiohttp.integration_name)
+        request_span.set_tag_str(COMPONENT, config.aiohttp._integration_name)
 
         # set span.kind tag equal to type of request
         request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)

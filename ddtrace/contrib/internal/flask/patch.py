@@ -477,7 +477,7 @@ def _build_render_template_wrapper(name):
             span_name=name,
             pin=pin,
             flask_config=config.flask,
-            tags={COMPONENT: config.flask.integration_name},
+            tags={COMPONENT: config.flask._integration_name},
             span_type=SpanTypes.TEMPLATE,
         ) as ctx, ctx.span:
             return wrapped(*args, **kwargs)
@@ -531,7 +531,7 @@ def request_patcher(name):
             flask_request=flask.request,
             block_request_callable=_block_request_callable,
             ignored_exception_type=NotFound,
-            tags={COMPONENT: config.flask.integration_name},
+            tags={COMPONENT: config.flask._integration_name},
         ) as ctx, ctx.span:
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
@@ -561,7 +561,7 @@ def patched_jsonify(wrapped, instance, args, kwargs):
         "flask.jsonify",
         span_name="flask.jsonify",
         flask_config=config.flask,
-        tags={COMPONENT: config.flask.integration_name},
+        tags={COMPONENT: config.flask._integration_name},
         pin=pin,
     ) as ctx, ctx.span:
         return wrapped(*args, **kwargs)

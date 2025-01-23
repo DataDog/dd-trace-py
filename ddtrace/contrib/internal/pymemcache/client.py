@@ -313,7 +313,7 @@ def _trace(func, p, method_name, *args, **kwargs):
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
-        span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
+        span.set_tag_str(COMPONENT, config.pymemcache._integration_name)
         span.set_tag_str(db.SYSTEM, memcachedx.DBMS_NAME)
 
         # set span.kind to the type of operation being performed

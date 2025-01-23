@@ -100,7 +100,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
+        s.set_tag_str(COMPONENT, config.rediscluster._integration_name)
         s.set_tag_str(db.SYSTEM, redisx.APP)
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)

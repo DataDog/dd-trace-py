@@ -403,7 +403,7 @@ class TestMolten(TracerTestCase):
         )
 
     def test_http_request_header_tracing(self):
-        config.molten.http.trace_headers(["my-header"])
+        config.molten._http.trace_headers(["my-header"])
         response = self.make_request(
             headers={
                 "my-header": "my_value",

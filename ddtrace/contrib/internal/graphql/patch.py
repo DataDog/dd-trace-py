@@ -125,7 +125,7 @@ def _traced_parse(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql._integration_name)
 
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
@@ -145,7 +145,7 @@ def _traced_validate(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql._integration_name)
 
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
@@ -175,7 +175,7 @@ def _traced_execute(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql._integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -204,7 +204,7 @@ def _traced_query(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql._integration_name)
 
         # mark span as measured and set sample rate
         span.set_tag(SPAN_MEASURED_KEY)
@@ -235,7 +235,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
         resource=info.field_name,
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_tag_str(COMPONENT, config.graphql.integration_name)
+        span.set_tag_str(COMPONENT, config.graphql._integration_name)
 
         return next_middleware(root, info, **args)
 

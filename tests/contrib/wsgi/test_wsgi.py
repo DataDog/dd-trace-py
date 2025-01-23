@@ -162,7 +162,7 @@ def test_query_string_tracing(tracer, test_spans):
 
 
 def test_http_request_header_tracing(tracer, test_spans):
-    config.wsgi.http.trace_headers(["my-header"])
+    config.wsgi._http.trace_headers(["my-header"])
     try:
         app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         resp = app.get("/", headers={"my-header": "test_value"})
@@ -172,11 +172,11 @@ def test_http_request_header_tracing(tracer, test_spans):
         spans = test_spans.pop()
         assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
     finally:
-        config.wsgi.http._reset()
+        config.wsgi._http._reset()
 
 
 def test_http_response_header_tracing(tracer, test_spans):
-    config.wsgi.http.trace_headers(["my-response-header"])
+    config.wsgi._http.trace_headers(["my-response-header"])
     try:
         app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
         resp = app.get("/", headers={"my-header": "test_value"})
@@ -187,7 +187,7 @@ def test_http_response_header_tracing(tracer, test_spans):
         spans = test_spans.pop()
         assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
     finally:
-        config.wsgi.http._reset()
+        config.wsgi._http._reset()
 
 
 def test_service_name_can_be_overriden(tracer, test_spans):

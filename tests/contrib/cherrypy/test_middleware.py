@@ -366,7 +366,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag("span.kind") == "server"
 
     def test_http_request_header_tracing(self):
-        config.cherrypy.http.trace_headers(["Host", "my-header"])
+        config.cherrypy._http.trace_headers(["Host", "my-header"])
         self.getPage(
             "/",
             headers=[
@@ -385,7 +385,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert span.get_tag("http.request.headers.host") == "127.0.0.1:54583"
 
     def test_http_response_header_tracing(self):
-        config.cherrypy.http.trace_headers(["my-response-header"])
+        config.cherrypy._http.trace_headers(["my-response-header"])
         self.getPage("/response_headers")
         time.sleep(0.1)
 
@@ -492,7 +492,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         )
 
     def setUp(self):
-        config.cherrypy.http.trace_headers(["Host", "my-header"])
+        config.cherrypy._http.trace_headers(["Host", "my-header"])
         self.traced_app = TraceMiddleware(
             cherrypy,
             tracer=ddtrace.tracer,

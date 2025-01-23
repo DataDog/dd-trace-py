@@ -95,7 +95,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             resource=self._handler_call_details.method,
         )
 
-        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+        span.set_tag_str(COMPONENT, config.grpc_server._integration_name)
 
         # set span.kind tag equal to type of span
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
