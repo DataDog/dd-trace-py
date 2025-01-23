@@ -111,6 +111,7 @@ def test_func_fails_teardown(fixture_fails_teardown):
 
 _TEST_SKIP_CONTENT = """
 import pytest
+import unittest
 
 @pytest.mark.skip
 def test_func_skip_mark():
@@ -118,6 +119,14 @@ def test_func_skip_mark():
 
 def test_func_skip_inside():
     pytest.skip()
+
+class SomeTestCase(unittest.TestCase):
+    @pytest.mark.skip
+    def test_class_func_skip_mark(self):
+        assert True
+
+    def test_class_func_skip_inside(self):
+        pytest.skip()
 """
 
 
@@ -137,7 +146,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
         rec = self.inline_run()
-        rec.assertoutcome(passed=3, failed=9, skipped=2)
+        rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) == 0
 
     def test_pytest_atr_env_var_disables_retrying(self):
@@ -149,7 +158,7 @@ class PytestATRTestCase(PytestTestCaseBase):
 
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
-            rec.assertoutcome(passed=3, failed=9, skipped=2)
+            rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) > 0
 
     def test_pytest_atr_env_var_does_not_override_api(self):
@@ -165,7 +174,7 @@ class PytestATRTestCase(PytestTestCaseBase):
             return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
         ):
             rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
-            rec.assertoutcome(passed=3, failed=9, skipped=2)
+            rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) > 0
 
     def test_pytest_atr_spans(self):
@@ -252,7 +261,17 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert func_skip_inside_spans[0].get_tag("test.status") == "skip"
         assert func_skip_inside_spans[0].get_tag("test.is_retry") is None
 
-        assert len(spans) == 49
+        class_func_skip_mark_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_mark")
+        assert len(class_func_skip_mark_spans) == 1
+        assert class_func_skip_mark_spans[0].get_tag("test.status") == "skip"
+        assert class_func_skip_mark_spans[0].get_tag("test.is_retry") is None
+
+        class_func_skip_inside_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_inside")
+        assert len(class_func_skip_inside_spans) == 1
+        assert class_func_skip_inside_spans[0].get_tag("test.status") == "skip"
+        assert class_func_skip_inside_spans[0].get_tag("test.is_retry") is None
+
+        assert len(spans) == 51
 
     def test_pytest_atr_fails_session_when_test_fails(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -263,7 +282,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         rec = self.inline_run("--ddtrace")
         spans = self.pop_spans()
         assert rec.ret == 1
-        assert len(spans) == 46
+        assert len(spans) == 48
 
     def test_pytest_atr_passes_session_when_test_pass(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -273,7 +292,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         rec = self.inline_run("--ddtrace")
         spans = self.pop_spans()
         assert rec.ret == 0
-        assert len(spans) == 21
+        assert len(spans) == 23
 
     def test_pytest_atr_does_not_retry_failed_setup_or_teardown(self):
         # NOTE: This feature only works for regular pytest tests. For tests inside unittest classes, setup and teardown
