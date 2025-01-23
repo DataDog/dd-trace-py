@@ -62,6 +62,7 @@ components:
     - ddtrace/internal/logger.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
+    - ddtrace/internal/native/*
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py

@@ -6,6 +6,7 @@ use pyo3::types::PyDict;
 #[pyclass(name = "PyConfigurator", module = "ddtrace.internal._native")]
 pub struct PyConfigurator {
     configurator: Box<Configurator>,
+    file: String,
     envp: Vec<String>,
     args: Vec<String>,
 }
@@ -16,6 +17,8 @@ impl PyConfigurator {
     pub fn new(debug_logs: bool) -> Self {
         PyConfigurator {
             configurator: Box::new(Configurator::new(debug_logs)),
+            file: "/etc/datadog-agent/managed/datadog-apm-libraries/stable/libraries_config.yaml"
+                .to_string(), // TODO: Use const from libdatadog (PR pending)
             envp: Vec::new(),
             args: Vec::new(),
         }
@@ -31,6 +34,11 @@ impl PyConfigurator {
         Ok(())
     }
 
+    pub fn set_file_override(&mut self, file: String) -> PyResult<()> {
+        self.file = file;
+        Ok(())
+    }
+
     pub fn get_configuration(&self, py: Python<'_>) -> PyResult<PyObject> {
         let envp: Vec<&[u8]> = self.envp.iter().map(|s| s.as_bytes()).collect();
         let args: Vec<&[u8]> = self.args.iter().map(|s| s.as_bytes()).collect();
@@ -41,11 +49,9 @@ impl PyConfigurator {
             language: b"python",
         };
 
-        let res_config = self.configurator.get_config_from_file(
-            "/etc/datadog-agent/managed/datadog-apm-libraries/stable/libraries_config.yaml"
-                .as_ref(),
-            process_info,
-        );
+        let res_config = self
+            .configurator
+            .get_config_from_file(self.file.as_ref(), process_info);
         match res_config {
             Ok(config) => {
                 let dict = PyDict::new_bound(py);

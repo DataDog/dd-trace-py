@@ -11,7 +11,6 @@ import tarfile
 import cmake
 from setuptools_rust import Binding
 from setuptools_rust import RustExtension
-from setuptools_rust import Strip
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
@@ -666,7 +665,6 @@ setup(
             py_limited_api="auto",
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-            strip=Strip.No if os.getenv("_DD_RUSTC_DEBUG") == "1" else Strip.All,
         ),
     ],
 )
