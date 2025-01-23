@@ -208,7 +208,7 @@ class LLMObs(Service):
         llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
 
         span_links = span._get_ctx_item(SPAN_LINKS)
-        if isinstance(span_links, list):
+        if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event
