@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.2
+
+
+### Bug Fixes
+
+- tracing(celery): Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+- LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+- lib-injection: Fixes incorrect telemetry data payload format.
+
+
+---
+
 ## 2.19.1
 ### Bug Fixes
 
