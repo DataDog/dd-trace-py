@@ -208,9 +208,11 @@ def _create_sanic_request_span(request):
         distributed_headers_config=config.sanic,
         headers_case_sensitive=True,
         analytics_sample_rate=config.sanic.get_analytics_sample_rate(use_global_config=True),
-    ) as ctx, ctx.span as req_span:
+    ) as ctx:
+        req_span = ctx.span
+
         ctx.set_item("req_span", req_span)
-        core.dispatch("web.request", (ctx, config.falcon))
+        core.dispatch("web.request", (ctx, config.sanic))
 
         method = request.method
         url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
