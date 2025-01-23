@@ -607,6 +607,7 @@ def test_non_deprecated_python_version():
         assert len(w) == 0
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Does not work with CPython < 3.11")
 def test_module_watchdog_no_interal_frames_in_import_exceptions(module_watchdog):
     try:
         import tests.submod.import_test  # noqa:F401
