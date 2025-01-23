@@ -10,6 +10,7 @@ from typing import Optional
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
@@ -121,10 +122,32 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
+
+    # Inferred Proxy Spans
+    inferred_proxy_result = [None, None, None]
+    if distributed_headers_config and config._inferred_proxy_services_enabled and ctx.get_item("headers", None):
+        inferred_proxy_result = create_inferred_proxy_span_if_headers_exist(
+            headers=ctx.get_item("headers"),
+            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_span(),
+            tracer=tracer,
+        )
+
+        # use the inferred proxy span as the new parent span
+        if inferred_proxy_result and inferred_proxy_result[0] and not call_trace:
+            span_kwargs["child_of"] = inferred_proxy_result[0]
+
+        if inferred_proxy_result and inferred_proxy_result[2]:
+            ctx.set_item("headers", inferred_proxy_result[2])
+
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
+
+    # add callback to finish inferred proxy span when this span finishes
+    if inferred_proxy_result and inferred_proxy_result[0] and inferred_proxy_result[1]:
+        span._on_finish_callbacks.append(inferred_proxy_result[1])
+
     ctx.span = span
     return span
 
