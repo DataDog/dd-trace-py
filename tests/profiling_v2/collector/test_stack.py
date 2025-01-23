@@ -82,7 +82,7 @@ def test_stack_locations(tmp_path):
     def foo():
         bar()
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(None, _stack_collector_v2_enabled=True):
         for _ in range(10):
             foo()
     ddup.upload()
@@ -241,7 +241,7 @@ def test_push_non_web_span(tmp_path, tracer):
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=stack_v2_enabled,
+        _stack_collector_v2_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
