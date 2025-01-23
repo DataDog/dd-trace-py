@@ -66,7 +66,7 @@ async def test_exception(ot_tracer, test_spans):
 
 @pytest.mark.asyncio
 async def test_trace_multiple_calls(ot_tracer, test_spans):
-    ot_tracer._dd_tracer.configure(context_provider=context_provider)
+    ot_tracer._dd_tracer._configure(context_provider=context_provider)
 
     # create multiple futures so that we expect multiple
     # traces instead of a single one (helper not used)

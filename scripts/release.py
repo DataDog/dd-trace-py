@@ -332,7 +332,8 @@ def create_notebook(dd_repo, name, rn, base):
             "We need DD_API_KEY_STAGING and DD_APP_KEY_STAGING values. Please follow the instructions in the script."
         )
     if int(name[-1]) == 1:
-        last_version = base[:-1] + str(int(base[-1]) - 1)
+        major, minor = base.split(".", maxsplit=1)
+        last_version = f"{major}.{str(int(minor) - 1)}"
     else:
         print(
             "Since this is not the RC1 for this release."

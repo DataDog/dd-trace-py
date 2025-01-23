@@ -8,8 +8,8 @@ import string
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import telemetry
+from ddtrace.trace import TraceFilter
 
 
 _Span = Span

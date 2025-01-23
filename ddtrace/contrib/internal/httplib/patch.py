@@ -9,7 +9,7 @@ from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import httplib
@@ -20,9 +20,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 span_name = "http.client.request"

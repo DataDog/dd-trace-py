@@ -9,8 +9,8 @@ from ddtrace import tracer
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.loguru import patch
-from ddtrace.contrib.loguru import unpatch
+from ddtrace.contrib.internal.loguru.patch import patch
+from ddtrace.contrib.internal.loguru.patch import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import override_global_config
 

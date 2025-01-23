@@ -23,7 +23,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
-from ddtrace.contrib.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http

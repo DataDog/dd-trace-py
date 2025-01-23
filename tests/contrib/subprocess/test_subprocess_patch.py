@@ -1,10 +1,10 @@
-from ddtrace.contrib.subprocess.patch import get_version
-from ddtrace.contrib.subprocess.patch import patch
+from ddtrace.contrib.internal.subprocess.patch import get_version
+from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.settings.asm import config as asm_config
 
 
 try:
-    from ddtrace.contrib.subprocess.patch import unpatch
+    from ddtrace.contrib.internal.subprocess.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

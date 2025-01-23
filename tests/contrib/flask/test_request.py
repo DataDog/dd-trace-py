@@ -14,7 +14,7 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID

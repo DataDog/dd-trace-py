@@ -34,7 +34,7 @@ Instance Configuration
 To configure the mariadb integration on an per-connection basis use the
 ``Pin`` API::
 
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
     from ddtrace import patch
 
     # Make sure to patch before importing mariadb
@@ -62,10 +62,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.mariadb.patch import get_version
-from ddtrace.contrib.internal.mariadb.patch import patch
-from ddtrace.contrib.internal.mariadb.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.mariadb.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.mariadb.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.mariadb.patch import unpatch  # noqa: F401
