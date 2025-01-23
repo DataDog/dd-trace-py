@@ -5,7 +5,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 import ddtrace
@@ -31,6 +30,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -59,6 +59,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _inject_llmobs_parent_id
+from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -91,6 +92,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_span_writer = LLMObsSpanWriter(
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
         )
@@ -121,23 +123,21 @@ class LLMObs(Service):
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
         span_event = None
-        is_llm_span = span._get_ctx_item(SPAN_KIND) == "llm"
-        is_ragas_integration_span = False
         try:
-            span_event, is_ragas_integration_span = self._llmobs_span_event(span)
+            span_event = self._llmobs_span_event(span)
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
         finally:
-            if not span_event or not is_llm_span or is_ragas_integration_span:
+            if not span_event or not span._get_ctx_item(SPAN_KIND) == "llm" or _is_evaluation_span(span):
                 return
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
     @classmethod
-    def _llmobs_span_event(cls, span: Span) -> Tuple[Dict[str, Any], bool]:
+    def _llmobs_span_event(cls, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
@@ -152,13 +152,13 @@ class LLMObs(Service):
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
-            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE))
+            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
         if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
             meta["output"]["messages"] = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
-            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE))
+            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:
@@ -184,11 +184,6 @@ class LLMObs(Service):
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
 
-        is_ragas_integration_span = False
-
-        if ml_app.startswith(constants.RAGAS_ML_APP_PREFIX):
-            is_ragas_integration_span = True
-
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
@@ -208,20 +203,16 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = cls._llmobs_tags(
-            span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
-        )
+        llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
 
         span_links = span._get_ctx_item(SPAN_LINKS)
         if isinstance(span_links, list):
             llmobs_span_event["span_links"] = span_links
 
-        return llmobs_span_event, is_ragas_integration_span
+        return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(
-        span: Span, ml_app: str, session_id: Optional[str] = None, is_ragas_integration_span: bool = False
-    ) -> List[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
         tags = {
             "version": config.version or "",
             "env": config.env or "",
@@ -237,7 +228,7 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
-        if is_ragas_integration_span:
+        if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
@@ -276,10 +267,6 @@ class LLMObs(Service):
             log.debug("Error starting evaluator runner")
 
     def _stop_service(self) -> None:
-        # Remove listener hooks for span events
-        core.reset_listeners("trace.span_start", self._on_span_start)
-        core.reset_listeners("trace.span_finish", self._on_span_finish)
-
         try:
             self._evaluator_runner.stop()
             # flush remaining evaluation spans & evaluations
@@ -293,6 +280,10 @@ class LLMObs(Service):
             self._llmobs_eval_metric_writer.stop()
         except ServiceStatusError:
             log.debug("Error stopping LLMObs writers")
+
+        # Remove listener hooks for span events
+        core.reset_listeners("trace.span_start", self._on_span_start)
+        core.reset_listeners("trace.span_finish", self._on_span_finish)
 
         forksafe.unregister(self._child_after_fork)
 
