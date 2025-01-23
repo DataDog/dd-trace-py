@@ -107,7 +107,7 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.parameter"
 
 
-def test_query_param_name_source(fastapi_application, client, tracer, test_spans):
+def test_query_param_name_source_get(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
         query_params = [k for k in request.query_params.keys() if k == "iast_queryparam"][0]
@@ -129,6 +129,39 @@ def test_query_param_name_source(fastapi_application, client, tracer, test_spans
         resp = client.get(
             "/index.html?iast_queryparam=test1234",
             headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_queryparam"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 15
+        assert result["ranges_origin"] == "http.request.parameter.name"
+
+
+def test_query_param_name_source_post(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(request: Request):
+        form_data = await request.form()
+        query_params = [k for k in form_data.keys() if k == "iast_queryparam"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html",
+            data={"iast_queryparam": "test1234"},
         )
         assert resp.status_code == 200
         result = json.loads(get_response_body(resp))
