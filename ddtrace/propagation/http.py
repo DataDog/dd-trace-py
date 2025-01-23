@@ -1127,7 +1127,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
-        time.sleep(1)
+        time.sleep(0.2)
         context = Context()
         if not headers or not config._propagation_style_extract:
             return context
