@@ -17,18 +17,6 @@ from typing import Union
 
 from ddtrace import _hooks
 from ddtrace import config
-from ddtrace._trace.context import Context
-from ddtrace._trace.processor import SpanAggregator
-from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.processor import TopLevelSpanProcessor
-from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.processor import TraceSamplingProcessor
-from ddtrace._trace.processor import TraceTagsProcessor
-from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.sampler import BasePrioritySampler
-from ddtrace._trace.sampler import BaseSampler
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
@@ -68,6 +56,18 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.processor import SpanAggregator
+from ddtrace.trace.internal.processor import SpanProcessor
+from ddtrace.trace.internal.processor import TopLevelSpanProcessor
+from ddtrace.trace.internal.processor import TraceProcessor
+from ddtrace.trace.internal.processor import TraceSamplingProcessor
+from ddtrace.trace.internal.processor import TraceTagsProcessor
+from ddtrace.trace.internal.provider import DefaultContextProvider
+from ddtrace.trace.internal.sampler import BasePrioritySampler
+from ddtrace.trace.internal.sampler import BaseSampler
+from ddtrace.trace.internal.sampler import DatadogSampler
+from ddtrace.trace.internal.span import Span
 from ddtrace.vendor.debtcollector import deprecate
 
 

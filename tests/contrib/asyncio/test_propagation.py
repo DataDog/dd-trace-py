@@ -3,10 +3,10 @@ import time
 
 import pytest
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.provider import DefaultContextProvider
 from tests.opentracer.utils import init_tracer
 
 

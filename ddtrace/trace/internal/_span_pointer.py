@@ -6,10 +6,10 @@ from typing import Dict
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace.internal._span_link import SpanLink
+from ddtrace.trace.internal._span_link import SpanLinkKind
+from ddtrace.trace.internal.telemetry import record_span_pointer_calculation_issue
 
 
 log = get_logger(__name__)

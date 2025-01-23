@@ -6,11 +6,11 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace.internal.sampling_rule import SamplingRule
 
 
 logger = get_logger(__name__)

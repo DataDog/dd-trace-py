@@ -3,9 +3,9 @@ import sys
 import typing
 
 from ddtrace import tracer as default_tracer
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
+from ddtrace.trace.internal.span import Span
 from tests.utils import override_global_config
 
 

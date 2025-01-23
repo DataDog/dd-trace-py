@@ -6,12 +6,12 @@ import time
 from typing import Optional
 
 from ddtrace import constants
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace.internal._limits import MAX_SPAN_META_VALUE_LEN
 
 
 log = get_logger(__name__)

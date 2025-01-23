@@ -10,13 +10,6 @@ from typing import Optional
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
-from ddtrace._trace.utils_botocore.span_tags import (
-    set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
-)
-from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -36,6 +29,13 @@ from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace.internal._span_pointer import _SpanPointerDescription
+from ddtrace.trace.internal.utils import extract_DD_context_from_messages
+from ddtrace.trace.internal.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace.trace.internal.utils_botocore.span_tags import (
+    set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
+)
+from ddtrace.trace.internal.utils_botocore.span_tags import set_botocore_response_metadata_tags
 
 
 if TYPE_CHECKING:

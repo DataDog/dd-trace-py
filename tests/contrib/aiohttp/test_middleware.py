@@ -3,7 +3,6 @@ import os
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -11,6 +10,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.trace.internal.sampler import RateSampler
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_span_http_status_code
 from tests.utils import flaky

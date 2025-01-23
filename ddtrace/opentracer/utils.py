@@ -1,6 +1,6 @@
 from opentracing import ScopeManager  # noqa:F401
 
-from ddtrace._trace.provider import BaseContextProvider  # noqa:F401
+from ddtrace.trace.internal.provider import BaseContextProvider  # noqa:F401
 
 
 # DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
@@ -20,7 +20,7 @@ def get_context_provider_for_scope_manager(scope_manager):
 
         dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
     else:
-        from ddtrace._trace.provider import DefaultContextProvider
+        from ddtrace.trace.internal.provider import DefaultContextProvider
 
         dd_context_provider = DefaultContextProvider()
 

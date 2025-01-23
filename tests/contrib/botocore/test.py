@@ -21,9 +21,9 @@ from moto import mock_sqs
 from moto import mock_stepfunctions
 import pytest
 
-from ddtrace._trace._span_pointer import _SpanPointer
-from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.utils_botocore import span_tags
+from ddtrace.trace.internal._span_pointer import _SpanPointer
+from ddtrace.trace.internal._span_pointer import _SpanPointerDirection
+from ddtrace.trace.internal.utils_botocore import span_tags
 from tests.utils import get_128_bit_trace_id_from_headers
 
 

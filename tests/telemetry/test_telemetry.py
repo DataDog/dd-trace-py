@@ -179,7 +179,7 @@ telemetry_writer._app_started()
         in app_started_events[0]["payload"]["error"]["message"]
     )
     pattern = re.compile(
-        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: "
+        ".*ddtrace/trace/internal/processor/__init__.py/__init__.py:[0-9]+: "
         "error applying processor <__main__.FailingFilture object at 0x[0-9a-f]+>"
     )
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][

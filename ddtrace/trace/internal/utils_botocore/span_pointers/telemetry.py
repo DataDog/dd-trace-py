@@ -1,5 +1,7 @@
-from ddtrace._trace.telemetry import record_span_pointer_calculation as base_record_span_pointer_calculation
-from ddtrace._trace.telemetry import record_span_pointer_calculation_issue as base_record_span_pointer_calculation_issue
+from ddtrace.trace.internal.telemetry import record_span_pointer_calculation as base_record_span_pointer_calculation
+from ddtrace.trace.internal.telemetry import (
+    record_span_pointer_calculation_issue as base_record_span_pointer_calculation_issue,
+)
 
 
 _CONTEXT = "botocore"

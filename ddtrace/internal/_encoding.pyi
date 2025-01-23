@@ -4,7 +4,7 @@ from typing import Optional
 from typing import Union
 from typing import Tuple
 
-from ddtrace._trace.span import Span
+from ddtrace.trace.internal.span import Span
 
 Trace = List[Span]
 

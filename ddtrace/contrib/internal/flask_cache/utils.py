@@ -1,7 +1,7 @@
 # project
-from ddtrace._trace.utils_redis import _extract_conn_tags as extract_redis_tags
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
 from ddtrace.ext import net
+from ddtrace.trace.internal.utils_redis import _extract_conn_tags as extract_redis_tags
 
 
 def _resource_from_cache_prefix(resource, cache):

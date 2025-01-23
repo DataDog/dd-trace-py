@@ -9,9 +9,6 @@ from typing import Optional
 from typing import Text
 from typing import Tuple
 
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_ID_KEY
@@ -21,10 +18,13 @@ from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
+from ddtrace.trace.internal._span_link import SpanLink
+from ddtrace.trace.internal.types import _MetaDictType
+from ddtrace.trace.internal.types import _MetricDictType
 
 
 if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
+    from ddtrace.trace.internal.span import Span
 
 
 _ContextState = Tuple[

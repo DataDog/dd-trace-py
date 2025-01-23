@@ -9,10 +9,6 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.sampler import BaseSampler
-from ddtrace._trace.span import Span
-from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -28,6 +24,10 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.trace.internal.sampler import BaseSampler
+from ddtrace.trace.internal.span import Span
+from ddtrace.trace.internal.span import _get_64_highest_order_bits_as_hex
+from ddtrace.trace.internal.span import _is_top_level
 
 
 try:

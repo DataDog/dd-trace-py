@@ -5,11 +5,11 @@ import typing
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.core import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.trace.internal.processor import SpanProcessor
+from ddtrace.trace.internal.span import _is_top_level
 
 from ...constants import SPAN_MEASURED_KEY
 from .._encoding import packb

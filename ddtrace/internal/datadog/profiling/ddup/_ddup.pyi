@@ -2,8 +2,8 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 from .._types import StringType
-from ddtrace._trace.span import Span
-from ddtrace._trace.tracer import Tracer
+from ddtrace.trace.internal.span import Span
+from ddtrace.trace.internal.tracer import Tracer
 
 def config(
     env: StringType,

@@ -8,4 +8,4 @@ class TestOpentracerUtils(object):
     def test_get_context_provider_for_scope_manager_thread(self):
         scope_manager = ThreadLocalScopeManager()
         ctx_prov = get_context_provider_for_scope_manager(scope_manager)
-        assert isinstance(ctx_prov, ddtrace._trace.provider.DefaultContextProvider)
+        assert isinstance(ctx_prov, ddtrace.trace.internal.provider.DefaultContextProvider)

@@ -11,8 +11,6 @@ from mock.mock import ANY
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -23,6 +21,8 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.trace.internal.sampler import DatadogSampler
+from ddtrace.trace.internal.sampling_rule import SamplingRule
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
 

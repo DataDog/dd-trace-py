@@ -13,7 +13,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.trace.internal.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 KNUTH_FACTOR = 1111111111111111111
@@ -133,7 +133,7 @@ class SamplingRule(object):
         Return if this span matches this rule
 
         :param span: The span to match against
-        :type span: :class:`ddtrace._trace.span.Span`
+        :type span: :class:`ddtrace.trace.internal.span.Span`
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
@@ -185,7 +185,7 @@ class SamplingRule(object):
         Return if this rule chooses to sample the span
 
         :param span: The span to sample against
-        :type span: :class:`ddtrace._trace.span.Span`
+        :type span: :class:`ddtrace.trace.internal.span.Span`
         :returns: Whether this span was sampled
         :rtype: :obj:`bool`
         """

@@ -7,9 +7,9 @@ import random
 import string
 
 from ddtrace import __version__ as ddtrace_version
-from ddtrace._trace.span import Span
 from ddtrace.internal import telemetry
 from ddtrace.trace import TraceFilter
+from ddtrace.trace.internal.span import Span
 
 
 _Span = Span

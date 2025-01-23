@@ -4,7 +4,6 @@ from typing import List  # noqa:F401
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace import _limits
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -22,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
+from ddtrace.trace.internal import _limits
 
 
 log = get_logger(__name__)

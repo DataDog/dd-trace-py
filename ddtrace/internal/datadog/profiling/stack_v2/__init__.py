@@ -7,8 +7,8 @@ failure_msg = ""
 try:
     import typing
 
-    from ddtrace._trace import context
-    from ddtrace._trace import span as ddspan
+    from ddtrace.trace.internal import context
+    from ddtrace.trace.internal import span as ddspan
 
     from ._stack_v2 import *  # noqa: F403, F401
 

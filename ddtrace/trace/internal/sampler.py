@@ -35,7 +35,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.trace.internal.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)

@@ -1,8 +1,8 @@
-from ddtrace._trace.provider import BaseContextProvider  # noqa: F401
-from ddtrace._trace.provider import DatadogContextMixin  # noqa: F401
-from ddtrace._trace.provider import DefaultContextProvider  # noqa: F401
 from ddtrace.internal.ci_visibility.context import CIContextProvider  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace.internal.provider import BaseContextProvider  # noqa: F401
+from ddtrace.trace.internal.provider import DatadogContextMixin  # noqa: F401
+from ddtrace.trace.internal.provider import DefaultContextProvider  # noqa: F401
 from ddtrace.vendor.debtcollector import deprecate
 
 

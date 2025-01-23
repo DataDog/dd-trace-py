@@ -1,5 +1,5 @@
-from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import SPAN_KIND
+from ddtrace.trace.internal.processor import TraceProcessor
 
 
 class PeerServiceProcessor(TraceProcessor):

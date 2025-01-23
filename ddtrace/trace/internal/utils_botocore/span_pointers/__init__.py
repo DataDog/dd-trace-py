@@ -3,20 +3,20 @@ from typing import Dict
 from typing import List
 from typing import Set
 
-from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBItemFieldName
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBTableName
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _extract_span_pointers_for_dynamodb_response
+from ddtrace.internal.logger import get_logger
+from ddtrace.trace.internal._span_pointer import _SpanPointerDescription
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _DynamoDBItemFieldName
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _DynamoDBTableName
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _extract_span_pointers_for_dynamodb_response
 
 # We are importing this function here because it used to live in this module
 # and was imported from here in datadog-lambda-python. Once the import is fixed
 # in the next release of that library, we should be able to remove this unused
 # import from here as well.
-from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_description  # noqa: F401
-from ddtrace._trace.utils_botocore.span_pointers.s3 import _extract_span_pointers_for_s3_response
-from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation
-from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
-from ddtrace.internal.logger import get_logger
+from ddtrace.trace.internal.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_description  # noqa: F401
+from ddtrace.trace.internal.utils_botocore.span_pointers.s3 import _extract_span_pointers_for_s3_response
+from ddtrace.trace.internal.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation
+from ddtrace.trace.internal.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 
 
 log = get_logger(__name__)

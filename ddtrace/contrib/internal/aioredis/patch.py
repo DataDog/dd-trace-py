@@ -6,8 +6,6 @@ import aioredis
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _instrument_redis_cmd
-from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -28,6 +26,8 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
+from ddtrace.trace.internal.utils_redis import _instrument_redis_cmd
+from ddtrace.trace.internal.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 

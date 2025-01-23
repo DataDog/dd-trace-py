@@ -1,5 +1,5 @@
-from ddtrace._trace.pin import *  # noqa: F403
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace.internal.pin import *  # noqa: F403
 from ddtrace.vendor.debtcollector import deprecate
 
 

@@ -3,7 +3,6 @@ import pytest
 import urllib3
 
 from ddtrace import config
-from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -13,6 +12,7 @@ from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
+from ddtrace.trace.internal.span import _get_64_highest_order_bits_as_hex
 from tests.contrib.config import HTTPBIN_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

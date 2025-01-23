@@ -6,11 +6,11 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace._span_pointer import _standard_hashing_function
-from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace.internal._span_pointer import _SpanPointerDescription
+from ddtrace.trace.internal._span_pointer import _SpanPointerDirection
+from ddtrace.trace.internal._span_pointer import _standard_hashing_function
+from ddtrace.trace.internal.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 
 
 log = get_logger(__name__)

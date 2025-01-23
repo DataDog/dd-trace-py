@@ -19,8 +19,8 @@ from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace._trace.span import Span
-from ddtrace._trace.tracer import Tracer
+from ddtrace.trace.internal.span import Span
+from ddtrace.trace.internal.tracer import Tracer
 
 
 ctypedef void (*func_ptr_t)(string_view)

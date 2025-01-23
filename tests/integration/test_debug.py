@@ -10,11 +10,11 @@ import mock
 import pytest
 
 import ddtrace
-import ddtrace._trace.sampler
-from ddtrace._trace.span import Span
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
+import ddtrace.trace.internal.sampler
+from ddtrace.trace.internal.span import Span
 from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -331,7 +331,7 @@ def test_custom_writer():
 
 def test_different_samplers():
     tracer = ddtrace.Tracer()
-    tracer._configure(sampler=ddtrace._trace.sampler.RateSampler())
+    tracer._configure(sampler=ddtrace.trace.internal.sampler.RateSampler())
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
@@ -339,7 +339,9 @@ def test_different_samplers():
 
 def test_startup_logs_sampling_rules():
     tracer = ddtrace.Tracer()
-    sampler = ddtrace._trace.sampler.DatadogSampler(rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0)])
+    sampler = ddtrace.trace.internal.sampler.DatadogSampler(
+        rules=[ddtrace.trace.internal.sampler.SamplingRule(sample_rate=1.0)]
+    )
     tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
 
@@ -348,8 +350,8 @@ def test_startup_logs_sampling_rules():
         " tags='NO_RULE', provenance='default')"
     ]
 
-    sampler = ddtrace._trace.sampler.DatadogSampler(
-        rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
+    sampler = ddtrace.trace.internal.sampler.DatadogSampler(
+        rules=[ddtrace.trace.internal.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
     )
     tracer._configure(sampler=sampler)
     f = debug.collect(tracer)

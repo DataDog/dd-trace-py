@@ -27,7 +27,6 @@ from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_pro
 import pytest
 
 import ddtrace
-from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.core import crashtracking
@@ -38,6 +37,7 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+from ddtrace.trace.internal.provider import _DD_CONTEXTVAR
 from tests import utils
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer

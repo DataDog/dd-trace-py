@@ -1,7 +1,7 @@
 from collections import namedtuple
 import typing
 
-from ddtrace._trace import span as ddspan  # noqa:F401
+from ddtrace.trace.internal import span as ddspan  # noqa:F401
 
 
 _T = typing.TypeVar("_T")

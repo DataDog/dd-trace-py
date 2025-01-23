@@ -173,7 +173,7 @@ def test_wrong_span_name_type_not_sent():
 
     from ddtrace import tracer
 
-    with mock.patch("ddtrace._trace.span.log") as log:
+    with mock.patch("ddtrace.trace.internal.span.log") as log:
         with tracer.trace(123):
             pass
         log.exception.assert_called_once_with("error closing trace")
@@ -191,7 +191,7 @@ def test_wrong_span_name_type_not_sent():
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        with mock.patch("ddtrace._trace.span.log") as log:
+        with mock.patch("ddtrace.trace.internal.span.log") as log:
             with tracer.trace("root") as root:
                 root._meta = meta
                 for _ in range(299):
@@ -215,7 +215,7 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
         tracer = Tracer()
-        with mock.patch("ddtrace._trace.span.log") as log:
+        with mock.patch("ddtrace.trace.internal.span.log") as log:
             with tracer.trace("root") as root:
                 root._metrics = metrics
                 for _ in range(299):

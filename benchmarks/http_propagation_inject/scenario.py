@@ -2,8 +2,8 @@ import json
 
 import bm
 
-from ddtrace._trace.context import Context
 from ddtrace.propagation import http
+from ddtrace.trace.internal.context import Context
 
 
 class HTTPPropagationInject(bm.Scenario):

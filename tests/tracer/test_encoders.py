@@ -17,10 +17,6 @@ import mock
 import msgpack
 import pytest
 
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -34,6 +30,10 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
+from ddtrace.trace.internal._span_link import SpanLink
+from ddtrace.trace.internal._span_pointer import _SpanPointerDirection
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.span import Span
 from tests.utils import DummyTracer
 
 
@@ -518,7 +518,7 @@ def test_span_event_encoding_msgpack(version):
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
+    with mock.patch("ddtrace.trace.internal.span.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
@@ -845,8 +845,8 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
-    from ddtrace._trace.span import Span
     import ddtrace.internal.encoding as encoding
+    from ddtrace.trace.internal.span import Span
 
     encoder_class_name = os.getenv("encoder_cls")
 

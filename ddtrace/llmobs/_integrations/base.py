@@ -7,8 +7,6 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.sampler import RateSampler
-from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
@@ -24,6 +22,8 @@ from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
+from ddtrace.trace.internal.sampler import RateSampler
+from ddtrace.trace.internal.span import Span
 
 
 log = get_logger(__name__)

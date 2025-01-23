@@ -1,6 +1,6 @@
 import gevent
 
-from ddtrace._trace.provider import _DD_CONTEXTVAR
+from ddtrace.trace.internal.provider import _DD_CONTEXTVAR
 
 
 GEVENT_VERSION = gevent.version_info[0:3]

@@ -18,8 +18,8 @@ sys.modules["ddtrace.internal.datadog.profiling.ddup.utils"] = MagicMock()
 sys.modules["ddtrace.internal.runtime"] = MagicMock()
 sys.modules["ddtrace.internal.runtime.compat"] = MagicMock()
 sys.modules["ddtrace.internal.runtime.constants"] = MagicMock()
-sys.modules["ddtrace._trace"] = MagicMock()
-sys.modules["ddtrace._trace.span"] = MagicMock()
+sys.modules["ddtrace.trace.internal"] = MagicMock()
+sys.modules["ddtrace.trace.internal.span"] = MagicMock()
 
 
 # Setup the Span object
@@ -39,7 +39,7 @@ class Span(object):
         self._local_root = _local_root
 
 
-sys.modules["ddtrace._trace.span"].Span = Span
+sys.modules["ddtrace.trace.internal.span"].Span = Span
 
 
 # The location of the ddup folder as it is in the dd-trace-py library

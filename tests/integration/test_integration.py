@@ -770,7 +770,7 @@ def test_partial_flush_log():
     s3 = t.trace("3")
     t_id = s3.trace_id
 
-    with mock.patch("ddtrace._trace.processor.log") as log:
+    with mock.patch("ddtrace.trace.internal.processor.log") as log:
         s3.finish()
         s2.finish()
 

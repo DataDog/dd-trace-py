@@ -1,9 +1,9 @@
 import contextvars
 import typing as t
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.span import Span
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.provider import DefaultContextProvider
+from ddtrace.trace.internal.span import Span
 
 
 ContextTypeValue = t.Optional[t.Union[Context, Span]]

@@ -2,7 +2,7 @@ from typing import NamedTuple
 
 import pytest
 
-from ddtrace._trace.telemetry import _span_pointer_count_to_tag
+from ddtrace.trace.internal.telemetry import _span_pointer_count_to_tag
 
 
 def test_span_pointer_count_to_tag_returns_strings() -> None:

@@ -15,14 +15,6 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace._span_link import SpanLinkKind
-from ddtrace._trace._span_pointer import _SpanPointer
-from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.context import Context
-from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
-from ddtrace._trace.types import _TagNameType
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -53,6 +45,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace.internal._span_link import SpanLink
+from ddtrace.trace.internal._span_link import SpanLinkKind
+from ddtrace.trace.internal._span_pointer import _SpanPointer
+from ddtrace.trace.internal._span_pointer import _SpanPointerDirection
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.types import _MetaDictType
+from ddtrace.trace.internal.types import _MetricDictType
+from ddtrace.trace.internal.types import _TagNameType
 from ddtrace.vendor.debtcollector import deprecate
 
 

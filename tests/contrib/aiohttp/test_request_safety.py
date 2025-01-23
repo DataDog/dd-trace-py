@@ -7,7 +7,7 @@ import asyncio
 import threading
 from urllib import request
 
-from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace.trace.internal.provider import DefaultContextProvider
 from tests.utils import assert_is_measured
 
 

@@ -4,8 +4,8 @@ from typing import NamedTuple
 
 import pytest
 
-from ddtrace._trace._span_pointer import _STANDARD_HASHING_FUNCTION_FAILURE_PREFIX
-from ddtrace._trace._span_pointer import _standard_hashing_function
+from ddtrace.trace.internal._span_pointer import _STANDARD_HASHING_FUNCTION_FAILURE_PREFIX
+from ddtrace.trace.internal._span_pointer import _standard_hashing_function
 
 
 class TestStandardHashingFunction:

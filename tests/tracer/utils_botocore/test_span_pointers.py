@@ -11,15 +11,19 @@ from typing import Union
 import mock
 import pytest
 
-from ddtrace._trace._span_pointer import _SpanPointerDescription
-from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_primary_key_from_write_request
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_span_pointer_hash
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBTableName
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBWriteRequest
-from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _identify_dynamodb_batch_write_item_processed_items
-from ddtrace._trace.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_hash
+from ddtrace.trace.internal._span_pointer import _SpanPointerDescription
+from ddtrace.trace.internal._span_pointer import _SpanPointerDirection
+from ddtrace.trace.internal.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import (
+    _aws_dynamodb_item_primary_key_from_write_request,
+)
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _aws_dynamodb_item_span_pointer_hash
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _DynamoDBTableName
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import _DynamoDBWriteRequest
+from ddtrace.trace.internal.utils_botocore.span_pointers.dynamodb import (
+    _identify_dynamodb_batch_write_item_processed_items,
+)
+from ddtrace.trace.internal.utils_botocore.span_pointers.s3 import _aws_s3_object_span_pointer_hash
 
 
 class TestS3ObjectPointer:

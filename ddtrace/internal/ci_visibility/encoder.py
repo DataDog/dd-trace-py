@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.trace.internal.span import Span  # noqa:F401
 
 
 class CIVisibilityEncoderV01(BufferedEncoder):

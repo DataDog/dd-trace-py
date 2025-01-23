@@ -4,9 +4,9 @@ from typing import Optional  # noqa:F401
 
 import pytest
 
-from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
+from ddtrace.trace.internal._span_link import SpanLink
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.span import Span
 
 
 @pytest.mark.parametrize(

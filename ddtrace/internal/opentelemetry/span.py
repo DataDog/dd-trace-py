@@ -30,8 +30,8 @@ if TYPE_CHECKING:
     from opentelemetry.util.types import Attributes  # noqa:F401
     from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
     from ddtrace.internal.compat import NumericType  # noqa:F401
+    from ddtrace.trace.internal.span import Span as DDSpan  # noqa:F401
 
 
 log = get_logger(__name__)

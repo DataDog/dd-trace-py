@@ -1,5 +1,5 @@
-from ddtrace._trace.context import Context  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace.internal.context import Context  # noqa: F401
 from ddtrace.vendor.debtcollector import deprecate
 
 

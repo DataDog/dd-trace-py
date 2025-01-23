@@ -1,11 +1,11 @@
 import pytest
 
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateSampler
-from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.trace.internal.sampler import DatadogSampler
+from ddtrace.trace.internal.sampler import RateSampler
+from ddtrace.trace.internal.sampler import SamplingRule
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
 

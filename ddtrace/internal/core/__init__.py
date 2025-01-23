@@ -125,7 +125,7 @@ from .event_hub import reset as reset_listeners  # noqa:F401
 
 
 if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.trace.internal.span import Span  # noqa:F401
 
 import contextvars
 

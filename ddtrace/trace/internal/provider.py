@@ -6,9 +6,9 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import _hooks
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace.internal.context import Context
+from ddtrace.trace.internal.span import Span
 
 
 log = get_logger(__name__)

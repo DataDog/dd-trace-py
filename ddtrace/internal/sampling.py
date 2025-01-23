@@ -14,7 +14,6 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -28,6 +27,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings import _config as config
+from ddtrace.trace.internal.sampling_rule import SamplingRule  # noqa:F401
 
 from .rate_limiter import RateLimiter
 
@@ -41,8 +41,8 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.context import Context  # noqa:F401
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.trace.internal.context import Context  # noqa:F401
+    from ddtrace.trace.internal.span import Span  # noqa:F401
 
 # Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111
