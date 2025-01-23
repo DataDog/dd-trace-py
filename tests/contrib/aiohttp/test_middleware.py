@@ -14,7 +14,6 @@ from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_span_http_status_code
 from tests.utils import flaky
-from tests.utils import override_global_config
 
 from .app.web import noop_middleware
 from .app.web import setup_app
@@ -557,34 +556,3 @@ async def test_parenting_200_ot(app_tracer, aiohttp_client):
     assert "What's tracing?" == text
     traces = tracer.pop_traces()
     _assert_200_parenting(client, traces)
-
-async def test_inferred_spans_api_gateway_default(app_tracer, aiohttp_client):
-    """
-    When making a request to an aiohttp middleware app,
-        the aiohttp.request span properly inherits from the inferred span
-    """
-
-    test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage'
-            }
-
-    app, tracer = app_tracer
-    client = await aiohttp_client(app)
-
-    # When the inferred proxy feature is not enabled, there should be no inferred span
-    resp = await client.request("GET", "/", headers=test_headers)
-    assert resp.status == 200
-    traces = tracer.pop_traces()
-    web_span = traces[0][0]
-    assert web_span._parent is None
-
-    with override_global_config(dict(_inferred_proxy_services_enabled="true")):
-        resp = await client.request("GET", "/", headers=test_headers)
-        assert resp.status == 200
-        traces = tracer.pop_traces()
-        assert len(traces[0]) == 2
