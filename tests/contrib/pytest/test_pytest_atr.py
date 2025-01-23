@@ -239,7 +239,9 @@ class PytestATRTestCase(PytestTestCaseBase):
         class_func_fail_skip_retries = 0
         for class_func_fail_skip_span in class_func_fail_skip_spans:
             class_func_fail_skip_is_retry = class_func_fail_skip_span.get_tag("test.is_retry") == "true"
-            assert class_func_fail_skip_span.get_tag("test.status") == ("skip" if class_func_fail_skip_is_retry else "fail")
+            assert class_func_fail_skip_span.get_tag("test.status") == (
+                "skip" if class_func_fail_skip_is_retry else "fail"
+            )
             if class_func_fail_skip_is_retry:
                 class_func_fail_skip_retries += 1
         assert class_func_fail_skip_retries == 5
