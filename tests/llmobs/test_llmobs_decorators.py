@@ -840,16 +840,70 @@ def construct_link(span_event, link_from, link_to):
 
 def test_decorator_records_span_links(llmobs, llmobs_events):
     @workflow
-    def f(inp):
+    def one(inp):
         return 1
 
     @task
-    def g(inp):
+    def two(inp):
         return inp
 
-    f(g("test_input"))
+    two(one("test_input"))
+    one_span = llmobs_events[0]
+    two_span = llmobs_events[1]
 
-    assert not llmobs_events[0]["span_links"]
-    assert len(llmobs_events[1]["span_links"]) == 2
-    assert llmobs_events[1]["span_links"][0] == construct_link(llmobs_events[0], "input", "input")
-    assert llmobs_events[1]["span_links"][1] == construct_link(llmobs_events[0], "output", "input")
+    assert not one_span["span_links"]
+    assert len(two_span["span_links"]) == 2
+    assert two_span["span_links"][0] == construct_link(one_span, "output", "input")
+    assert two_span["span_links"][1] == construct_link(one_span, "output", "output")
+
+
+def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_events):
+    @agent
+    def some_agent(a, b):
+        pass
+
+    @workflow
+    def one():
+        return 1
+
+    @task
+    def two():
+        return 2
+
+    some_agent(one(), two())
+
+    one_span = llmobs_events[0]
+    two_span = llmobs_events[1]
+    three_span = llmobs_events[2]
+
+    assert not one_span["span_links"]
+    assert not two_span["span_links"]
+    assert len(three_span["span_links"]) == 2
+    assert three_span["span_links"][0] == construct_link(one_span, "output", "input")
+    assert three_span["span_links"][1] == construct_link(two_span, "output", "input")
+
+
+def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events):
+    @agent
+    def some_agent(a=None, b=None):
+        pass
+
+    @workflow
+    def one():
+        return 1
+
+    @task
+    def two():
+        return 2
+
+    some_agent(one(), two())
+
+    one_span = llmobs_events[0]
+    two_span = llmobs_events[1]
+    three_span = llmobs_events[2]
+
+    assert not one_span["span_links"]
+    assert not two_span["span_links"]
+    assert len(three_span["span_links"]) == 2
+    assert three_span["span_links"][0] == construct_link(one_span, "output", "input")
+    assert three_span["span_links"][1] == construct_link(two_span, "output", "input")

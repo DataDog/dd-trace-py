@@ -397,6 +397,8 @@ class LLMObs(Service):
         log.debug("%s disabled", cls.__name__)
 
     def _record_object(self, span, obj, input_or_output):
+        if obj is None:
+            return
         span_links = []
         for span_link in self._link_tracker.get_span_links_from_object(obj):
             if span_link["attributes"]["from"] == "input" and input_or_output == "output":
