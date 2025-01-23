@@ -177,13 +177,13 @@ def _tag_request_content(span, integration, content, content_idx):
         tag_request_content_part_google("vertexai", span, integration, part, part_idx, content_idx)
 
 
-def tag_request(span, integration, instance, args, kwargs):
+def tag_request(span, integration, instance, args, kwargs, is_chat):
     """Tag the generation span with request details.
     Includes capturing generation configuration, system prompt, and messages.
     """
     # instance is either a chat session or a model itself
     model_instance = instance if isinstance(instance, GenerativeModel) else instance._model
-    contents = get_argument_value(args, kwargs, 0, "contents")
+    contents = get_argument_value(args, kwargs, 0, "content" if is_chat else "contents")
     history = _get_attr(instance, "_history", [])
     if history:
         if isinstance(contents, list):
