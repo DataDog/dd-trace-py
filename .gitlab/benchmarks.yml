@@ -80,7 +80,7 @@ benchmarks-pr-comment:
 check-big-regressions:
   stage: benchmarks
   needs: [ microbenchmarks, benchmark-serverless ]
-  when: on_success
+  when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
   script:
