@@ -77,6 +77,8 @@ benchmarks-pr-comment:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_REQUEST: 8Gi
 
 benchmark-serverless:
   stage: benchmarks
