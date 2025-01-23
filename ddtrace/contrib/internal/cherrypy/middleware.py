@@ -89,7 +89,7 @@ class TraceTool(cherrypy.Tool):
             req_span = ctx.span
 
             ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.cherrypy))
+            core.dispatch("web.request.start", (ctx, config.cherrypy))
 
             cherrypy.request._datadog_span = req_span
 
@@ -136,17 +136,21 @@ class TraceTool(cherrypy.Tool):
         url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
         status_code, _, _ = valid_status(cherrypy.response.status)
 
-        trace_utils.set_http_meta(
-            span,
-            config.cherrypy,
-            method=cherrypy.request.method,
-            url=url,
-            status_code=status_code,
-            request_headers=cherrypy.request.headers,
-            response_headers=cherrypy.response.headers,
+        core.dispatch(
+            "web.request.finish",
+            (
+                span,
+                config.cherrypy,
+                cherrypy.request.method,
+                url,
+                status_code,
+                None,
+                cherrypy.request.headers,
+                cherrypy.response.headers,
+                None,
+                True,
+            ),
         )
-
-        span.finish()
 
         # Clear our span just in case.
         cherrypy.request._datadog_span = None

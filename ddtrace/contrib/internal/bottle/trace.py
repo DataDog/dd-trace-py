@@ -5,7 +5,6 @@ from bottle import response
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_url_operation
@@ -52,7 +51,7 @@ class TracePlugin(object):
                 analytics_sample_rate=config.bottle.get_analytics_sample_rate(use_global_config=True),
             ) as ctx, ctx.span as req_span:
                 ctx.set_item("req_span", req_span)
-                core.dispatch("web.request", (ctx, config.bottle))
+                core.dispatch("web.request.start", (ctx, config.bottle))
 
                 code = None
                 result = None
@@ -84,16 +83,21 @@ class TracePlugin(object):
                     method = request.method
                     url = request.urlparts._replace(query="").geturl()
                     full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-                    trace_utils.set_http_meta(
-                        req_span,
-                        config.bottle,
-                        method=method,
-                        url=url,
-                        status_code=response_code,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response.headers,
-                        route=full_route,
+
+                    core.dispatch(
+                        "web.request.finish",
+                        (
+                            req_span,
+                            config.bottle,
+                            method,
+                            url,
+                            response_code,
+                            request.query_string,
+                            request.headers,
+                            response.headers,
+                            full_route,
+                            False,
+                        ),
                     )
 
         return wrapped

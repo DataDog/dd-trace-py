@@ -6,7 +6,6 @@ import wrapt
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -87,7 +86,7 @@ def trace_tween_factory(handler, registry):
                 analytics_sample_rate=settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True),
             ) as ctx, ctx.span as req_span:
                 ctx.set_item("req_span", req_span)
-                core.dispatch("web.request", (ctx, config.pyramid))
+                core.dispatch("web.request.start", (ctx, config.pyramid))
 
                 setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates
                 response = None
@@ -117,17 +116,22 @@ def trace_tween_factory(handler, registry):
                     else:
                         response_headers = None
 
-                    trace_utils.set_http_meta(
-                        req_span,
-                        config.pyramid,
-                        method=request.method,
-                        url=request.path_url,
-                        status_code=status,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response_headers,
-                        route=request.matched_route.pattern if request.matched_route else None,
+                    core.dispatch(
+                        "web.request.finish",
+                        (
+                            req_span,
+                            config.pyramid,
+                            request.method,
+                            request.path_url,
+                            status,
+                            request.query_string,
+                            request.headers,
+                            response_headers,
+                            request.matched_route.pattern if request.matched_route else None,
+                            False,
+                        ),
                     )
+
                 return response
 
         return trace_tween

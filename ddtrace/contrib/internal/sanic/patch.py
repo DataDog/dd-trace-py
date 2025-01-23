@@ -43,7 +43,10 @@ def update_span(span, response):
     #      and so use 500
     status_code = getattr(response, "status", 500)
     response_headers = getattr(response, "headers", None)
-    trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
+
+    core.dispatch(
+        "web.request.finish", (span, config.sanic, None, None, status_code, None, None, response_headers, None, False)
+    )
 
 
 def _wrap_response_callback(span, callback):
@@ -212,15 +215,16 @@ def _create_sanic_request_span(request):
         req_span = ctx.span
 
         ctx.set_item("req_span", req_span)
-        core.dispatch("web.request", (ctx, config.sanic))
+        core.dispatch("web.request.start", (ctx, config.sanic))
 
         method = request.method
         url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
         query_string = request.query_string
         if isinstance(query_string, bytes):
             query_string = query_string.decode()
-        trace_utils.set_http_meta(
-            req_span, config.sanic, method=method, url=url, query=query_string, request_headers=headers
+
+        core.dispatch(
+            "web.request.finish", (req_span, config.sanic, method, url, None, query_string, headers, None, None, False)
         )
 
         return req_span

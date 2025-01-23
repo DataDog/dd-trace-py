@@ -38,15 +38,11 @@ class TraceMiddleware(object):
         ) as ctx:
             req_span = ctx.span
             ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.falcon))
+            core.dispatch("web.request.start", (ctx, config.falcon))
 
-            trace_utils.set_http_meta(
-                req_span,
-                config.falcon,
-                method=req.method,
-                url=req.url,
-                query=req.query_string,
-                request_headers=req.headers,
+            core.dispatch(
+                "web.request.finish",
+                (req_span, config.falcon, req.method, req.url, None, req.query_string, req.headers, None, None, False),
             )
 
     def process_resource(self, req, resp, resource, params):
@@ -100,8 +96,9 @@ class TraceMiddleware(object):
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
         config.falcon.hooks.emit("request", span, req, resp)
 
-        # Close the span
-        span.finish()
+        core.dispatch(
+            "web.request.finish", (span, config.falcon, None, None, status, None, None, None, resp._headers, True)
+        )
 
 
 def _is_404(err_type):

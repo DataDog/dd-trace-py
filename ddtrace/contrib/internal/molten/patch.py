@@ -99,7 +99,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
         ctx.set_item("req_span", req_span)
-        core.dispatch("web.request", (ctx, config.molten))
+        core.dispatch("web.request.start", (ctx, config.molten))
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
@@ -121,7 +121,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
                 # if route never resolve, update root resource
                 req_span.resource = "{} {}".format(request.method, code)
 
-            trace_utils.set_http_meta(req_span, config.molten, status_code=code)
+            core.dispatch(
+                "web.request.finish", (req_span, config.molten, None, None, code, None, None, None, None, False)
+            )
 
             return wrapped(*args, **kwargs)
 
@@ -135,8 +137,10 @@ def patch_app_call(wrapped, instance, args, kwargs):
             request.path,
         )
         query = urlencode(dict(request.params))
-        trace_utils.set_http_meta(
-            req_span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
+
+        core.dispatch(
+            "web.request.finish",
+            (req_span, config.molten, request.method, url, None, query, request.headers, None, None, False),
         )
 
         req_span.set_tag_str("molten.version", molten.__version__)

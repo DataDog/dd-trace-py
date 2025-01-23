@@ -2,7 +2,6 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -52,7 +51,7 @@ async def trace_middleware(app, handler):
             req_span = ctx.span
 
             ctx.set_item("req_span", req_span)
-            core.dispatch("web.request", (ctx, config.aiohttp))
+            core.dispatch("web.request.start", (ctx, config.aiohttp))
 
             # attach the context and the root span to the request; the Context
             # may be freely used by the application code
@@ -113,18 +112,21 @@ def finish_request_span(request, response):
             # SystemRoute objects exist to throw HTTP errors and have no path
             route = aiohttp_route.resource.canonical
 
-    trace_utils.set_http_meta(
-        request_span,
-        config.aiohttp,
-        method=request.method,
-        url=str(request.url),  # DEV: request.url is a yarl's URL object
-        status_code=response.status,
-        request_headers=request.headers,
-        response_headers=response.headers,
-        route=route,
+    core.dispatch(
+        "web.request.finish",
+        (
+            request_span,
+            config.aiohttp,
+            request.method,
+            str(request.url),  # DEV: request.url is a yarl's URL object
+            response.status,
+            None,  # query arg = None
+            request.headers,
+            response.headers,
+            route,
+            True,
+        ),
     )
-
-    request_span.finish()
 
 
 async def on_prepare(request, response):

@@ -142,15 +142,27 @@ def _set_web_frameworks_tags(ctx, span, int_config):
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
 
-def _on_web_framework_request(ctx, int_config):
+def _on_web_framework_start_request(ctx, int_config):
     request_span = ctx.get_item("req_span")
     _set_web_frameworks_tags(ctx, request_span, int_config)
-    # trace_utils.set_http_meta(
-    #     span,
-    #     azure_functions_config,
-    #     status_code=res.status_code if res else None,
-    #     response_headers=res.headers if res else None,
-    # )
+
+
+def _on_web_framework_finish_request(
+    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
+):
+    trace_utils.set_http_meta(
+        span=span,
+        integration_config=int_config,
+        method=method,
+        url=url,
+        status_code=status_code,
+        query=query,
+        request_headers=req_headers,
+        response_headers=res_headers,
+        route=route,
+    )
+    if finish:
+        span.finish()
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -789,7 +801,8 @@ def listen():
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
 
     # web frameworks general handlers
-    core.on("web.request", _on_web_framework_request)
+    core.on("web.request.start", _on_web_framework_start_request)
+    core.on("web.request.finish", _on_web_framework_finish_request)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
@@ -833,13 +846,6 @@ def listen():
         "azure.functions.patched_route_request",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
-
-    # # web framework specific
-    # breakpoint()
-    # for context_name in (
-    #     "aiohttp.request"
-    # ):
-    #     core.on(f"context.started.start_span.{context_name}", _start_span)
 
 
 listen()
