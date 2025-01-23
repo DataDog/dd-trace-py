@@ -840,11 +840,13 @@ def test_decorator_records_span_links(llmobs, llmobs_events):
     def two(inp):
         return inp
 
-    two(one("test_input"))
+    with llmobs.agent("dummy_trace"):
+        two(one("test_input"))
+
     one_span = llmobs_events[0]
     two_span = llmobs_events[1]
 
-    assert not one_span["span_links"]
+    assert "span_links" not in one_span
     assert len(two_span["span_links"]) == 2
     assert two_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
     assert two_span["span_links"][1] == _expected_span_link(one_span, "output", "output")
@@ -863,14 +865,15 @@ def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_e
     def two():
         return 2
 
-    some_agent(one(), two())
+    with llmobs.agent("dummy_trace"):
+        some_agent(one(), two())
 
     one_span = llmobs_events[0]
     two_span = llmobs_events[1]
     three_span = llmobs_events[2]
 
-    assert not one_span["span_links"]
-    assert not two_span["span_links"]
+    assert "span_links" not in one_span
+    assert "span_links" not in two_span
     assert len(three_span["span_links"]) == 2
     assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
     assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
@@ -889,14 +892,15 @@ def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events):
     def two():
         return 2
 
-    some_agent(one(), two())
+    with llmobs.agent("dummy_trace"):
+        some_agent(one(), two())
 
     one_span = llmobs_events[0]
     two_span = llmobs_events[1]
     three_span = llmobs_events[2]
 
-    assert not one_span["span_links"]
-    assert not two_span["span_links"]
+    assert "span_links" not in one_span
+    assert "span_links" not in two_span
     assert len(three_span["span_links"]) == 2
     assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
     assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")

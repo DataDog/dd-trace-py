@@ -138,8 +138,14 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                    ):
-                        return func(*args, **kwargs)
+                    ) as span:
+                        for arg in args:
+                            LLMObs._instance._record_object(span, arg, "input")
+                        for arg in kwargs.values():
+                            LLMObs._instance._record_object(span, arg, "input")
+                        ret = func(*args, **kwargs)
+                        LLMObs._instance._record_object(span, ret, "output")
+                        return ret
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 

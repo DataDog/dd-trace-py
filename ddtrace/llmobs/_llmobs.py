@@ -428,8 +428,13 @@ class LLMObs(Service):
         )
 
     def _tag_span_links(self, span, span_links):
+        if not span_links:
+            return
         span_links = [
-            span_link for span_link in span_links if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
+            span_link
+            for span_link in span_links
+            if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
+            and span_link["trace_id"] == LLMObs.export_span(span)["trace_id"]
         ]
         current_span_links = span._get_ctx_item(SPAN_LINKS)
         if current_span_links:
