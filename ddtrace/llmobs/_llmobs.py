@@ -401,7 +401,11 @@ class LLMObs(Service):
             return
         span_links = []
         for span_link in self._link_tracker.get_span_links_from_object(obj):
-            if span_link["attributes"]["from"] == "input" and input_or_output == "output":
+            try:
+                if span_link["attributes"]["from"] == "input" and input_or_output == "output":
+                    continue
+            except KeyError:
+                log.debug("failed to read span link: ", span_link)
                 continue
             span_links.append(
                 {
