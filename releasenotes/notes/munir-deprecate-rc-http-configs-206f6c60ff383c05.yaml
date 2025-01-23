@@ -1,0 +1,11 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates support for the following ``ddtrace.config`` attributes:
+    - http
+    - http_server
+    - trace_headers
+    - header_is_traced
+    - convert_rc_trace_sampling_rules
+    - enable_remote_configuration
+    - get_from
