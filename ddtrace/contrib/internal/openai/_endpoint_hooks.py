@@ -404,10 +404,16 @@ class _RetrieveHook(_EndpointHook):
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "retrieveModel"
-            span.set_tag_str("openai.request.model", args[0] if len(args) >= 1 else kwargs.get("model", ""))
+            if len(args) >= 1:
+                span.set_tag_str("openai.request.model", args[0])
+            else:
+                span.set_tag_str("openai.request.model", kwargs.get("model", kwargs.get("id", "")))
         elif endpoint.endswith("/files"):
             span.resource = "retrieveFile"
-            span.set_tag_str("openai.request.file_id", args[1] if len(args) >= 1 else kwargs.get("file_id", ""))
+            if len(args) >= 1:
+                span.set_tag_str("openai.request.file_id", args[0])
+            else:
+                span.set_tag_str("openai.request.file_id", kwargs.get("file_id", kwargs.get("id", "")))
         span.set_tag_str("openai.request.endpoint", "%s/*" % endpoint)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
@@ -434,10 +440,6 @@ class _ModelRetrieveHook(_RetrieveHook):
     ENDPOINT_NAME = "models"
     OPERATION_ID = "retrieveModel"
 
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-        span.set_tag_str("openai.request.model", args[0] if len(args) >= 1 else kwargs.get("model", ""))
-
 
 class _FileRetrieveHook(_RetrieveHook):
     """
@@ -446,10 +448,6 @@ class _FileRetrieveHook(_RetrieveHook):
 
     ENDPOINT_NAME = "files"
     OPERATION_ID = "retrieveFile"
-
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-        span.set_tag_str("openai.request.file_id", args[0] if len(args) >= 1 else kwargs.get("file_id", ""))
 
 
 class _DeleteHook(_EndpointHook):
@@ -466,7 +464,10 @@ class _DeleteHook(_EndpointHook):
         endpoint = span.get_tag("openai.request.endpoint")
         if endpoint.endswith("/models"):
             span.resource = "deleteModel"
-            span.set_tag_str("openai.request.model", args[0] if len(args) >= 1 else kwargs.get("model", ""))
+            if len(args) >= 1:
+                span.set_tag_str("openai.request.model", args[0])
+            else:
+                span.set_tag_str("openai.request.model", kwargs.get("model", kwargs.get("sid", "")))
         elif endpoint.endswith("/files"):
             span.resource = "deleteFile"
             if len(args) >= 1:
@@ -721,7 +722,7 @@ class _FileCreateHook(_BaseFileHook):
         "organization",
         "user_provided_filename",
     )
-    _request_kwarg_params = ("purpose",)
+    _request_kwarg_params = ("purpose", "user_provided_filename")
     _response_attrs = ("id", "bytes", "created_at", "filename", "purpose", "status", "status_details")
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createFile"
