@@ -11,6 +11,7 @@ from ddtrace.llmobs.decorators import tool
 from ddtrace.llmobs.decorators import workflow
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import _expected_span_link
 
 
 @pytest.fixture
@@ -830,14 +831,6 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
     )
 
 
-def construct_link(span_event, link_from, link_to):
-    return {
-        "trace_id": span_event["trace_id"],
-        "span_id": span_event["span_id"],
-        "attributes": {"from": link_from, "to": link_to},
-    }
-
-
 def test_decorator_records_span_links(llmobs, llmobs_events):
     @workflow
     def one(inp):
@@ -853,8 +846,8 @@ def test_decorator_records_span_links(llmobs, llmobs_events):
 
     assert not one_span["span_links"]
     assert len(two_span["span_links"]) == 2
-    assert two_span["span_links"][0] == construct_link(one_span, "output", "input")
-    assert two_span["span_links"][1] == construct_link(one_span, "output", "output")
+    assert two_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
+    assert two_span["span_links"][1] == _expected_span_link(one_span, "output", "output")
 
 
 def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_events):
@@ -879,8 +872,8 @@ def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_e
     assert not one_span["span_links"]
     assert not two_span["span_links"]
     assert len(three_span["span_links"]) == 2
-    assert three_span["span_links"][0] == construct_link(one_span, "output", "input")
-    assert three_span["span_links"][1] == construct_link(two_span, "output", "input")
+    assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
+    assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
 
 
 def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events):
@@ -905,5 +898,5 @@ def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events):
     assert not one_span["span_links"]
     assert not two_span["span_links"]
     assert len(three_span["span_links"]) == 2
-    assert three_span["span_links"][0] == construct_link(one_span, "output", "input")
-    assert three_span["span_links"][1] == construct_link(two_span, "output", "input")
+    assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
+    assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
