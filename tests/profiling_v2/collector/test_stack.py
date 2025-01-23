@@ -29,7 +29,6 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
-        DD_PROFILING_STACK_V2_ENABLED="1",
     )
 )
 @pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
@@ -516,7 +515,6 @@ def test_collect_once_with_class(tmp_path):
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            class_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
@@ -531,7 +529,7 @@ def test_collect_once_with_class(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 23,
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 22,
                 ),
             ],
         ),
@@ -574,9 +572,6 @@ def test_collect_once_with_class_not_right_type(tmp_path):
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            # stack v1 relied on using cls and self to figure out class name
-            # so we can't find it here.
-            class_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
@@ -591,7 +586,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 23,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 22,
                 ),
             ],
         ),
