@@ -183,7 +183,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        log.warning("This version of the ddtrace pytest plugin is currently in beta.")
         # Freezegun is proactively patched to avoid it interfering with internal timing
         patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
@@ -204,7 +203,7 @@ def pytest_configure(config: pytest_Config) -> None:
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
-            message="this preview version of the pytest ddtrace plugin will become the only version.",
+            message="the new pytest plugin is now the default version. No additional configurations are required.",
             removal_version="3.0.0",
             category=DDTraceDeprecationWarning,
         )
