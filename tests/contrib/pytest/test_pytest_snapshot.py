@@ -85,7 +85,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                     )
                 ),
             )
@@ -131,7 +131,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                     )
                 ),
             )
@@ -166,7 +166,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_CIVISIBILITY_ITR_ENABLED="false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                         DD_PATCH_MODULES="httpx:true",
                     )
                 ),

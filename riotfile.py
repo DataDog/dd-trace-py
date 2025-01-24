@@ -1632,12 +1632,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     env={
-                                        "DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                                     },
                                 ),
                                 Venv(
                                     env={
-                                        "DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                                     },
                                 ),
                             ],
@@ -1665,7 +1665,7 @@ venv = Venv(
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1732,12 +1732,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             env={
-                                "DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1753,12 +1753,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             env={
-                                "DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1781,7 +1781,7 @@ venv = Venv(
                         ]
                     },
                     env={
-                        "DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                     },
                 ),
                 Venv(
@@ -1791,7 +1791,7 @@ venv = Venv(
                         ]
                     },
                     env={
-                        "DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                     },
                 ),
             ],

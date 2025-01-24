@@ -21,7 +21,7 @@ def test_flask_pytest_iast(iast_enabled, iast_request_sampling, pytest_use_legac
             "DD_TRACE_SQLITE_ENABLED": "0",
             "DD_IAST_ENABLED": iast_enabled,
             "DD_TRACE_DEBUG": "true",
-            "DD_PYTEST_USE_LEGACY_PLUGIN": pytest_use_legacy_plugin,
+            "_DD_PYTEST_USE_LEGACY_PLUGIN": pytest_use_legacy_plugin,
             "DD_IAST_REQUEST_SAMPLING": iast_request_sampling,
             # "DD_API_KEY": "invalidapikey",
             # "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
