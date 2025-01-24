@@ -71,7 +71,7 @@ else()
     message(FATAL_ERROR "Unsupported operating system")
 endif()
 
-set(DD_TARBALL "libdatadog-${DD_ARCH}-${DD_PLATFORM}.{DD_EXT}")
+set(DD_TARBALL "libdatadog-${DD_ARCH}-${DD_PLATFORM}.${DD_EXT}")
 
 # Make sure we can get the checksum for the tarball
 foreach(ENTRY IN LISTS DD_CHECKSUMS)
