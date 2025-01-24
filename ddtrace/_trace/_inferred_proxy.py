@@ -53,7 +53,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
         activate=True,
         child_of=child_of,
     )
-    span.start_ns = int(proxy_context["request_time"]) * 100000000
+    span.start_ns = int(proxy_context["request_time"]) * 1000000
 
     log.debug("Successfully created inferred proxy span.")
 

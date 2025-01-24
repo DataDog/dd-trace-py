@@ -19,6 +19,9 @@ from ddtrace._trace.utils_botocore.span_tags import (
 )
 from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
@@ -126,10 +129,15 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     # dispatch event for checking headers and possibly making an inferred proxy span
     core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
     # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
-    span_kwargs = ctx.get_item("span_kwargs")
-
+    span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
     span_kwargs.update(kwargs)
-    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
+
+    # Check for child_of is required because tracer.trace does not support child_of
+    if call_trace and "child_of" not in span_kwargs.keys():
+        span = (tracer.trace)(ctx["span_name"], **span_kwargs)
+    else:
+        span = (tracer.start_span)(ctx["span_name"], **span_kwargs)
+
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
 
@@ -146,11 +154,11 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(SPAN_MEASURED_KEY)
 
-    anayltics_enabled = ctx.get_item("analytics_enabled")
+    analytics_enabled = ctx.get_item("analytics_enabled")
     analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
 
     # Configure trace search sample rate
-    if (config._analytics_enabled and anayltics_enabled is not False) or anayltics_enabled is True:
+    if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
 
@@ -173,6 +181,20 @@ def _on_web_framework_finish_request(
         response_headers=res_headers,
         route=route,
     )
+    # TODO: find a better place to add errors and status codes to inferred spans
+    if span._parent and span._parent.name == "aws.apigateway":
+        inferred_span = span._parent
+        if span.get_tag("http.status_code"):
+            inferred_span.set_tag("http.status_code", status_code)
+
+        inferred_span.error = span.error
+        if span.get_tag(ERROR_MSG):
+            inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
+        if span.get_tag(ERROR_TYPE):
+            inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
+        if span.get_tag(ERROR_STACK):
+            inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+
     if finish:
         span.finish()
 
@@ -183,10 +205,22 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
 
     # Inferred Proxy Spans
     if distributed_headers_config and ctx.get_item("distributed_headers", None):
+
+        # Extract distributed tracing headers if they exist
+        if ctx["distributed_headers"]:
+            trace_utils.activate_distributed_headers(
+                tracer,
+                int_config=distributed_headers_config,
+                request_headers=ctx["distributed_headers"],
+                override=ctx.get_item("distributed_headers_config_override"),
+            )
+            distributed_context = tracer.current_trace_context()
+
+        # When creating an inferred span, use the distributed_context, else it is the local root span
         create_inferred_proxy_span_if_headers_exist(
             ctx,
             headers=ctx.get_item("distributed_headers"),
-            child_of=span_kwargs.get("child_of", None) if not call_trace else tracer.current_span(),
+            child_of=distributed_context,
             tracer=tracer,
         )
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
@@ -456,7 +490,21 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
+
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+    # TODO: find a better place to add errors and status codes to inferred spans
+    if span._parent and span._parent.name == "aws.apigateway":
+        inferred_span = span._parent
+        if span.get_tag("http.status_code"):
+            inferred_span.set_tag("http.status_code", span.get_tag("http.status_code"))
+
+        inferred_span.error = span.error
+        if span.get_tag(ERROR_MSG):
+            inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
+        if span.get_tag(ERROR_TYPE):
+            inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
+        if span.get_tag(ERROR_STACK):
+            inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
 def _on_django_start_response(
@@ -528,6 +576,8 @@ def _on_django_after_request_headers_post(
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
     )
+
+
 
 
 def _on_botocore_patched_api_call_started(ctx):
@@ -849,8 +899,8 @@ def listen():
     core.on("web.request.finish", _on_web_framework_finish_request)
 
     # inferred proxy handlers
-    core.on("infered_proxy.start", _on_inferred_proxy_start)
-    core.on("infered_proxy.finish", _on_inferred_proxy_finish)
+    core.on("inferred_proxy.start", _on_inferred_proxy_start)
+    core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
