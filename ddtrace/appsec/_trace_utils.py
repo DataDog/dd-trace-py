@@ -405,8 +405,8 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
     if user_extra.get("login") is None:
         user_extra["login"] = user_id
     user_id = user_id_found or user_id
-    with pin.tracer.trace("django.contrib.auth.middleware.AuthentificationMiddleware", span_type=SpanTypes.AUTH):
-        if result_user and in_asm_context():
+    if result_user and in_asm_context() and result_user.is_authenticated:
+        with pin.tracer.trace("django.contrib.auth.middleware.AuthentificationMiddleware", span_type=SpanTypes.AUTH):
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
