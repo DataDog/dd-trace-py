@@ -634,7 +634,9 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -690,7 +692,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -731,7 +735,9 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -766,7 +772,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -842,7 +850,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -877,7 +887,9 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
 
         return result_response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         patch_iast({"header_injection": True})
         resp = client.get(
@@ -916,7 +928,9 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
         )
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         patch_iast({"header_injection": True})
         resp = client.get(
