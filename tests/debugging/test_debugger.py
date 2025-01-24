@@ -8,7 +8,7 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
@@ -929,7 +929,7 @@ class SpanProbeTestCase(TracerTestCase):
             tags = span.get_tags()
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
-            assert tags[ORIGIN_KEY] == "di"
+            assert tags[_ORIGIN_KEY] == "di"
 
     def test_debugger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
