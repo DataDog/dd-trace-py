@@ -9,7 +9,7 @@ from ddtrace.internal.injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
-assert sys.version_info[:2] == (3, 10)
+assert sys.version_info[:2] == (3, 10)  # nosec
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
