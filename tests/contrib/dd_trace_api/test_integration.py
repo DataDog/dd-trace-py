@@ -17,5 +17,5 @@ class DDTraceAPITestCase(TracerTestCase):
     def test_start_span(self):
         with dd_trace_api.tracer.Tracer().start_span("web.request") as span:
             span.finish()
-            spans = self.pop_spans()
-            assert len(spans) == 1
+        spans = self.pop_spans()
+        assert len(spans) == 1
