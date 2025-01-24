@@ -12,17 +12,18 @@ from flask import make_response
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
+
+# from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.utils import assert_is_measured
-from tests.utils import assert_span_http_status_code
 from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
@@ -253,6 +254,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         When making a request starting from AWS API Gateway
             We create an inferred span with the headers
         """
+
         @self.app.route("/")
         def index():
             return "Hello Flask", 200
@@ -267,7 +269,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # By default, no inferred spans should be created
 
-        res = self.client.get("/")
+        _ = self.client.get("/")
 
         # Assert that without the feature, Flask is the root
         span = self.find_span_by_name(self.get_spans(), "flask.request")
@@ -275,27 +277,26 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # With the inferred spans enabled
         with self.override_global_config(dict(_inferred_proxy_services_enabled="true")):
-
             # A request without headers has no inferred span
             self.reset()
-            res = self.client.get("/")
+            _ = self.client.get("/")
 
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
 
             assert aws_gateway_span is None
 
-            test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage'
+            test_headers = {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
             }
 
             self.reset()
-            res = self.client.get("/", headers=test_headers)
+            _ = self.client.get("/", headers=test_headers)
 
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
@@ -304,76 +305,81 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
             # Assert test specific behavior for aws api gateway
             assert aws_gateway_span.resource == web_span.resource
-            assert aws_gateway_span.get_tag('http.url') == "local/"
-            assert aws_gateway_span.get_tag('http.method') == "GET"
-            assert aws_gateway_span.get_tag('http.status_code') == '200'
-            assert aws_gateway_span.get_tag('http.route') == '/'
+            assert aws_gateway_span.get_tag("http.url") == "local/"
+            assert aws_gateway_span.get_tag("http.method") == "GET"
+            assert aws_gateway_span.get_tag("http.status_code") == "200"
+            assert aws_gateway_span.get_tag("http.route") == "/"
             assert aws_gateway_span.start == 1736973768.0
             # Assert endpoint specific behavior for flask
             assert web_span.name == "flask.request"
             assert web_span.service == "flask"
-            assert web_span.resource == 'GET /'
-            assert web_span.get_tag('http.url') == "http://localhost/"
-            assert web_span.get_tag('http.route') == '/'
-            assert web_span.get_tag('span.kind') == 'server'
-            assert web_span.get_tag('component') == "flask"
-            assert web_span.get_tag('_dd.inferred_span') is None
+            assert web_span.resource == "GET /"
+            assert web_span.get_tag("http.url") == "http://localhost/"
+            assert web_span.get_tag("http.route") == "/"
+            assert web_span.get_tag("span.kind") == "server"
+            assert web_span.get_tag("component") == "flask"
+            assert web_span.get_tag("_dd.inferred_span") is None
 
             # When hitting an application error, we extract the status and errors
             self.reset()
-            res = self.client.get("/applicationerror", headers=test_headers)
+            _ = self.client.get("/applicationerror", headers=test_headers)
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
             # Assert test specific behavior for aws api gateway
             assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
             assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert aws_gateway_span.get_tag('http.status_code') == '500'
+            assert aws_gateway_span.get_tag("http.status_code") == "500"
             # Assert endpoint specific test behavior:
             assert aws_gateway_span.resource == "GET /"
-            assert aws_gateway_span.get_tag('http.route') == '/'
+            assert aws_gateway_span.get_tag("http.route") == "/"
             assert web_span.resource == "GET /applicationerror"
-            assert web_span.get_tag('http.route') == '/applicationerror'
-            assert web_span.get_tag(ERROR_TYPE) is None #TODO: figure out why the flask span has no error tags in this test
+            assert web_span.get_tag("http.route") == "/applicationerror"
+            assert (
+                web_span.get_tag(ERROR_TYPE) is None
+            )  # TODO: figure out why the flask span has no error tags in this test
 
             # When hitting an endpoint with a custom status code, we report the code
             self.reset()
-            res = self.client.get("/returnerrorcode", headers=test_headers)
+            _ = self.client.get("/returnerrorcode", headers=test_headers)
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
             # Assert endpoint specific test behavior:
             assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
             assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert aws_gateway_span.get_tag('http.status_code') == '599'
-            assert web_span.get_tag(ERROR_TYPE) is None #TODO: figure out why the flask span has no error tags in this test
+            assert aws_gateway_span.get_tag("http.status_code") == "599"
+            assert (
+                web_span.get_tag(ERROR_TYPE) is None
+            )  # TODO: figure out why the flask span has no error tags in this test
 
     def test_inferred_spans_api_gateway_distributed_tracing(self):
         """
         When making a request starting from AWS API Gateway
             We create an inferred span with the headers when Datadog headers are passed
         """
+
         @self.app.route("/")
         def index():
             return "Hello Flask", 200
 
-        test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage',
-                'x-datadog-trace-id': '1',
-                'x-datadog-parent-id': '2',
-                'x-datadog-origin': 'rum',
-                'x-datadog-sampling-priority': '2'
-            }
+        test_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
 
         # Without the feature enabled, we should not be creating the inferred span
         self.client.get("/", headers=test_headers)
         web_span = self.find_span_by_name(self.get_spans(), "flask.request")
         aws_gateway_span = web_span._parent
         assert aws_gateway_span is None
-        assert web_span.sampled == True
+        assert web_span.sampled is True
         assert web_span.parent_id == 2
         assert web_span.trace_id == 1
 
@@ -393,7 +399,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert web_span.sampled is True
             assert aws_gateway_span.parent_id == 2
             assert aws_gateway_span.trace_id == 1
-
 
     def test_request_query_string(self):
         """

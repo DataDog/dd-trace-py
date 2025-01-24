@@ -37,14 +37,14 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 
 
 @pytest.fixture(autouse=True)
@@ -1763,19 +1763,20 @@ def test_django_request_distributed_disabled(client, test_spans):
     assert root.trace_id != 12345
     assert root.parent_id is None
 
+
 def test_inferred_spans_api_gateway_default(client, test_spans):
     """
     When making a request to a Django app,
         the django.request span properly inherits from the inferred spans
     """
-    test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage'
-            }
+    test_headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy-path": "/",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "local",
+        "x-dd-proxy-stage": "stage",
+    }
 
     # When the inferred proxy feature is not enabled, there should be no inferred span
     resp = client.get("/", headers=test_headers)
@@ -1785,7 +1786,6 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
     assert web_span._parent is None
 
     with override_global_config(dict(_inferred_proxy_services_enabled="true")):
-
         test_spans.reset()
         resp = client.get("/", headers=test_headers)
         web_span = test_spans.find_span(name="django.request")
@@ -1794,20 +1794,20 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
         assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
         assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
         # Assert test specific behavior for aws api gateway
-        assert aws_gateway_span.get_tag('http.url') == "local/"
-        assert aws_gateway_span.get_tag('http.method') == "GET"
-        assert aws_gateway_span.get_tag('http.status_code') == '200'
-        assert aws_gateway_span.get_tag('http.route') == '/'
+        assert aws_gateway_span.get_tag("http.url") == "local/"
+        assert aws_gateway_span.get_tag("http.method") == "GET"
+        assert aws_gateway_span.get_tag("http.status_code") == "200"
+        assert aws_gateway_span.get_tag("http.route") == "/"
         assert aws_gateway_span.start == 1736973768.0
         # Assert test specific behavior for flask
         assert web_span.name == "django.request"
         assert web_span.service == "django"
-        assert web_span.resource == 'GET ^$'
-        assert web_span.get_tag('http.url') == "http://testserver/"
-        assert web_span.get_tag('http.route') == '^$'
-        assert web_span.get_tag('span.kind') == 'server'
-        assert web_span.get_tag('component') == "django"
-        assert web_span.get_tag('_dd.inferred_span') is None
+        assert web_span.resource == "GET ^$"
+        assert web_span.get_tag("http.url") == "http://testserver/"
+        assert web_span.get_tag("http.route") == "^$"
+        assert web_span.get_tag("span.kind") == "server"
+        assert web_span.get_tag("component") == "django"
+        assert web_span.get_tag("_dd.inferred_span") is None
 
         test_spans.reset()
         try:
@@ -1819,8 +1819,11 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
             assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
             assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
             # Assert endpoint specific test behavior:
-            assert web_span.get_tag(ERROR_TYPE) is None #TODO: figure out why the django span has no error tags in this test
-            assert aws_gateway_span.get_tag('http.status_code') == '500'
+            assert (
+                web_span.get_tag(ERROR_TYPE) is None
+            )  # TODO: figure out why the django span has no error tags in this test
+            assert aws_gateway_span.get_tag("http.status_code") == "500"
+
 
 def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
     """
@@ -1828,18 +1831,18 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         the django.request span properly inherits from the inferred spans
         and the inferred span inherits from the trace
     """
-    test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage',
-                'x-datadog-trace-id': '1',
-                'x-datadog-parent-id': '2',
-                'x-datadog-origin': 'rum',
-                'x-datadog-sampling-priority': '2'
-            }
+    test_headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy-path": "/",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "local",
+        "x-dd-proxy-stage": "stage",
+        "x-datadog-trace-id": "1",
+        "x-datadog-parent-id": "2",
+        "x-datadog-origin": "rum",
+        "x-datadog-sampling-priority": "2",
+    }
     # Without the feature enabled, we should not be creating the inferred span
     resp = client.get("/", headers=test_headers)
     assert resp.status_code == 200
@@ -1876,6 +1879,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         assert aws_gateway_span.trace_id == 1
         assert aws_gateway_span.parent_id == 2
         assert aws_gateway_span.sampled is True
+
 
 def test_trace_query_string_integration_enabled(client, test_spans):
     with override_http_config("django", dict(trace_query_string=True)):

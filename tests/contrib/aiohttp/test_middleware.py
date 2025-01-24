@@ -558,20 +558,21 @@ async def test_parenting_200_ot(app_tracer, aiohttp_client):
     traces = tracer.pop_traces()
     _assert_200_parenting(client, traces)
 
+
 async def test_inferred_spans_api_gateway_default(app_tracer, aiohttp_client):
     """
     When making a request to an aiohttp middleware app,
         the aiohttp.request span properly inherits from the inferred span
     """
 
-    test_headers= {
-                'x-dd-proxy': 'aws-apigateway',
-                'x-dd-proxy-request-time-ms': '1736973768000',
-                'x-dd-proxy-path': '/',
-                'x-dd-proxy-httpmethod': 'GET',
-                'x-dd-proxy-domain-name': 'local',
-                'x-dd-proxy-stage': 'stage'
-            }
+    test_headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy-path": "/",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "local",
+        "x-dd-proxy-stage": "stage",
+    }
 
     app, tracer = app_tracer
     client = await aiohttp_client(app)

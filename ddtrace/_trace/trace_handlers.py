@@ -205,7 +205,6 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
 
     # Inferred Proxy Spans
     if distributed_headers_config and ctx.get_item("distributed_headers", None):
-
         # Extract distributed tracing headers if they exist
         if ctx["distributed_headers"]:
             trace_utils.activate_distributed_headers(
@@ -576,8 +575,6 @@ def _on_django_after_request_headers_post(
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
         response_cookies=response_cookies,
     )
-
-
 
 
 def _on_botocore_patched_api_call_started(ctx):

@@ -32,9 +32,9 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
     if not config._inferred_proxy_services_enabled:
         return None
 
-    headers = normalize_headers(headers)
+    normalized_headers = normalize_headers(headers)
 
-    proxy_context = extract_inferred_proxy_context(headers)
+    proxy_context = extract_inferred_proxy_context(normalized_headers)
 
     if not proxy_context:
         return None
@@ -119,9 +119,7 @@ def delete_inferred_header_keys(headers) -> Dict[str, str]:
     ]
 
     for key in keys_to_delete:
-        try:
+        if key in headers:
             del headers[key]
-        except KeyError:
-            pass
 
     return headers
