@@ -91,6 +91,23 @@ def test_service_enable_env_var_sets_config():
     assert config._llmobs_enabled is True
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "test_ml_app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+        "DD_LLMOBS_ENABLED": "false",
+        "DD_TRACE_ENABLED": "false",
+    }
+)
+def test_service_enable_false_env_var_takes_precedence():
+    from ddtrace import config
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable()
+    assert config._llmobs_enabled is False
+
+
 def test_enable_agentless():
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
