@@ -8,7 +8,7 @@ from tests.utils import TracerTestCase
 class DDTraceAPITestCase(TracerTestCase):
     def setUp(self):
         super(DDTraceAPITestCase, self).setUp()
-        patch()
+        patch(tracer=self.tracer)
 
     def tearDown(self):
         super(DDTraceAPITestCase, self).tearDown()

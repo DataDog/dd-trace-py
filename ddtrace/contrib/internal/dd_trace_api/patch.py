@@ -22,7 +22,7 @@ _CURRENT_SPAN = None
 
 def _patched_start_span(*args, **kwargs):
     global _CURRENT_SPAN
-    _CURRENT_SPAN = ddtrace.tracer.start_span(*args, **kwargs)
+    _CURRENT_SPAN = dd_trace_api._tracer.start_span(*args, **kwargs)
 
 
 def _patched_span_enter(*args, **kwargs):
@@ -60,10 +60,11 @@ def get_version() -> str:
     return getattr(dd_trace_api, "__version__", "")
 
 
-def patch():
+def patch(tracer=None):
     if getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = True
+    Pin.override(dd_trace_api, _tracer=tracer or ddtrace.tracer)
     addaudithook(_hook)
 
 
