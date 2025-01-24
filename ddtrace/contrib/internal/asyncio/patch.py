@@ -44,11 +44,6 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    if is_task_eagerly_scheduled():
-        # if the task is eagerly scheduled, we don't need to wrap it. The expected trace context will be propagated
-        # when the task is created.
-        return wrapped(*args, **kwargs)
-
     # override existing co-rountine to ensure the current trace context is propagated
     coro = get_argument_value(args, kwargs, 1, "coro")
     dd_active = pin.tracer.current_trace_context()
@@ -67,14 +62,3 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
     args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
 
     return wrapped(*args, **kwargs)
-
-
-def is_task_eagerly_scheduled():
-    # type: () -> bool
-    """Check if a task is eagerly scheduled.
-
-    This is a helper function to determine if a task is eagerly scheduled.
-    """
-    event_loop = asyncio.get_event_loop()
-    task_factory = event_loop.get_task_factory()
-    return task_factory is None and PY_VERSION >= (3, 12)
