@@ -17,17 +17,17 @@ include(FetchContent)
 # Set version if not already set
 if(NOT DEFINED TAG_LIBDATADOG)
     set(TAG_LIBDATADOG
-        "v14.3.1"
+        "v15.0.0"
         CACHE STRING "libdatadog github tag")
 endif()
 
 if(NOT DEFINED DD_CHECKSUMS)
     set(DD_CHECKSUMS
-        "57f83aff275628bb1af89c22bb4bd696726daf2a9e09b6cd0d966b29e65a7ad6 libdatadog-aarch64-alpine-linux-musl.tar.gz"
-        "2be2efa98dfc32f109abdd79242a8e046a7a300c77634135eb293e000ecd4a4c libdatadog-aarch64-apple-darwin.tar.gz"
-        "36db8d50ccabb71571158ea13835c0f1d05d30b32135385f97c16343cfb6ddd4 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
-        "2f61fd21cf2f8147743e414b4a8c77250a17be3aecc42a69ffe54f0a603d5c92 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-        "f01f05600591063eba4faf388f54c155ab4e6302e5776c7855e3734955f7daf7 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
+        "d5b969b293e5a9e5e36404a553bbafdd55ff6af0b089698bd989a878534df0c7 libdatadog-aarch64-alpine-linux-musl.tar.gz"
+        "4540ffb8ccb671550a39ba79226117086582c1eaf9714180a9e26bd6bb175860 libdatadog-aarch64-apple-darwin.tar.gz"
+        "31bceab4f56873b03b3728760d30e3abc493d32ca8fdc9e1f2ec2147ef4d5424 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
+        "530348c4b02cc7096de2231476ec12db82e2cc6de12a87e5b28af47ea73d4e56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
+        "5073ffc657bc4698f8bdd4935475734577bfb18c54dcbebc4f7d8c7595626e52 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases

@@ -64,7 +64,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs)
+        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = func(*args, **kwargs)
         if stream:
             return TracedVertexAIStreamResponse(
@@ -99,7 +99,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs)
+        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncVertexAIStreamResponse(
