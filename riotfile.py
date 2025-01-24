@@ -2506,7 +2506,7 @@ venv = Venv(
                 Venv(
                     pys="3.7",
                     pkgs={
-                        "openai": "==1.30.1",
+                        "openai[datalib]": "==1.30.1",
                         "pillow": "==9.5.0",
                     },
                 ),
