@@ -36,6 +36,13 @@ Global Configuration
 
    Default: ``False``
 
+.. py:data:: ddtrace.config.aiohttp['disable_stream_timing_for_mem_leak']
+
+   Whether or not to to address a potential memory leak in the aiohttp integration.
+   When set to ``True``, this flag may cause streamed response span timing to be inaccurate.
+
+   Default: ``False``
+
 
 Server
 ******
