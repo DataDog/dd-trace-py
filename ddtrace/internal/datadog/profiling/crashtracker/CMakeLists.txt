@@ -92,7 +92,7 @@ if(NOT CRASHTRACKER_EXE_TARGET_NAME)
 endif()
 
 if(APPLE)
-    set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "@loader_path/.."  OUTPUT_NAME
+    set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "@loader_path/.." OUTPUT_NAME
                                                                                       ${CRASHTRACKER_EXE_TARGET_NAME})
 elseif(UNIX)
     set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUTPUT_NAME
@@ -101,7 +101,6 @@ elseif(UNIX)
     # To let crashtracker find Python library at runtime
     set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
-
 
 if(NOT APPLE AND Python3_LIBRARIES)
     target_link_libraries(crashtracker_exe PRIVATE dd_wrapper ${Python3_LIBRARIES})
