@@ -39,3 +39,21 @@ rules:
 
     config = get_configuration_from_disk(file_override=str(config_2))
     assert config == {}
+
+
+def is_imported_before(module_a, module_b):
+    import sys
+
+    # Check if both modules are in sys.modules
+    if module_a in sys.modules and module_b in sys.modules:
+        # Get the position of the modules in sys.modules (which is an OrderedDict in Python 3.7+)
+        modules = list(sys.modules.keys())
+        return modules.index(module_a) < modules.index(module_b)
+    return False  # If one or both modules are not imported, return False
+
+
+def test_native_before_settings():
+    # Ensure that the native module is imported before the settings module
+    import ddtrace  # noqa: F401
+
+    assert is_imported_before("ddtrace.internal.native", "ddtrace.settings")
