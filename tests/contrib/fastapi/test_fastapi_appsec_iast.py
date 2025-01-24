@@ -120,6 +120,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -137,6 +139,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_query_param_name_source_post(fastapi_application, client, tracer, test_spans):
@@ -153,6 +157,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -170,6 +176,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
@@ -217,6 +225,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -234,6 +244,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 11
         assert result["ranges_origin"] == "http.request.header.name"
+        assert result["ranges_origin_name"] == "iast_header"
+        assert result["ranges_origin_value"] == "iast_header"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
@@ -634,7 +646,9 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -690,7 +704,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -731,7 +747,9 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -766,7 +784,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -842,7 +862,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -877,7 +899,9 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
 
         return result_response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         patch_iast({"header_injection": True})
         resp = client.get(
@@ -916,7 +940,9 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
         )
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         patch_iast({"header_injection": True})
         resp = client.get(

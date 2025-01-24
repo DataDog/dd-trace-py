@@ -22,7 +22,7 @@ def pytest_configure():
     with override_global_config(
         dict(
             _iast_enabled=True,
-            _deduplication_enabled=False,
+            _iast_deduplication_enabled=False,
             _iast_request_sampling=100.0,
         )
     ):
@@ -55,7 +55,7 @@ def test_spans(tracer):
     with override_global_config(
         dict(
             _iast_enabled=True,
-            _deduplication_enabled=False,
+            _iast_deduplication_enabled=False,
             _iast_request_sampling=100.0,
         )
     ):
