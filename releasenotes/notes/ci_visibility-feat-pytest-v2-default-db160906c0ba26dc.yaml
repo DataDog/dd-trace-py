@@ -1,5 +1,5 @@
 ---
-upgrades:
+upgrade:
   - |
     CI Visibility: Official release of the new version of the pytest plugin, introducing the following features:
       - `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_
