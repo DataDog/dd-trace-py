@@ -8,8 +8,8 @@ from wrapt import ObjectProxy
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -177,7 +177,7 @@ class TracedClient(ObjectProxy):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         try:
             self._tag_span(span)

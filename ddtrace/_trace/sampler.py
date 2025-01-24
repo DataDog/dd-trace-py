@@ -12,7 +12,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from ddtrace import config
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 
 from ..constants import ENV_KEY
 from ..internal.constants import _PRIORITY_CATEGORY
@@ -342,7 +342,7 @@ class DatadogSampler(RateByServiceSampler):
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
-                span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+                span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         _set_sampling_tags(
             span,
             sampled,
