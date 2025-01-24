@@ -52,9 +52,6 @@ def _run_gunicorn(*args):
 def gunicorn(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    # This was needed for the gunicorn process to start and print worker startup
-    # messages. Without this, the test can't find the worker PIDs.
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1")
 
     yield _run_gunicorn
 

@@ -20,7 +20,7 @@ from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.core import DDSketch
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb

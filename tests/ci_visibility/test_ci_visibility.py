@@ -684,7 +684,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             )
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
-        ), mock.patch("ddtrace.settings.config.Config", _get_default_civisibility_ddconfig()), mock.patch(
+        ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", ddtrace.Tracer()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True

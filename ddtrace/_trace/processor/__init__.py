@@ -14,7 +14,7 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
@@ -165,7 +165,7 @@ class TraceSamplingProcessor(TraceProcessor):
                                 # In order to ensure that the agent does not update priority sampling rates
                                 # due to single spans sampling, we set all of these spans to manual keep.
                                 if config._trace_compute_stats:
-                                    span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                                    span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                                 break
 
             return trace
