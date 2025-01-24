@@ -35,8 +35,7 @@ DDBBS = [
 ]
 
 
-def setup():
-    patch(pymysql=True)
+patch(pymysql=True)
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
