@@ -150,7 +150,6 @@ def _on_web_framework_start_request(ctx, int_config):
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
 ):
-    breakpoint()
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
