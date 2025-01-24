@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace import config as global_config
 from ddtrace.settings import Config
-from ddtrace.settings.config import _parse_propagation_styles
+from ddtrace.settings._config import _parse_propagation_styles
 
 from ..utils import DummyTracer
 from ..utils import override_env
