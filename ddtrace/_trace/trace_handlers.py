@@ -203,6 +203,10 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
     if not config._inferred_proxy_services_enabled:
         return
 
+    # Skip creating another inferred span if one has already been created for this request
+    if ctx.get_item("inferred_proxy_span"):
+        return
+
     # Inferred Proxy Spans
     if distributed_headers_config and ctx.get_item("distributed_headers", None):
         # Extract distributed tracing headers if they exist
@@ -225,7 +229,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span
-        if inferred_proxy_span and not call_trace:
+        if inferred_proxy_span:
             span_kwargs["child_of"] = inferred_proxy_span
             ctx.set_item("span_kwargs", span_kwargs)
 

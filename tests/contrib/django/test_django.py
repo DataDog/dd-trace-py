@@ -1856,7 +1856,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         trace_id=1,
         parent_id=2,
         metrics={
-            SAMPLING_PRIORITY_KEY: USER_KEEP,
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
         sampled=True,
     )
@@ -1876,6 +1876,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
             trace_id=1,
             sampled=True,
         )
+        assert len(test_spans.spans) == 27
         assert aws_gateway_span.trace_id == 1
         assert aws_gateway_span.parent_id == 2
         assert aws_gateway_span.sampled is True
