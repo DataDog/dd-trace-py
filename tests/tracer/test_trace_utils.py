@@ -483,7 +483,7 @@ def test_set_http_meta(
             assert core.get_item("http.request.path_params", span=span) == path_params
 
 
-@mock.patch("ddtrace.settings.config.log")
+@mock.patch("ddtrace.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
@@ -499,7 +499,7 @@ def test_set_http_meta(
     ],
 )
 def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, status_code, error, log_call):
-    config.http_server.error_statuses = error_codes
+    config._http_server.error_statuses = error_codes
     trace_utils.set_http_meta(span, int_config, status_code=status_code)
     assert span.error == error
     if log_call:

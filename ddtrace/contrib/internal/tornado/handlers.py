@@ -140,7 +140,7 @@ def log_exception(func, handler, args, kwargs):
         # is not a 2xx. In this case we want to check the status code to be sure that
         # only 5xx are traced as errors, while any other HTTPError exception is handled as
         # usual.
-        if config.http_server.is_error_code(value.status_code):
+        if config._http_server.is_error_code(value.status_code):
             current_span.set_exc_info(*args)
     else:
         # any other uncaught exception should be reported as error

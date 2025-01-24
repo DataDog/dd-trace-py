@@ -27,7 +27,7 @@ from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _config as config
+from ddtrace.settings import _global_config as config
 
 from .rate_limiter import RateLimiter
 
