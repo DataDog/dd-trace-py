@@ -6,6 +6,7 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
+from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._evaluators.ragas.base import BaseRagasEvaluator
 from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
 
@@ -82,6 +83,7 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
         with self.llmobs_service.workflow(
             "dd-ragas.context_precision", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_cp_workflow:
+            ragas_cp_workflow._set_ctx_item(IS_EVALUATION_SPAN, True)
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_cp_workflow)
 
