@@ -120,6 +120,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -137,6 +139,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_query_param_name_source_post(fastapi_application, client, tracer, test_spans):
@@ -153,6 +157,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -170,6 +176,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
@@ -217,6 +225,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -234,6 +244,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 11
         assert result["ranges_origin"] == "http.request.header.name"
+        assert result["ranges_origin_name"] == "iast_header"
+        assert result["ranges_origin_value"] == "iast_header"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
