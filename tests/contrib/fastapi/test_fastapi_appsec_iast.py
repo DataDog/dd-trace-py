@@ -26,9 +26,11 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -120,6 +122,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -137,6 +141,8 @@ def test_query_param_name_source_get(fastapi_application, client, tracer, test_s
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_query_param_name_source_post(fastapi_application, client, tracer, test_spans):
@@ -153,6 +159,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -170,6 +178,8 @@ def test_query_param_name_source_post(fastapi_application, client, tracer, test_
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 15
         assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
 
 
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
@@ -217,6 +227,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
                 "ranges_start": ranges_result[0].start,
                 "ranges_length": ranges_result[0].length,
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
             }
         )
 
@@ -234,6 +246,8 @@ def test_header_name_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 11
         assert result["ranges_origin"] == "http.request.header.name"
+        assert result["ranges_origin_name"] == "iast_header"
+        assert result["ranges_origin_value"] == "iast_header"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
@@ -948,3 +962,28 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_HEADER_INJECTION
+
+
+def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/stacktrace_leak/", response_class=PlainTextResponse)
+    async def stacktrace_leak_inline_response(request: Request):
+        return PlainTextResponse(
+            content=_load_text_stacktrace(),
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/stacktrace_leak/",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_STACKTRACE_LEAK
