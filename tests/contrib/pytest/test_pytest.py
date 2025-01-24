@@ -7,8 +7,8 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
@@ -805,7 +805,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
+        assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
         """Test that pytest sets exception information correctly."""

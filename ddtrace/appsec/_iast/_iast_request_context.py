@@ -14,7 +14,7 @@ from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -46,6 +46,7 @@ class IASTEnvironment:
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: Dict[str, int] = {}
         self.iast_stack_trace_id: int = 0
+        self.iast_stack_trace_reported: bool = False
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
@@ -86,6 +87,19 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     if env:
         return env.iast_reporter
     return None
+
+
+def get_iast_stacktrace_reported() -> bool:
+    env = _get_iast_context()
+    if env:
+        return env.iast_stack_trace_reported
+    return False
+
+
+def set_iast_stacktrace_reported(reported: bool) -> None:
+    env = _get_iast_context()
+    if env:
+        env.iast_stack_trace_reported = reported
 
 
 def get_iast_stacktrace_id() -> int:
@@ -133,8 +147,8 @@ def _create_and_attach_iast_report_to_span(req_span: Span, existing_data: Option
     set_iast_request_enabled(False)
     end_iast_context(req_span)
 
-    if req_span.get_tag(ORIGIN_KEY) is None:
-        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+    if req_span.get_tag(_ORIGIN_KEY) is None:
+        req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
     oce.release_request()
 

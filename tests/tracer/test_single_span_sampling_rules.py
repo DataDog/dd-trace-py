@@ -3,10 +3,10 @@ import sys
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
@@ -41,7 +41,7 @@ def assert_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) > 0
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) > 0
 
 
 def test_single_rule_init_via_env():

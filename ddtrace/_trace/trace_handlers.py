@@ -22,8 +22,8 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
@@ -152,7 +152,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
 
     analytics_enabled = ctx.get_item("analytics_enabled")
     analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
@@ -450,7 +450,7 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     # set analytics sample rate with global config enabled
     sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
@@ -482,7 +482,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx["pin"], ctx.span, request)
-    ctx.span._metrics[SPAN_MEASURED_KEY] = 1
+    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):

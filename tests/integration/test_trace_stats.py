@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
@@ -222,7 +222,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
 
 
 @pytest.mark.snapshot()

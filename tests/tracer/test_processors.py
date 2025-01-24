@@ -12,13 +12,13 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
@@ -581,7 +581,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
