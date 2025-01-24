@@ -4,7 +4,6 @@ from typing import Union
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -131,13 +130,9 @@ def get_llmobs_metrics_tags(integration_name, span):
         usage[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
         return usage
 
-    prompt_tokens_name = "prompt_tokens"
-    completion_tokens_name = "completion_tokens"
-    if integration_name in INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS:
-        prompt_tokens_name = "input_tokens"
-        completion_tokens_name = "output_tokens"
-    input_tokens = span.get_metric("%s.response.usage.%s" % (integration_name, prompt_tokens_name))
-    output_tokens = span.get_metric("%s.response.usage.%s" % (integration_name, completion_tokens_name))
+    # check for both prompt / completion or input / output tokens
+    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric("%s.response.usage.input_tokens" % integration_name)
+    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name) or span.get_metric("%s.response.usage.output_tokens" % integration_name)
     total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
 
     if input_tokens is not None:
