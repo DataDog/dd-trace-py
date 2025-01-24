@@ -299,6 +299,106 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
+## ASM appsec_iast_packages
+
+[envs.appsec_iast_packages]
+template = "appsec_iast_packages"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "astunparse",
+    "flask",
+    "virtualenv-clone"
+]
+
+[envs.appsec_iast_packages.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+]
+
+[[envs.appsec_iast_packages.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12"]
+
+## ASM appsec_integrations_django
+
+[envs.appsec_integrations_django]
+template = "appsec_integrations_django"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "pylibmc",
+    "bcrypt==4.2.1",
+    "pytest-django[testing]==3.10.0",
+    "Django{matrix:django}",
+]
+
+[envs.appsec_integrations_django.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=3.2"]
+
+## ASM appsec_integrations_flask
+
+[envs.appsec_integrations_flask]
+template = "appsec_integrations_flask"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "gunicorn",
+    "psycopg2-binary~=2.9.9",
+    "MarkupSafe{matrix:markupsafe:}",
+    "itsdangerous{matrix:itsdangerous:}",
+    "Werkzeug{matrix:werkzeug:}",
+    "flask{matrix:flask}",
+]
+
+[envs.appsec_integrations_flask.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9"]
+flask = ["~=1.1"]
+# https://github.com/pallets/markupsafe/issues/282
+# DEV: Breaking change made in 2.1.0 release
+markupsafe = ["~=1.1"]
+itsdangerous = ["==2.0.1"]
+# DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+werkzeug = ["==2.0.3"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11"]
+flask = ["~=2.2"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+flask = ["~=2.2"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+flask = ["~=3.0"]
+
 ## ASM FastAPI
 
 [envs.appsec_threats_fastapi]

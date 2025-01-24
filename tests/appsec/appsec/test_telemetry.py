@@ -104,7 +104,7 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
     with override_global_config(
         dict(
             _asm_enabled=True,
-            _deduplication_enabled=False,
+            _asm_deduplication_enabled=False,
             _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
         )
     ):
@@ -123,7 +123,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     config = dict(
         _asm_enabled=True,
         _waf_timeout=0.0,
-        _deduplication_enabled=False,
+        _asm_deduplication_enabled=False,
         _asm_static_rule_file=rules.RULES_GOOD_PATH,
     )
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config) as span:
@@ -148,7 +148,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):
-    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules(invalid_rule_update)
 
@@ -169,7 +169,7 @@ def _wrapped_run(*args, **kwargs):
 @mock.patch.object(ddtrace.appsec._ddwaf, "ddwaf_run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
-    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
             span_processor = AppSecSpanProcessor()
             span_processor.on_span_start(span)

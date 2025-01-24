@@ -74,7 +74,7 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
     with override_global_config(
         dict(
             _iast_enabled=True,
-            _deduplication_enabled=False,
+            _iast_deduplication_enabled=False,
             _iast_request_sampling=sampling_rate,
         )
     ):

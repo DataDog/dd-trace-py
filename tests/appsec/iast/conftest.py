@@ -81,12 +81,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
-    env.update({"_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
+    env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
     with override_global_config(
         dict(
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
-            _deduplication_enabled=deduplication,
+            _iast_deduplication_enabled=deduplication,
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):

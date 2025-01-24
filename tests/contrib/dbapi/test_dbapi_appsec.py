@@ -19,7 +19,7 @@ class TestTracedCursor(TracerTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -29,7 +29,7 @@ class TestTracedCursor(TracerTestCase):
 
     def tearDown(self):
         with override_global_config(
-            dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
         ):
             _end_iast_context_and_oce()
 

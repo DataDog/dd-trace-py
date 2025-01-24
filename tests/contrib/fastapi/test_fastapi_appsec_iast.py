@@ -13,10 +13,13 @@ from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
+from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -539,7 +542,9 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -595,7 +600,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -636,7 +643,9 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -671,7 +680,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -747,7 +758,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -765,3 +778,81 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
+
+
+def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/header_injection/")
+    async def header_injection(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        tainted_string = request.headers.get("test")
+        assert is_pyobject_tainted(tainted_string)
+        result_response = JSONResponse(content={"message": "OK"})
+        # label test_fastapi_header_injection
+        result_response.headers["Header-Injection"] = tainted_string
+        result_response.headers["Vary"] = tainted_string
+        result_response.headers["Foo"] = "bar"
+
+        return result_response
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        patch_iast({"header_injection": True})
+        resp = client.get(
+            "/header_injection/",
+            headers={"test": "test_injection_header"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE_PATH
+        )
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_HEADER_INJECTION
+        assert vulnerability["hash"] == hash_value
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["spanId"]
+
+
+def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/header_injection_inline_response/", response_class=PlainTextResponse)
+    async def header_injection_inline_response(request: Request):
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+
+        tainted_string = request.headers.get("test")
+        assert is_pyobject_tainted(tainted_string)
+        return PlainTextResponse(
+            content="OK",
+            headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
+        )
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        patch_iast({"header_injection": True})
+        resp = client.get(
+            "/header_injection_inline_response/",
+            headers={"test": "test_injection_header"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_HEADER_INJECTION

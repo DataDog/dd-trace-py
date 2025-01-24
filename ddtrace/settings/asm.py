@@ -132,7 +132,7 @@ class ASMConfig(Env):
         help_type=float,
         help="Timeout in milliseconds for WAF computations",
     )
-
+    _asm_deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
     _asm_obfuscation_parameter_key_regexp = Env.var(
         str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
     )
@@ -167,7 +167,7 @@ class ASMConfig(Env):
         default=2,
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
-    _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
+    _iast_deduplication_enabled = Env.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -226,13 +226,14 @@ class ASMConfig(Env):
         "_iast_max_concurrent_requests",
         "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
+        "_iast_deduplication_enabled",
         "_ep_stack_trace_enabled",
         "_ep_max_stack_traces",
         "_ep_max_stack_trace_depth",
         "_ep_stack_top_percent",
         "_iast_stack_trace_enabled",
         "_asm_config_keys",
-        "_deduplication_enabled",
+        "_asm_deduplication_enabled",
         "_django_include_user_name",
         "_django_include_user_email",
         "_django_include_user_login",
