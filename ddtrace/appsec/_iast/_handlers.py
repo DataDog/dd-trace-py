@@ -5,7 +5,9 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context import in_iast_context
+from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
@@ -319,7 +321,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
                     res.append(
                         taint_pyobject(
                             pyobject=element,
-                            source_name=origin_to_str(origin),
+                            source_name=element,
                             source_value=element,
                             source_origin=origin,
                         )
@@ -399,6 +401,12 @@ def _on_iast_fastapi_patch():
         "FormData.get",
         functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
     )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.keys",
+        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+    )
+
     _set_metric_iast_instrumented_source(OriginType.BODY)
 
     # Instrumented on _iast_starlette_scope_taint
@@ -439,3 +447,69 @@ def _on_set_request_tags_iast(request, span, flask_config):
             OriginType.PARAMETER,
             override_pyobject_tainted=True,
         )
+
+
+def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
+    if not response or get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = response.content.decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
+    if not _is_iast_enabled() or not is_iast_request_enabled() or not exc_value:
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
+
+        exc_name = exc_type.__name__
+        module = tb.tb_frame.f_globals.get("__name__", "")
+        asm_report_stacktrace_leak_from_django_debug_page(exc_name, module)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak on 500 response view", exc_info=True)
+
+
+def _on_flask_finalize_request_post(response, _):
+    if not response or get_iast_stacktrace_reported() or not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = response[0].decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_asgi_finalize_response(body, _):
+    if not _is_iast_enabled() or not is_iast_request_enabled() or not body:
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = body.decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_werkzeug_render_debugger_html(html):
+    if not _is_iast_enabled() or not is_iast_request_enabled() or not html:
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        asm_check_stacktrace_leak(html)
+        set_iast_stacktrace_reported(True)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
