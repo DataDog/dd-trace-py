@@ -59,8 +59,7 @@ microbenchmarks:
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
-  stage: benchmarks
-  needs: [ "microbenchmarks" ]
+  stage: benchmarks-report
   when: always
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -78,8 +77,7 @@ benchmarks-pr-comment:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
 check-big-regressions:
-  stage: benchmarks
-  needs: [ microbenchmarks, benchmark-serverless ]
+  stage: benchmarks-report
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
