@@ -59,7 +59,7 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.22.0"
 
-# DEV: update this accordingly when src/core upgrades libdatadog dependency.
+# DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
 
@@ -660,8 +660,8 @@ setup(
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(
-            "ddtrace.internal.core._core",
-            path="src/core/Cargo.toml",
+            "ddtrace.internal.native._native",
+            path="src/native/Cargo.toml",
             py_limited_api="auto",
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",

@@ -12,7 +12,7 @@ from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .settings import _config as config
+from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover

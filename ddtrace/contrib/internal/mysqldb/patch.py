@@ -6,8 +6,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -101,7 +101,7 @@ def _connect(func, instance, args, kwargs):
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
