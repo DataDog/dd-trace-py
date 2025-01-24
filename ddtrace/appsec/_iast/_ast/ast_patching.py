@@ -33,6 +33,7 @@ IAST_ALLOWLIST: Tuple[Text, ...] = (
     "beautifulsoup4.",
     "cachetools.",
     "cryptography.",
+    "django.",
     "docutils.",
     "idna.",
     "iniconfig.",

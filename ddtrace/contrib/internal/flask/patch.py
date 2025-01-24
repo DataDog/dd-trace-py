@@ -224,6 +224,10 @@ def patch():
     _w("flask.templating", "_render", patched_render)
     _w("flask", "render_template", _build_render_template_wrapper("render_template"))
     _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
+    try:
+        _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
+    except AttributeError:
+        log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
 
     bp_hooks = [
         "after_app_request",
@@ -380,12 +384,8 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    response = None
-    headers = None
     if getattr(rv, "is_sequence", False):
-        response = rv.response
-        headers = rv.headers
-    core.dispatch("flask.finalize_request.post", (response, headers))
+        core.dispatch("flask.finalize_request.post", (rv.response, rv.headers))
     return rv
 
 
@@ -417,6 +417,12 @@ def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
         return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
 
     return _wrap(*args, **kwargs)
+
+
+def patched_render_debugger_html(wrapped, instance, args, kwargs):
+    res = wrapped(*args, **kwargs)
+    core.dispatch("werkzeug.render_debugger_html", (res,))
+    return res
 
 
 def patched_add_url_rule(wrapped, instance, args, kwargs):
