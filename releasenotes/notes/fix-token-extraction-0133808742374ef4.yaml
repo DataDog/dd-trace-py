@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where extracting completion chunks from an openai streamed response caused an IndexError.
