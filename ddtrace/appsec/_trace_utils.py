@@ -359,6 +359,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
 
     if not result_user:
         with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            exists = info_retriever.user_exists()
             user_id_found, user_extra = info_retriever.get_user_info(
                 login=django_config.include_user_login,
                 email=django_config.include_user_email,
@@ -367,7 +368,6 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
             if user_extra.get("login") is None:
                 user_extra["login"] = user_id
             user_id = user_id_found or user_id
-            exists = info_retriever.user_exists()
             track_user_login_failure_event(
                 pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
             )
