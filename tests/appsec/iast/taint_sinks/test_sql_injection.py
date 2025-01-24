@@ -43,7 +43,12 @@ def test_sql_injection(fixture_path, fixture_module, iast_context_defaults):
 
     mod.sqli_simple(table)
     data = _get_iast_data()
-    vulnerability = data["vulnerabilities"][0]
+    assert len(data["vulnerabilities"]) >= 1
+    # We will pick up weak hash vulnerabilities in some db connector libraries
+    # but we are only interested in SQL Injection vulnerabilities
+    sqli_vulnerabilities = [x for x in data["vulnerabilities"] if x["type"] == VULN_SQL_INJECTION]
+    assert len(sqli_vulnerabilities) == 1
+    vulnerability = sqli_vulnerabilities[0]
     source = data["sources"][0]
     assert vulnerability["type"] == VULN_SQL_INJECTION
     assert vulnerability["evidence"]["valueParts"] == [
