@@ -354,6 +354,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
+        {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
