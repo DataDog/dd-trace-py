@@ -364,6 +364,7 @@ class LLMObs(Service):
         # override the default _instance with a new tracer
         cls._instance = cls(tracer=_tracer)
         cls.enabled = True
+        config._llmobs_enabled = True
         cls._instance.start()
 
         # Register hooks for span events
@@ -391,6 +392,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        config._llmobs_enabled = False
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
