@@ -155,6 +155,7 @@ venv = Venv(
                 "SQLAlchemy": "==2.0.22",
                 "psycopg2-binary": "~=2.9.9",
                 "pymysql": latest,
+                "mysqlclient": latest,
                 "googleapis-common-protos": latest,
                 "grpcio": latest,
             },
