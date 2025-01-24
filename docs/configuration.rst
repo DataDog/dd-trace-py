@@ -616,21 +616,22 @@ Test Visibility
      version_added:
         v2.16.0:
 
-   DD_PYTEST_USE_NEW_PLUGIN_BETA:
+   DD_PYTEST_USE_LEGACY_PLUGIN:
      type: Boolean
      default: False
 
      description: |
-        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
-        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
-        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
-        improved coverage collection for `Test Impact Analysis
-        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
-        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
-        for more information.
+        Configures the ``CIVisibility`` service to use the legacy version of the pytest plugin (from ddtrace 2.x).
+        This version is deprecated and does not support
+        `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
+        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, 
+        or improved coverage collection for `Test Impact Analysis
+        <https://docs.datadoghq.com/tests/test_impact_analysis>`_, and will be removed in a future version of ddtrace.
 
      version_added:
-        v2.18.0:
+        v3.0.0: |
+            The new version of the pytest plugin became the default. ``DD_PYTEST_USE_NEW_PLUGIN_BETA`` was removed, and
+            ``DD_PYTEST_USE_LEGACY_PLUGIN`` was introduced as a way to enable the old version of the plugin.
 
    DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
      type: Integer
