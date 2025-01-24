@@ -4,6 +4,113 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.20.0
+
+### New Features
+
+- ASM: This introduces full support for Automated user lifecycle tracking for login events (success and failure)
+
+- openai: Introduces automatic extraction of token usage from streamed chat completions. Unless `stream_options: {"include_usage": False}` is explicitly set on your streamed chat completion request, the OpenAI integration will add `stream_options: {"include_usage": True}` to your request and automatically extract the token usage chunk from the streamed response.
+
+- Code Security: add support for Header Injection vulnerability sink point.
+
+- Code Security (IAST): Code Injection vulnerability detection, which will be displayed on your DataDog Vulnerability Explorer dashboard. See the [Application Vulnerability Management](https://docs.datadoghq.com/security/application_security/vulnerability_management/) documentation for more information about this feature.
+
+- profiling: Stack V2 is enabled by default. It is the new stack sampler implementation for CPython 3.8+. It enhances the performance, accuracy, and reliability of Python CPU profiling. This feature activates our new stack sampling, collection and export system.
+
+  The following are known issues and missing features from Stack V2
+
+- Services using `gunicorn` with Stack V2 results in performance degradation
+
+- Support for `gevent` is lacking
+
+- Exception sampling is missing If you find these as a blocker for enabling Stack V2 for your services, you can turn it off via setting `DD_PROFILING_STACK_V2_ENABLED=0`. If you find any other issue, then please proceed to escalate using appropriate support channels or file an issue on the repository.
+
+- propagation: Introduces the environment variable `DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT` to control the behavior of the extraction of distributed tracing headers. The values, `continue` (default), `ignore`, and `restart`, are supported. The default value is `continue` which has no change from the current behavior of always propagating valid headers. `ignore` ignores all incoming headers, never propagating the incoming trace information and `restart` turns the first extracted propagation style into a span link and propagates baggage if extracted.
+
+- ASM: This introduces the support for command injection for Exploit Prevention. With previous support of shell injection with os.system, this provides automatic instrumentation for subprocess module functions and os.spawn\* functions, ensuring monitoring and blocking for Exploit Prevention on those endpoints.
+### Upgrade Notes
+
+- Enables tests of the `ddtrace-run` entrypoint with Python 3.13
+
+- Enables tests with Python 3.13 for the following integrations:  
+  - aiomysql
+  - aiopg
+  - asyncpg
+  - avro
+  - confluent-kafka
+  - django
+  - falcon
+  - fastapi
+  - grpcio
+  - mysqldb
+  - protobuf
+  - pyodbc
+  - sqlalchemy
+
+- botocore: Makes boto-related integrations compatible with Python 3.13
+### Deprecation Notes
+
+- tracing: Deprecates `ddtrace.filters.FilterRequestsOnUrl`. Spans should be filtered/sampled using DD_TRACE_SAMPLING_RULES configuration.
+- tracing: Deprecates the use of multiple tracer instances in the same process. The global tracer (`ddtrace.tracer`) \`should be used instead.
+- tracer: Deprecates support for configuring samplers via a programmatic API. In v3.0.0 samplers will only be configurable via environment variables or remote configuration.
+- ci vis: Moves the implementational details of the pytest, pytest_benchmark, pytest_bdd, and unittest integrations from `ddtrace.contrib.<integration>` to `ddtrace.contrib.internal.<integration>`.
+- rq: Ensures the implementation details of the rq integration are internal to ddtrace library. In `ddtrace>=3.0.0` this integration should only be enabled and configured via `ddtrace.patch(..)`, `import ddtrace.auto` or the `ddtrace-run` command.
+- tracing: Ensures most tracing configurations are only set on application start up. This is done by deprecating the following parameters in `ddtrace.configure(...)` function. These parameters will be removed in `ddtrace>=3.0.0`: - enabled - hostname - port - uds_path - https - sampler - settings - priority_sampling - settings - dogstatsd_url - writer - partial_flush_enabled - partial_flush_min_spans - api_version - compute_stats_enabled - wrap_executor
+- tracing: Deprecates `ddtrace.pin` module and moves the `Pin` class to `ddtrace.trace` package. In v3.0.0 the `ddtrace/pin.py` will be removed.
+- tracing: Deprecates `ddtrace.filters` module and moves the `TraceFilter` and `FilterRequestsOnUrl` classes to `ddtrace.trace` package. In v3.0.0 the `ddtrace/filters.py` will be removed.
+- tracing: Deprecates all attributes in `ddtrace.contrib.trace_utils_async` and `ddtrace.contrib.redis_utils`. Replaces `ddtrace.contrib.trace_utils_async.with_traced_module(...)` with `ddtrace.contrib.trace_utils.with_traced_module_async(...)`. Moves public attributes defined in `ddtrace.contrib.redis_utils.*` to `ddtrace.contrib.trace_utils`.
+- tracer: Deprecates the ability to use multiple tracer instances with ddtrace.Pin. In v3.0.0 pin objects will only use the global tracer.
+- integrations: Ensures the implementation details of ddtrace integrations are internal to ddtrace library. In `ddtrace>=3.0.0` integrations should only be enabled and configured via `ddtrace.patch(..)`, `import ddtrace.auto` or the `ddtrace-run` command. Unpatching integrations or getting the version of an integration is no longer supported.
+### Bug Fixes
+
+- LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.- tracer: This fix resolves an issue where baggage header extraction was case sensitive and didn't accept the header prepended with HTTP. Now the baggage header will be extracted regardless of casing and the HTTP format.
+
+- tracer: This fix resolves an issue where the core instrumentation could raise an uncaught exception.
+
+- Add more modules to the IAST patching denylist to improve startup time
+
+- tracing(django): Fixes issue where django cache is represented as a django service rather than the third party service.
+
+- botocore: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+
+- tracing(celery): Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+
+- exception replay: include missing nonlocal variables in snapshot log messages.
+
+- lib-injection: remove python-json-logger from library compatibility check.
+
+- LLM Observability: Resolves an issue where enabling LLM Observability in agentless mode would result in traces also being sent to the agent proxy endpoint.
+
+- LLM Observability: Resolves an issue where configuring custom trace filters/processors onto the tracer would disable LLM Observability.  
+  Note that if LLM Observability is enabled in agentless mode, writing APM traces must be explicitly disabled by setting <span class="title-ref">DD_TRACE_ENABLED=0</span>.
+
+- Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+
+- profiling: Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+
+- lib-injection: Fixes incorrect telemetry data payload format.
+
+- ASGI: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+
+- profiling: This fix resolves a data race issue accessing lock's acquired time, leading to an `AttributeError`: `_Profiled_ThreadingLock` object has no attribute `self_acquired_at`
+
+- profiling: resolves an issue where lock release would have been captured with a wrong acquire timestamp
+
+- profiling: Removed a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- propagation: Fixes an issue where the baggage header was not being propagated when the baggage header was the only header extracted. With this fix, the baggage header is now propagated when it is the only header extracted.
+
+- Integrations: Improved error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.
+
+- asyncio: Resolves an issue where asyncio event loops fail to register when `ddtrace-run`/`import ddtrace.auto` is used and gevent is installed.
+### Other Changes
+
+- lib-injection: Reduce size of OCI image size to improve k8s lib-injection pull and startup times.
+
+
+---
+
 ## 2.19.1
 ### Bug Fixes
 
