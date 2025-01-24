@@ -132,7 +132,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
 
     analytics_enabled = ctx.get_item("analytics_enabled")
     analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
