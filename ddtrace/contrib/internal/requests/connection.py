@@ -3,9 +3,10 @@ from typing import Optional  # noqa:F401
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import parse
@@ -67,7 +68,7 @@ def _wrap_send(func, instance, args, kwargs):
     if not request:
         return func(*args, **kwargs)
 
-    url = trace_utils._sanitized_url(request.url)
+    url = _sanitized_url(request.url)
     method = ""
     if request.method is not None:
         method = request.method.upper()
@@ -92,7 +93,7 @@ def _wrap_send(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
         # DEV: analytics enabled on per-session basis

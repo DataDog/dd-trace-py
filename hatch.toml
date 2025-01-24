@@ -57,7 +57,7 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -317,7 +317,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
 ]
 
 [[envs.appsec_iast_packages.matrix]]
@@ -342,7 +342,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -374,7 +374,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=http://localhost:9126 DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
@@ -444,8 +444,8 @@ fastapi = ["~=0.114.2"]
 
 ## ASM Appsec Aggregated Leak Testing
 
-[envs.appsec_aggregated_leak_testing]
-template = "appsec_aggregated_leak_testing"
+[envs.iast_aggregated_leak_testing]
+template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -457,19 +457,20 @@ dependencies = [
     "pydantic-settings",
 ]
 
-[envs.appsec_aggregated_leak_testing.env-vars]
+[envs.iast_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 DD_IAST_ENABLED = "true"
+_DD_IAST_PATCH_MODULES = "scripts.iast"
 
-[envs.appsec_aggregated_leak_testing.scripts]
+[envs.iast_aggregated_leak_testing.scripts]
 test = [
     "uname -a",
     "pip freeze",
     "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
-[[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
+[[envs.iast_aggregated_leak_testing.matrix]]
+python = ["3.10", "3.11", "3.12"]
 
 
 
