@@ -28,8 +28,8 @@ if(NOT DEFINED DD_CHECKSUMS)
         "31bceab4f56873b03b3728760d30e3abc493d32ca8fdc9e1f2ec2147ef4d5424 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
         "530348c4b02cc7096de2231476ec12db82e2cc6de12a87e5b28af47ea73d4e56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
         "5073ffc657bc4698f8bdd4935475734577bfb18c54dcbebc4f7d8c7595626e52 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
-        "6c47eac43f6a6a60c96027de5a9155d45fc231ed6fa75258dd515605e90ad7700a549d2fb0fc65cbde9c90d765036b5201fd44f37bfeb563029381ae2a1c8117" "libdatadog-x64-windows.zip"
-        "e07b20c09af5fba309646995b7f2c4da7b2681579d78976d163abd635f79fc9647e4e7f9393268d5ab7e936295e4155add243406cd1ab1caa31f9126aff8d955" "libdatadog-x86-windows.zip")
+        "6c47eac43f6a6a60c96027de5a9155d45fc231ed6fa75258dd515605e90ad7700a549d2fb0fc65cbde9c90d765036b5201fd44f37bfeb563029381ae2a1c8117 libdatadog-x64-windows.zip"
+        "e07b20c09af5fba309646995b7f2c4da7b2681579d78976d163abd635f79fc9647e4e7f9393268d5ab7e936295e4155add243406cd1ab1caa31f9126aff8d955 libdatadog-x86-windows.zip")
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
