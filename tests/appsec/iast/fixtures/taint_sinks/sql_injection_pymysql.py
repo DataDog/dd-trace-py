@@ -1,6 +1,7 @@
 import os
 
 import pymysql
+from pymysql.err import OperationalError
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -22,7 +23,10 @@ def close_connection(connection):
 def sqli_simple(table):
     connection = get_connection()
     cur = connection.cursor()
-    cur.execute("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)")
+    try:
+        cur.execute("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)")
+    except OperationalError:
+        connection.rollback()
     # label test_sql_injection
     cur.execute("SELECT 1 FROM " + table)
     rows = cur.fetchone()
