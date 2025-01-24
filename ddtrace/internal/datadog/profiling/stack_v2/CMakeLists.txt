@@ -103,6 +103,9 @@ endif()
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
 
+if(NOT APPLE AND Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
+endif()
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)

@@ -69,7 +69,11 @@ endif()
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+if(NOT APPLE AND Python3_LIBRARIES)
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
+else()
+    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+endif()
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
