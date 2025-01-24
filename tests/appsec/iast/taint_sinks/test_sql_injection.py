@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace import patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -16,6 +17,10 @@ DDBBS = [
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlite3",
     ),
     (
+        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_mysqldb.py",
+        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_mysqldb",
+    ),
+    (
         "tests/appsec/iast/fixtures/taint_sinks/sql_injection_pymysql.py",
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_pymysql",
     ),
@@ -28,6 +33,10 @@ DDBBS = [
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlalchemy",
     ),
 ]
+
+
+def setup():
+    patch(pymysql=True)
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
