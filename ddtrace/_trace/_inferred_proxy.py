@@ -63,7 +63,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
     def finish_callback(_):
         span.finish()
 
-    headers = delete_inferred_header_keys(headers)
+    # headers = delete_inferred_header_keys(headers)
 
     if span:
         ctx.set_item("inferred_proxy_span", span)
