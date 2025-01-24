@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    tracing: Internalizes the ``ddtrace.settings.config`` module and deprecates support for the following ``ddtrace.config`` attributes:
+    tracing: Internalizes the ``ddtrace.settings.config`` module and deprecates the following ``ddtrace.config`` attributes:
     - http
     - http_server
     - trace_headers
