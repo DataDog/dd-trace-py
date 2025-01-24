@@ -25,7 +25,7 @@ def get_configuration_from_disk(debug_logs: bool = False, file_override="") -> D
     return configurator.get_configuration()
 
 
-def apply_configuration_from_disk():
+def _apply_configuration_from_disk():
     """
     Sets the configuration from disk as environment variables.
     This is not ideal and we should consider a better mechanism to
