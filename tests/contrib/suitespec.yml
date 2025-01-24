@@ -482,6 +482,7 @@ suites:
       - '@dd_trace_api'
       - tests/contrib/dd_trace_api/*
     runner: riot
+    snapshot: true
   django:
     env:
       TEST_MEMCACHED_HOST: memcached
