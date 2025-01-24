@@ -6,11 +6,7 @@ from ddtrace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer._configure(trace_processors=[PingFilter()])
 
 
 ALLOWED_HOSTS = [

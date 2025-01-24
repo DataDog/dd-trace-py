@@ -48,6 +48,7 @@ To configure the gRPC integration on an per-channel basis use the
     from ddtrace import patch
     from ddtrace.trace import Pin
 
+
     patch(grpc=True)
 
     # override the pin on the client
@@ -62,7 +63,7 @@ To configure the gRPC integration on the server use the ``Pin`` API::
     from grpc.framework.foundation import logging_pool
 
     from ddtrace import patch
-    from ddtrace.trace import Pin, Tracer
+    from ddtrace.trace import Pin
 
     patch(grpc=True)
 
@@ -83,10 +84,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.grpc.patch import get_version
-from ddtrace.contrib.internal.grpc.patch import patch
-from ddtrace.contrib.internal.grpc.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.grpc.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.grpc.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.grpc.patch import unpatch  # noqa: F401

@@ -87,12 +87,7 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(
-        settings={
-            "FILTERS": [FilterMutate("boop", "beep")],
-        },
-        writer=writer,
-    )
+    tracer._configure(trace_processors=[FilterMutate("boop", "beep")], writer=writer)
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -110,7 +105,7 @@ def test_synchronous_writer():
     from ddtrace.internal.writer import AgentWriter
 
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer.configure(writer=writer)
+    tracer._configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass
@@ -233,13 +228,13 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
     from ddtrace import tracer
+    from ddtrace.constants import _SAMPLING_PRIORITY_KEY
     from ddtrace.constants import AUTO_KEEP
-    from ddtrace.constants import SAMPLING_PRIORITY_KEY
     from ddtrace.constants import USER_KEEP
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 

@@ -16,7 +16,7 @@ if __name__ == "__main__":
     assert pin
 
     writer = DummyWriter()
-    pin.tracer.configure(writer=writer)
+    pin.tracer._configure(writer=writer)
     r.flushall()
     spans = writer.pop()
 

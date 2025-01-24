@@ -16,7 +16,7 @@ from typing import Pattern  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.constants import USER_ID_KEY
+from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal import compat
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.compat import parse
@@ -164,13 +164,13 @@ def w3c_get_dd_list_member(context):
             "t.dm:{}".format((w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", sampling_decision))))
         )
     # since this can change, we need to grab the value off the current span
-    usr_id = context._meta.get(USER_ID_KEY)
+    usr_id = context._meta.get(_USER_ID_KEY)
     if usr_id:
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
     current_tags_len = sum(len(i) for i in tags)
     for k, v in _get_metas_to_propagate(context):
-        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
+        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, _USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             k = k.replace("_dd.p.", "t.")

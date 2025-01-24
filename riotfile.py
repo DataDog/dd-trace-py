@@ -160,7 +160,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -180,7 +180,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -196,7 +196,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -224,7 +224,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "_DD_APPSEC_DEDUPLICATION_ENABLED": "false",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -2771,6 +2771,15 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
             ],
+        ),
+        Venv(
+            name="langgraph",
+            command="pytest {cmdargs} tests/contrib/langgraph",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "langgraph": "~=0.2.60",
+            },
         ),
         Venv(
             name="anthropic",

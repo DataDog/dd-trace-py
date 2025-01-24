@@ -12,13 +12,13 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
@@ -245,7 +245,7 @@ def test_aggregator_partial_flush_2_spans():
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
     tracer = Tracer()
-    tracer.configure(
+    tracer._configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
         writer=DummyWriter(),
@@ -272,7 +272,7 @@ def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
@@ -286,7 +286,7 @@ def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -300,7 +300,7 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         pass
@@ -581,7 +581,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
@@ -634,7 +634,7 @@ def test_endpoint_call_counter_processor_disabled():
 def test_endpoint_call_counter_processor_real_tracer():
     tracer = Tracer()
     tracer._endpoint_call_counter_span_processor.enable()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
         with tracer.trace("child", service="top_level_test_service2"):
@@ -657,7 +657,7 @@ def test_endpoint_call_counter_processor_real_tracer():
 
 def test_trace_tag_processor_adds_chunk_root_tags():
     tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:
@@ -705,5 +705,5 @@ def test_tracer_reconfigured_with_active_span_does_not_crash():
     with ddtrace.tracer.trace("regression1") as exploding_span:
         # Reconfiguring the tracer clears active traces
         # Calling .finish() manually bypasses the code that catches the exception
-        ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
+        ddtrace.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=1)
         exploding_span.finish()

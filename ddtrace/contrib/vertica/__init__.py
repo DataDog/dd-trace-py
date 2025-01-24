@@ -28,14 +28,14 @@ To configure the Vertica integration on an instance-per-instance basis use the
 ``Pin`` API::
 
     from ddtrace import patch
-    from ddtrace.trace import Pin, Tracer
+    from ddtrace.trace import Pin
     patch(vertica=True)
 
     import vertica_python
 
     conn = vertica_python.connect(**YOUR_VERTICA_CONFIG)
 
-    # override the service and tracer to be used
+    # override the service
     Pin.override(conn, service='myverticaservice')
 """
 
@@ -48,10 +48,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.vertica.patch import get_version
-from ddtrace.contrib.internal.vertica.patch import patch
-from ddtrace.contrib.internal.vertica.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.vertica.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.vertica.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.vertica.patch import unpatch  # noqa: F401

@@ -9,11 +9,13 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -121,21 +123,31 @@ def track_user_login_success_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+    initial_login = login
+    initial_user_id = user_id
     if real_mode == LOGIN_EVENTS_MODE.ANON:
-        login = name = email = None
+        name = email = None
+        login = None if login is None else _hash_user_id(str(login))
     span = _track_user_login_common(tracer, True, metadata, login_events_mode, login, name, email, span)
     if not span:
         return
-
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
-
-    if in_asm_context():
-        call_waf_callback(custom_data={"REQUEST_USER_ID": str(user_id), "LOGIN_SUCCESS": real_mode})
 
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
+    if in_asm_context():
+        res = call_waf_callback(
+            custom_data={
+                "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
+                "REQUEST_USERNAME": initial_login,
+                "LOGIN_SUCCESS": real_mode,
+            },
+            force_sent=True,
+        )
+        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+            raise BlockingException(get_blocked())
 
 
 def track_user_login_failure_event(
@@ -159,6 +171,8 @@ def track_user_login_failure_event(
     real_mode = login_events_mode if login_events_mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
     if real_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
+    if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(login, str):
+        login = _hash_user_id(login)
     span = _track_user_login_common(tracer, False, metadata, login_events_mode, login)
     if not span:
         return
@@ -265,7 +279,7 @@ def should_block_user(tracer: Tracer, userid: str) -> bool:
     if get_blocked():
         return True
 
-    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)})
+    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)}, force_sent=True)
     return bool(get_blocked())
 
 

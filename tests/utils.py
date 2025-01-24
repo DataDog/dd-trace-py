@@ -20,7 +20,7 @@ import ddtrace
 from ddtrace import Tracer
 from ddtrace import config as dd_config
 from ddtrace._trace.span import Span
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
@@ -55,18 +55,18 @@ FILE_PATH = Path(__file__).resolve().parent
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert SPAN_MEASURED_KEY in span.get_metrics()
-    assert SPAN_MEASURED_KEY not in span.get_tags()
-    assert span.get_metric(SPAN_MEASURED_KEY) == 1
+    assert _SPAN_MEASURED_KEY in span.get_metrics()
+    assert _SPAN_MEASURED_KEY not in span.get_tags()
+    assert span.get_metric(_SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert SPAN_MEASURED_KEY not in span.get_tags()
-    if SPAN_MEASURED_KEY in span.get_metrics():
-        assert span.get_metric(SPAN_MEASURED_KEY) == 0
+    assert _SPAN_MEASURED_KEY not in span.get_tags()
+    if _SPAN_MEASURED_KEY in span.get_metrics():
+        assert span.get_metric(_SPAN_MEASURED_KEY) == 0
     else:
-        assert SPAN_MEASURED_KEY not in span.get_metrics()
+        assert _SPAN_MEASURED_KEY not in span.get_metrics()
 
 
 def assert_span_http_status_code(span, code):
@@ -614,7 +614,7 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self.configure(*args, **kwargs)
+        self._configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -646,6 +646,9 @@ class DummyTracer(Tracer):
         return traces
 
     def configure(self, *args, **kwargs):
+        self._configure(*args, **kwargs)
+
+    def _configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriterMixin
         ), "cannot configure writer of DummyTracer"
@@ -656,7 +659,7 @@ class DummyTracer(Tracer):
             kwargs["writer"] = DummyWriter(
                 trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
             )
-        super(DummyTracer, self).configure(*args, **kwargs)
+        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
