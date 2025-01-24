@@ -91,5 +91,8 @@ def test_sql_injection_deduplication(fixture_path, fixture_module, iast_context_
         mod.sqli_simple(table)
 
     data = _get_iast_data()
-    assert len(data["vulnerabilities"]) == 1
+    # We will pick up weak hash vulnerabilities in some db connector libraries
+    # but we are only interested in SQL Injection vulnerabilities
+    sqli_vulnerabilities = [x for x in data["vulnerabilities"] if x["type"] == VULN_SQL_INJECTION]
+    assert len(sqli_vulnerabilities) == 1
     VulnerabilityBase._prepare_report._reset_cache()
