@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace import Span
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -51,7 +52,11 @@ class VertexAIIntegration(BaseLLMIntegration):
         span.set_tag_str(METADATA, safe_json(metadata))
 
         system_instruction = get_system_instructions_from_google_model(instance)
-        input_contents = get_argument_value(args, kwargs, 0, "contents")
+        input_contents = None
+        try:
+            input_contents = get_argument_value(args, kwargs, 0, "content")
+        except ArgumentError:
+            input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
         span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
