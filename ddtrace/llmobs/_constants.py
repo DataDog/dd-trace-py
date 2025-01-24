@@ -31,7 +31,6 @@ VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"
-INTEGRATIONS_USING_INPUT_OUTPUT_TOKENS = {"anthropic"}
 
 EVP_PROXY_AGENT_BASE_PATH = "evp_proxy/v2"
 EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/llmobs".format(EVP_PROXY_AGENT_BASE_PATH)
