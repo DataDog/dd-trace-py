@@ -131,8 +131,12 @@ def get_llmobs_metrics_tags(integration_name, span):
         return usage
 
     # check for both prompt / completion or input / output tokens
-    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric("%s.response.usage.input_tokens" % integration_name)
-    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name) or span.get_metric("%s.response.usage.output_tokens" % integration_name)
+    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric(
+        "%s.response.usage.input_tokens" % integration_name
+    )
+    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name) or span.get_metric(
+        "%s.response.usage.output_tokens" % integration_name
+    )
     total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
 
     if input_tokens is not None:
