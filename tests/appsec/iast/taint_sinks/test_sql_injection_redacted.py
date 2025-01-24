@@ -29,7 +29,7 @@ _ignore_list = {
     list(get_parametrize(VULN_SQL_INJECTION, ignore_list=_ignore_list)),
 )
 def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
-    with override_global_config(dict(_deduplication_enabled=False)):
+    with override_global_config(dict(_iast_deduplication_enabled=False)):
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
             [
