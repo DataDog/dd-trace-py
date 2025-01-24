@@ -1,4 +1,5 @@
 from sys import addaudithook
+from typing import Optional
 
 import dd_trace_api
 
@@ -6,38 +7,26 @@ import ddtrace
 
 
 _DD_HOOK_PREFIX = "dd.hooks."
-_CURRENT_SPAN = None
-_TRACER = ddtrace.tracer
+_STATE = {"current_span": None, "tracer": ddtrace.tracer}
 
 
-def _patched_start_span(*args, **kwargs):
-    global _CURRENT_SPAN
-    _CURRENT_SPAN = _TRACER.start_span(*args, **kwargs)
+def _generic_patched(method_of, fn_name, store_return: Optional[str] = None):
+    def _inner(*args, **kwargs):
+        retval = getattr(_STATE[method_of], fn_name)(*args, **kwargs)
+        if store_return:
+            _STATE[store_return] = retval
 
-
-def _patched_trace(*args, **kwargs):
-    global _CURRENT_SPAN
-    _CURRENT_SPAN = _TRACER.trace(*args, **kwargs)
-
-
-def _patched_span_enter(*args, **kwargs):
-    _CURRENT_SPAN.__enter__(*args, **kwargs)
-
-
-def _patched_span_exit(*args, **kwargs):
-    _CURRENT_SPAN.__exit__(*args, **kwargs)
-
-
-def _patched_span_finish(*args, **kwargs):
-    _CURRENT_SPAN.finish(*args, **kwargs)
+    return _inner
 
 
 _HANDLERS = {
-    "Tracer.start_span": _patched_start_span,
-    "Tracer.trace": _patched_trace,
-    "Span.__enter__": _patched_span_enter,
-    "Span.__exit__": _patched_span_exit,
-    "Span.finish": _patched_span_finish,
+    "Tracer.flush": _generic_patched("tracer", "flush"),
+    "Tracer.set_tags": _generic_patched("tracer", "set_tags"),
+    "Tracer.start_span": _generic_patched("tracer", "start_span", store_return="current_span"),
+    "Tracer.trace": _generic_patched("tracer", "trace", store_return="current_span"),
+    "Span.__enter__": _generic_patched("current_span", "__enter__"),
+    "Span.__exit__": _generic_patched("current_span", "__exit__"),
+    "Span.finish": _generic_patched("current_span", "finish"),
 }
 
 
@@ -59,8 +48,7 @@ def patch(tracer=None):
     if getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = True
-    global _TRACER
-    _TRACER = tracer
+    _STATE["tracer"] = tracer
     if not getattr(dd_trace_api, "__dd_has_audit_hook", False):
         addaudithook(_hook)
     dd_trace_api.__dd_has_audit_hook = True
