@@ -10,7 +10,7 @@ MYSQL_HOST = os.getenv("TEST_MYSQL_HOST", "127.0.0.1")
 
 
 def get_connection():
-    connection = pymysql.connect(user="test", password="test", host=MYSQL_HOST, port=3306, database="mysql")
+    connection = pymysql.connect(user="test", password="test", host=MYSQL_HOST, port=3306, database="test")
     return connection
 
 
