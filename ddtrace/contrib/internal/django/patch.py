@@ -813,6 +813,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
     return result_user
 
+
 @trace_utils.with_traced_module
 def traced_process_request(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
@@ -829,10 +830,18 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                 request_user = request.user
             core.dispatch(
                 "django.process_request",
-                (request_user, mode, kwargs, pin, _DjangoUserInfoRetriever(request_user, credentials=kwargs), config.django),
-        )
+                (
+                    request_user,
+                    mode,
+                    kwargs,
+                    pin,
+                    _DjangoUserInfoRetriever(request_user, credentials=kwargs),
+                    config.django,
+                ),
+            )
     except Exception:
         log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+
 
 def unwrap_views(func, instance, args, kwargs):
     """

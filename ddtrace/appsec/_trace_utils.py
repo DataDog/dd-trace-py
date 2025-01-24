@@ -373,15 +373,12 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
             )
         elif in_asm_context():
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
-            custom_data={
-                    "REQUEST_USER_ID": str(user_id) if user_id else None,
-                    "REQUEST_USERNAME": user_extra.get("login"),
-                    "LOGIN_SUCCESS": real_mode,
-                }
-            res = call_waf_callback(
-                custom_data=custom_data,
-                force_sent=True
-            )
+            custom_data = {
+                "REQUEST_USER_ID": str(user_id) if user_id else None,
+                "REQUEST_USERNAME": user_extra.get("login"),
+                "LOGIN_SUCCESS": real_mode,
+            }
+            res = call_waf_callback(custom_data=custom_data, force_sent=True)
             if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
                 raise BlockingException(get_blocked())
 
@@ -412,18 +409,18 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
         if result_user and in_asm_context():
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
-                    "REQUEST_USER_ID": str(user_id) if user_id else None,
-                    "REQUEST_USERNAME": user_extra.get("login"),
-                    "LOGIN_SUCCESS": real_mode,
-                }
-            res = call_waf_callback(
-                custom_data=custom_data,
-                force_sent=True
-            )
+                "REQUEST_USER_ID": str(user_id) if user_id else None,
+                "REQUEST_USERNAME": user_extra.get("login"),
+                "LOGIN_SUCCESS": real_mode,
+            }
+            res = call_waf_callback(custom_data=custom_data, force_sent=True)
             if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
                 raise BlockingException(get_blocked())
 
 
 core.on("django.login", _on_django_login)
 core.on("django.auth", _on_django_auth, "user")
-core.on("django.process_request", _on_django_process,)
+core.on(
+    "django.process_request",
+    _on_django_process,
+)
