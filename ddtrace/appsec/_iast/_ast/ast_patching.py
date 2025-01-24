@@ -464,8 +464,8 @@ def _is_first_party(module_name: str):
     if not _IMPORTLIB_PACKAGES:
         # needed to avoid a circular import inside importlib_metadata
         try:
-            import csv
-            import importlib_metadata._adapters
+            import csv  # noqa: F401
+            import importlib_metadata._adapters  # noqa: F401
         except ImportError:
             pass
 
