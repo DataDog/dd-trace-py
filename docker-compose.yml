@@ -205,7 +205,7 @@ services:
             - DD_REMOTE_CONFIGURATION_ENABLED=true
             - DD_AGENT_PORT=8126
             - DD_TRACE_AGENT_URL=http://testagent:8126
-            - _DD_APPSEC_DEDUPLICATION_ENABLED=false
+            - DD_IAST_DEDUPLICATION_ENABLED=false
 
 volumes:
     ddagent:
