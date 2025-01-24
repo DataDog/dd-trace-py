@@ -1,4 +1,0 @@
----
-features:
-  - |
-    config: Support configuration from a file on disk. Use the libdatadog native library.
