@@ -293,7 +293,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return
-
+    breakpoint()
     span.error = 1
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
     span.set_tag_str(ERROR_TYPE, exc_type_str)
@@ -301,7 +301,15 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     # Since we do not support adding and visualizing multiple tracebacks to one span
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.
+    locations = [
+        f"{err_location.formatted['line']}:{err_location.formatted['column']}" for err_location in errors[0].locations
+    ]
+    locations = " ".join(locations)
     span.set_tag_str(ERROR_MSG, error_msgs)
+    span._add_event(
+        name="dd.graphql.query.error",
+        attributes={"message": errors[0].message, "locations": locations, "path": errors[0].path},
+    )
 
 
 def _set_span_operation_tags(span, document):
