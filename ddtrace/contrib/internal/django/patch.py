@@ -828,6 +828,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
             return result.value[1]
     except Exception:
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
+
     return result_user
 
 
