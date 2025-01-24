@@ -368,6 +368,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
             if user_extra.get("login") is None:
                 user_extra["login"] = user_id
             user_id = user_id_found or user_id
+
             track_user_login_failure_event(
                 pin.tracer, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra
             )
@@ -410,4 +411,4 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
 
 core.on("django.login", _on_django_login)
 core.on("django.auth", _on_django_auth, "user")
-# core.on("django.process_request", _on_django_process)
+core.on("django.process_request", _on_django_process)
