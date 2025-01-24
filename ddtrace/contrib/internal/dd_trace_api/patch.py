@@ -18,11 +18,12 @@ from ddtrace.trace import Pin
 
 _DD_HOOK_PREFIX = "dd.hooks."
 _CURRENT_SPAN = None
+_TRACER = ddtrace.tracer
 
 
 def _patched_start_span(*args, **kwargs):
     global _CURRENT_SPAN
-    _CURRENT_SPAN = dd_trace_api._tracer.start_span(*args, **kwargs)
+    _CURRENT_SPAN = _TRACER.start_span(*args, **kwargs)
 
 
 def _patched_span_enter(*args, **kwargs):
@@ -52,7 +53,6 @@ def _hook(name, args):
         name_suffix = ".".join(name.split(".")[2:])
         if name_suffix not in _HANDLERS:
             return
-        print(name_suffix)
         _HANDLERS[name_suffix](*(args[0][0]), **(args[0][1]))
 
 
@@ -64,7 +64,8 @@ def patch(tracer=None):
     if getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = True
-    Pin.override(dd_trace_api, _tracer=tracer or ddtrace.tracer)
+    global _TRACER
+    _TRACER = tracer
     addaudithook(_hook)
 
 
