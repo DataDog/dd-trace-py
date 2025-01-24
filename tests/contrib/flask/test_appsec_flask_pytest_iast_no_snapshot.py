@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.parametrize("iast_enabled", ["true", "false"])
 @pytest.mark.parametrize("iast_request_sampling", ["100.0", "0.0"])
 @pytest.mark.parametrize("pytest_use_legacy_plugin", ["false", "true"])
-def test_flask_pytest_iast(iast_enabled, iast_request_sampling, pytest_use_new_plugin):
+def test_flask_pytest_iast(iast_enabled, iast_request_sampling, pytest_use_legacy_plugin):
     from tests.utils import _build_env
 
     env = _build_env()
