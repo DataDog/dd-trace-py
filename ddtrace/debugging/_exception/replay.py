@@ -240,7 +240,7 @@ class SpanExceptionHandler:
         seq = count(1)  # 1-based sequence number
 
         frames_captured = get_snapshot_count(span)
-        while chain and frames_captured < config.max_frames:
+        while chain and frames_captured <= config.max_frames:
             exc, _tb = chain.pop()  # LIFO: reverse the chain
 
             if _tb is None or _tb.tb_frame is None:
@@ -279,12 +279,14 @@ class SpanExceptionHandler:
                         # Memoize
                         frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
+                        # Count
+                        frames_captured += 1
+
                     # Add correlation tags on the span
                     span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
                     span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
                     span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
                     span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
-                    frames_captured += snapshot is not None
 
                 # Move up the stack
                 _tb = _tb.tb_next
