@@ -377,6 +377,9 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
 
 
 def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_config):
+    import sys
+
+    print(f">>> on_django_process: {result_user}, {result_user.is_authenticated}, {in_asm_context()}, {asm_config._asm_enabled}, {mode}, {kwargs}, {pin}, {info_retriever}, {django_config}", file=sys.stderr, flush=True)
     if not asm_config._asm_enabled:
         return
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
@@ -397,7 +400,13 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
         user_extra["login"] = user_id
     user_id = user_id_found or user_id
     if result_user and in_asm_context() and result_user.is_authenticated:
-        set_user(pin.tracer, str(user_id), propagate=True, **user_extra)
+        try:
+            if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+                set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True)
+            elif mode == LOGIN_EVENTS_MODE.IDENT:
+                set_user(pin.tracer, str(user_id), propagate=True, email=user_extra.get("email"), name=user_extra.get("name"))
+        except Exception as e: # nosec
+            pass
         real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
         custom_data = {
             "REQUEST_USER_ID": str(user_id) if user_id else None,
@@ -405,6 +414,7 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
             "LOGIN_SUCCESS": real_mode,
         }
         res = call_waf_callback(custom_data=custom_data, force_sent=True)
+        print(f">>> WAF {custom_data} {res}", file=sys.stderr, flush=True)
         if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
             raise BlockingException(get_blocked())
 
