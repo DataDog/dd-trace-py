@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.20.1
+
+
+### Bug Fixes
+
+- LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+
+
+---
+
 ## 2.19.1
 ### Bug Fixes
 
