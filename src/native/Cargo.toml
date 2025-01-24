@@ -1,5 +1,5 @@
 [package]
-name = "ddtrace-core"
+name = "ddtrace-native"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,7 +16,7 @@ datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v15.0
 pyo3-build-config = "0.21.2"
 
 [lib]
-name = "_core"
+name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
 
