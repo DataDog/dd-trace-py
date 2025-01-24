@@ -226,7 +226,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span
-        if inferred_proxy_span:
+        if inferred_proxy_span and not call_trace:
             span_kwargs["child_of"] = inferred_proxy_span
             ctx.set_item("span_kwargs", span_kwargs)
 
