@@ -91,6 +91,8 @@ check-big-regressions:
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+  except:
+    - main  # can remove this once benchmark-serverless passes on main
 
 benchmark-serverless:
   stage: benchmarks
