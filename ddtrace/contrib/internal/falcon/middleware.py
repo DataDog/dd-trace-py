@@ -2,7 +2,6 @@ import sys
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http as httpx
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
@@ -65,8 +64,7 @@ class TraceMiddleware(object):
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method
-            span.set_tag(httpx.STATUS_CODE, status)
-            span.finish()
+            core.dispatch("web.request.finish", (span, config.falcon, None, None, status, None, None, None, None, True))
             return
 
         err_type = sys.exc_info()[0]

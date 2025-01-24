@@ -134,11 +134,11 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(SPAN_MEASURED_KEY)
 
-    anayltics_enabled = ctx.get_item("analytics_enabled")
+    analytics_enabled = ctx.get_item("analytics_enabled")
     analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
 
     # Configure trace search sample rate
-    if (config._analytics_enabled and anayltics_enabled is not False) or anayltics_enabled is True:
+    if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
 
@@ -150,6 +150,7 @@ def _on_web_framework_start_request(ctx, int_config):
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
 ):
+    breakpoint()
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
