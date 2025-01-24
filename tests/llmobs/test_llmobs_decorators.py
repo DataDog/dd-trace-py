@@ -271,7 +271,7 @@ def test_llm_annotate(llmobs, llmobs_events):
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         llmobs.annotate(
-            parameters={"temperature": 0.9, "max_tokens": 50},
+            metadata={"temperature": 0.9, "max_tokens": 50},
             input_data=[{"content": "test_prompt"}],
             output_data=[{"content": "test_response"}],
             tags={"custom_tag": "tag_value"},
@@ -287,7 +287,7 @@ def test_llm_annotate(llmobs, llmobs_events):
         model_provider="test_provider",
         input_messages=[{"content": "test_prompt"}],
         output_messages=[{"content": "test_response"}],
-        parameters={"temperature": 0.9, "max_tokens": 50},
+        metadata={"temperature": 0.9, "max_tokens": 50},
         token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         tags={"custom_tag": "tag_value"},
         session_id="test_session_id",
@@ -298,7 +298,7 @@ def test_llm_annotate_raw_string_io(llmobs, llmobs_events):
     @llm(model_name="test_model", model_provider="test_provider", name="test_function", session_id="test_session_id")
     def f():
         llmobs.annotate(
-            parameters={"temperature": 0.9, "max_tokens": 50},
+            metadata={"temperature": 0.9, "max_tokens": 50},
             input_data="test_prompt",
             output_data="test_response",
             tags={"custom_tag": "tag_value"},
@@ -314,7 +314,7 @@ def test_llm_annotate_raw_string_io(llmobs, llmobs_events):
         model_provider="test_provider",
         input_messages=[{"content": "test_prompt"}],
         output_messages=[{"content": "test_response"}],
-        parameters={"temperature": 0.9, "max_tokens": 50},
+        metadata={"temperature": 0.9, "max_tokens": 50},
         token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         tags={"custom_tag": "tag_value"},
         session_id="test_session_id",

@@ -114,14 +114,6 @@ def test_input_messages_are_set(tracer, llmobs_events):
     assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
 
 
-def test_input_parameters_are_set(tracer, llmobs_events):
-    """Test that input parameters are set on the span event if they are present on the span."""
-    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.INPUT_PARAMETERS, {"key": "value"})
-    assert llmobs_events[0]["meta"]["input"]["parameters"] == {"key": "value"}
-
-
 def test_output_messages_are_set(tracer, llmobs_events):
     """Test that output messages are set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
