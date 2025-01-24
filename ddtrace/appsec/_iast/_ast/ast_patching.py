@@ -462,6 +462,13 @@ def _is_first_party(module_name: str):
         return False
 
     if not _IMPORTLIB_PACKAGES:
+        # needed to avoid a circular import inside importlib_metadata
+        try:
+            import csv
+            import importlib_metadata._adapters
+        except ImportError:
+            pass
+
         from ddtrace.internal.packages import get_package_distributions
 
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
