@@ -888,8 +888,9 @@ class LLMObs(Service):
             return
         if not isinstance(metadata, dict):
             log.warning("metadata must be a dictionary of string key-value pairs.")
-            return
-        span._set_ctx_item(METADATA, metadata)
+        existing_metadata = span._get_ctx_item(METADATA) or {}
+        existing_metadata.update(metadata)
+        span._set_ctx_item(METADATA, existing_metadata)
 
     @staticmethod
     def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
@@ -899,6 +900,8 @@ class LLMObs(Service):
         if not isinstance(metrics, dict):
             log.warning("metrics must be a dictionary of string key - numeric value pairs.")
             return
+        existing_metrics = span._get_ctx_item(METRICS) or {}
+        existing_metrics.update(metrics)
         span._set_ctx_item(METRICS, metrics)
 
     @classmethod
