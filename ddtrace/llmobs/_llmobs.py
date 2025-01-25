@@ -888,6 +888,7 @@ class LLMObs(Service):
             return
         if not isinstance(metadata, dict):
             log.warning("metadata must be a dictionary of string key-value pairs.")
+            return
         existing_metadata = span._get_ctx_item(METADATA) or {}
         existing_metadata.update(metadata)
         span._set_ctx_item(METADATA, existing_metadata)
@@ -902,7 +903,7 @@ class LLMObs(Service):
             return
         existing_metrics = span._get_ctx_item(METRICS) or {}
         existing_metrics.update(metrics)
-        span._set_ctx_item(METRICS, metrics)
+        span._set_ctx_item(METRICS, existing_metrics)
 
     @classmethod
     def submit_evaluation_for(
