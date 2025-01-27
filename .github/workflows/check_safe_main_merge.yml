@@ -20,7 +20,7 @@ jobs:
       # Step 3: Attempt to merge
       - name: Check merge conflicts
         run: |
-          git merge --no-commit --no-ff origin/main || exit 1
+          git merge --allow-unrelated-histories --no-commit --no-ff origin/main || exit 1
       # Step 4: Clean up the merge (optional)
       - name: Abort merge
         if: failure()
