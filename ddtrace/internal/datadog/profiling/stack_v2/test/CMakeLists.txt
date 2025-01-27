@@ -36,7 +36,7 @@ function(dd_wrapper_add_test name)
     # this has to refer to the stack_v2 extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
-    if (Python3_LIBRARIES)
+    if(Python3_LIBRARIES)
         target_link_libraries(${name} PRIVATE ${Python3_LIBRARIES})
     endif()
 

@@ -69,7 +69,6 @@ endif()
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
-
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
 # Set the output directory for the built library
