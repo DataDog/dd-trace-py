@@ -66,12 +66,7 @@ endif()
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
-if(NOT APPLE AND Python3_LIBRARIES)
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    # for manylinux builds
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
-endif()
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
@@ -102,12 +97,7 @@ elseif(UNIX)
     set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
-if(NOT APPLE AND Python3_LIBRARIES)
-    target_link_libraries(crashtracker_exe PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    # for manylinux builds
-    target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
-endif()
+target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
 if(INPLACE_LIB_INSTALL_DIR)
