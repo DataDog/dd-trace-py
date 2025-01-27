@@ -211,7 +211,8 @@ What does a complete PR look like when adding a new integration?
 
 The following is the check list for ensuring you have all of the components to have a complete PR that is ready for review.
 
-- Patch code for your new integration under ``ddtrace/contrib/your_integration_name``.
+- Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
+- Document your integration in a ``ddtrace/contrib/_integration_name.py`` module and reference the doc string in ``docs/integrations.rst``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
 - The virtual environment configurations for your tests in ``riotfile.py``.
 - The Circle CI configurations for your tests in ``.circleci/config.templ.yml``.
