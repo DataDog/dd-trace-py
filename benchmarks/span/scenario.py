@@ -2,7 +2,7 @@ from bm import Scenario
 import bm.utils as utils
 
 from ddtrace import config
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 class Span(Scenario):

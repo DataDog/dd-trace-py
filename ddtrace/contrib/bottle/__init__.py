@@ -3,7 +3,7 @@ The bottle integration traces the Bottle web framework. Add the following
 plugin to your app::
 
     import bottle
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.bottle import TracePlugin
 
     app = bottle.Bottle()

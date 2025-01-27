@@ -8,7 +8,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace import tracer as ddtracer
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
@@ -43,6 +42,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import tracer as ddtracer
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401

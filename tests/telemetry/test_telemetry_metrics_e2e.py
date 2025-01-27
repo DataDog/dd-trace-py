@@ -87,7 +87,7 @@ def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session)
 
 def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 for _ in range(10):
     with tracer.trace('span1'):
         pass

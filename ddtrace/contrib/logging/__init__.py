@@ -33,7 +33,7 @@ Update Log Format
 Make sure that your log format exactly matches the following::
 
     import logging
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] '
               '[dd.service=%(dd.service)s dd.env=%(dd.env)s '

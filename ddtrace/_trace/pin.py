@@ -79,15 +79,15 @@ class Pin(object):
     def _find(*objs):
         # type: (Any) -> Optional[Pin]
         """
-        Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
+        Return the first :class:`ddtrace.trace.Pin` found on any of the provided objects or `None` if none were found
 
 
             >>> pin = Pin._find(wrapper, instance, conn)
 
-        :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :param objs: The objects to search for a :class:`ddtrace.trace.Pin` on
         :type objs: List of objects
-        :rtype: :class:`ddtrace.pin.Pin`, None
-        :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
+        :rtype: :class:`ddtrace.trace.Pin`, None
+        :returns: The first found :class:`ddtrace.trace.Pin` or `None` is none was found
         """
         for obj in objs:
             pin = Pin.get_from(obj)
@@ -105,10 +105,10 @@ class Pin(object):
 
             >>> pin = Pin.get_from(conn)
 
-        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
+        :param obj: The object to look for a :class:`ddtrace.trace.Pin` on
         :type obj: object
-        :rtype: :class:`ddtrace.pin.Pin`, None
-        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
+        :rtype: :class:`ddtrace.trace.Pin`, None
+        :returns: :class:`ddtrace.trace.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, "__getddpin__"):
             return obj.__getddpin__()

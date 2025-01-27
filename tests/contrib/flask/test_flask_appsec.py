@@ -60,7 +60,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_userblock_json(self):
         @self.app.route("/checkuser/<user_id>")
         def test_route(user_id):
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
 
             block_request_if_user_blocked(tracer, user_id)
             return "Ok", 200

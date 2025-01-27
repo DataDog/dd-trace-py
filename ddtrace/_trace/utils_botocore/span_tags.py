@@ -3,7 +3,6 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.utils_botocore.aws_payload_tagging import AWSPayloadTagging
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
@@ -14,6 +13,7 @@ from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.trace import Span
 
 
 _PAYLOAD_TAGGER = AWSPayloadTagging()

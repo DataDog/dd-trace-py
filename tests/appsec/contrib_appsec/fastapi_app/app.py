@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ddtrace import tracer
 import ddtrace.constants
+from ddtrace.trace import tracer
 
 
 fake_secret_token = "DataDog"

@@ -2,7 +2,6 @@ import sys
 
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -11,6 +10,7 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.trace import Tracer
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 

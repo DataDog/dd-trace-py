@@ -5,7 +5,7 @@ import random
 from sanic import Sanic
 from sanic.response import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 

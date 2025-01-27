@@ -7,10 +7,10 @@ import redis
 import redis.asyncio
 from wrapt import ObjectProxy
 
-from ddtrace import tracer
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.trace import Pin
+from ddtrace.trace import tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG

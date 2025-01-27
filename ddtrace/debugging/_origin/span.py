@@ -14,6 +14,7 @@ import ddtrace
 
 # from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 
 # from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -31,7 +32,6 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
-from ddtrace.span import Span
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:

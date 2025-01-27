@@ -54,7 +54,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
 def test_priority_sampling_rate_honored():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
 
@@ -95,7 +95,7 @@ def test_priority_sampling_rate_honored():
 def test_priority_sampling_response():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()

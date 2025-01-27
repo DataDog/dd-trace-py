@@ -7,12 +7,12 @@ from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 

@@ -66,7 +66,7 @@ This can be a problem for users who want to see error details from a child span 
 
 While this is default behavior for integrations, users can add a trace filter to propagate the error details up to the root span::
 
-  from ddtrace import Span, tracer
+  from ddtrace.trace import Span, tracer
   from ddtrace.trace import TraceFilter
 
 

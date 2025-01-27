@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace import tracer
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 
 

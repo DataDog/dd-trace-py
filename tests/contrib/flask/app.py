@@ -6,9 +6,9 @@ import sys
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.internal.trace_utils import set_user
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
@@ -60,7 +60,7 @@ def body():
 
 @app.route("/checkuser/<user_id>")
 def checkuser(user_id):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     block_request_if_user_blocked(tracer, user_id)
     return "Ok", 200

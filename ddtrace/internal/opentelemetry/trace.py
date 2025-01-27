@@ -30,8 +30,8 @@ if TYPE_CHECKING:
     from opentelemetry.trace import Link as OtelLink  # noqa:F401
     from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
 
-    from ddtrace import Tracer as DDTracer  # noqa:F401
     from ddtrace._trace.span import _MetaDictType  # noqa:F401
+    from ddtrace.trace import Tracer as DDTracer  # noqa:F401
 
 
 log = get_logger(__name__)

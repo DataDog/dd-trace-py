@@ -116,8 +116,8 @@ def test_runtime_tags_dd_tags():
 
 @pytest.mark.subprocess()
 def test_runtime_tags_manual_tracer_tags():
-    from ddtrace import tracer
     from ddtrace.internal.runtime.runtime_metrics import RuntimeTags
+    from ddtrace.trace import tracer
 
     tracer.set_tags({"manual": "tag"})
 

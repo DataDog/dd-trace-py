@@ -9,7 +9,7 @@ from weakref import WeakValueDictionary
 
 import pytest
 
-from ddtrace import Tracer
+from ddtrace.trace import Tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -117,7 +117,7 @@ def test_fork_open_span():
     import os
     from weakref import WeakValueDictionary
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from tests.tracer.test_memory_leak import trace
 
     wd = WeakValueDictionary()

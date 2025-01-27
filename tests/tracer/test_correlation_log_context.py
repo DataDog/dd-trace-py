@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace import Tracer
 from ddtrace import config
-from ddtrace import tracer
+from ddtrace.trace import Tracer
+from ddtrace.trace import tracer
 
 
 def global_config(config):
@@ -33,8 +33,8 @@ def format_trace_id(span):
 @pytest.mark.subprocess()
 def test_get_log_correlation_service():
     """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
-    from ddtrace import Tracer
-    from ddtrace import tracer
+    from ddtrace.trace import Tracer
+    from ddtrace.trace import tracer
     from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.utils import override_global_config
 
@@ -64,8 +64,8 @@ def test_get_log_correlation_service():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_basic():
     """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
-    from ddtrace import Tracer
-    from ddtrace.context import Context
+    from ddtrace.trace import Context
+    from ddtrace.trace import Tracer
     from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.utils import override_global_config
 
@@ -130,7 +130,7 @@ def test_get_log_correlation_context_opentracer():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_no_active_span():
     """Ensure empty DDLogRecord generated if no active span."""
-    from ddtrace import Tracer
+    from ddtrace.trace import Tracer
 
     tracer = Tracer()
     dd_log_record = tracer.get_log_correlation_context()
@@ -146,7 +146,7 @@ def test_get_log_correlation_context_no_active_span():
 @pytest.mark.subprocess()
 def test_get_log_correlation_context_disabled_tracer():
     """Ensure get_correlation_log_record returns None if tracer is disabled."""
-    from ddtrace import Tracer
+    from ddtrace.trace import Tracer
 
     tracer = Tracer()
     tracer.enabled = False
@@ -164,9 +164,9 @@ def test_get_log_correlation_context_disabled_tracer():
 @pytest.mark.subprocess()
 def test_custom_logging_injection_global_config():
     """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
-    from ddtrace import tracer
     from ddtrace._trace.provider import _DD_CONTEXTVAR
     from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.trace import tracer
     from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.tracer.test_correlation_log_context import tracer_injection
     from tests.utils import override_global_config
@@ -231,8 +231,8 @@ def test_custom_logging_injection_no_span():
 @pytest.mark.subprocess()
 def test_custom_logging_injection():
     """Ensure custom log injection via get_correlation_log_record returns proper active span information."""
-    from ddtrace import tracer
     from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.trace import tracer
     from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.tracer.test_correlation_log_context import tracer_injection
 

@@ -118,8 +118,8 @@ def test_standard_tags():
 def test_debug_post_configure():
     import re
 
-    from ddtrace import tracer
     from ddtrace.internal import debug
+    from ddtrace.trace import tracer
 
     tracer._configure(
         hostname="0.0.0.0",
@@ -143,8 +143,8 @@ def test_debug_post_configure():
 def test_debug_post_configure_uds():
     import re
 
-    from ddtrace import tracer
     from ddtrace.internal import debug
+    from ddtrace.trace import tracer
 
     tracer._configure(uds_path="/file.sock")
 
@@ -450,7 +450,7 @@ def test_partial_flush_log():
     )
 )
 def test_partial_flush_log_subprocess():
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     assert tracer._partial_flush_enabled is True
     assert tracer._partial_flush_min_spans == 2

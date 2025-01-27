@@ -43,7 +43,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
     from typing import Tuple  # noqa:F401
 
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
     from .agent import ConnectionType  # noqa:F401
 

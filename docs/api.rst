@@ -26,10 +26,10 @@ Tracing
     :members:
     :undoc-members:
 
-.. autoclass:: ddtrace.sampler.DatadogSampler
+.. autoclass:: ddtrace._trace..sampler.DatadogSampler
     :members:
 
-.. autoclass:: ddtrace.sampler.SamplingRule
+.. autoclass:: ddtrace._trace.sampler.SamplingRule
     :members:
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator

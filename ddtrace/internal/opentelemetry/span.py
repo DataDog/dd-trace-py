@@ -11,7 +11,6 @@ from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
 from ddtrace import config
-from ddtrace import tracer as ddtracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -20,6 +19,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.http import w3c_tracestate_add_p
+from ddtrace.trace import tracer as ddtracer
 
 
 if TYPE_CHECKING:

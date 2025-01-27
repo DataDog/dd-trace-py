@@ -10,10 +10,10 @@ if os.getenv("_DD_TEST_IMPORT_AUTO"):
 
 import json
 
-from ddtrace import tracer
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa:F401
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 

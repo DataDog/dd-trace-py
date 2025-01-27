@@ -11,14 +11,14 @@ app = Flask(__name__)
 @app.route("/")
 def entry_point():
     if environ.get("DUPLICATE_TAGS_SCENARIO", None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         span = tracer.current_span()
         if span:
             for _ in range(100):
                 span.set_tag(_, "a" * 100)
     elif environ.get("UNIQUE_TAGS_SCENARIO", None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         span = tracer.current_span()
         if span:

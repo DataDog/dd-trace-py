@@ -189,7 +189,7 @@ class Tracer(object):
     If you're running an application that will serve a single trace per thread,
     you can use the global tracer instance::
 
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 

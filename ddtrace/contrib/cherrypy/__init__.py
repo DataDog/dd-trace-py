@@ -7,7 +7,7 @@ Usage
 ~~~~~
 To install the middleware, add::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.cherrypy import TraceMiddleware
 
 and create a `TraceMiddleware` object::
@@ -40,7 +40,7 @@ Here is the end result, in a sample app::
 
     import cherrypy
 
-    from ddtrace import tracer, Pin
+    from ddtrace.trace import tracer, Pin
     from ddtrace.contrib.cherrypy import TraceMiddleware
     TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
 

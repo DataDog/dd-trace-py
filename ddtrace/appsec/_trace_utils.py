@@ -1,6 +1,5 @@
 from typing import Optional
 
-from ddtrace import Tracer
 from ddtrace import constants
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
@@ -18,6 +17,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)

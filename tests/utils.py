@@ -17,7 +17,6 @@ import pytest
 import wrapt
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as dd_config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -40,6 +39,7 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
 

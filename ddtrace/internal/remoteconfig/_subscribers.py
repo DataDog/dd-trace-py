@@ -10,9 +10,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace import Tracer  # noqa:F401
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._connectors import SharedDataType  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 log = get_logger(__name__)

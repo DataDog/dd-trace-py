@@ -1,7 +1,7 @@
-from ddtrace import Span
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

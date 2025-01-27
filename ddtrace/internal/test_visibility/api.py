@@ -2,8 +2,6 @@ from pathlib import Path
 import typing as t
 from typing import NamedTuple
 
-from ddtrace import Span
-from ddtrace import Tracer
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
@@ -21,6 +19,8 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._utils import _get_item_span
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)

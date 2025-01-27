@@ -20,7 +20,7 @@ from .utils import _resource_from_cache_prefix
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 log = logging.Logger(__name__)

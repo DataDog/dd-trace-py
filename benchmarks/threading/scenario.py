@@ -39,7 +39,7 @@ class Threading(bm.Scenario):
                     random.random()
 
     def run(self) -> Generator[Callable[[int], None], None, None]:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         # configure global tracer to drop traces rather
         tracer.configure(writer=NoopWriter())

@@ -11,7 +11,6 @@ from confluent_kafka import admin as kafka_admin
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
@@ -23,6 +22,7 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
+from ddtrace.trace import Tracer
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer

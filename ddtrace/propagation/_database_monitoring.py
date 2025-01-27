@@ -17,7 +17,7 @@ from ..settings._database_monitoring import dbm_config
 if TYPE_CHECKING:
     from typing import Optional  # noqa:F401
 
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 import sys
 

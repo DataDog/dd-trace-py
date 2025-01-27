@@ -20,7 +20,6 @@ from cassandra.query import PreparedStatement
 from cassandra.query import SimpleStatement
 import wrapt
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -40,6 +39,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

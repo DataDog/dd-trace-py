@@ -10,9 +10,9 @@ import uuid
 
 import pytest
 
-from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _multi_requests

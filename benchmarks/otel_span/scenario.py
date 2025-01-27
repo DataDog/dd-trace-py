@@ -6,8 +6,8 @@ from opentelemetry.trace import get_tracer
 from opentelemetry.trace import set_tracer_provider
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.opentelemetry import TracerProvider  # Requires ``ddtrace>=1.11``
+from ddtrace.trace import tracer
 
 
 set_tracer_provider(TracerProvider())

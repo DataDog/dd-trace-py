@@ -879,7 +879,7 @@ def test_v03_trace_api_deprecation():
 
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("always")
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         assert tracer._writer._api_version == "v0.4"
         assert len(warns) == 1, warns

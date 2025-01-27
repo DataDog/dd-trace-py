@@ -34,8 +34,8 @@ def test_propagation_mode_configuration():
 
 @pytest.mark.subprocess(env=dict(DD_DBM_PROPAGATION_MODE="disabled"))
 def test_get_dbm_comment_disabled_mode():
-    from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         # when dbm propagation mode is disabled sqlcomments should NOT be generated
@@ -62,8 +62,8 @@ def test_get_dbm_comment_disabled_mode():
     )
 )
 def test_dbm_propagation_service_mode():
-    from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         # when dbm propagation is service mode sql comments should be generated with dbm tags
@@ -90,8 +90,8 @@ def test_dbm_propagation_service_mode():
     )
 )
 def test_dbm_propagation_full_mode():
-    from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
         # since inject() below will call the sampler we just call the sampler here
@@ -130,8 +130,8 @@ def test_dbm_propagation_full_mode():
     )
 )
 def test_dbm_dddbs_peer_service_enabled():
-    from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
 
     with tracer.trace("dbname") as dbspan_no_service:
         # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
@@ -166,8 +166,8 @@ def test_dbm_dddbs_peer_service_enabled():
     )
 )
 def test_dbm_peer_entity_tags():
-    from ddtrace import tracer
     from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
 
     with tracer.trace("dbname") as dbspan:
         dbspan.set_tag("out.host", "some-hostname")

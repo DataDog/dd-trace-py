@@ -12,10 +12,10 @@ except ImportError:
 import threading
 import time
 
-from ddtrace import tracer
 from ddtrace.internal import _rand
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import Queue
+from ddtrace.trace import tracer
 
 
 def test_random():

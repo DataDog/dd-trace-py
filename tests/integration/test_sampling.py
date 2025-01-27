@@ -306,8 +306,8 @@ def test_rate_limiter_on_spans(tracer):
     """
     Ensure that the rate limiter is applied to spans
     """
-    from ddtrace import tracer
-    from ddtrace.sampler import DatadogSampler
+    from ddtrace._trace.sampler import DatadogSampler
+    from ddtrace.trace import tracer
 
     # Rate limit is only applied if a sample rate or trace sample rule is set
     tracer._configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
@@ -339,8 +339,8 @@ def test_rate_limiter_on_long_running_spans(tracer):
     """
     import mock
 
-    from ddtrace import tracer
-    from ddtrace.sampler import DatadogSampler
+    from ddtrace._trace.sampler import DatadogSampler
+    from ddtrace.trace import tracer
 
     tracer._configure(sampler=DatadogSampler(rate_limit=5))
 

@@ -764,7 +764,7 @@ def test_tracer_fork():
     import contextlib
     import multiprocessing
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     original_pid = t._pid
     original_writer = t._writer
@@ -1059,7 +1059,7 @@ def _test_tracer_runtime_tags_fork_task(tracer, q):
 def test_tracer_runtime_tags_fork():
     import multiprocessing
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from tests.tracer.test_tracer import _test_tracer_runtime_tags_fork_task
 
     span = tracer.start_span("foobar")
@@ -1138,8 +1138,8 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
-    from ddtrace import tracer
     from ddtrace.constants import MANUAL_KEEP_KEY
+    from ddtrace.trace import tracer
 
     # Create two unfinished spans
     span1 = tracer.trace("unfinished_span1", service="my_service", resource="my_resource1")
@@ -1196,7 +1196,7 @@ def test_runtime_id_parent_only():
 def test_runtime_id_fork():
     import os
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     s = tracer.trace("test")
     s.finish()
@@ -1706,7 +1706,7 @@ def test_bad_agent_url():
     import pytest
 
     with pytest.raises(ValueError) as e:
-        from ddtrace import tracer  # noqa: F401
+        from ddtrace.trace import tracer  # noqa: F401
 
     assert (
         str(e.value)
@@ -1719,7 +1719,7 @@ def test_bad_agent_url_invalid_path():
     import pytest
 
     with pytest.raises(ValueError) as e:
-        from ddtrace import tracer  # noqa: F401
+        from ddtrace.trace import tracer  # noqa: F401
     assert str(e.value) == "Invalid file path in intake URL 'unix://'"
 
 
@@ -1728,7 +1728,7 @@ def test_bad_agent_url_invalid_hostname():
     import pytest
 
     with pytest.raises(ValueError) as e:
-        from ddtrace import tracer  # noqa: F401
+        from ddtrace.trace import tracer  # noqa: F401
     assert str(e.value) == "Invalid hostname in intake URL 'http://'"
 
 
@@ -1834,7 +1834,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
 def test_fork_manual_span_same_context():
     import os
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     span = tracer.trace("test")
     pid = os.fork()
@@ -1858,7 +1858,7 @@ def test_fork_manual_span_same_context():
 def test_fork_manual_span_different_contexts():
     import os
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     span = tracer.start_span("test")
     pid = os.fork()
@@ -1881,8 +1881,8 @@ def test_fork_manual_span_different_contexts():
 def test_fork_pid():
     import os
 
-    from ddtrace import tracer
     from ddtrace.constants import PID
+    from ddtrace.trace import tracer
 
     root = tracer.trace("root_span")
     assert root.get_tag("runtime-id") is not None
@@ -2017,8 +2017,8 @@ def test_import_ddtrace_tracer_not_module():
     if import_ddtrace_tracer:
         import ddtrace.tracer  # noqa: F401
 
-    from ddtrace import Tracer
-    from ddtrace import tracer
+    from ddtrace.trace import Tracer
+    from ddtrace.trace import tracer
 
     assert isinstance(tracer, Tracer)
 

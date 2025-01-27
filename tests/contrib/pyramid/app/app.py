@@ -3,7 +3,7 @@ from wsgiref.simple_server import make_server
 from pyramid.config import Configurator
 from pyramid.response import Response
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 

@@ -8,7 +8,6 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.context import Context
@@ -69,6 +68,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

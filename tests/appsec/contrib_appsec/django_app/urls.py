@@ -11,8 +11,8 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from ddtrace import tracer
 import ddtrace.constants
+from ddtrace.trace import tracer
 
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
