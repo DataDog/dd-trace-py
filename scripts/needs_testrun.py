@@ -236,10 +236,13 @@ def _get_pr_number() -> int:
 
 
 def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.Set[str]):
-    try:
-        pr_number = _get_pr_number()
-    except Exception:
-        pr_number = None
+    # try:
+    #     pr_number = _get_pr_number()
+    # except Exception:
+    #     pr_number = None
+
+    # DEV: Remove when done testing
+    pr_number = None
 
     for suite in suites:
         # If we don't have a valid PR number we run all tests
