@@ -168,6 +168,8 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
+            distributed_headers_config=config.asgi,
+            distributed_headers=headers,
             pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -306,6 +308,7 @@ class TraceMiddleware:
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
 
+
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
@@ -319,5 +322,6 @@ class TraceMiddleware:
                 self.handle_exception_span(exc, span)
                 raise
             finally:
+                core.dispatch("asgi.request_finish", (span, ))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
