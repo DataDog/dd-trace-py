@@ -12,6 +12,7 @@ import ddtrace
 _DD_HOOK_PREFIX = "dd.hooks."
 _STATE = {"tracer": ddtrace.tracer}
 SELF_KEY = "stub_self"
+REAL_SPAN_KEY = "real_span"
 
 
 def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
@@ -53,22 +54,22 @@ _HANDLERS = {
     "Tracer.flush": None,
     "Tracer.shutdown": None,
     "Tracer.set_tags": None,
-    "Tracer.start_span": _patched("tracer", "start_span", store_return="real_span"),
-    "Tracer.trace": _patched("tracer", "trace", store_return="real_span"),
-    "Tracer.current_span": _patched("tracer", "current_span", store_return="real_span"),
-    "Tracer.current_root_span": _patched("tracer", "current_root_span", store_return="real_span"),
-    "Span.__enter__": _patched("real_span", "__enter__"),
-    "Span.__exit__": _patched("real_span", "__exit__"),
-    "Span.finish": _patched("real_span", "finish"),
-    "Span.finish_with_ancestors": _patched("real_span", "finish_with_ancestors"),
-    "Span.set_exc_info": _patched("real_span", "set_exc_info"),
-    "Span.set_link": _patched("real_span", "set_link"),
-    "Span.set_traceback": _patched("real_span", "set_traceback"),
-    "Span.link_span": _patched("real_span", "link_span"),
-    "Span.set_tags": _patched("real_span", "set_tags"),
-    "Span.set_tag": _patched("real_span", "set_tag"),
-    "Span.set_tag_str": _patched("real_span", "set_tag_str"),
-    "Span.set_struct_tag": _patched("real_span", "set_struct_tag"),
+    "Tracer.start_span": _patched("tracer", "start_span", store_return=REAL_SPAN_KEY),
+    "Tracer.trace": _patched("tracer", "trace", store_return=REAL_SPAN_KEY),
+    "Tracer.current_span": _patched("tracer", "current_span", store_return=REAL_SPAN_KEY),
+    "Tracer.current_root_span": _patched("tracer", "current_root_span", store_return=REAL_SPAN_KEY),
+    "Span.__enter__": None,
+    "Span.__exit__": None,
+    "Span.finish": None,
+    "Span.finish_with_ancestors": None,
+    "Span.set_exc_info": None,
+    "Span.set_link": None,
+    "Span.set_traceback": None,
+    "Span.link_span": None,
+    "Span.set_tags": None,
+    "Span.set_tag": None,
+    "Span.set_tag_str": None,
+    "Span.set_struct_tag": None,
 }
 
 
@@ -84,7 +85,7 @@ def _hook(name, hook_args):
         state_shared_with_api, args = args[0], args[1:]
         handler = _HANDLERS[name_suffix]
         if handler is None:
-            handler = _patched(*(a.lower() for a in name_suffix.split(".")))
+            handler = _patched(*(REAL_SPAN_KEY if a == "Span" else a.lower() for a in name_suffix.split(".")))
         handler(state_shared_with_api, *args, **kwargs)
 
 
