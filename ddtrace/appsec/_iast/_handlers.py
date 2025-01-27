@@ -153,6 +153,7 @@ def _on_django_patch():
                     functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
                 )
             )
+
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)

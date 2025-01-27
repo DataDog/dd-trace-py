@@ -18,17 +18,13 @@ from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 from tests.utils import override_global_config
 
 
-# FIXME: ideally all these should pass, through the key is that we don't leak any potential PII
-_ignore_list = {
-    46,
-}
-
-
 @pytest.mark.parametrize(
-    "evidence_input, sources_expected, vulnerabilities_expected",
-    list(get_parametrize(VULN_SQL_INJECTION, ignore_list=_ignore_list)),
+    "evidence_input, sources_expected, vulnerabilities_expected,element",
+    list(get_parametrize(VULN_SQL_INJECTION)),
 )
-def test_sqli_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
+def test_sqli_redaction_suite(
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+):
     with override_global_config(dict(_iast_deduplication_enabled=False)):
         tainted_object = _taint_pyobject_multiranges(
             evidence_input["value"],
