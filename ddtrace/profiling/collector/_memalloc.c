@@ -407,6 +407,7 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     alloc_tracker_t* tracker = alloc_tracker_new();
     if (!tracker) {
         PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
+        Py_TYPE(iestate)->tp_free(iestate);
         return NULL;
     }
 
