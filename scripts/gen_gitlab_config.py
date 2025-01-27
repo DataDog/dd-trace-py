@@ -97,18 +97,18 @@ def gen_required_suites() -> None:
 
     # Exclude the suites that are run in CircleCI. These likely don't run in
     # GitLab yet.
-    with YAML() as yaml:
-        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
-        circleci_jobs = set(circleci_config["jobs"].keys())
+    # with YAML() as yaml:
+    #     circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
+    #     circleci_jobs = set(circleci_config["jobs"].keys())
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
-                LOGGER.debug("Skipping CircleCI suite %s", suite)
-                continue
+            # if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
+            #     LOGGER.debug("Skipping CircleCI suite %s", suite)
+            #     continue
 
             jobspec = JobSpec(suite, **suites[suite])
             if jobspec.skip:
