@@ -16,8 +16,12 @@ from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
 from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
 
-@pytest.mark.parametrize("evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_CMDI)))
-def test_cmdi_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
+@pytest.mark.parametrize(
+    "evidence_input, sources_expected, vulnerabilities_expected,element", list(get_parametrize(VULN_CMDI))
+)
+def test_cmdi_redaction_suite(
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],
         [
