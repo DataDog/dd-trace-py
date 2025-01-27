@@ -181,10 +181,10 @@ class AppSecSpanProcessor(SpanProcessor):
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
                 self.metrics._set_waf_init_metric(self._ddwaf.info)
-        except Exception:
+        except Exception as e:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
-            raise
+            log.warning("[DDAS-0005-00] WAF initialization failed: %s", repr(e))
+            raise BaseException(e, e.__traceback__)
         self._update_required()
 
     def _update_required(self):
