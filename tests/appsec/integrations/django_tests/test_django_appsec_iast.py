@@ -959,3 +959,83 @@ def test_django_stacktrace_from_technical_500_response(client, test_spans, trace
                 ]
             }
             assert vulnerability["hash"]
+
+
+def test_django_xss(client, test_spans, tracer):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        patch_iast({"xss": True})
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/xss/?input=<script>alert('XSS')</script>",
+        )
+
+        vuln_type = "XSS"
+
+        assert response.status_code == 200
+        assert response.content == b"<html>\n<body>\n<p>Input: <script>alert('XSS')</script></p>\n</body>\n</html>"
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("xss_http_request_parameter_mark_safe", vuln_type, filename=TEST_FILE)
+
+        assert loaded["sources"] == [
+            {
+                "name": "input",
+                "origin": "http.request.parameter",
+                "value": "<script>alert('XSS')</script>",
+            }
+        ]
+
+        assert loaded["vulnerabilities"][0]["type"] == vuln_type
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [
+                {"source": 0, "value": "<script>alert('XSS')</script>"},
+            ]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+def test_django_xss_safe_template_tag(client, test_spans, tracer):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        patch_iast({"xss": True})
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/xss/safe/?input=<script>alert('XSS')</script>",
+        )
+
+        vuln_type = "XSS"
+
+        assert response.status_code == 200
+        assert response.content == b"<html>\n<body>\n<p>Input: <script>alert('XSS')</script></p>\n</body>\n</html>"
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash("xss_http_request_parameter_template_safe", vuln_type, filename=TEST_FILE)
+
+        assert loaded["sources"] == [
+            {
+                "name": "input",
+                "origin": "http.request.parameter",
+                "value": "<script>alert('XSS')</script>",
+            }
+        ]
+
+        assert loaded["vulnerabilities"][0]["type"] == vuln_type
+        assert loaded["vulnerabilities"][0]["evidence"] == {
+            "valueParts": [
+                {"source": 0, "value": "<script>alert('XSS')</script>"},
+            ]
+        }
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
