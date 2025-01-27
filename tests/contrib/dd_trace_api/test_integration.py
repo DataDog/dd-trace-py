@@ -14,6 +14,7 @@ class DDTraceAPITestCase(TracerTestCase):
         patch(tracer=self.tracer)
 
     def tearDown(self):
+        self.pop_spans()
         super(DDTraceAPITestCase, self).tearDown()
         unpatch()
 
@@ -38,6 +39,18 @@ class DDTraceAPITestCase(TracerTestCase):
         with dd_trace_api.tracer.start_span("web.request") as span:
             self._assert_span_stub(span)
         self._assert_real_spans()
+
+    def test_span_finish(self):
+        span = dd_trace_api.tracer.start_span("web.request")
+        self._assert_span_stub(span)
+        span.finish()
+        self._assert_real_spans()
+
+    def test_span_finish_with_ancestors(self):
+        span = dd_trace_api.tracer.start_span("web.request")
+        child_span = dd_trace_api.tracer.start_span("web.request", child_of=span)
+        child_span.finish_with_ancestors()
+        self._assert_real_spans(2)
 
     def test_trace(self):
         with dd_trace_api.tracer.trace("web.request") as span:

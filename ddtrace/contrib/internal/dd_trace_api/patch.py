@@ -1,5 +1,8 @@
 from sys import addaudithook
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 import dd_trace_api
 
@@ -11,12 +14,29 @@ _STATE = {"tracer": ddtrace.tracer}
 SELF_KEY = "stub_self"
 
 
-def _generic_patched(method_of, fn_name, store_return: Optional[str] = None):
+def _proxy_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
+    proxied_args = []
+    for arg in args:
+        if isinstance(arg, dd_trace_api.Span):
+            proxied_args.append(arg._real_span)
+        else:
+            proxied_args.append(arg)
+    proxied_kwargs = {}
+    for name, kwarg in kwargs.items():
+        if isinstance(kwarg, dd_trace_api.Span):
+            proxied_kwargs[name] = kwarg._real_span
+        else:
+            proxied_kwargs[name] = kwarg
+    return proxied_args, proxied_kwargs
+
+
+def _patched(method_of, fn_name, store_return: Optional[str] = None):
     def _inner(shared_state, *args, **kwargs):
-        if SELF_KEY in shared_state:  # XXX
+        if SELF_KEY in shared_state:
             operand = getattr(shared_state[SELF_KEY], "_" + method_of)
         else:
             operand = _STATE[method_of]
+        args, kwargs = _proxy_arguments(args, kwargs)
         retval = getattr(operand, fn_name)(*args, **kwargs)
         if store_return:
             shared_state[store_return] = retval
@@ -26,15 +46,25 @@ def _generic_patched(method_of, fn_name, store_return: Optional[str] = None):
 
 
 _HANDLERS = {
-    "Tracer.flush": _generic_patched("tracer", "flush"),
-    "Tracer.set_tags": _generic_patched("tracer", "set_tags"),
-    "Tracer.start_span": _generic_patched("tracer", "start_span", store_return="real_span"),
-    "Tracer.trace": _generic_patched("tracer", "trace", store_return="real_span"),
-    "Tracer.current_span": _generic_patched("tracer", "current_span", store_return="real_span"),
-    "Tracer.current_root_span": _generic_patched("tracer", "current_root_span", store_return="real_span"),
-    "Span.__enter__": _generic_patched("real_span", "__enter__"),
-    "Span.__exit__": _generic_patched("real_span", "__exit__"),
-    "Span.finish": _generic_patched("real_span", "finish"),
+    "Tracer.flush": _patched("tracer", "flush"),
+    "Tracer.shutdown": _patched("tracer", "shutdown"),
+    "Tracer.set_tags": _patched("tracer", "set_tags"),
+    "Tracer.start_span": _patched("tracer", "start_span", store_return="real_span"),
+    "Tracer.trace": _patched("tracer", "trace", store_return="real_span"),
+    "Tracer.current_span": _patched("tracer", "current_span", store_return="real_span"),
+    "Tracer.current_root_span": _patched("tracer", "current_root_span", store_return="real_span"),
+    "Span.__enter__": _patched("real_span", "__enter__"),
+    "Span.__exit__": _patched("real_span", "__exit__"),
+    "Span.finish": _patched("real_span", "finish"),
+    "Span.finish_with_ancestors": _patched("real_span", "finish_with_ancestors"),
+    "Span.set_exc_info": _patched("real_span", "set_exc_info"),
+    "Span.set_link": _patched("real_span", "set_link"),
+    "Span.set_traceback": _patched("real_span", "set_traceback"),
+    "Span.link_span": _patched("real_span", "link_span"),
+    "Span.set_tags": _patched("real_span", "set_tags"),
+    "Span.set_tag": _patched("real_span", "set_tag"),
+    "Span.set_tag_str": _patched("real_span", "set_tag_str"),
+    "Span.set_struct_tag": _patched("real_span", "set_struct_tag"),
 }
 
 
