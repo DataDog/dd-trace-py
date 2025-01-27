@@ -30,8 +30,8 @@ from ddtrace._trace.sampler import BaseSampler
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import agent
@@ -966,7 +966,7 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
