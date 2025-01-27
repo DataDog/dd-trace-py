@@ -17,7 +17,7 @@ class RuntimeTagCollector(ValueCollector):
 
 
 class TracerTagCollector(RuntimeTagCollector):
-    """Tag collector for the ddtrace Tracer"""
+    """Tag collector for the ddtrace._trace.tracer.Tracer"""
 
     required_modules = ["ddtrace"]
 
