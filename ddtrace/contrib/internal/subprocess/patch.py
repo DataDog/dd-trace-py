@@ -395,6 +395,8 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf:
+            return wrapped(*args, **kwargs)
         cmd_args = args[0] if len(args) else kwargs["args"]
         if isinstance(cmd_args, (list, tuple, str)):
             if kwargs.get("shell", False):
