@@ -19,7 +19,7 @@ from tests.utils import override_global_config
 
 
 @pytest.mark.parametrize(
-    "evidence_input,sources_expected,vulnerabilities_expected,element",
+    "evidence_input, sources_expected, vulnerabilities_expected,element",
     list(get_parametrize(VULN_SQL_INJECTION)),
 )
 def test_sqli_redaction_suite(

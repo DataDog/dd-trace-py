@@ -134,7 +134,7 @@ def test_path_traversal_redact_abs_paths(iast_context_defaults):
 
 
 @pytest.mark.parametrize(
-    "evidence_input,sources_expected,vulnerabilities_expected,element",
+    "evidence_input, sources_expected, vulnerabilities_expected,element",
     list(get_parametrize(VULN_PATH_TRAVERSAL)),
 )
 def test_path_traversal_redaction_suite(

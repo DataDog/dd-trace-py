@@ -21,7 +21,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.mark.parametrize(
-    "evidence_input,sources_expected,vulnerabilities_expected,element", list(get_parametrize(VULN_SSRF))
+    "evidence_input, sources_expected, vulnerabilities_expected,element", list(get_parametrize(VULN_SSRF))
 )
 def test_ssrf_redaction_suite(
     evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element

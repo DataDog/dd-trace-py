@@ -14,7 +14,7 @@ _ignore_list = {}
 
 
 @pytest.mark.parametrize(
-    "evidence_input,sources_expected,vulnerabilities_expected,element",
+    "evidence_input, sources_expected, vulnerabilities_expected,element",
     list(get_parametrize(VULN_CODE_INJECTION, ignore_list=_ignore_list)),
 )
 def test_code_injection_redaction_suite(
