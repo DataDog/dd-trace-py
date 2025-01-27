@@ -98,7 +98,7 @@ benchmark-serverless:
   needs: [ "benchmark-serverless-trigger" ]
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
-    - ./ci/check_trigger_status.sh
+    - ./.gitlab/check_trigger_status.sh
   except:
     - main  # fails on main - ideally it would succeed
 
