@@ -1,4 +1,5 @@
 import bottle
+import pytest
 import webtest
 
 import ddtrace
@@ -8,6 +9,8 @@ from ddtrace.ext import http
 from ddtrace.internal import compat
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -542,3 +545,59 @@ class TraceBottleTest(TracerTestCase):
         s = spans[0]
 
         assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_inferred_spans_api_gateway(self):
+        @self.app.route("/")
+        def default_endpoint():
+            return bottle.HTTPResponse("", status=200)
+
+        @self.app.route("/exception")
+        def error_endpoint():
+            raise Exception("oh no")
+
+        @self.app.route("/handled")
+        def handled_error_endpoint():
+            return bottle.HTTPResponse("", status=503)
+
+        self._trace_app()
+
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+        ddtrace.config._inferred_proxy_services_enabled = True
+        for test_endpoint in [
+            {"endpoint": "/", "status": 200},
+            {"endpoint": "/exception", "status": 500},
+            {"endpoint": "/handled", "status": 503},
+        ]:
+            try:
+                self.app.get(test_endpoint["endpoint"], headers=headers)
+            except webtest.AppError:
+                pass
+
+            traces = self.pop_traces()
+            aws_gateway_span = traces[0][0]
+            web_span = traces[0][1]
+            assert web_span.name == "bottle.request"
+            # Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+            # Assert test specific behavior for aws api gateway
+            assert aws_gateway_span.get_tag("http.url") == "local/"
+            assert aws_gateway_span.get_tag("http.method") == "GET"
+            assert aws_gateway_span.get_tag("http.status_code") == str(test_endpoint["status"])
+            assert aws_gateway_span.get_tag("http.route") == "/"
+            # Assert test specific behavior for bottle
+            assert web_span.name == "bottle.request"
+            assert web_span.service == SERVICE
+            assert web_span.resource == "GET " + test_endpoint["endpoint"]
+            assert web_span.get_tag("http.url") == "http://localhost:80/"
+            assert web_span.get_tag("http.route") == test_endpoint["endpoint"]
+            assert web_span.get_tag("span.kind") == "server"
+            assert web_span.get_tag("component") == "bottle"
+            assert web_span.get_tag("_dd.inferred_span") is None
