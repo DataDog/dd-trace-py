@@ -327,6 +327,8 @@ def unpatch() -> None:
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf:
+            return wrapped(*args, **kwargs)
         if isinstance(args[0], str):
             for callback in _STR_CALLBACKS.values():
                 callback(args[0])
