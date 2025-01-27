@@ -1582,7 +1582,10 @@ Lorem Ipsum Foobar
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_STACKTRACE_LEAK
             assert "valueParts" in vulnerability["evidence"]
-            assert "tests.contrib.flask.test_flask_appsec_iast" in vulnerability["evidence"]["valueParts"][0]["value"]
+            assert (
+                "tests.appsec.integrations.flask_tests.test_iast_flask"
+                in vulnerability["evidence"]["valueParts"][0]["value"]
+            )
             assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
 
 
