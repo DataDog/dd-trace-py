@@ -26,7 +26,7 @@ Tracing
     :members:
     :undoc-members:
 
-.. autoclass:: ddtrace._trace..sampler.DatadogSampler
+.. autoclass:: ddtrace._trace.sampler.DatadogSampler
     :members:
 
 .. autoclass:: ddtrace._trace.sampler.SamplingRule
