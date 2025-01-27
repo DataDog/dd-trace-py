@@ -25,6 +25,7 @@ import ddtrace.internal.telemetry  # noqa: E402
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .version import get_version  # noqa: E402
 
 
@@ -43,4 +44,5 @@ __all__ = [
     "patch",
     "patch_all",
     "config",
+    "DDTraceDeprecationWarning",
 ]
