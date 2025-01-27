@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: Removed deprecated tracing modules `ddtrace` package.
