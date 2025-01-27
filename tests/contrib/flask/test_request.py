@@ -330,7 +330,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
             assert aws_gateway_span.get_tag("http.status_code") == "500"
             # Assert endpoint specific test behavior:
-            assert aws_gateway_span.resource == "GET /"
+            assert aws_gateway_span.resource == "GET /applicationerror"
             assert aws_gateway_span.get_tag("http.route") == "/"
             assert web_span.resource == "GET /applicationerror"
             assert web_span.get_tag("http.route") == "/applicationerror"

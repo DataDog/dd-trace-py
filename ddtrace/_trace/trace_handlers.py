@@ -19,10 +19,10 @@ from ddtrace._trace.utils_botocore.span_tags import (
 )
 from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
@@ -132,17 +132,12 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
     span_kwargs.update(kwargs)
 
-    # Check for child_of is required because tracer.trace does not support child_of
-    if call_trace and "child_of" not in span_kwargs.keys():
-        span = (tracer.trace)(ctx["span_name"], **span_kwargs)
-    else:
-        span = (tracer.start_span)(ctx["span_name"], **span_kwargs)
+    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
 
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
 
     ctx.span = span
-
     # dispatch event for inferred proxy finish
     core.dispatch("inferred_proxy.finish", (ctx,))
 
@@ -168,7 +163,7 @@ def _on_web_framework_start_request(ctx, int_config):
 
 
 def _on_web_framework_finish_request(
-    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
+    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
     trace_utils.set_http_meta(
         span=span,
@@ -180,11 +175,30 @@ def _on_web_framework_finish_request(
         request_headers=req_headers,
         response_headers=res_headers,
         route=route,
+        **kwargs,
     )
-    # TODO: find a better place to add errors and status codes to inferred spans
+
+    _set_inferred_proxy_tags(span, status_code)
+
+    if finish:
+        span.finish()
+
+
+def _set_inferred_proxy_tags(span, status_code):
     if span._parent and span._parent.name == "aws.apigateway":
         inferred_span = span._parent
-        if span.get_tag("http.status_code"):
+
+        # make resource equal to web span resource
+        inferred_span.resource = span.resource
+
+        _set_inferred_proxy_error(span, status_code)
+
+
+def _set_inferred_proxy_error(span, status_code):
+    if span._parent and span._parent.name == "aws.apigateway":
+        inferred_span = span._parent
+        status_code = status_code if status_code else span.get_tag("http.status_code")
+        if status_code:
             inferred_span.set_tag("http.status_code", status_code)
 
         inferred_span.error = span.error
@@ -195,9 +209,6 @@ def _on_web_framework_finish_request(
         if span.get_tag(ERROR_STACK):
             inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
-    if finish:
-        span.finish()
-
 
 def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
     if not config._inferred_proxy_services_enabled:
@@ -207,29 +218,21 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
     if ctx.get_item("inferred_proxy_span"):
         return
 
-    # Inferred Proxy Spans
-    if distributed_headers_config and ctx.get_item("distributed_headers", None):
-        # Extract distributed tracing headers if they exist
-        if ctx["distributed_headers"]:
-            trace_utils.activate_distributed_headers(
-                tracer,
-                int_config=distributed_headers_config,
-                request_headers=ctx["distributed_headers"],
-                override=ctx.get_item("distributed_headers_config_override"),
-            )
-            distributed_context = tracer.current_trace_context()
+    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers' and normalized headers in 'headers'
+    headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
 
-        # When creating an inferred span, use the distributed_context, else it is the local root span
+    # Inferred Proxy Spans
+    if distributed_headers_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(
             ctx,
-            headers=ctx.get_item("distributed_headers"),
-            child_of=distributed_context,
+            headers=headers,
+            child_of=tracer.current_trace_context(),
             tracer=tracer,
         )
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span
-        if inferred_proxy_span:
+        if inferred_proxy_span and not call_trace:
             span_kwargs["child_of"] = inferred_proxy_span
             ctx.set_item("span_kwargs", span_kwargs)
 
@@ -242,7 +245,12 @@ def _on_inferred_proxy_finish(ctx):
     inferred_proxy_finish_callback = ctx.get_item("inferred_proxy_finish_callback")
 
     # add callback to finish inferred proxy span when this span finishes
-    if inferred_proxy_span and inferred_proxy_finish_callback and ctx.span:
+    if (
+        inferred_proxy_span
+        and inferred_proxy_finish_callback
+        and ctx.span
+        and ctx.span.parent_id == inferred_proxy_span.span_id
+    ):
         ctx.span._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
@@ -413,12 +421,17 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
         span.resource = " ".join((request.method, code))
 
     response_cookies = _cookies_from_response_headers(headers)
-    trace_utils.set_http_meta(
-        span,
-        flask_config,
+    _on_web_framework_finish_request(
+        span=span,
+        int_config=flask_config,
+        method=request.method,
+        url=None,
         status_code=code,
-        response_headers=headers,
+        query=None,
+        req_headers=None,
+        res_headers=headers,
         route=span.get_tag(FLASK_URL_RULE),
+        finish=False,
         response_cookies=response_cookies,
     )
 
