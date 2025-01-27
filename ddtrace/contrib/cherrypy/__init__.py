@@ -54,8 +54,8 @@ Here is the end result, in a sample app::
 """
 
 
-from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
-from ddtrace.contrib.internal.cherrypy.middleware import get_version  # noqa: F401
+from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.patch import get_version  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

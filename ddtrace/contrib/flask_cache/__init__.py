@@ -45,8 +45,8 @@ Use a specific ``Cache`` implementation with::
 """
 
 
-from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
-from ddtrace.contrib.internal.flask_cache.tracers import get_version  # noqa: F401
+from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
+from ddtrace.contrib.internal.flask_cache.patch import get_version  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

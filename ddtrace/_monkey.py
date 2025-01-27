@@ -177,12 +177,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
     def on_import(hook):
         # Import and patch module
         try:
-            try:
-                imported_module = importlib.import_module("%s.internal.%s.patch" % (prefix, module))
-            except ImportError:
-                # Some integrations do not have an internal patch module, so we use the public one
-                # FIXME: This is a temporary solution until we refactor the patching logic.
-                imported_module = importlib.import_module("%s.%s" % (prefix, module))
+            imported_module = importlib.import_module("%s.internal.%s.patch" % (prefix, module))
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
