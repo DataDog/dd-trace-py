@@ -170,14 +170,14 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patch_indicator=True):
+def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
         # Import and patch module
         try:
-            imported_module = importlib.import_module("%s.internal.%s.patch" % (prefix, module))
+            imported_module = importlib.import_module(path_f % (module,))
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -203,8 +203,7 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                     telemetry.telemetry_writer.add_integration(
                         name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
-            elif hasattr(imported_module, "get_version"):
-                # TODO: Ensure every integration defines either get_version or get_versions in their patch.py module
+            else:
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
@@ -275,7 +274,12 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
             when_imported(module)(
-                _on_import_factory(contrib, raise_errors=raise_errors, patch_indicator=patch_indicator)
+                _on_import_factory(
+                    contrib,
+                    "ddtrace.contrib.internal.%s.patch",
+                    raise_errors=raise_errors,
+                    patch_indicator=patch_indicator,
+                )
             )
 
         # manually add module to patched modules
