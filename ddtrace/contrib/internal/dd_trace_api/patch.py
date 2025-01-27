@@ -41,16 +41,18 @@ def _patched(method_of, fn_name, store_return: Optional[str] = None):
         args, kwargs = _proxy_span_arguments(args, kwargs)
         retval = getattr(operand, fn_name)(*args, **kwargs)
         if store_return:
-            state_shared_with_api[store_return] = retval
-            _STATE[store_return] = retval
+            if store_return in _STATE:
+                _STATE[store_return] = retval
+            else:
+                state_shared_with_api[store_return] = retval
 
     return _inner
 
 
 _HANDLERS = {
-    "Tracer.flush": _patched("tracer", "flush"),
-    "Tracer.shutdown": _patched("tracer", "shutdown"),
-    "Tracer.set_tags": _patched("tracer", "set_tags"),
+    "Tracer.flush": None,
+    "Tracer.shutdown": None,
+    "Tracer.set_tags": None,
     "Tracer.start_span": _patched("tracer", "start_span", store_return="real_span"),
     "Tracer.trace": _patched("tracer", "trace", store_return="real_span"),
     "Tracer.current_span": _patched("tracer", "current_span", store_return="real_span"),
@@ -80,7 +82,10 @@ def _hook(name, hook_args):
         kwargs = hook_args[0][1]
         args = hook_args[0][0]
         state_shared_with_api, args = args[0], args[1:]
-        _HANDLERS[name_suffix](state_shared_with_api, *args, **kwargs)
+        handler = _HANDLERS[name_suffix]
+        if handler is None:
+            handler = _patched(*(a.lower() for a in name_suffix.split(".")))
+        handler(state_shared_with_api, *args, **kwargs)
 
 
 def get_version() -> str:
