@@ -140,7 +140,7 @@ print(json.dumps(headers))
 
 
 def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(run_python_code_in_subprocess):
-    """Test that the correct LLMObs parent ID ('undefined') is extracted from the headers in a simple distributed scenario.
+    """Test that the correct LLMObs parent ID ('undefined') is extracted from headers in a simple distributed scenario.
     Service A (subprocess) has spans, but none are LLMObs spans.
     Service B (outside subprocess) has a LLMObs span.
     Service B's span should have no LLMObs parent ID as there are no LLMObs spans from service A.
