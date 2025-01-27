@@ -25,7 +25,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
+TEST_FILE_PATH = "tests/appsec/integrations/flask_tests/test_iast_flask.py"
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
