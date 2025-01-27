@@ -18,6 +18,7 @@ def get_parametrize(vuln_type, ignore_list=None):
     idx = -1
     for element in data["suite"]:
         if element["description"] in (
+            "$1 with query parameters or fragment",
             "$1 - Tainted range based redaction - multiple ranges",
             "Redacted source that needs to be truncated",
             "Query with single quoted string literal and null source",
