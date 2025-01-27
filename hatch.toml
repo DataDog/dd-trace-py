@@ -57,7 +57,7 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -317,7 +317,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
 ]
 
 [[envs.appsec_iast_packages.matrix]]
@@ -342,7 +342,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -374,7 +374,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
