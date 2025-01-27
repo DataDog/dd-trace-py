@@ -103,7 +103,11 @@ def _wrap_send(func, instance, args, kwargs):
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
 
         # propagate distributed tracing headers
+        # breakpoint()
         if cfg.get("distributed_tracing"):
+            # breakpoint()
+            print("propagating headers")
+            print(span.context)
             HTTPPropagator.inject(span.context, request.headers)
 
         response = response_headers = None

@@ -55,6 +55,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import EXPECTED_OUTPUT
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
@@ -190,6 +191,9 @@ class LLMObs(Service):
 
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+
+        if span._get_ctx_item(EXPECTED_OUTPUT) is not None:
+            meta["expected_output"] = span._get_ctx_item(EXPECTED_OUTPUT)
 
         llmobs_span_event = {
             "trace_id": format_trace_id(span.trace_id),
@@ -706,6 +710,22 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
+    
+    @classmethod
+    def _experiment(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+        """
+        Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        return cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
 
     @classmethod
     def workflow(
@@ -875,6 +895,38 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
+
+    @staticmethod
+    def _tag_expected_output(span, expected_output: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        try:
+            span._set_ctx_item(EXPECTED_OUTPUT, expected_output)
+            print("added expected output")
+            print("expected output: ", span._get_ctx_item(EXPECTED_OUTPUT))
+            print("span: ", span)
+        except TypeError:
+            log.warning("Failed to validate expected output with error: ", exc_info=True)
+            return
+
+    @staticmethod
+    def _tag_prompt(span, prompt: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        try:
+            validated_prompt = validate_prompt(prompt)
+            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+        except TypeError:
+            log.warning("Failed to validate prompt with error: ", exc_info=True)
+            return
+
+    @staticmethod
+    def _tag_params(span: Span, params: Dict[str, Any]) -> None:
+        """Tags input parameters for a given LLMObs span.
+        Will be mapped to span's `meta.input.parameters` field.
+        """
+        if not isinstance(params, dict):
+            log.warning("parameters must be a dictionary of key-value pairs.")
+            return
+        span._set_ctx_item(INPUT_PARAMETERS, params)
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
