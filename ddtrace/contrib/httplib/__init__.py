@@ -42,19 +42,7 @@ The integration can be configured per instance::
 
     # Disable distributed tracing globally.
     config.httplib['distributed_tracing'] = False
-
-    # Change the service distributed tracing option only for this HTTP
-    # connection.
-
-    # Python 2
-    connection = urllib.HTTPConnection('www.datadog.com')
-
-    # Python 3
     connection = http.client.HTTPConnection('www.datadog.com')
-
-    cfg = config.get_from(connection)
-    cfg['distributed_tracing'] = True
-
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
