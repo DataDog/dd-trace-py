@@ -218,7 +218,8 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
     if ctx.get_item("inferred_proxy_span"):
         return
 
-    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers' and normalized headers in 'headers'
+    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
+    # and normalized headers in 'headers'
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
 
     # Inferred Proxy Spans
