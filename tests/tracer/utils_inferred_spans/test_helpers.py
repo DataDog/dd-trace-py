@@ -23,6 +23,7 @@ def assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gatewa
     assert aws_gateway_span is not None
 
     assert aws_gateway_span.span_id == web_span.parent_id
+    assert aws_gateway_span.trace_id == web_span.trace_id
 
     # Assert the span types match
     assert aws_gateway_span.span_type == web_span.span_type
