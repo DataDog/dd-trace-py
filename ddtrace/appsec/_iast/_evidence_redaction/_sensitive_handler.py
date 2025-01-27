@@ -45,7 +45,6 @@ class SensitiveHandler:
             VULN_SQL_INJECTION: sql_sensitive_analyzer,
             VULN_SSRF: url_sensitive_analyzer,
             VULN_HEADER_INJECTION: header_injection_sensitive_analyzer,
-            VULN_XSS: default_sensitive_analyzer,
             VULN_CODE_INJECTION: default_sensitive_analyzer,
         }
 
