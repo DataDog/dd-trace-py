@@ -1,6 +1,7 @@
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from tests.appsec.appsec_utils import flask_server
 from tests.utils import override_global_config
 
@@ -17,7 +18,7 @@ def test_iast_span_metrics():
 
 
 def test_flask_instrumented_metrics(telemetry_writer):
-    with override_global_config(dict(_iast_enabled=True)):
+    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False, request_sampling=100.0)):
         _on_flask_patch((2, 0, 0))
 
     metrics_result = telemetry_writer._namespace._metrics_data
@@ -43,8 +44,8 @@ def test_flask_instrumented_metrics(telemetry_writer):
 
 
 def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):
-    with override_global_config(dict(_iast_enabled=False)):
-        _on_flask_patch((2, 0, 0))
+    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False, request_sampling=100.0)):
+        _on_flask_patch("2.0.0")
 
     metrics_result = telemetry_writer._namespace._metrics_data
     metrics_source_tags_result = [metric._tags for metric in metrics_result["generate-metrics"]["iast"].values()]
