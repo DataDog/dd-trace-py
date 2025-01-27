@@ -33,15 +33,15 @@ class TestConfig(BaseTestCase):
         config = Config()
         config._add("django", dict())
         assert config.django.trace_query_string is None
-        config.http.trace_query_string = True
-        assert config.http.trace_query_string is True
+        config._http.trace_query_string = True
+        assert config._http.trace_query_string is True
         assert config.django.trace_query_string is True
 
         # Integration usage
         config = Config()
         config._add("django", dict())
         config.django.http.trace_query_string = True
-        assert config.http.trace_query_string is None
+        assert config._http.trace_query_string is None
         assert config.django.trace_query_string is True
         assert config.django.http.trace_query_string is True
 
@@ -183,7 +183,7 @@ def test_config_is_header_tracing_configured(global_headers, int_headers, expect
         integration_config.http.trace_headers(int_headers)
 
     assert (
-        config.http.is_header_tracing_configured,
+        config._http.is_header_tracing_configured,
         integration_config.http.is_header_tracing_configured,
         integration_config.is_header_tracing_configured,
     ) == expected
@@ -193,7 +193,7 @@ def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
         config = Config()
 
-    assert config.http.is_header_tracing_configured
+    assert config._http.is_header_tracing_configured
     assert config._header_tag_name("Host") == "http.host"
     assert config._header_tag_name("User-agent") == "http.user_agent"
     # Case insensitive
