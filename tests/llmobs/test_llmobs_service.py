@@ -411,7 +411,7 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, tags=12345)
         assert span._get_ctx_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "tags must be a dictionary of string key - primitive value pairs."
+            "span tags must be a dictionary of string key - primitive value pairs."
         )
 
 

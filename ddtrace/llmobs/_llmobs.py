@@ -773,7 +773,7 @@ class LLMObs(Service):
                 cls._set_dict_attribute(span, METRICS, metrics)
         if tags is not None:
             if not isinstance(tags, dict):
-                log.warning("tags must be a dictionary of string key - primitive value pairs.")
+                log.warning("span tags must be a dictionary of string key - primitive value pairs.")
             else:
                 cls._set_dict_attribute(span, TAGS, tags)
         span_kind = span._get_ctx_item(SPAN_KIND)
