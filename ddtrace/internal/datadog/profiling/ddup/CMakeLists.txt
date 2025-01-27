@@ -61,15 +61,15 @@ set_target_properties(${EXTENSION_NAME} PROPERTIES SUFFIX "")
 
 # RPATH is needed for sofile discovery at runtime, since Python packages are not installed in the system path. This is
 # typical.
-set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+if(APPLE)
+    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "@loader_path/..")
+elseif(UNIX)
+    set_target_properties(${EXTENSION_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+endif()
 target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Datadog_INCLUDE_DIRS}
                                                      ${Python3_INCLUDE_DIRS})
 
-if(Python3_LIBRARIES)
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper ${Python3_LIBRARIES})
-else()
-    target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
-endif()
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
