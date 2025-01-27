@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    openai: Drops tracing support for OpenAI 0.x versions. To maintain tracing support, upgrade to ``openai>=1.0``.
