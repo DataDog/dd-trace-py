@@ -211,13 +211,10 @@ class SamplingRule(object):
         # If a string is passed in we create a GlobMatcher to handle the matching
         if callable(prop) or isinstance(prop, pattern_type):
             # deprecated: passing a function or a regular expression'
-            deprecate(
-                "Using methods or regular expressions for SamplingRule matching is deprecated. ",
-                message="Please move to passing in a string for Glob matching.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
+            raise ValueError(
+                "Using methods or regular expressions for SamplingRule matching is not supported. "
+                "Please move to passing in a string for Glob matching.",
             )
-            return prop
         # Name and Resource will never be None, but service can be, since we str()
         #  whatever we pass into the GlobMatcher, we can just use its matching
         elif prop is None:

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracing: Removes deprecated attributes from ``ddtrace.trace.Tracer`` and ``ddtrace.span.Span``.
