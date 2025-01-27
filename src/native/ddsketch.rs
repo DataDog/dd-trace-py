@@ -4,7 +4,7 @@ use pyo3::types::PyBytes;
 
 use datadog_ddsketch::DDSketch;
 
-#[pyclass(name = "DDSketch", module = "ddtrace.internal._core")]
+#[pyclass(name = "DDSketch", module = "ddtrace.internal._native")]
 pub struct DDSketchPy {
     ddsketch: DDSketch,
 }

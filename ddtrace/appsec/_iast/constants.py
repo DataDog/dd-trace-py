@@ -1,3 +1,4 @@
+import re
 from typing import Any
 from typing import Dict
 
@@ -14,6 +15,7 @@ VULN_CMDI = "COMMAND_INJECTION"
 VULN_HEADER_INJECTION = "HEADER_INJECTION"
 VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_SSRF = "SSRF"
+VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
 VULNERABILITY_TOKEN_TYPE = Dict[int, Dict[str, Any]]
 
@@ -27,6 +29,12 @@ BLOWFISH_DEF = "blowfish"
 RC2_DEF = "rc2"
 RC4_DEF = "rc4"
 IDEA_DEF = "idea"
+STACKTRACE_RE_DETECT = re.compile(r"Traceback \(most recent call last\):")
+HTML_TAGS_REMOVE = re.compile(r"<!--[\s\S]*?-->|<[^>]*>|&#\w+;")
+STACKTRACE_FILE_LINE = re.compile(r"File (.*?), line (\d+), in (.+)")
+STACKTRACE_EXCEPTION_REGEX = re.compile(
+    r"^(?P<exc>[A-Za-z_]\w*(?:Error|Exception|Interrupt|Fault|Warning))" r"(?:\s*:\s*(?P<msg>.*))?$"
+)
 
 DEFAULT_WEAK_HASH_ALGORITHMS = {MD5_DEF, SHA1_DEF}
 
