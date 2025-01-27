@@ -52,7 +52,7 @@ Here is the end result, in a sample app::
 
     cherrypy.quickstart(HelloWorld())
 """
-from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 
 
 __all__ = ["TraceMiddleware"]

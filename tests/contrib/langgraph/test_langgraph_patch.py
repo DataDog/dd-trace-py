@@ -2,9 +2,9 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 
-from ddtrace.contrib.langgraph import get_version
-from ddtrace.contrib.langgraph import patch
-from ddtrace.contrib.langgraph import unpatch
+from ddtrace.contrib.internal.langgraph.patch import get_version
+from ddtrace.contrib.internal.langgraph.patch import patch
+from ddtrace.contrib.internal.langgraph.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 from tests.utils import call_program
 
