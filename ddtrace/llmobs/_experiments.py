@@ -21,6 +21,9 @@ from ._llmobs import LLMObs
 from ddtrace.context import Context
 
 import ddtrace
+from ddtrace import patch_all
+
+patch_all()
 
 DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
 if DD_SITE == "datadoghq.com":
@@ -35,9 +38,10 @@ LLMObs.enable(
     ml_app="experiment-jonathan",
     integrations_enabled=True,
     agentless_enabled=True,
-    site="datadoghq.com",
+    site=os.getenv("DD_SITE"),
     api_key=os.getenv("DD_API_KEY"),
 )
+
 
 
 class Dataset:
@@ -61,6 +65,8 @@ class Dataset:
         """
         self.name = name
         self.description = description
+        self.version = 0
+        
 
         # If no data provided, attempt to pull from Datadog
         if data is None:
@@ -70,10 +76,12 @@ class Dataset:
             pulled_dataset = self.pull(name)
             self._data = pulled_dataset._data
             self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+            self._version = pulled_dataset._datadog_dataset_version
         else:
             self._validate_data(data)
             self._data = data
             self._datadog_dataset_id = None
+            self._version = 0
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
         return iter(self._data)
@@ -143,6 +151,8 @@ class Dataset:
             raise ValueError(f"Dataset '{name}' not found")
 
         dataset_id = datasets[0]["id"]
+        dataset_version = datasets[0]["attributes"]["current_version"]
+        
 
         # Get dataset records
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
@@ -168,6 +178,7 @@ class Dataset:
         # Create new dataset instance
         dataset = cls(name, class_records)
         dataset._datadog_dataset_id = dataset_id
+        dataset._datadog_dataset_version = dataset_version
         return dataset
 
     def push(self, chunk_size: int = 300) -> None:
@@ -207,6 +218,7 @@ class Dataset:
             response_data = resp.json()
             dataset_id = response_data["data"]["id"]
             self._datadog_dataset_id = dataset_id
+            self._datadog_dataset_version = 0
         else:
             # Dataset exists, raise error
             raise ValueError(
@@ -522,12 +534,17 @@ class Experiment:
         Raises:
             ValueError: If _jobs is not between 1 and 30
         """
+        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
         if not 1 <= _jobs <= 30:
             raise ValueError("Number of jobs must be between 1 and 30")
         
-        @agent
-        def instrumented_task(input_data, config=None): # To trace the task
-            return self.task(input_data, config)
+        def instrumented_task(input_data, expected_output, config=None): 
+            with LLMObs._experiment(name="experiment-task") as span:
+                span.context.set_baggage_item("is_experiment_task", True)
+                output = self.task(input_data, config)
+                # LLMObs._tag_expected_output(span, expected_output)
+                LLMObs.annotate(span, input_data=input_data, output_data=output)
+                return output
         
         self.outputs = []
         total_rows = len(self.dataset)
@@ -537,15 +554,15 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            ddtrace.tracer.context_provider.activate(Context())
             
             try:
                 input_data = row['input']
+                expected_output = row['expected_output']
                 
                 if getattr(self.task, '_accepts_config', False):
-                    output = instrumented_task(input_data, self.config)
+                    output = instrumented_task(input_data, expected_output, self.config)
                 else:
-                    output = instrumented_task(input_data)
+                    output = instrumented_task(input_data, expected_output)
                 
                 # Periodic flush every 10 rows (approximate because it's concurrent)
                 if idx % 10 == 0:
@@ -648,6 +665,8 @@ class Experiment:
         LLMObs.flush()
 
         error_rate = (error_count / total_rows) * 100
+        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
+        os.environ["DD_LLMOBS_ENABLED"] = "False"
         print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
         if error_count > 0:
             print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
@@ -932,6 +951,7 @@ class ExperimentResults:
                     "description": self.experiment.description,
                     "dataset_id": self.experiment.dataset._datadog_dataset_id,
                     "project_id": project_id,
+                    "dataset_version": self.experiment.dataset._datadog_dataset_version,
                     "metadata": {
                         "tags": self.experiment.tags,
                         **(self.experiment.metadata or {}),
@@ -989,7 +1009,7 @@ class ExperimentResults:
                     "status": "ok" if not error else "error",
                     "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
                     "meta": {
-                        "span": {"kind": "experiment"},
+                        "span": {"kind": "experiment-result"},
                         "input": merged_result.get('input', {}),
                         "output": output,
                         "expected_output": merged_result.get('expected_output', {}),
@@ -1011,15 +1031,20 @@ class ExperimentResults:
                         
                     timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
+                    if metric_payload_value["value"] == None:
+                        metric_type = "categorical"
+                        metric_value = None
                     # Check for bool first, since bool is a subclass of int
-                    if isinstance(metric_payload_value["value"], (bool, str)):
+                    elif isinstance(metric_payload_value["value"], (bool, str)):
                         metric_type = "categorical"
                         metric_value = str(metric_payload_value["value"]).lower()
                     elif isinstance(metric_payload_value["value"], (int, float)):
                         metric_type = "score"
+                        metric_value = metric_payload_value["value"]
                     else:
                         metric_type = "categorical"
                         metric_value = str(metric_payload_value["value"])
+
 
                     metric = {
                         "span_id": span["span_id"],
@@ -1037,7 +1062,7 @@ class ExperimentResults:
                 "data": {
                     "type": "experiments",
                     "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__],
-                    "attributes": {"spans": spans, "metrics": metrics},
+                    "attributes": {"spans": [], "metrics": []} #metrics}, #TODO: Remove this whole thing since experiment spans results will be part of tracing
                 }
             }
 
