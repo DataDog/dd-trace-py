@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
@@ -71,7 +71,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     t = DummyTracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(compute_stats_enabled=True)
+    t._configure(compute_stats_enabled=True)
     assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     assert t._compute_stats
 
@@ -110,7 +110,7 @@ def test_apm_opt_out_compute_stats_and_configure():
     # Test via `configure`
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    t._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     # the stats computation is disabled
     assert not t._compute_stats
@@ -222,7 +222,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
 
 
 @pytest.mark.snapshot()
@@ -240,7 +240,7 @@ def test_top_level(send_once_stats_tracer):
 @pytest.mark.snapshot()
 def test_single_span_sampling(stats_tracer, sampling_rule):
     sampler = DatadogSampler([sampling_rule])
-    stats_tracer.configure(sampler=sampler)
+    stats_tracer._configure(sampler=sampler)
     with stats_tracer.trace("parent", service="test"):
         with stats_tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule

@@ -87,9 +87,6 @@ Example::
     # Override service name
     config.flask['service_name'] = 'custom-service-name'
 
-    # Report 401, and 403 responses as errors
-    config.http_server.error_statuses = '401,403'
-
 .. __: http://flask.pocoo.org/
 
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
@@ -104,9 +101,6 @@ import warnings as _w
 with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
-from ddtrace.contrib.internal.flask.patch import get_version
-from ddtrace.contrib.internal.flask.patch import patch
-from ddtrace.contrib.internal.flask.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.flask.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.flask.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.flask.patch import unpatch  # noqa: F401

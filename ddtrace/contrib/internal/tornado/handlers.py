@@ -4,10 +4,10 @@ from tornado.web import HTTPError
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -50,7 +50,7 @@ def execute(func, handler, args, kwargs):
         # set span.kind to the type of operation being performed
         request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-        request_span.set_tag(SPAN_MEASURED_KEY)
+        request_span.set_tag(_SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
         analytics_enabled = settings["analytics_enabled"]
@@ -140,7 +140,7 @@ def log_exception(func, handler, args, kwargs):
         # is not a 2xx. In this case we want to check the status code to be sure that
         # only 5xx are traced as errors, while any other HTTPError exception is handled as
         # usual.
-        if config.http_server.is_error_code(value.status_code):
+        if config._http_server.is_error_code(value.status_code):
             current_span.set_exc_info(*args)
     else:
         # any other uncaught exception should be reported as error

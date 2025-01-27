@@ -23,7 +23,6 @@ Global Configuration
    Default: ``"azure_functions"``
 
 """
-
 from ddtrace.internal.utils.importlib import require_modules
 
 
@@ -38,9 +37,6 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.azure_functions.patch import get_version
-        from ddtrace.contrib.internal.azure_functions.patch import patch
-        from ddtrace.contrib.internal.azure_functions.patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+        from ddtrace.contrib.internal.azure_functions.patch import get_version  # noqa: F401
+        from ddtrace.contrib.internal.azure_functions.patch import patch  # noqa: F401
+        from ddtrace.contrib.internal.azure_functions.patch import unpatch  # noqa: F401

@@ -16,13 +16,13 @@ Auto instrumentation is available using the ``patch``. The following is an examp
 The library can be configured globally and per instance, using the Configuration API::
 
     from ddtrace import config
+    from ddtrace.trace import Pin
 
     # Change service name globally
     config.jinja2['service_name'] = 'jinja-templates'
 
     # change the service name only for this environment
-    cfg = config.get_from(env)
-    cfg['service_name'] = 'jinja-templates'
+    Pin.override(env, service='jinja-templates')
 
 By default, the service name is set to None, so it is inherited from the parent span.
 If there is no parent span and the service name is not overridden the agent will drop the traces.
@@ -36,10 +36,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.jinja2.patch import get_version
-from ddtrace.contrib.internal.jinja2.patch import patch
-from ddtrace.contrib.internal.jinja2.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.jinja2.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.jinja2.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.jinja2.patch import unpatch  # noqa: F401

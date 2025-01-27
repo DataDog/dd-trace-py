@@ -5,11 +5,11 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
@@ -196,7 +196,7 @@ class _ClientInterceptor(
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)

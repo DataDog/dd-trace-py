@@ -9,7 +9,7 @@ from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import httplib
@@ -91,7 +91,7 @@ def _wrap_request(func, instance, args, kwargs):
     if should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
-    cfg = config.get_from(instance)
+    cfg = config._get_from(instance)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
