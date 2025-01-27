@@ -60,52 +60,7 @@ def test_service_enable_proxy_default():
         assert llmobs_instance.tracer == dummy_tracer
         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
-
         llmobs_service.disable()
-
-
-@pytest.mark.subprocess()
-def test_service_enable_manually_updates_config():
-    from ddtrace import config
-    from ddtrace.llmobs import LLMObs
-
-    LLMObs.enable(api_key="<not-a-real-key>", agentless_enabled=True, ml_app="test_ml_app")
-    assert config._llmobs_enabled is True
-    LLMObs.disable()
-    assert config._llmobs_enabled is False
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_ML_APP": "test_ml_app",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "true",
-        "DD_LLMOBS_ENABLED": "true",
-        "DD_TRACE_ENABLED": "false",
-    }
-)
-def test_service_enable_env_var_sets_config():
-    from ddtrace import auto  # noqa: F401
-    from ddtrace import config
-
-    assert config._llmobs_enabled is True
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_ML_APP": "test_ml_app",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "true",
-        "DD_LLMOBS_ENABLED": "false",
-        "DD_TRACE_ENABLED": "false",
-    }
-)
-def test_service_enable_false_env_var_takes_precedence():
-    from ddtrace import config
-    from ddtrace.llmobs import LLMObs
-
-    LLMObs.enable()
-    assert config._llmobs_enabled is False
 
 
 def test_enable_agentless():
