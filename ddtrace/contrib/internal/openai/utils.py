@@ -89,7 +89,10 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
         if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
-        choice = getattr(chunk, "choices", [None])[0]
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
         if not getattr(choice, "finish_reason", None):
             # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
             return
@@ -152,7 +155,10 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
         if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
-        choice = getattr(chunk, "choices", [None])[0]
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
         if not getattr(choice, "finish_reason", None):
             return
         try:
