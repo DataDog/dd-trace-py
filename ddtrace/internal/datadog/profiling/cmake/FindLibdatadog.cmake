@@ -42,6 +42,7 @@ else()
 endif()
 
 set(DD_EXT "tar.gz")
+set(DD_HASH_ALGO "SHA256")
 
 if(APPLE)
     set(DD_PLATFORM "apple-darwin")
@@ -51,6 +52,7 @@ elseif(UNIX)
         OUTPUT_VARIABLE LDD_OUTPUT
         ERROR_VARIABLE LDD_OUTPUT
         OUTPUT_STRIP_TRAILING_WHITESPACE)
+
     if(LDD_OUTPUT MATCHES "musl")
         set(DD_PLATFORM "alpine-linux-musl")
     else()
@@ -59,17 +61,21 @@ elseif(UNIX)
 elseif(WIN32)
     # WIN32 is True when it's Windows, including Win64
     set(DD_PLATFORM "windows")
+
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(DD_ARCH "x64")
     else()
         set(DD_ARCH "x86")
     endif()
+
     set(DD_EXT "zip")
+    set(DD_HASH_ALGO "SHA512")
 else()
     message(FATAL_ERROR "Unsupported operating system")
 endif()
 
 set(DD_TARBALL "libdatadog-${DD_ARCH}-${DD_PLATFORM}.${DD_EXT}")
+
 
 # Make sure we can get the checksum for the tarball
 foreach(ENTRY IN LISTS DD_CHECKSUMS)
@@ -83,65 +89,47 @@ if(NOT DEFINED DD_HASH)
     message(FATAL_ERROR "Could not find checksum for ${DD_TARBALL}")
 endif()
 
-if(WIN32)
-    # Use FetchContent to download and extract the library
-    FetchContent_Declare(
-        libdatadog
-        URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}" DOWNLOAD_DIR
-            "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
-else()
+# Clean up any existing downloads if they exist
+set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
 
-    # Clean up any existing downloads if they exist
-    set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
-    if(EXISTS "${TARBALL_PATH}")
-        file(SHA256 "${TARBALL_PATH}" EXISTING_HASH)
+set(LIBDATADOG_URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}")
+
+if(EXISTS "${TARBALL_PATH}")
+        file(${DD_HASH_ALGO} "${TARBALL_PATH}" EXISTING_HASH)
+
         if(NOT EXISTING_HASH STREQUAL DD_HASH)
             file(REMOVE "${TARBALL_PATH}")
+
             # Also remove the subbuild directory to force a fresh download
             file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/_deps/libdatadog-subbuild")
         endif()
-    endif()
-
-    # Use FetchContent to download and extract the library
-    FetchContent_Declare(
-        libdatadog
-        URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}"
-        URL_HASH SHA256=${DD_HASH}
-        DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
-
 endif()
 
-# Clean up any existing downloads if they exist
-set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
-if(EXISTS "${TARBALL_PATH}")
-    file(SHA256 "${TARBALL_PATH}" EXISTING_HASH)
-    if(NOT EXISTING_HASH STREQUAL DD_HASH)
-        file(REMOVE "${TARBALL_PATH}")
-        # Also remove the subbuild directory to force a fresh download
-        file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/_deps/libdatadog-subbuild")
-    endif()
-endif()
 
 # Use FetchContent to download and extract the library
 FetchContent_Declare(
     libdatadog
-    URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}"
-    URL_HASH SHA256=${DD_HASH}
+    URL ${LIBDATADOG_URL}
+    URL_HASH ${DD_HASH_ALGO}=${DD_HASH}
     DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
 
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)
 
-# Set up paths
-get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
-set(Datadog_DIR "${Datadog_ROOT}/cmake")
+if(WIN32)
 
-# Configure library preferences (static over shared)
-set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+else()
+    # Set up paths
+    get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
+    set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
-# Find the package
-find_package(Datadog REQUIRED)
+    # Configure library preferences (static over shared)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 
-# Restore library preferences
-set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
+    # Find the package
+    find_package(Datadog REQUIRED)
+
+    # Restore library preferences
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
+endif()
