@@ -4,8 +4,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -47,7 +47,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tag(SPAN_MEASURED_KEY)
+            s.set_tag(_SPAN_MEASURED_KEY)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
