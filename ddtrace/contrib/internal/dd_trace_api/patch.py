@@ -14,7 +14,8 @@ _STATE = {"tracer": ddtrace.tracer}
 SELF_KEY = "stub_self"
 
 
-def _proxy_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
+def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
+    """Convert all dd_trace_api.Span objects in the args/kwargs collections to their held ddtrace.Span objects"""
     proxied_args = []
     for arg in args:
         if isinstance(arg, dd_trace_api.Span):
@@ -31,15 +32,16 @@ def _proxy_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
 
 
 def _patched(method_of, fn_name, store_return: Optional[str] = None):
-    def _inner(shared_state, *args, **kwargs):
-        if SELF_KEY in shared_state:
-            operand = getattr(shared_state[SELF_KEY], "_" + method_of)
+    def _inner(state_shared_with_api, *args, **kwargs):
+        stub_shares_selfref = SELF_KEY in state_shared_with_api
+        if stub_shares_selfref:
+            operand = getattr(state_shared_with_api[SELF_KEY], "_" + method_of)
         else:
             operand = _STATE[method_of]
-        args, kwargs = _proxy_arguments(args, kwargs)
+        args, kwargs = _proxy_span_arguments(args, kwargs)
         retval = getattr(operand, fn_name)(*args, **kwargs)
         if store_return:
-            shared_state[store_return] = retval
+            state_shared_with_api[store_return] = retval
             _STATE[store_return] = retval
 
     return _inner
@@ -77,8 +79,8 @@ def _hook(name, hook_args):
             return
         kwargs = hook_args[0][1]
         args = hook_args[0][0]
-        shared_state, args = args[0], args[1:]
-        _HANDLERS[name_suffix](shared_state, *args, **kwargs)
+        state_shared_with_api, args = args[0], args[1:]
+        _HANDLERS[name_suffix](state_shared_with_api, *args, **kwargs)
 
 
 def get_version() -> str:
