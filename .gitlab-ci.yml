@@ -6,6 +6,7 @@ stages:
   - shared-pipeline
   - benchmarks
   - macrobenchmarks
+  - benchmarks-report
   - release
 
 variables:

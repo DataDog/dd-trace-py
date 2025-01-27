@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13.
+fixes:
+  - |
+    openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors. 
