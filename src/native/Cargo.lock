@@ -28,8 +28,8 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "datadog-ddsketch"
-version = "14.3.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v14.3.1#48240f2588665a03c2061879345566ec7e70fabf"
+version = "15.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v15.0.0#0ef49864317b0728648b2b7f26fe2f1deeeeebc4"
 dependencies = [
  "prost",
 ]

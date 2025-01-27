@@ -19,7 +19,7 @@ from ._utils cimport PyBytesLike_Check
 # DEV: This only occurs because there is a `constants.py` module
 #   in both `ddtrace` and `ddtrace.internal`
 
-from ..constants import ORIGIN_KEY
+from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS

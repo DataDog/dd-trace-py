@@ -7,8 +7,8 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -83,7 +83,7 @@ def trace_tween_factory(handler, registry):
                 # set span.kind to the type of operation being performed
                 span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
