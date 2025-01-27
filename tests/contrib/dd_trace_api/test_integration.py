@@ -19,7 +19,10 @@ class DDTraceAPITestCase(TracerTestCase):
 
     def _assert_span_stub(self, stub: Any):
         assert not isinstance(stub, dd_span_class), "Returned span object should be a stub"
-        assert not hasattr(stub, "span_id"), "Returned span stub should not support read operations"
+        assert hasattr(stub, "_current_span")
+        assert isinstance(
+            stub._current_span, dd_span_class
+        ), "Returned span stub should hold a private reference to the corresponding real Span"
 
     def _assert_real_span(self):
         spans = self.pop_spans()

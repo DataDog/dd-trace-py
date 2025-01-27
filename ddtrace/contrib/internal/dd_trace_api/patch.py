@@ -7,13 +7,19 @@ import ddtrace
 
 
 _DD_HOOK_PREFIX = "dd.hooks."
+# XXX the "current span" state should not be stored here, instead delegated to the real Tracer
 _STATE = {"current_span": None, "tracer": ddtrace.tracer}
 
 
 def _generic_patched(method_of, fn_name, store_return: Optional[str] = None):
-    def _inner(*args, **kwargs):
-        retval = getattr(_STATE[method_of], fn_name)(*args, **kwargs)
+    def _inner(shared_state, *args, **kwargs):
+        if "stub_self" in shared_state and method_of != "tracer":  # XXX
+            operand = getattr(shared_state["stub_self"], "_" + method_of)
+        else:
+            operand = _STATE[method_of]
+        retval = getattr(operand, fn_name)(*args, **kwargs)
         if store_return:
+            shared_state[store_return] = retval
             _STATE[store_return] = retval
 
     return _inner
@@ -30,14 +36,18 @@ _HANDLERS = {
 }
 
 
-def _hook(name, args):
+def _hook(name, hook_args):
     if not dd_trace_api.__datadog_patch:
         return
     if name.startswith(_DD_HOOK_PREFIX):
         name_suffix = ".".join(name.split(".")[2:])
         if name_suffix not in _HANDLERS:
             return
-        _HANDLERS[name_suffix](*(args[0][0]), **(args[0][1]))
+        print(hook_args)
+        kwargs = hook_args[0][1]
+        args = hook_args[0][0]
+        shared_state, args = args[0], args[1:]
+        _HANDLERS[name_suffix](shared_state, *args, **kwargs)
 
 
 def get_version() -> str:
