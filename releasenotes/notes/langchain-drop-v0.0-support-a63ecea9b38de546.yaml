@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    langchain: Drops tracing support for Langchain v0.0.x versions and modules directly from the ``langchain`` package.
+    To maintain tracing support, use upgrade to ``langchain-core>=0.1`` and ``langchain-community>=0.1`` with parter libraries (e.g. ``langchain-openai``) for specific models.
