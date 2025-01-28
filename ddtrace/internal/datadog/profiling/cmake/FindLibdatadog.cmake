@@ -76,7 +76,6 @@ endif()
 
 set(DD_TARBALL "libdatadog-${DD_ARCH}-${DD_PLATFORM}.${DD_EXT}")
 
-
 # Make sure we can get the checksum for the tarball
 foreach(ENTRY IN LISTS DD_CHECKSUMS)
     if(ENTRY MATCHES "^([a-fA-F0-9]+) ${DD_TARBALL}$")
@@ -95,16 +94,15 @@ set(TARBALL_PATH "${FETCHCONTENT_DOWNLOADS_DIR}/${DD_TARBALL}")
 set(LIBDATADOG_URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}")
 
 if(EXISTS "${TARBALL_PATH}")
-        file(${DD_HASH_ALGO} "${TARBALL_PATH}" EXISTING_HASH)
+    file(${DD_HASH_ALGO} "${TARBALL_PATH}" EXISTING_HASH)
 
-        if(NOT EXISTING_HASH STREQUAL DD_HASH)
-            file(REMOVE "${TARBALL_PATH}")
+    if(NOT EXISTING_HASH STREQUAL DD_HASH)
+        file(REMOVE "${TARBALL_PATH}")
 
-            # Also remove the subbuild directory to force a fresh download
-            file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/_deps/libdatadog-subbuild")
-        endif()
+        # Also remove the subbuild directory to force a fresh download
+        file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/_deps/libdatadog-subbuild")
+    endif()
 endif()
-
 
 # Use FetchContent to download and extract the library
 FetchContent_Declare(
@@ -116,11 +114,68 @@ FetchContent_Declare(
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)
 
+get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
+
 if(WIN32)
+    find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
+
+    message ("Find path succeeded")
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        find_library(
+            Datadog_LIBRARY
+            NAMES datadog_profiling_ffi
+            HINTS ${Datadog_ROOT}/release/static)
+    else()
+        find_library(
+            Datadog_LIBRARY
+            NAMES datadog_profiling_ffi
+            HINTS ${Datadog_ROOT}/debug/static)
+    endif()
+
+    message("find library succeeded")
+
+    include(FindPackageHandleStandardArgs)
+
+    find_package_handle_standard_args(Datadog DEFAULT_MSG Datadog_LIBRARY
+        Datadog_INCLUDE_DIR)
+
+    message("find package handle succeeded")
+
+    if(Datadog_FOUND)
+        message("=============== DATADOG FOUND==============")
+        set(Datadog_INCLUDE_DIRS ${Datadog_INCLUDE_DIR})
+        set(Datadog_LIBRARIES ${Datadog_LIBRARY})
+        mark_as_advanced(Datadog_ROOT Datadog_LIBRARY Datadog_INCLUDE_DIR)
+        add_library(datadog_profiling_ffi INTERFACE)
+        target_include_directories(datadog_profiling_ffi INTERFACE ${Datadog_INCLUDE_DIRS})
+        target_link_libraries(datadog_profiling_ffi INTERFACE ${Datadog_LIBRARIES})
+        target_compile_features(datadog_profiling_ffi INTERFACE c_std_11)
+
+        target_link_libraries(
+            datadog_profiling_ffi
+            INTERFACE NtDll.lib
+            UserEnv.lib
+            Bcrypt.lib
+            crypt32.lib
+            wsock32.lib
+            ws2_32.lib
+            shlwapi.lib
+            Secur32.lib
+            Ncrypt.lib
+            PowrProf.lib)
+
+
+        add_library(Datadog::Profiling ALIAS datadog_profiling_ffi)
+    else()
+        message("=============== DATADOG not found==============")
+        set(Datadog_ROOT
+            ""
+            CACHE STRING "Directory containing libdatadog")
+    endif()
 
 else()
     # Set up paths
-    get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
     set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
     # Configure library preferences (static over shared)

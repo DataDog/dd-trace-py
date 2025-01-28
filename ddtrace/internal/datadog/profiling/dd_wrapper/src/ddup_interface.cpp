@@ -10,7 +10,11 @@
 
 #include <cstdlib>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -141,9 +145,12 @@ ddup_start() // cppcheck-suppress unusedFunction
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
+#if defined(_WIN32) || defined(_WIN64)
+#else
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+#endif
 
         // Set the global initialization flag
         is_ddup_initialized = true;

@@ -6,6 +6,11 @@
 #include <chrono>
 #include <string_view>
 #include <thread>
+#if defined(_WIN32) || defined(_WIN64)
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -68,15 +73,15 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     CodeProvenance::get_instance().add_filename(filename);
 
     const ddog_prof_Location loc = {
-        .mapping = null_mapping, // No support for mappings in Python
-        .function = {
-          .name = to_slice(name),
-          .system_name = {}, // No support for system_name in Python
-          .filename = to_slice(filename),
-          .start_line = 0, // We don't know the start_line for the function
+        null_mapping, // No support for mappings in Python
+        {
+          to_slice(name),
+          {}, // No support for system_name in Python
+          to_slice(filename),
+          0, // We don't know the start_line for the function
         },
-        .address = address,
-        .line = line,
+        address,
+        line,
     };
 
     locations.emplace_back(loc);
@@ -157,9 +162,9 @@ Datadog::Sample::flush_sample(bool reverse_locations)
     }
 
     const ddog_prof_Sample sample = {
-        .locations = { locations.data(), locations.size() },
-        .values = { values.data(), values.size() },
-        .labels = { labels.data(), labels.size() },
+        { locations.data(), locations.size() },
+        { values.data(), values.size() },
+        { labels.data(), labels.size() },
     };
 
     const bool ret = profile_state.collect(sample, endtime_ns);
@@ -419,11 +424,20 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
+#if defined(_WIN32) || defined(_WIN64)
+        LARGE_INTEGER frequency, counter;
+        QueryPerformanceFrequency(&frequency); // Frequency of the performance counter
+        QueryPerformanceCounter(&counter);     // Current value of the performance counter
+
+        // Convert to nanoseconds
+        auto monotonic_ns = (counter.QuadPart * 1'000'000'000LL) / frequency.QuadPart;
+#else
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+#endif
 
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;

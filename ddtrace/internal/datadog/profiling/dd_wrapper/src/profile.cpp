@@ -7,7 +7,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
+
 
 // Inline helpers
 namespace {
@@ -110,7 +115,7 @@ Datadog::Profile::setup_samplers()
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
     if (!samplers.empty()) {
-        default_period = { .type_ = samplers[0], .value = 1 };
+        default_period = { samplers[0], 1 };
     }
 }
 
@@ -165,7 +170,7 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     setup_samplers();
 
     // We need to initialize the profiles
-    const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    const ddog_prof_Slice_ValueType sample_types = { samplers.data(), samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error initializing top half of profile storage" << std::endl;
         return;
