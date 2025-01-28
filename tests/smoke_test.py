@@ -100,6 +100,7 @@ if __name__ == "__main__":
         copied_env = copy.deepcopy(orig_env)
         copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
         if platform.system() == "Windows":
+            # Memory profiler crashes on Windows
             copied_env["DD_PROFILING_MEMORY_ENABLED"] = "False"
         result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
         assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
