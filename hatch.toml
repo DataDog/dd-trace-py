@@ -363,7 +363,6 @@ dependencies = [
     "requests",
     "hypothesis",
     "gunicorn",
-    "mock",
     "psycopg2-binary~=2.9.9",
     "MarkupSafe{matrix:markupsafe:}",
     "itsdangerous{matrix:itsdangerous:}",
