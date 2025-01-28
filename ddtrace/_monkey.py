@@ -261,11 +261,11 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
+        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
             if raise_errors:
                 raise ModuleNotFoundException(
-                    "integration module ddtrace.contrib.%s does not exist, "
-                    "module will not have tracing available" % contrib
+                    "integration module ddtrace.contrib.internal.%s.patch.py does not exist, "
+                    "automatic instrumentation is disabled for this library" % contrib
                 )
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
