@@ -1,4 +1,5 @@
 ---
 upgrade:
   - |
-    openai: Drops tracing support for OpenAI 0.x versions. To maintain tracing support, upgrade to ``openai>=1.0``.
+    openai: Drops tracing and LLM Observability support for OpenAI 0.x versions.
+     To maintain support, upgrade to ``openai>=1.0``.

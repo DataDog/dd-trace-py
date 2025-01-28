@@ -2502,7 +2502,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": "==1.30.1",
+                        "openai[embeddings,datalib]": ["==1.0.0", "==1.30.1"],
                         "pillow": "==9.5.0",
                         "httpx": "==0.27.2",
                     },
