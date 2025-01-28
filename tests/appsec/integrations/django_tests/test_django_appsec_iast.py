@@ -888,8 +888,8 @@ def test_django_stacktrace_from_technical_500_response(client, test_spans, trace
     assert root_span.get_metric(IAST.ENABLED) == 1.0
 
     loaded = json.loads(root_span.get_tag(IAST.JSON))
-    assert loaded["sources"] == []
-    assert len(loaded["vulnerabilities"]) == 1
+    assert len(loaded["vulnerabilities"]) == 1, f'More than 1 vulnerability: {loaded["vulnerabilities"]}'
+    assert loaded["sources"] == [], f"There are sources {loaded}"
     vulnerability = loaded["vulnerabilities"][0]
     assert vulnerability["type"] == VULN_STACKTRACE_LEAK
     assert vulnerability["evidence"] == {
