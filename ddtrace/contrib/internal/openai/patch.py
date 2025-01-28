@@ -86,6 +86,10 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
+    if OPENAI_VERSION < (1, 0, 0):
+        log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
+        return
+
     Pin().onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
     openai._datadog_integration = integration
@@ -116,6 +120,10 @@ def unpatch():
     import openai
 
     if not getattr(openai, "__datadog_patch", False):
+        return
+
+    if OPENAI_VERSION < (1, 0, 0):
+        log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
         return
 
     openai.__datadog_patch = False
