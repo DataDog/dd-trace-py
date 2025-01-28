@@ -200,7 +200,8 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                     telemetry.telemetry_writer.add_integration(
                         name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
-            else:
+            elif hasattr(imported_module, "get_version"):
+                # Some integrations/iast patchers do not define get_version
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
