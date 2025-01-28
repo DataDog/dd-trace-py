@@ -23,6 +23,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Type
 
+import ddtrace._trace.trace_handlers  # noqa: F401 -- this triggers the registration of trace handlers
 from ddtrace.ext.test import Status as _TestStatus
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
