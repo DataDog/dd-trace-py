@@ -2,6 +2,7 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -59,9 +60,8 @@ async def trace_middleware(app, handler):
             request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
             try:
                 response = await handler(request)
-                if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
-                    if isinstance(response, web.StreamResponse):
-                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
+                if isinstance(response, web.StreamResponse):
+                    request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
             except Exception:
                 req_span.set_traceback()
