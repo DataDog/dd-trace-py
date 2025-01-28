@@ -46,7 +46,7 @@ Tracing Context Management
 --------------------------
 
 In ``ddtrace`` "context management" is the management of which
-:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+:class:`ddtrace.trace.Span` or :class:`ddtrace.context.Context` is active in an
 execution (thread, task, etc). There can only be one active span or context
 per execution at a time.
 
@@ -159,8 +159,8 @@ span has to be propagated as a context::
 
 .. important::
 
-   A :class:`ddtrace.Span` should only be accessed or modified in the process
-   that it was created in. Using a :class:`ddtrace.Span` from within a child process
+   A :class:`ddtrace.trace.Span` should only be accessed or modified in the process
+   that it was created in. Using a :class:`ddtrace.trace.Span` from within a child process
    could result in a deadlock or unexpected behavior.
 
 
@@ -208,7 +208,7 @@ Manual Management
 
 Parenting can be managed manually by using ``tracer.start_span()`` which by
 default does not activate spans when they are created. See the documentation
-for :meth:`ddtrace.Tracer.start_span`.
+for :meth:`ddtrace.trace.Tracer.start_span`.
 
 
 Context Providers
@@ -354,7 +354,7 @@ and the resulting trace will either be sent to the Agent or discarded.
 **Writing a custom filter**
 
 Create a filter by implementing a class with a ``process_trace`` method and
-providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+providing it to the filters parameter of :meth:`ddtrace.trace.Tracer.configure()`.
 ``process_trace`` should either return a trace to be fed to the next step of
 the pipeline or ``None`` if the trace should be discarded::
 

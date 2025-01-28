@@ -13,10 +13,10 @@ Tracing
 
 .. autofunction:: ddtrace.patch
 
-.. autoclass:: ddtrace.Tracer
+.. autoclass:: ddtrace.trace.Tracer
     :members:
 
-.. autoclass:: ddtrace.Span
+.. autoclass:: ddtrace.trace.Span
     :members:
 
 .. autoclass:: ddtrace.trace.Pin
