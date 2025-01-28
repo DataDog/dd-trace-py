@@ -8,6 +8,8 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
@@ -664,3 +666,29 @@ class TestSchematization(TornadoTestCase):
         assert "http.server.request" == request_span.name, "Expected 'http.server.request' but got {}".format(
             request_span.name
         )
+
+class TestAPIGatewayTracing(TornadoTestCase):
+    """
+    Ensure that Tornado web handlers are properly traced when API Gateway is involved
+    """
+
+    def test_inferred_spans_api_gateway_default(self):
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        config._inferred_proxy_services_enabled = True
+        response = self.fetch("/success/", headers=headers)
+        traces = self.pop_traces()
+        aws_gateway_span = traces[0][0]
+        web_span = traces[0][1]
+        assert web_span.name == "tornado.request"
+        # Assert common behavior including aws gateway metadata
+        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+        assert 1 == len(traces)
