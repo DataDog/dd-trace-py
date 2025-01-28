@@ -201,7 +201,7 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_loglevel_info_connection(self):
-        tracer = ddtrace.Tracer()
+        tracer = ddtrace.trace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
@@ -217,7 +217,7 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_loglevel_info_no_connection(self):
-        tracer = ddtrace.Tracer()
+        tracer = ddtrace.trace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer._configure()
@@ -231,7 +231,7 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_log_disabled_error(self):
-        tracer = ddtrace.Tracer()
+        tracer = ddtrace.trace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer._configure()
         assert mock_logger.mock_calls == []
@@ -243,7 +243,7 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_log_disabled(self):
-        tracer = ddtrace.Tracer()
+        tracer = ddtrace.trace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer._configure()
         assert mock_logger.mock_calls == []
@@ -255,7 +255,7 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
-        tracer = ddtrace.Tracer()
+        tracer = ddtrace.trace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             tracer._configure()
         assert mock_logger.mock_calls == []
@@ -301,14 +301,14 @@ def test_to_json():
 
 def test_agentless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "something")
-    tracer = ddtrace.Tracer()
+    tracer = ddtrace.trace.Tracer()
     info = debug.collect(tracer)
 
     assert info.get("agent_url") == "AGENTLESS"
 
 
 def test_custom_writer():
-    tracer = ddtrace.Tracer()
+    tracer = ddtrace.trace.Tracer()
 
     class CustomWriter(TraceWriter):
         def recreate(self) -> TraceWriter:
@@ -330,7 +330,7 @@ def test_custom_writer():
 
 
 def test_different_samplers():
-    tracer = ddtrace.Tracer()
+    tracer = ddtrace.trace.Tracer()
     tracer._configure(sampler=ddtrace._trace.sampler.RateSampler())
     info = debug.collect(tracer)
 
@@ -338,7 +338,7 @@ def test_different_samplers():
 
 
 def test_startup_logs_sampling_rules():
-    tracer = ddtrace.Tracer()
+    tracer = ddtrace.trace.Tracer()
     sampler = ddtrace._trace.sampler.DatadogSampler(rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0)])
     tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
@@ -427,7 +427,7 @@ def test_debug_span_log():
 
 
 def test_partial_flush_log():
-    tracer = ddtrace.Tracer()
+    tracer = ddtrace.trace.Tracer()
 
     tracer._configure(
         partial_flush_enabled=True,

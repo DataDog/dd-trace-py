@@ -1002,7 +1002,7 @@ class SnapshotFailed(Exception):
 @dataclasses.dataclass
 class SnapshotTest:
     token: str
-    tracer: ddtrace.Tracer = ddtrace.tracer
+    tracer: ddtrace.trace.Tracer = ddtrace.tracer
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
