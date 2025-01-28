@@ -32,6 +32,7 @@ function(add_ddup_config target)
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # macOS-specific linker options
         target_link_options(${target} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
+        target_link_options(${target} PRIVATE -ldl -undefined dynamic_lookup)
     else()
         # Linux/ELF-based linker options
         target_link_options(
