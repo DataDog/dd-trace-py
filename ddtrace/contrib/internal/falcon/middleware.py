@@ -1,14 +1,8 @@
 import sys
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http as httpx
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -27,26 +21,27 @@ class TraceMiddleware(object):
     def process_request(self, req, resp):
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
-        trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
-        span = self.tracer.trace(
-            schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
-            service=self.service,
+        with core.context_with_data(
+            "falcon.request",
+            span_name=schematize_url_operation("falcon.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
-        )
-        span.set_tag_str(COMPONENT, config.falcon.integration_name)
+            service=self.service,
+            tags={},
+            tracer=self.tracer,
+            distributed_headers=headers,
+            distributed_headers_config=config.falcon,
+            headers_case_sensitive=True,
+            analytics_sample_rate=config.falcon.get_analytics_sample_rate(use_global_config=True),
+        ) as ctx:
+            req_span = ctx.span
+            ctx.set_item("req_span", req_span)
+            core.dispatch("web.request.start", (ctx, config.falcon))
 
-        # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-        span.set_tag(SPAN_MEASURED_KEY)
-
-        # set analytics sample rate with global config enabled
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
-
-        trace_utils.set_http_meta(
-            span, config.falcon, method=req.method, url=req.url, query=req.query_string, request_headers=req.headers
-        )
+            core.dispatch(
+                "web.request.finish",
+                (req_span, config.falcon, req.method, req.url, None, req.query_string, req.headers, None, None, False),
+            )
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()
@@ -69,8 +64,7 @@ class TraceMiddleware(object):
         if resource is None:
             status = "404"
             span.resource = "%s 404" % req.method
-            span.set_tag(httpx.STATUS_CODE, status)
-            span.finish()
+            core.dispatch("web.request.finish", (span, config.falcon, None, None, status, None, None, None, None, True))
             return
 
         err_type = sys.exc_info()[0]
@@ -87,20 +81,13 @@ class TraceMiddleware(object):
 
         route = req.root_path or "" + req.uri_template
 
-        trace_utils.set_http_meta(
-            span,
-            config.falcon,
-            status_code=status,
-            response_headers=resp._headers,
-            route=route,
-        )
-
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
         config.falcon.hooks.emit("request", span, req, resp)
 
-        # Close the span
-        span.finish()
+        core.dispatch(
+            "web.request.finish", (span, config.falcon, None, None, status, None, None, resp._headers, route, True)
+        )
 
 
 def _is_404(err_type):

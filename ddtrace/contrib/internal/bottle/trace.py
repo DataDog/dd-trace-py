@@ -5,13 +5,8 @@ from bottle import response
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
@@ -42,24 +37,21 @@ class TracePlugin(object):
 
             resource = "{} {}".format(request.method, route.rule)
 
-            trace_utils.activate_distributed_headers(
-                self.tracer, int_config=config.bottle, request_headers=request.headers
-            )
-
-            with self.tracer.trace(
-                schematize_url_operation("bottle.request", protocol="http", direction=SpanDirection.INBOUND),
+            with core.context_with_data(
+                "bottle.request",
+                span_name=schematize_url_operation("bottle.request", protocol="http", direction=SpanDirection.INBOUND),
+                span_type=SpanTypes.WEB,
                 service=self.service,
                 resource=resource,
-                span_type=SpanTypes.WEB,
-            ) as s:
-                s.set_tag_str(COMPONENT, config.bottle.integration_name)
-
-                # set span.kind to the type of request being performed
-                s.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-                s.set_tag(SPAN_MEASURED_KEY)
-                # set analytics sample rate with global config enabled
-                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
+                tags={},
+                tracer=self.tracer,
+                distributed_headers=request.headers,
+                distributed_headers_config=config.bottle,
+                headers_case_sensitive=True,
+                analytics_sample_rate=config.bottle.get_analytics_sample_rate(use_global_config=True),
+            ) as ctx, ctx.span as req_span:
+                ctx.set_item("req_span", req_span)
+                core.dispatch("web.request.start", (ctx, config.bottle))
 
                 code = None
                 result = None
@@ -91,16 +83,21 @@ class TracePlugin(object):
                     method = request.method
                     url = request.urlparts._replace(query="").geturl()
                     full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-                    trace_utils.set_http_meta(
-                        s,
-                        config.bottle,
-                        method=method,
-                        url=url,
-                        status_code=response_code,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response.headers,
-                        route=full_route,
+
+                    core.dispatch(
+                        "web.request.finish",
+                        (
+                            req_span,
+                            config.bottle,
+                            method,
+                            url,
+                            response_code,
+                            request.query_string,
+                            request.headers,
+                            response.headers,
+                            full_route,
+                            False,
+                        ),
                     )
 
         return wrapped

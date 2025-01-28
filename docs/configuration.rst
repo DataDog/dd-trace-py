@@ -485,6 +485,11 @@ AppSec
      default: 2
      description: Number of requests analyzed at the same time.
 
+   DD_IAST_DEDUPLICATION_ENABLED:
+     type: Integer
+     default: True
+     description: Avoid sending vulnerabilities in the span if they have already been reported in the last hour.
+
    DD_IAST_REDACTION_ENABLED:
      type: Boolean
      default: True
