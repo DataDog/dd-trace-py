@@ -92,7 +92,7 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
 
 
 @pytest.mark.parametrize(
-    "evidence_input, sources_expected, vulnerabilities_expected,element",
+    "evidence_input,sources_expected,vulnerabilities_expected,element",
     list(get_parametrize(VULN_HEADER_INJECTION)),
 )
 def test_header_injection_redaction_suite(
