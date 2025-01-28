@@ -173,3 +173,10 @@ def test_ssrf2(client, iast_context_defaults):
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab2", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("SSRF", client.agent_session)
+
+
+def test_xss(client):
+    payload = {"search": "<script>alert('XSS')</script>", "csrfmiddlewaretoken": client.csrftoken}
+    reply = client.pygoat_session.post(PYGOAT_URL + "/xss", data=payload, headers=TESTAGENT_HEADERS)
+    assert reply.status_code == 200
+    assert vulnerability_in_traces("XSS", client.agent_session)
