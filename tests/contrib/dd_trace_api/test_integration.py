@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 
 import dd_trace_api
@@ -27,6 +28,7 @@ class DDTraceAPITestCase(TracerTestCase):
         generated_span = spans[0]
         assert isinstance(generated_span, dd_span_class), "Generated span is a real span"
         assert hasattr(generated_span, "span_id"), "Generated span should support read operations"
+        return spans
 
     def test_tracer_singleton(self):
         assert isinstance(dd_trace_api.tracer, dd_trace_api.Tracer), "Tracer stub should be exposed as a singleton"
@@ -67,3 +69,48 @@ class DDTraceAPITestCase(TracerTestCase):
                 root_from_nested = dd_trace_api.tracer.current_root_span()
                 self._assert_span_stub(root_from_nested)
         self._assert_real_spans(2)
+
+    def test_set_link(self):
+        pass
+
+    def test_link_span(self):
+        pass
+
+    def test_set_traceback(self):
+        with dd_trace_api.tracer.trace("web.request") as span:
+            try:
+                raise Exception
+            except Exception:  # noqa
+                span.set_traceback()
+        spans = self._assert_real_spans()
+        assert "error.stack" in spans[0]._meta
+
+    def test_set_exc_info(self):
+        with dd_trace_api.tracer.trace("web.request") as span:
+            try:
+                raise Exception
+            except Exception:  # noqa
+                span.set_exc_info(*sys.exc_info())
+        spans = self._assert_real_spans()
+        assert "error.message" in spans[0]._meta
+        assert "error.stack" in spans[0]._meta
+        assert "error.type" in spans[0]._meta
+
+    def test_set_tags(self):
+        with dd_trace_api.tracer.trace("web.request") as span:
+            span.set_tag("foo", "bar")
+        spans = self._assert_real_spans()
+        assert spans[0]._meta["foo"] == "bar", "Tag set via API should be applied to the real spans"
+
+        with dd_trace_api.tracer.trace("web.request") as span:
+            span.set_tags({"tag1": "value1", "tag2": "value2"})
+        spans = self._assert_real_spans()
+        assert spans[0]._meta["tag1"] == "value1", "Tag set via API should be applied to the real spans"
+        assert spans[0]._meta["tag2"] == "value2", "Tag set via API should be applied to the real spans"
+
+        with dd_trace_api.tracer.trace("web.request") as span:
+            span.set_struct_tag("tag1", {"tag2": "value2"})
+        spans = self._assert_real_spans()
+        assert spans[0]._meta_struct["tag1"] == {
+            "tag2": "value2"
+        }, "Tag set via API should be applied to the real spans"
