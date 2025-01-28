@@ -394,20 +394,28 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     }
 
     IterEventsState* iestate = (IterEventsState*)type->tp_alloc(type, 0);
-    if (!iestate)
+    if (!iestate) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate IterEventsState");
         return NULL;
+    }
 
     memalloc_assert_gil();
 
-    /* reset the current traceback list */
-    if (memlock_trylock(&g_memalloc_lock)) {
-        iestate->alloc_tracker = global_alloc_tracker;
-        global_alloc_tracker = alloc_tracker_new();
-        memlock_unlock(&g_memalloc_lock);
-    } else {
+    /* Reset the current traceback list. Do this outside lock so we can track it,
+     * and avoid reentrancy/deadlock problems, if we start tracking the raw
+     * allocator domain */
+    alloc_tracker_t* tracker = alloc_tracker_new();
+    if (!tracker) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
         Py_TYPE(iestate)->tp_free(iestate);
         return NULL;
     }
+
+    memlock_lock(&g_memalloc_lock);
+    iestate->alloc_tracker = global_alloc_tracker;
+    global_alloc_tracker = tracker;
+    memlock_unlock(&g_memalloc_lock);
+
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);
