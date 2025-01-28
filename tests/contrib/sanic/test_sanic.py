@@ -14,13 +14,18 @@ from sanic.response import text
 from sanic.server import HttpProtocol
 
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import USER_KEEP
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import override_config
 from tests.utils import override_http_config
+from tests.utils import override_global_config
 
 
 # Helpers for handling response objects across sanic versions
@@ -524,3 +529,83 @@ if __name__ == "__main__":
         env=env,
     )
     assert status == 0, out or err
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {"endpoint": '/hello', "status_code": "200"},
+        {"endpoint": '/error', "status_code": "500"},
+        {"endpoint": '/invalid', "status_code": "500"},
+    ],
+)
+@pytest.mark.parametrize(
+    "test_headers",
+    [
+        {
+            "type": "default",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+            },
+        },
+        {
+            "type": "distributed",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "x-datadog-trace-id": "1",
+                "x-datadog-parent-id": "2",
+                "x-datadog-origin": "rum",
+                "x-datadog-sampling-priority": "2",
+            },
+        },
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
+@pytest.mark.asyncio
+async def test_inferred_spans_api_gateway_default(tracer, client, test_spans, test, inferred_proxy_enabled, test_headers):
+    # When the inferred proxy feature is enabled, there should be an inferred span
+    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+        response = await client.get(test["endpoint"], headers=test_headers["headers"])
+
+        if inferred_proxy_enabled:
+            web_span = test_spans.find_span(name="sanic.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+            # Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+            # Assert test specific behavior for aws api gateway
+            assert aws_gateway_span.get_tag("http.url") == "local/"
+            assert aws_gateway_span.get_tag("http.method") == "GET"
+            assert aws_gateway_span.get_tag("http.status_code") == test["status_code"]
+            assert aws_gateway_span.get_tag("http.route") == '/'
+            # Assert test specific behavior for asgi
+            assert web_span.name == "sanic.request"
+            assert web_span.service == "sanic"
+            assert web_span.resource == "GET " + test["endpoint"]
+            assert web_span.get_tag("http.url") == 'http://mockserver:1234' + test["endpoint"]
+            assert web_span.get_tag("http.route") is None
+            assert web_span.get_tag("span.kind") == "server"
+            assert web_span.get_tag("component") == "sanic"
+            assert web_span.get_tag("_dd.inferred_span") is None
+
+            # Additional assertions if the headers are from distributed tracing
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1
+                assert aws_gateway_span.trace_id == 1
+                assert web_span.get_metric(_SAMPLING_PRIORITY_KEY) is None
+                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+        else:
+            web_span = test_spans.find_span(name="sanic.request")
+            assert web_span._parent is None
+
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1
