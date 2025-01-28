@@ -105,19 +105,19 @@ def _get_tests_api_response(tests_body: t.Optional[t.Dict] = None):
     return Response(200, json.dumps(response))
 
 
-def _get_detailed_tests_api_response(modules: t.Dict):
-    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"modules": []}}}
+def _get_test_management_tests_api_response(modules: t.Dict):
+    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"modules": {}}}}
 
     for module_id, suites in modules.items():
-        module = {"id": module_id, "suites": []}
-        response["data"]["attributes"]["modules"].append(module)
+        module = {"suites": {}}
+        response["data"]["attributes"]["modules"][module_id] = module
 
         for suite_id, tests in suites.items():
-            suite = {"id": suite_id, "tests": []}
-            module["suites"].append(suite)
+            suite = {"tests": {}}
+            module["suites"][suite_id] = suite
 
-            for test_id in tests:
-                suite["tests"].append({"id": test_id})
+            for test_id, test_properties in tests.items():
+                suite["tests"][test_id] = {"properties": test_properties}
 
     return Response(200, json.dumps(response))
 

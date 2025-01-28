@@ -22,6 +22,7 @@ from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -93,6 +94,11 @@ class EarlyFlakeDetectionSettings:
 class QuarantineSettings:
     enabled: bool = False
     skip_quarantined_tests: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class TestProperties:
+    quarantined: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -546,6 +552,64 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         record_early_flake_detection_tests_count(len(unique_test_ids))
 
         return unique_test_ids
+
+    def fetch_test_management_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+        metric_names = APIRequestMetricNames(
+            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
+            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
+            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES.value,
+            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
+        )
+
+        test_properties: t.Dict[InternalTestId, TestProperties] = {}
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {
+                    "repository_url": self._git_data.repository_url,
+                },
+            }
+        }
+
+        try:
+            parsed_response = self._do_request_with_telemetry(
+                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, json.dumps(payload), metric_names
+            )
+        except Exception:  # noqa: E722
+            return None
+
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            log.debug("Test management tests response contained an error")
+            return None
+
+        try:
+            modules = parsed_response["data"]["attributes"]["modules"]
+        except KeyError:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        try:
+            for module_name, module_data in modules.items():
+                module_id = TestModuleId(module_name)
+                suites = module_data["suites"]
+                for suite_name, suite_data in suites.items():
+                    suite_id = TestSuiteId(module_id, suite_name)
+                    tests = suite_data["tests"]
+                    for test_name, test_data in tests.items():
+                        test_id = InternalTestId(suite_id, test_name)
+                        properties = test_data.get("properties", {})
+                        test_properties[test_id] = TestProperties(quarantined=properties.get("quarantined", False))
+
+        except Exception:  # noqa: E722
+            log.debug("Failed to parse test management tests data", exc_info=True)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        # record_early_flake_detection_tests_count(len(unique_test_ids))
+
+        return test_properties
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
