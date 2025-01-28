@@ -136,7 +136,7 @@ def test_agent_sample_rate_keep():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():
     """Ensure that the agent sample rate is respected when a trace is auto rejected."""
-    from ddtrace.tracer import Tracer
+    from ddtrace.trace import Tracer
 
     tracer = Tracer()
 
