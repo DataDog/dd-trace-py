@@ -80,3 +80,20 @@ if __name__ == "__main__":
     else:
         # Skip the test for 32-bit Linux systems
         print("Skipping test, 32-bit DDWAF not ready yet")
+
+    # Profiling smoke test
+    print("Running profiling smoke test...")
+    profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
+    if system() == "Windows" or (system() == "Darwin" and machine() == "x86_64") or sys.version_info < (3, 8, 0):
+        orig_env = os.environ.copy()
+        copied_env = copy.deepcopy(orig_env)
+        copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
+        result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
+            result.stdout,
+            result.stderr,
+        )
+    else:
+        result = subprocess.run(profiling_cmd, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+    print("Profiling smoke test completed successfully")
