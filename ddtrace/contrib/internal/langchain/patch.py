@@ -59,6 +59,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
@@ -1256,6 +1257,11 @@ def _unpatch_embeddings_and_vectorstores():
 
 def patch():
     if getattr(langchain, "_datadog_patch", False):
+        return
+
+    version = parse_version(get_version())
+    if parse_version(get_version()) < (0, 1, 0):
+        log.warning("langchain version %s is not supported, please upgrade to langchain version 0.1 or later", version)
         return
 
     langchain._datadog_patch = True
