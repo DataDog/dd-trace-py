@@ -888,10 +888,8 @@ def test_django_stacktrace_from_technical_500_response(client, test_spans, trace
     assert root_span.get_metric(IAST.ENABLED) == 1.0
 
     loaded = json.loads(root_span.get_tag(IAST.JSON))
-    assert len(loaded["vulnerabilities"]) == 1, f'More than 1 vulnerability: {loaded["vulnerabilities"]}'
-    assert loaded["sources"] == [], f"There are sources {loaded}"
-    vulnerability = loaded["vulnerabilities"][0]
-    assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+    # technical_500_response reports a XSS also
+    vulnerability = [vln for vln in loaded["vulnerabilities"] if vln["type"] == VULN_STACKTRACE_LEAK][0]
     assert vulnerability["evidence"] == {
         "valueParts": [
             {"value": "Module: tests.appsec.integrations.django_tests.django_app.views\nException: Exception"}
