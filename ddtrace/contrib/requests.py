@@ -71,7 +71,7 @@ use the config API::
     session = Session()
     Pin.override(session, service='auth-api')
 """
-from ddtrace.contrib.internal.requests.session import TracedSession
+from ddtrace.contrib.internal.requests.patch import TracedSession
 
 
 __all__ = ["TracedSession"]

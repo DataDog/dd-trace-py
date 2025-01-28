@@ -6,7 +6,6 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -171,9 +170,6 @@ def trace_app(app, tracer, service="aiohttp-web"):
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }
-
-    # the tracer must work with asynchronous Context propagation
-    tracer._configure(context_provider=context_provider)
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one
