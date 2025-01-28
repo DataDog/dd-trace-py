@@ -62,7 +62,6 @@ def _expected_llmobs_llm_span_event(
     input_documents=None,
     output_messages=None,
     output_value=None,
-    parameters=None,
     metadata=None,
     token_metrics=None,
     model_name=None,
@@ -78,7 +77,6 @@ def _expected_llmobs_llm_span_event(
     span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
-    parameters: dict of input parameters
     metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     model_name: name of the model
@@ -112,8 +110,6 @@ def _expected_llmobs_llm_span_event(
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
     meta_dict.update({"metadata": metadata or {}})
-    if parameters is not None:
-        meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
         span_event["metrics"].update(token_metrics)
@@ -126,7 +122,6 @@ def _expected_llmobs_non_llm_span_event(
     input_value=None,
     output_value=None,
     output_documents=None,
-    parameters=None,
     metadata=None,
     token_metrics=None,
     tags=None,
@@ -140,7 +135,6 @@ def _expected_llmobs_non_llm_span_event(
     span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
-    parameters: dict of input parameters
     metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     tags: dict of tags to add/override on span
@@ -160,8 +154,6 @@ def _expected_llmobs_non_llm_span_event(
             meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
-    if parameters is not None:
-        meta_dict["input"].update({"parameters": parameters})
     meta_dict.update({"metadata": metadata or {}})
     if output_value is not None:
         meta_dict["output"].update({"value": output_value})
@@ -275,7 +267,6 @@ def _completion_event():
             "model_provider": "openai",
             "input": {
                 "messages": [{"content": "who broke enigma?"}],
-                "parameters": {"temperature": 0, "max_tokens": 256},
             },
             "output": {
                 "messages": [
@@ -284,6 +275,7 @@ def _completion_event():
                     }
                 ]
             },
+            "metadata": {"temperature": 0, "max_tokens": 256},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -312,7 +304,6 @@ def _chat_completion_event():
                     },
                     {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
                 ],
-                "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
             "output": {
                 "messages": [
@@ -322,6 +313,7 @@ def _chat_completion_event():
                     },
                 ]
             },
+            "metadata": {"temperature": 0.9, "max_tokens": 256},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
