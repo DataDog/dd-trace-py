@@ -78,7 +78,3 @@ To configure the Gemini integration on a per-instance basis use the
 
     Pin.override(genai, service="my-gemini-service")
 """  # noqa: E501
-
-from ..internal.google_generativeai.patch import get_version  # noqa: F401
-from ..internal.google_generativeai.patch import patch  # noqa: F401
-from ..internal.google_generativeai.patch import unpatch  # noqa: F401

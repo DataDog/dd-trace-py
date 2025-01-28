@@ -11,18 +11,18 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
-from ...appsec._constants import IAST_SPAN_TAGS
-from ...appsec._iast._metrics import increment_iast_span_metric
-from ...constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import _SPAN_MEASURED_KEY
-from ...constants import SPAN_KIND
-from ...ext import SpanKind
-from ...ext import SpanTypes
-from ...ext import db
-from ...ext import sql
-from ...trace import Pin
-from ..internal.trace_utils import ext_service
-from ..internal.trace_utils import iswrapped
+from ..appsec._constants import IAST_SPAN_TAGS
+from ..appsec._iast._metrics import increment_iast_span_metric
+from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ..constants import _SPAN_MEASURED_KEY
+from ..constants import SPAN_KIND
+from ..ext import SpanKind
+from ..ext import SpanTypes
+from ..ext import db
+from ..ext import sql
+from ..trace import Pin
+from .internal.trace_utils import ext_service
+from .internal.trace_utils import iswrapped
 
 
 log = get_logger(__name__)
