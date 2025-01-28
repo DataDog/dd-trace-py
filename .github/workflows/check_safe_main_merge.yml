@@ -22,10 +22,19 @@ jobs:
       - name: Fetch main branch
         run: git fetch origin main
 
+      - name: Create a temporary branch
+        run: |
+          git checkout -b temp-merge-check-${{ github.head_ref }}
+          echo "Temporary branch created: temp-merge-check-${{ github.head_ref }}"
+
       - name: Check merge conflicts
         run: |
           git merge --allow-unrelated-histories --no-commit --no-ff origin/main || exit 1
-
-      - name: Abort merge
-        if: failure()
-        run: git merge --abort
+      
+      - name: Cleanup temporary branch
+        if: always()
+        run: |
+          git checkout ${{ github.head_ref }}
+          git branch -D temp-merge-check-${{ github.head_ref }}
+          echo "Temporary branch deleted."
+        continue-on-error: true
