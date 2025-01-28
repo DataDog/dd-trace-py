@@ -6,14 +6,19 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 
@@ -650,3 +655,93 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {
+            "endpoint": "/items/foo",
+            "status_code": "200",
+            "http.route": "/items/{item_id}",
+            "resource_suffix": "/items/{item_id}",
+        },
+        {"endpoint": "/500", "status_code": "500", "http.route": "/500", "resource_suffix": "/500"},
+    ],
+)
+@pytest.mark.parametrize(
+    "test_headers",
+    [
+        {
+            "type": "default",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "X-Token": "DataDog",
+            },
+        },
+        {
+            "type": "distributed",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "x-datadog-trace-id": "1",
+                "x-datadog-parent-id": "2",
+                "x-datadog-origin": "rum",
+                "x-datadog-sampling-priority": "2",
+                "X-Token": "DataDog",
+            },
+        },
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [True])
+def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_proxy_enabled, test_headers):
+    # When the inferred proxy feature is enabled, there should be an inferred span
+    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+        if test["status_code"] == "500":
+            with pytest.raises(RuntimeError):
+                client.get(test["endpoint"], headers=test_headers["headers"])
+        else:
+            client.get(test["endpoint"], headers=test_headers["headers"])
+
+        if inferred_proxy_enabled:
+            web_span = test_spans.find_span(name="fastapi.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+            # Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+            # Assert test specific behavior for aws api gateway
+            assert aws_gateway_span.get_tag("http.url") == "local/"
+            assert aws_gateway_span.get_tag("http.method") == "GET"
+            assert aws_gateway_span.get_tag("http.status_code") == test["status_code"]
+            assert aws_gateway_span.get_tag("http.route") == "/"
+            # Assert test specific behavior for fastapi
+            assert web_span.name == "fastapi.request"
+            assert web_span.service == "fastapi"
+            assert web_span.resource == "GET " + test["resource_suffix"]
+            assert web_span.get_tag("http.url") == "http://testserver" + test["endpoint"]
+            assert web_span.get_tag("http.route") == test["http.route"]
+            assert web_span.get_tag("span.kind") == "server"
+            assert web_span.get_tag("component") == "fastapi"
+            assert web_span.get_tag("_dd.inferred_span") is None
+
+            # Additional assertions if the headers are from distributed tracing
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1
+                assert aws_gateway_span.trace_id == 1
+                assert web_span.get_metric(_SAMPLING_PRIORITY_KEY) is None
+                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+        else:
+            web_span = test_spans.find_span(name="fastapi.request")
+            assert web_span._parent is None
+
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1

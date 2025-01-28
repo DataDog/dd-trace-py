@@ -587,7 +587,7 @@ async def test_inferred_spans_api_gateway_default(tracer, client, test_spans, te
             assert aws_gateway_span.get_tag("http.method") == "GET"
             assert aws_gateway_span.get_tag("http.status_code") == test["status_code"]
             assert aws_gateway_span.get_tag("http.route") == '/'
-            # Assert test specific behavior for asgi
+            # Assert test specific behavior for sanic
             assert web_span.name == "sanic.request"
             assert web_span.service == "sanic"
             assert web_span.resource == "GET " + test["endpoint"]
