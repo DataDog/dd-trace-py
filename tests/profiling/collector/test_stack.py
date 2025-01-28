@@ -447,7 +447,7 @@ def test_exception_collection():
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
 def test_exception_collection_trace(
-    tracer,  # type: ddtrace.Tracer
+    tracer,  # type: ddtrace.trace.Tracer
 ):
     # type: (...) -> None
     r = recorder.Recorder()
