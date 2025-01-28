@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+import weakref
 
 import dd_trace_api
 
@@ -11,6 +12,7 @@ import ddtrace
 
 _DD_HOOK_PREFIX = "dd.hooks."
 _STATE = {"tracer": ddtrace.tracer}
+_STUB_TO_SPAN = weakref.WeakKeyDictionary()
 SELF_KEY = "stub_self"
 REAL_SPAN_KEY = "real_span"
 
@@ -20,32 +22,30 @@ def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
     proxied_args = []
     for arg in args:
         if isinstance(arg, dd_trace_api.Span):
-            proxied_args.append(arg._real_span)
+            proxied_args.append(_STUB_TO_SPAN[arg])
         else:
             proxied_args.append(arg)
     proxied_kwargs = {}
     for name, kwarg in kwargs.items():
         if isinstance(kwarg, dd_trace_api.Span):
-            proxied_kwargs[name] = kwarg._real_span
+            proxied_kwargs[name] = _STUB_TO_SPAN[kwarg]
         else:
             proxied_kwargs[name] = kwarg
     return proxied_args, proxied_kwargs
 
 
-def _patched(method_of, fn_name, store_return: Optional[str] = None):
+def _patched(method_of, fn_name):
     def _inner(state_shared_with_api, *args, **kwargs):
-        stub_shares_selfref = SELF_KEY in state_shared_with_api
-        if stub_shares_selfref:
-            operand = getattr(state_shared_with_api[SELF_KEY], "_" + method_of)
+        operand_stub = state_shared_with_api.get(SELF_KEY)
+        if operand_stub:
+            operand = _STUB_TO_SPAN[operand_stub]
         else:
             operand = _STATE[method_of]
         args, kwargs = _proxy_span_arguments(args, kwargs)
         retval = getattr(operand, fn_name)(*args, **kwargs)
-        if store_return:
-            if store_return in _STATE:
-                _STATE[store_return] = retval
-            else:
-                state_shared_with_api[store_return] = retval
+        api_return_value = state_shared_with_api.get("api_return_value")
+        if isinstance(api_return_value, dd_trace_api.Span):
+            _STUB_TO_SPAN[api_return_value] = retval
 
     return _inner
 
@@ -54,10 +54,10 @@ _HANDLERS = {
     "Tracer.flush": None,
     "Tracer.shutdown": None,
     "Tracer.set_tags": None,
-    "Tracer.start_span": _patched("tracer", "start_span", store_return=REAL_SPAN_KEY),
-    "Tracer.trace": _patched("tracer", "trace", store_return=REAL_SPAN_KEY),
-    "Tracer.current_span": _patched("tracer", "current_span", store_return=REAL_SPAN_KEY),
-    "Tracer.current_root_span": _patched("tracer", "current_root_span", store_return=REAL_SPAN_KEY),
+    "Tracer.start_span": _patched("tracer", "start_span"),
+    "Tracer.trace": _patched("tracer", "trace"),
+    "Tracer.current_span": _patched("tracer", "current_span"),
+    "Tracer.current_root_span": _patched("tracer", "current_root_span"),
     "Span.__enter__": None,
     "Span.__exit__": None,
     "Span.finish": None,
@@ -85,7 +85,7 @@ def _hook(name, hook_args):
         state_shared_with_api, args = args[0], args[1:]
         handler = _HANDLERS[name_suffix]
         if handler is None:
-            handler = _patched(*(REAL_SPAN_KEY if a == "Span" else a.lower() for a in name_suffix.split(".")))
+            handler = _patched(*(name_suffix.split(".")))
         handler(state_shared_with_api, *args, **kwargs)
 
 
