@@ -12,6 +12,7 @@ Stable values of module, suite, test names, and parameters, are a necessity for 
 
 All types and methods for interacting with the API are provided and documented in this file.
 """
+
 import dataclasses
 from enum import Enum
 from pathlib import Path
@@ -40,6 +41,7 @@ from ddtrace.ext.test_visibility._utils import _set_item_tag
 from ddtrace.ext.test_visibility._utils import _set_item_tags
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger as _get_logger
+
 # this triggers the registration of trace handlers after civis startup
 import ddtrace._trace.trace_handlers  # noqa: F401,I001
 
