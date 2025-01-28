@@ -1799,7 +1799,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
         assert aws_gateway_span.get_tag("http.status_code") == "200"
         assert aws_gateway_span.get_tag("http.route") == "/"
         assert aws_gateway_span.start == 1736973768.0
-        # Assert test specific behavior for flask
+        # Assert test specific behavior for django
         assert web_span.name == "django.request"
         assert web_span.service == "django"
         assert web_span.resource == "GET ^$"

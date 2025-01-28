@@ -570,9 +570,9 @@ class TraceBottleTest(TracerTestCase):
         }
         ddtrace.config._inferred_proxy_services_enabled = True
         for test_endpoint in [
-            {"endpoint": "/", "status": 200},
-            {"endpoint": "/exception", "status": 500},
-            {"endpoint": "/handled", "status": 503},
+            {"endpoint": "/", "status": 200, "url": "http://localhost:80/"},
+            {"endpoint": "/exception", "status": 500, "url": "http://localhost:80/exception"},
+            {"endpoint": "/handled", "status": 503, "url": "http://localhost:80/handled"},
         ]:
             try:
                 self.app.get(test_endpoint["endpoint"], headers=headers)
@@ -595,7 +595,7 @@ class TraceBottleTest(TracerTestCase):
             assert web_span.name == "bottle.request"
             assert web_span.service == SERVICE
             assert web_span.resource == "GET " + test_endpoint["endpoint"]
-            assert web_span.get_tag("http.url") == "http://localhost:80/"
+            assert web_span.get_tag("http.url") == test_endpoint["url"]
             assert web_span.get_tag("http.route") == test_endpoint["endpoint"]
             assert web_span.get_tag("span.kind") == "server"
             assert web_span.get_tag("component") == "bottle"

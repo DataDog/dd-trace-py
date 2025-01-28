@@ -545,10 +545,13 @@ class Span(object):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-
         self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
+
+        # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
+        # this event such that the additional tags for inferred aws api gateway spans can be appended here.
+        core.dispatch("web.request.final_tags", (self, ))
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 

@@ -321,6 +321,6 @@ class TraceMiddleware:
                 self.handle_exception_span(exc, span)
                 raise
             finally:
-                core.dispatch("asgi.request_finish", (span,))
+                core.dispatch("web.request.final_tags", (span, ))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

@@ -177,7 +177,6 @@ def _on_web_framework_finish_request(
         route=route,
         **kwargs,
     )
-
     _set_inferred_proxy_tags(span, status_code)
 
     if finish:
@@ -190,23 +189,23 @@ def _set_inferred_proxy_tags(span, status_code):
 
         # make resource equal to web span resource
         inferred_span.resource = span.resource
-        _set_inferred_proxy_error(span, status_code)
+        _set_inferred_proxy_error_and_status(span, status_code)
 
 
-def _set_inferred_proxy_error(span, status_code):
+def _set_inferred_proxy_error_and_status(span, status_code):
     if span._parent and span._parent.name == "aws.apigateway":
         inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
             inferred_span.set_tag("http.status_code", status_code)
-
-        inferred_span.error = span.error
-        if span.get_tag(ERROR_MSG):
-            inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
-        if span.get_tag(ERROR_TYPE):
-            inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
-        if span.get_tag(ERROR_STACK):
-            inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+        if span.error == 1:
+            inferred_span.error = span.error
+            if span.get_tag(ERROR_MSG):
+                inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
+            if span.get_tag(ERROR_TYPE):
+                inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
+            if span.get_tag(ERROR_STACK):
+                inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
 def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
@@ -506,8 +505,11 @@ def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_r
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
-def _on_asgi_request_finish(span):
-    _set_inferred_proxy_error(span, None)
+def _on_web_request_final_tags(span):
+    # Necessary to add remaining http status codes and
+    # errors relevant to the aws api gateway spans on close
+    if span and span.span_type == "web":
+        _set_inferred_proxy_error_and_status(span, None)
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
@@ -516,7 +518,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     after_request_tags(ctx["pin"], span, request, response)
 
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
-    _set_inferred_proxy_error(span, None)
+    _set_inferred_proxy_error_and_status(span, None)
 
 
 def _on_django_start_response(
@@ -854,7 +856,6 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
 
 
 def listen():
-    core.on("asgi.request_finish", _on_asgi_request_finish)
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
     core.on("wsgi.app.success", _on_app_success)
@@ -908,6 +909,7 @@ def listen():
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
+    core.on("web.request.final_tags", _on_web_request_final_tags)
 
     # inferred proxy handlers
     core.on("inferred_proxy.start", _on_inferred_proxy_start)
