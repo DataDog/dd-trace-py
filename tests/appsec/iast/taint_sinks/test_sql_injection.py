@@ -16,10 +16,11 @@ DDBBS = [
         "tests/appsec/iast/fixtures/taint_sinks/sql_injection_sqlite3.py",
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_sqlite3",
     ),
-    (
-        "tests/appsec/iast/fixtures/taint_sinks/sql_injection_mysqldb.py",
-        "tests.appsec.iast.fixtures.taint_sinks.sql_injection_mysqldb",
-    ),
+    ## TODO(@gnufede): APPSEC-56540 Skipped for now until mysqldb is supported
+    # (
+    #     "tests/appsec/iast/fixtures/taint_sinks/sql_injection_mysqldb.py",
+    #     "tests.appsec.iast.fixtures.taint_sinks.sql_injection_mysqldb",
+    # ),
     (
         "tests/appsec/iast/fixtures/taint_sinks/sql_injection_pymysql.py",
         "tests.appsec.iast.fixtures.taint_sinks.sql_injection_pymysql",
