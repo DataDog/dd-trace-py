@@ -157,9 +157,6 @@ _MODULES_FOR_CONTRIB = {
 }
 
 
-DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
-
-
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
 
@@ -252,8 +249,8 @@ def patch_all(**patch_modules):
     load_common_appsec_modules()
 
 
-def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
-    # type: (bool, str, Union[List[str], bool]) -> None
+def patch(raise_errors=True, **patch_modules):
+    # type: (bool, Union[List[str], bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
