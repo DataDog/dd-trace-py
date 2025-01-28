@@ -203,9 +203,11 @@ def runtime_version_is_supported(python_runtime, python_version):
     supported_versions = RUNTIMES_ALLOW_LIST.get(python_runtime, {})
     if not supported_versions:
         return False
-    return (
-        supported_versions["min"].version <= parse_version(python_version).version < supported_versions["max"].version
-    )
+
+    # Use the next max version as the upper bound
+    max_version = list(supported_versions["max"].version)
+    max_version[-1] += 1
+    return supported_versions["min"].version <= parse_version(python_version).version < tuple(max_version)
 
 
 def package_is_compatible(package_name, package_version):
