@@ -23,7 +23,6 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Type
 
-import ddtrace._trace.trace_handlers  # noqa: F401 -- this triggers the registration of trace handlers
 from ddtrace.ext.test import Status as _TestStatus
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
@@ -41,6 +40,8 @@ from ddtrace.ext.test_visibility._utils import _set_item_tag
 from ddtrace.ext.test_visibility._utils import _set_item_tags
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger as _get_logger
+# this triggers the registration of trace handlers after civis startup
+import ddtrace._trace.trace_handlers  # noqa: F401,I001
 
 
 log = _get_logger(__name__)
