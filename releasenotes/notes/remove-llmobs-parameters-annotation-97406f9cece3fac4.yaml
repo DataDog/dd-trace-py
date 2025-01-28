@@ -1,4 +1,4 @@
 ---
-deprecations:
+upgrade:
   - |
     LLM Observability: Removes the deprecated ``parameters`` argument from ``LLMObs annotate()``. Use ``metadata`` instead.
