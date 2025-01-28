@@ -27,6 +27,9 @@ from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .version import get_version  # noqa: E402
+from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from ddtrace.vendor import debtcollector
 
 
 # TODO(mabdinur): Remove this once we have a better way to start the mini agent
@@ -46,3 +49,19 @@ __all__ = [
     "config",
     "DDTraceDeprecationWarning",
 ]
+
+
+def check_supported_python_version():
+    if PYTHON_VERSION_INFO < (3, 8):
+        deprecation_message = (
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 3.0.0."
+        )
+        if PYTHON_VERSION_INFO < (3, 7):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 2.0.0."
+        debtcollector.deprecate(
+            (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
+            category=DDTraceDeprecationWarning,
+        )
+
+
+check_supported_python_version()
