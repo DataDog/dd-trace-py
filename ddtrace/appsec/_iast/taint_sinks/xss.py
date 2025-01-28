@@ -42,31 +42,31 @@ def patch():
     if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_xss_patch"):
         return
 
-    @when_imported("django.http.response")
+    @when_imported("django.utils.safestring")
     def _(m):
-        try_wrap_function_wrapper(
-            "django.http.response",
-            "HttpResponse.__init__",
-            _iast_django_xss,
-        )
         try_wrap_function_wrapper(
             "django.utils.safestring",
             "mark_safe",
             _iast_django_xss,
         )
+
+    @when_imported("django.template.defaultfilters")
+    def _(m):
         try_wrap_function_wrapper(
             "django.template.defaultfilters",
             "mark_safe",
             _iast_django_xss,
         )
 
-        @when_imported("django.template.base")
-        def _(m):
-            try_wrap_function_wrapper(
-                "django.template.base",
-                "Template.render",
-                _iast_django_xss_render,
-            )
+    @when_imported("django.template.base")
+    def _(m):
+        try_wrap_function_wrapper(
+            "django.template.base",
+            "Template.render",
+            _iast_django_xss,
+        )
+
+    _set_metric_iast_instrumented_sink(VULN_XSS)
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
 
@@ -80,12 +80,8 @@ def unpatch():
 
 
 def _iast_django_xss(wrapped, instance, args, kwargs):
-    _iast_report_xss(args[0])
-    return wrapped(*args, **kwargs)
-
-
-def _iast_django_xss_render(wrapped, instance, args, kwargs):
-    _iast_report_xss(args[0])
+    if args and len(args) >= 1:
+        _iast_report_xss(args[0])
     return wrapped(*args, **kwargs)
 
 
