@@ -8,7 +8,7 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.tracer import Tracer
+from ddtrace.trace import Tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
