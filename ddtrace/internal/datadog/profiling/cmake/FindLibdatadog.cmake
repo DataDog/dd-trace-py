@@ -29,7 +29,8 @@ if(NOT DEFINED DD_CHECKSUMS)
         "530348c4b02cc7096de2231476ec12db82e2cc6de12a87e5b28af47ea73d4e56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
         "5073ffc657bc4698f8bdd4935475734577bfb18c54dcbebc4f7d8c7595626e52 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
         "6c47eac43f6a6a60c96027de5a9155d45fc231ed6fa75258dd515605e90ad7700a549d2fb0fc65cbde9c90d765036b5201fd44f37bfeb563029381ae2a1c8117 libdatadog-x64-windows.zip"
-        "e07b20c09af5fba309646995b7f2c4da7b2681579d78976d163abd635f79fc9647e4e7f9393268d5ab7e936295e4155add243406cd1ab1caa31f9126aff8d955 libdatadog-x86-windows.zip")
+        "e07b20c09af5fba309646995b7f2c4da7b2681579d78976d163abd635f79fc9647e4e7f9393268d5ab7e936295e4155add243406cd1ab1caa31f9126aff8d955 libdatadog-x86-windows.zip"
+    )
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
@@ -119,7 +120,7 @@ get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
 if(WIN32)
     find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
 
-    message ("Find path succeeded")
+    message("Find path succeeded")
 
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         find_library(
@@ -137,8 +138,7 @@ if(WIN32)
 
     include(FindPackageHandleStandardArgs)
 
-    find_package_handle_standard_args(Datadog DEFAULT_MSG Datadog_LIBRARY
-        Datadog_INCLUDE_DIR)
+    find_package_handle_standard_args(Datadog DEFAULT_MSG Datadog_LIBRARY Datadog_INCLUDE_DIR)
 
     message("find package handle succeeded")
 
@@ -155,16 +155,15 @@ if(WIN32)
         target_link_libraries(
             datadog_profiling_ffi
             INTERFACE NtDll.lib
-            UserEnv.lib
-            Bcrypt.lib
-            crypt32.lib
-            wsock32.lib
-            ws2_32.lib
-            shlwapi.lib
-            Secur32.lib
-            Ncrypt.lib
-            PowrProf.lib)
-
+                      UserEnv.lib
+                      Bcrypt.lib
+                      crypt32.lib
+                      wsock32.lib
+                      ws2_32.lib
+                      shlwapi.lib
+                      Secur32.lib
+                      Ncrypt.lib
+                      PowrProf.lib)
 
         add_library(Datadog::Profiling ALIAS datadog_profiling_ffi)
     else()
