@@ -31,6 +31,15 @@ jobs:
         run: |
           git merge --allow-unrelated-histories --no-commit --no-ff origin/main || exit 1
       
+      - name: Show conflicts
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FILES=$(git diff --name-only --diff-filter=U)
+          COMMENT_BODY="### Merge conflicts detected\n\nThe following files have conflicts:\n\n\`\`\`\n$FILES\n\`\`\`\n\nPlease resolve these conflicts in your branch."
+          echo "$COMMENT_BODY" | gh pr comment ${{ github.event.pull_request.number }} --body -
+
       - name: Cleanup temporary branch
         if: always()
         run: |
