@@ -16,9 +16,12 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatc
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_http_config
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 
@@ -596,3 +599,13 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+@pytest.mark.asyncio
+async def test_inferred_spans_api_gateway_default(client, tracer, test_spans):
+    r = client.get("/200")
+    with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+        web_span = test_spans.find_span(name="starlette.request")
+        aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+        #  Assert common behavior including aws gateway metadata
+        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
