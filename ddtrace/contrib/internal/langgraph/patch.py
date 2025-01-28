@@ -9,7 +9,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def get_version():
