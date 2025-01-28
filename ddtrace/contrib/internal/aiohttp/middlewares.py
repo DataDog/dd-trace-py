@@ -2,6 +2,7 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
