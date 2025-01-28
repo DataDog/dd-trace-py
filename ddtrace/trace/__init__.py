@@ -1,6 +1,7 @@
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 
@@ -15,4 +16,5 @@ __all__ = [
     "Tracer",
     "Span",
     "tracer",
+    "BaseContextProvider",
 ]
