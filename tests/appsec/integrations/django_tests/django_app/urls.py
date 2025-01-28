@@ -74,7 +74,9 @@ urlpatterns = [
     handler("appsec/insecure-cookie/test_secure/$", views.view_insecure_cookies_secure),
     handler("appsec/insecure-cookie/test_empty_cookie/$", views.view_insecure_cookies_empty),
     handler("appsec/xss/$", views.xss_http_request_parameter_mark_safe),
+    handler("appsec/xss/secure/$", views.xss_secure),
     handler("appsec/xss/safe/$", views.xss_http_request_parameter_template_safe),
+    handler("appsec/xss/autoscape/$", views.xss_http_request_parameter_autoscape),
     path(
         "appsec/sqli_http_path_parameter/<str:q_http_path_parameter>/",
         views.sqli_http_path_parameter,

@@ -968,3 +968,39 @@ def test_django_xss_safe_template_tag(client, test_spans, tracer):
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+def test_django_xss_autoscape(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/autoscape/?input=<script>alert('XSS')</script>",
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.content
+        == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
+    ), f"Error. content is {response.content}"
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+def test_django_xss_secure(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/secure/?input=<script>alert('XSS')</script>",
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.content
+        == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
+    )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
