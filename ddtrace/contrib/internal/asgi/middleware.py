@@ -308,7 +308,6 @@ class TraceMiddleware:
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
 
-
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
@@ -322,6 +321,6 @@ class TraceMiddleware:
                 self.handle_exception_span(exc, span)
                 raise
             finally:
-                core.dispatch("asgi.request_finish", (span, ))
+                core.dispatch("asgi.request_finish", (span,))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

@@ -597,13 +597,11 @@ async def test_parenting_200_ot(app_tracer, aiohttp_client):
                 "x-datadog-origin": "rum",
                 "x-datadog-sampling-priority": "2",
             },
-        }
+        },
     ],
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
-async def test_inferred_spans_api_gateway(
-    app_tracer, aiohttp_client, test_app, inferred_proxy_enabled, test_headers
-):
+async def test_inferred_spans_api_gateway(app_tracer, aiohttp_client, test_app, inferred_proxy_enabled, test_headers):
     """
     When making a request to an aiohttp middleware app,
         the aiohttp.request span properly inherits from the inferred span if the setting has been enabled
@@ -612,13 +610,11 @@ async def test_inferred_spans_api_gateway(
     app, tracer = app_tracer
     client = await aiohttp_client(app)
     with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
-        resp = await client.request(test_app["http_method"],
-                                    test_app["path"],
-                                    headers=test_headers["headers"])
+        resp = await client.request(test_app["http_method"], test_app["path"], headers=test_headers["headers"])
         assert resp.status == test_app["status_code"]
         traces = tracer.pop_traces()
 
-        if inferred_proxy_enabled == False:
+        if inferred_proxy_enabled is False:
             web_span = traces[0][0]
             assert web_span._parent is None
             assert web_span.name == "aiohttp.request"

@@ -772,7 +772,7 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
             await instance.receive_output(1)
 
         web_span = test_spans.find_span(name="asgi.request")
-        if inferred_proxy_enabled == False:
+        if inferred_proxy_enabled is False:
             assert web_span._parent is None
         else:
             aws_gateway_span = test_spans.find_span(name="aws.apigateway")
@@ -808,7 +808,9 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
     ],
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
-async def test_inferred_spans_api_gateway_distributed_tracing(scope, tracer, test_spans, application_type, inferred_proxy_enabled):
+async def test_inferred_spans_api_gateway_distributed_tracing(
+    scope, tracer, test_spans, application_type, inferred_proxy_enabled
+):
     app = TraceMiddleware(application_type["testapp"], tracer=tracer)
     headers = [
         ("x-dd-proxy", "aws-apigateway"),
@@ -838,7 +840,7 @@ async def test_inferred_spans_api_gateway_distributed_tracing(scope, tracer, tes
             await instance.receive_output(1)
 
         web_span = test_spans.find_span(name="asgi.request")
-        if inferred_proxy_enabled == False:
+        if inferred_proxy_enabled is False:
             assert web_span._parent is None
             web_span.assert_matches(
                 name="asgi.request",

@@ -1,5 +1,4 @@
 import bottle
-import pytest
 import webtest
 
 import ddtrace

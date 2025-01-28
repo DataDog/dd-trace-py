@@ -214,7 +214,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
         return
 
     # If the application has overridden the setting to false, respect it
-    if str(config._inferred_proxy_services_enabled).lower() == 'false':
+    if str(config._inferred_proxy_services_enabled).lower() == "false":
         return None
 
     # Skip creating another inferred span if one has already been created for this request
