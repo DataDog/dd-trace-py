@@ -554,13 +554,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         return unique_test_ids
 
     def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
-        metric_names = APIRequestMetricNames(  # ꙮ
-            count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
-            duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
-            response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES.value,
-            error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
-        )
-
         test_properties: t.Dict[InternalTestId, TestProperties] = {}
         payload = {
             "data": {
@@ -606,8 +599,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             log.debug("Failed to parse Test Management tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
-
-        # record_early_flake_detection_tests_count(len(unique_test_ids)) # ꙮ
 
         return test_properties
 
