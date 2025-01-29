@@ -1,7 +1,5 @@
 from typing import Text
 
-from wrapt.importer import when_imported
-
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
@@ -42,29 +40,17 @@ def patch():
     if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_xss_patch"):
         return
 
-    @when_imported("django.utils.safestring")
-    def _(m):
-        try_wrap_function_wrapper(
-            "django.utils.safestring",
-            "mark_safe",
-            _iast_django_xss,
-        )
+    try_wrap_function_wrapper(
+        "django.utils.safestring",
+        "mark_safe",
+        _iast_django_xss,
+    )
 
-    @when_imported("django.template.defaultfilters")
-    def _(m):
-        try_wrap_function_wrapper(
-            "django.template.defaultfilters",
-            "mark_safe",
-            _iast_django_xss,
-        )
-
-    @when_imported("django.template.base")
-    def _(m):
-        try_wrap_function_wrapper(
-            "django.template.base",
-            "Template.render",
-            _iast_django_xss,
-        )
+    try_wrap_function_wrapper(
+        "django.template.defaultfilters",
+        "mark_safe",
+        _iast_django_xss,
+    )
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
 
@@ -72,7 +58,8 @@ def patch():
 
 
 def unpatch():
-    try_unwrap("django.http.response", "HttpResponse.__init__")
+    try_unwrap("django.utils.safestring", "mark_safe")
+    try_unwrap("django.template.defaultfilters", "mark_safe")
 
     set_module_unpatched("flask", default_attr="_datadog_xss_patch")
     set_module_unpatched("django", default_attr="_datadog_xss_patch")
