@@ -1769,17 +1769,19 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
     When making a request to a Django app,
         the django.request span properly inherits from the inferred spans
     """
-    test_headers = {
-        "x-dd-proxy": "aws-apigateway",
-        "x-dd-proxy-request-time-ms": "1736973768000",
-        "x-dd-proxy-path": "/",
-        "x-dd-proxy-httpmethod": "GET",
-        "x-dd-proxy-domain-name": "local",
-        "x-dd-proxy-stage": "stage",
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
+    headers = {
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
     }
 
     # When the inferred proxy feature is not enabled, there should be no inferred span
-    resp = client.get("/", headers=test_headers)
+    resp = client.get("/", **headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
     web_span = test_spans.find_span(name="django.request")
@@ -1787,7 +1789,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
 
     with override_global_config(dict(_inferred_proxy_services_enabled="true")):
         test_spans.reset()
-        resp = client.get("/", headers=test_headers)
+        resp = client.get("/", **headers)
         web_span = test_spans.find_span(name="django.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
         # Assert common behavior including aws gateway metadata
@@ -1811,7 +1813,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
 
         test_spans.reset()
         try:
-            client.get("/error-500/", headers=test_headers)
+            client.get("/error-500/", **headers)
         except Exception:
             web_span = test_spans.find_span(name="django.request")
             aws_gateway_span = test_spans.find_span(name="aws.apigateway")
@@ -1831,20 +1833,22 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         the django.request span properly inherits from the inferred spans
         and the inferred span inherits from the trace
     """
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
     test_headers = {
-        "x-dd-proxy": "aws-apigateway",
-        "x-dd-proxy-request-time-ms": "1736973768000",
-        "x-dd-proxy-path": "/",
-        "x-dd-proxy-httpmethod": "GET",
-        "x-dd-proxy-domain-name": "local",
-        "x-dd-proxy-stage": "stage",
-        "x-datadog-trace-id": "1",
-        "x-datadog-parent-id": "2",
-        "x-datadog-origin": "rum",
-        "x-datadog-sampling-priority": "2",
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
+        "HTTP_X_DATADOG_TRACE_ID": "1",
+        "HTTP_X_DATADOG_PARENT_ID": "2",
+        "HTTP_X_DATADOG_ORIGIN": "rum",
+        "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
     }
     # Without the feature enabled, we should not be creating the inferred span
-    resp = client.get("/", headers=test_headers)
+    resp = client.get("/", **test_headers)
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
 
@@ -1863,7 +1867,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
 
     with override_global_config(dict(_inferred_proxy_services_enabled="true")):
         test_spans.reset()
-        client.get("/", headers=test_headers)
+        client.get("/", **test_headers)
         web_span = test_spans.find_span(name="django.request")
         aws_gateway_span = web_span._parent
 

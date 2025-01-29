@@ -480,7 +480,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         "django.traced_get_response",
         remote_addr=request.META.get("REMOTE_ADDR"),
         headers=request_headers,
-        headers_case_sensitive=django.VERSION < (2, 2),
+        headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
         resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
