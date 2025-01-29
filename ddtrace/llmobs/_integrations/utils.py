@@ -125,9 +125,13 @@ def get_llmobs_metrics_tags(integration_name, span):
     if integration_name == "bedrock":
         input_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
         output_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
-        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        usage[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        total_tokens = input_tokens + output_tokens
+        if input_tokens:
+            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens:
+            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if total_tokens:
+            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
 
     # check for both prompt / completion or input / output tokens
