@@ -12,9 +12,9 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
-from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
-from ddtrace.contrib.redis_utils import determine_row_count
+from ddtrace.contrib.internal.redis_utils import determine_row_count
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
