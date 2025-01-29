@@ -265,7 +265,7 @@ def patch(raise_errors=True, **patch_modules):
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
             if raise_errors:
                 raise ModuleNotFoundException(
-                    "integration module ddtrace.contrib.internal.%s.patch.py does not exist, "
+                    "integration module ddtrace.contrib.internal.%s.patch does not exist, "
                     "automatic instrumentation is disabled for this library" % contrib
                 )
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
