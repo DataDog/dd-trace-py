@@ -12,10 +12,10 @@ features:
                     To learn more, see the `LLM Observability evaluations guide <https://docs.datadoghq.com/llm_observability/submit_evaluations/>`_.
 deprecations:
   - |
-    LLM Observability: The `_DD_LLMOBS_EVALUATORS` environment variable is deprecated and will be removed in ddtrace 3.2.0.
+    LLM Observability: The `_DD_LLMOBS_EVALUATORS` environment variable is deprecated and will be removed in ddtrace 3.0.0.
                       As an alternative to `_DD_LLMOBS_EVALUATORS`, you can use `DD_LLMOBS_EVALUATORS` instead.
                       To migrate, replace `_DD_LLMOBS_EVALUATORS` with `DD_LLMOBS_EVALUATORS`.
   - |
-    LLM Observability: The `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` environment variable is deprecated and will be removed in ddtrace 3.2.0.
+    LLM Observability: The `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` environment variable is deprecated and will be removed in ddtrace 3.0.0.
                       As an alternative to `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES`, you can use `DD_LLMOBS_EVALUATOR_SAMPLING_RULES` instead.
                       To migrate, replace `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` with `DD_LLMOBS_EVALUATOR_SAMPLING_RULES`.

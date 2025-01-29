@@ -133,7 +133,7 @@ class LLMObs(Service):
         finally:
             if not span_event or not span._get_ctx_item(SPAN_KIND) == "llm" or _is_evaluation_span(span):
                 return
-            if self._evaluator_runner:
+            if self._evaluator_runner and self._evaluator_runner.started:
                 self._evaluator_runner.enqueue(span_event, span)
 
     @classmethod
