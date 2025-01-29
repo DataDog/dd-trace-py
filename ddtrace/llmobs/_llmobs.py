@@ -321,9 +321,6 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         config.env = env or config.env
         config.service = service or config.service
-        if os.getenv("DD_LLMOBS_APP_NAME"):
-            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
-            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
@@ -483,7 +480,7 @@ class LLMObs(Service):
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
-        patch(**integrations_to_patch)  # type: ignore[arg-type]
+        patch(**integrations_to_patch)
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
