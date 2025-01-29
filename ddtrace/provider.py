@@ -7,7 +7,8 @@ from ddtrace.vendor.debtcollector import deprecate
 
 
 deprecate(
-    "The context provider interface is deprecated.",
-    message="The trace context is an internal interface and will no longer be supported.",
+    "The context provider interface is deprecated",
+    message="Import BaseContextProvider from `ddtrace.trace` instead.",
     category=DDTraceDeprecationWarning,
+    removal_version="3.0.0",
 )

@@ -59,7 +59,6 @@ def test_service_enable_proxy_default():
         assert llmobs_instance.tracer == dummy_tracer
         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
-
         llmobs_service.disable()
 
 
