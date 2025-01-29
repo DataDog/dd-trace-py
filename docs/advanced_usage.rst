@@ -342,11 +342,7 @@ all traces of incoming requests to a specific url::
                     return None
             return trace
 
-    tracer.configure(settings={
-        'FILTERS': [
-            FilterbyName(),
-        ],
-    })
+    tracer.configure(trace_processors=[FilterbyName()])
 
 The filters in the filters list will be applied sequentially to each trace
 and the resulting trace will either be sent to the Agent or discarded.
@@ -367,7 +363,7 @@ the pipeline or ``None`` if the trace should be discarded::
             ...
 
     # And then configure it with
-    tracer.configure(settings={'FILTERS': [FilterExample()]})
+    tracer.configure(trace_processors=[FilterExample()])
 
 (see filters.py for other example implementations)
 

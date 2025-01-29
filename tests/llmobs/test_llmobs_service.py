@@ -13,7 +13,6 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
@@ -109,20 +108,6 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
-
-
-def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_ml_app")
-        llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is True
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead."
-        )
-        llmobs_service.disable()
 
 
 def test_service_enable_already_enabled(mock_llmobs_logs):
@@ -356,31 +341,22 @@ def test_embedding_span(llmobs, llmobs_events):
 
 
 def test_annotate_no_active_span_logs_warning(llmobs, mock_llmobs_logs):
-    llmobs.annotate(parameters={"test": "test"})
+    llmobs.annotate(metadata={"test": "test"})
     mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
 
 
 def test_annotate_non_llm_span_logs_warning(llmobs, mock_llmobs_logs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root") as non_llmobs_span:
-        llmobs.annotate(span=non_llmobs_span, parameters={"test": "test"})
+        llmobs.annotate(span=non_llmobs_span, metadata={"test": "test"})
         mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
 
 
 def test_annotate_finished_span_does_nothing(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         pass
-    llmobs.annotate(span=span, parameters={"test": "test"})
+    llmobs.annotate(span=span, metadata={"test": "test"})
     mock_llmobs_logs.warning.assert_called_once_with("Cannot annotate a finished span.")
-
-
-def test_annotate_parameters(llmobs, mock_llmobs_logs):
-    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        llmobs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
-        assert span._get_ctx_item(INPUT_PARAMETERS) == {"temperature": 0.9, "max_tokens": 50}
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "Setting parameters is deprecated, please set parameters and other metadata as tags instead."
-        )
 
 
 def test_annotate_metadata(llmobs):
