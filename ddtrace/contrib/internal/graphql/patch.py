@@ -4,8 +4,8 @@ import sys
 from typing import TYPE_CHECKING
 from typing import List
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover

@@ -12,7 +12,7 @@ from typing import cast  # noqa:F401
 import urllib.parse
 
 import ddtrace
-from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace.trace import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):

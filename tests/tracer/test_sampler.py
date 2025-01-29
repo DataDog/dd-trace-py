@@ -11,7 +11,6 @@ from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import RateByServiceSampler
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.sampling_rule import SamplingRule
-from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -24,6 +23,7 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.trace import Span
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
@@ -630,7 +630,7 @@ def test_sampling_rule_matches_exception():
 )
 def test_sampling_rule_sample():
     from ddtrace._trace.sampling_rule import SamplingRule
-    from ddtrace._trace.span import Span
+    from ddtrace.trace import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
         rule = SamplingRule(sample_rate=sample_rate)

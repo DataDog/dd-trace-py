@@ -130,7 +130,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace._trace.span.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -257,7 +257,7 @@ def _store_request_headers(headers, span, integration_config):
     :param headers: All the request's http headers, will be filtered through the whitelist
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace._trace.span.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -271,7 +271,7 @@ def _store_response_headers(headers, span, integration_config):
     :param headers: All the response's http headers, will be filtered through the whitelist
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace._trace.span.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """

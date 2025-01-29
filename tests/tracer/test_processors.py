@@ -10,7 +10,6 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -26,6 +25,7 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter

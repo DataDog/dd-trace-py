@@ -6,7 +6,7 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
+from ddtrace.trace import Span
 
 
 @pytest.mark.parametrize(
