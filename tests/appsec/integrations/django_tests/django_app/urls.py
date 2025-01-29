@@ -2,7 +2,7 @@ import django
 from django.http import HttpResponse
 from django.urls import path
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.appsec.integrations.django_tests.django_app import views
 
 

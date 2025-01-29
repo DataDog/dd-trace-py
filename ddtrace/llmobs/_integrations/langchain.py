@@ -7,7 +7,6 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -30,6 +29,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs.utils import Document
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

@@ -9,12 +9,12 @@ from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
 
-from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+from ddtrace.trace import tracer
 
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:

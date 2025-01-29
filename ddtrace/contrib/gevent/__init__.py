@@ -46,11 +46,10 @@ with _w.catch_warnings():
    from . import patch as _  # noqa: F401, I001
 
 
+from ddtrace._trace.provider import DefaultContextProvider as _DefaultContextProvider
 from ddtrace.contrib.internal.gevent.patch import get_version  #noqa: F401
 from ddtrace.contrib.internal.gevent.patch import patch  #noqa: F401
 from ddtrace.contrib.internal.gevent.patch import unpatch  #noqa: F401
-
-from ...provider import DefaultContextProvider as _DefaultContextProvider
 
 
 context_provider = _DefaultContextProvider()
