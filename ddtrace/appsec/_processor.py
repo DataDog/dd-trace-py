@@ -174,20 +174,17 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             asm_config._bypass_instrumentation_for_waf = True
             if self._rules is not None and not hasattr(self, "_ddwaf"):
-                import ddtrace.appsec._ddwaf as ddwaf  # noqa: E402
-                import ddtrace.appsec._metrics as metrics
+                from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
+                import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 self.metrics = metrics
-                self._ddwaf = ddwaf.DDWaf(
+                self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
                 self.metrics._set_waf_init_metric(self._ddwaf.info)
-        except Exception as e:
+        except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed: %s", repr(e))
-            raise BaseException(e, e.__traceback__)
-        finally:
-            asm_config._bypass_instrumentation_for_waf = False
+            log.warning("[DDAS-0005-00] WAF initialization failed")
         self._update_required()
 
     def _update_required(self):
