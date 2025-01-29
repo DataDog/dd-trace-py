@@ -10,6 +10,47 @@
 
 using namespace Datadog;
 
+
+// Helper class for spawning a std::thread with control over its default stack size
+#ifdef __linux__
+#include <unistd.h>
+#include <sys/resource.h>
+template <typename Function, typename... Args>
+pthread_t create_thread_with_stack(size_t stack_size, Function&& f, Args&&... args) {
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    if (stack_size > 0) {
+        pthread_attr_setstacksize(&attr, stack_size);
+    }
+
+    // DAS: I think std::bind here is necessary?
+    pthread_t thread;
+    auto* thread_func = new auto(
+        std::bind(std::forward<Function>(f), std::forward<Args>(args)...)
+    );
+
+    int ret = pthread_create(
+        &thread,
+        &attr,
+        [](void* arg) -> void* {
+            auto* func = static_cast<decltype(thread_func)>(arg);
+            (*func)();
+            delete func;
+            return nullptr;
+        },
+        thread_func
+    );
+
+    pthread_attr_destroy(&attr);
+
+    if (ret != 0) {
+        delete thread_func;
+        throw std::runtime_error("Failed to create thread");
+    }
+    return thread;
+}
+#endif
+
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
@@ -143,8 +184,15 @@ Sampler::start()
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
+#ifdef __linux__
+    // We might as well get the default stack size and use that
+    rlimit stack_sz = {};
+    getrlimit(RLIMIT_STACK, &stack_sz);
+    create_thread_with_stack(stack_sz.rlim_cur, &Sampler::sampling_thread, this, ++thread_seq_num); // leak the thread
+#else
     std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
     t.detach();
+#endif
 }
 
 void
