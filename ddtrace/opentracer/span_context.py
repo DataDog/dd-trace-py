@@ -4,8 +4,8 @@ from typing import Optional  # noqa:F401
 
 from opentracing import SpanContext as OpenTracingSpanContext
 
-from ddtrace._trace.context import Context as DatadogContext
 from ddtrace.internal.compat import NumericType  # noqa:F401
+from ddtrace.trace import Context as DatadogContext
 
 
 class SpanContext(OpenTracingSpanContext):

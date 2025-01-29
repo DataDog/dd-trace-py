@@ -59,8 +59,13 @@ def test_propagate_correct_llmobs_parent_id_simple(run_python_code_in_subprocess
 import json
 import mock
 
+<<<<<<< HEAD
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs
+=======
+from ddtrace.trace import tracer
+from ddtrace.ext import SpanTypes
+>>>>>>> 58b4dfa6d (chore(tracing): avoid using deprecated code internally [3.0] (#12113))
 from ddtrace.propagation.http import HTTPPropagator
 
 with mock.patch(
@@ -99,8 +104,13 @@ def test_propagate_llmobs_parent_id_complex(run_python_code_in_subprocess):
 import json
 import mock
 
+<<<<<<< HEAD
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs
+=======
+from ddtrace.trace import tracer
+from ddtrace.ext import SpanTypes
+>>>>>>> 58b4dfa6d (chore(tracing): avoid using deprecated code internally [3.0] (#12113))
 from ddtrace.propagation.http import HTTPPropagator
 
 with mock.patch(
@@ -148,7 +158,11 @@ def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(run_python_code_in_su
     code = """
 import json
 
+<<<<<<< HEAD
 from ddtrace.llmobs import LLMObs
+=======
+from ddtrace.trace import tracer
+>>>>>>> 58b4dfa6d (chore(tracing): avoid using deprecated code internally [3.0] (#12113))
 from ddtrace.propagation.http import HTTPPropagator
 
 LLMObs.enable(ml_app="ml-app", agentless_enabled=True, api_key="<not-a-real-key>")
@@ -214,7 +228,7 @@ def test_activate_distributed_headers_propagate_correct_llmobs_parent_id_simple(
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs
 
@@ -249,7 +263,7 @@ def test_activate_distributed_headers_propagate_llmobs_parent_id_complex(run_pyt
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs
 
@@ -287,7 +301,7 @@ def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(run_
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="test-app", api_key="<not-a-real-key>")

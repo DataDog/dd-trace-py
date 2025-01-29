@@ -5,7 +5,6 @@ from typing import Dict
 from typing import Mapping
 from typing import Optional
 
-from ddtrace import Tracer
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal import forksafe
@@ -18,6 +17,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -111,7 +111,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
     if test_tracer is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
     else:
         tracer = test_tracer
 
@@ -200,7 +200,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
         # Tracer is a parameter for testing propose
         # Import tracer here to avoid a circular import
         if test_tracer is None:
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
         else:
             tracer = test_tracer
 

@@ -10,7 +10,7 @@ If the Datadog Agent is on a separate host from your application, you can modify
 the default ``ddtrace.tracer`` object to utilize another hostname and port. Here
 is a small example showcasing this::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
@@ -18,7 +18,7 @@ By default, these will be set to ``localhost``, ``8126``, and ``False`` respecti
 
 You can also use a Unix Domain Socket to connect to the agent::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     tracer.configure(uds_path="/path/to/socket")
 
@@ -29,7 +29,7 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`ddtrace.context.Context` object is used to represent the state of
+The :class:`ddtrace.trace.Context` object is used to represent the state of
 a trace at a point in time. This state includes the trace id, active span id,
 distributed sampling decision and more. It is used to propagate the trace
 across execution boundaries like processes
@@ -46,7 +46,7 @@ Tracing Context Management
 --------------------------
 
 In ``ddtrace`` "context management" is the management of which
-:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+:class:`ddtrace.trace.Span` or :class:`ddtrace.trace.Context` is active in an
 execution (thread, task, etc). There can only be one active span or context
 per execution at a time.
 
@@ -97,7 +97,7 @@ To continue a trace across threads the context needs to be passed between
 threads::
 
     import threading, time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     def _target(trace_ctx):
         tracer.context_provider.activate(trace_ctx)
@@ -116,7 +116,7 @@ When the :ref:`futures` integration is enabled, the context is automatically pro
 to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
 
     from concurrent.futures import ThreadPoolExecutor
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     @tracer.wrap()
     def eat(dessert):  # each task will get its own span, child of the eat_all_the_things span
@@ -140,7 +140,7 @@ span has to be propagated as a context::
 
     from multiprocessing import Process
     import time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     def _target(ctx):
         tracer.context_provider.activate(ctx)
@@ -159,8 +159,8 @@ span has to be propagated as a context::
 
 .. important::
 
-   A :class:`ddtrace.Span` should only be accessed or modified in the process
-   that it was created in. Using a :class:`ddtrace.Span` from within a child process
+   A :class:`ddtrace.trace.Span` should only be accessed or modified in the process
+   that it was created in. Using a :class:`ddtrace.trace.Span` from within a child process
    could result in a deadlock or unexpected behavior.
 
 
@@ -173,7 +173,7 @@ to contexts to avoid memory leaks.
 Here's an example of tracing some work done in a child process::
 
     import os, sys, time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     span = tracer.trace("work")
 
@@ -208,7 +208,7 @@ Manual Management
 
 Parenting can be managed manually by using ``tracer.start_span()`` which by
 default does not activate spans when they are created. See the documentation
-for :meth:`ddtrace.Tracer.start_span`.
+for :meth:`ddtrace.trace.Tracer.start_span`.
 
 
 Context Providers
@@ -331,7 +331,7 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.trace import TraceFilter
 
     class FilterbyName(TraceFilter):
@@ -350,11 +350,11 @@ and the resulting trace will either be sent to the Agent or discarded.
 **Writing a custom filter**
 
 Create a filter by implementing a class with a ``process_trace`` method and
-providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+providing it to the filters parameter of :meth:`ddtrace.trace.Tracer.configure()`.
 ``process_trace`` should either return a trace to be fed to the next step of
 the pipeline or ``None`` if the trace should be discarded::
 
-    from ddtrace import Span, tracer
+    from ddtrace.trace import Span, tracer
     from ddtrace.trace import TraceFilter
 
     class FilterExample(TraceFilter):
