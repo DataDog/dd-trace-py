@@ -553,7 +553,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         return unique_test_ids
 
-    def fetch_test_management_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+    def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
         metric_names = APIRequestMetricNames(  # ꙮ
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
