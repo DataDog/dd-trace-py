@@ -22,9 +22,12 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
+        asm_config._bypass_instrumentation_for_waf = True
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
+    finally:
+        asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
 
