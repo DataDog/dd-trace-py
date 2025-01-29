@@ -22,7 +22,7 @@ from .tags import Tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.tracer import Tracer  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 _TagNameType = Union[Text, bytes]

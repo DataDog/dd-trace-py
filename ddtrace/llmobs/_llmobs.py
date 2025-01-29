@@ -295,7 +295,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer: Optional[ddtrace._trace.tracer.Tracer] = None,
+        _tracer: Optional[ddtrace.trace.Tracer] = None,
     ) -> None:
         """
         Enable LLM Observability tracing.
