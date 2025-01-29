@@ -57,20 +57,24 @@ def test_propagate_correct_llmobs_parent_id_simple(run_python_code_in_subprocess
     """
     code = """
 import json
+import mock
 
-from ddtrace import tracer
-from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.http import Response
+from ddtrace.llmobs import LLMObs
 from ddtrace.propagation.http import HTTPPropagator
 
-with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
-    with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
-        HTTPPropagator.inject(child_span.context, headers)
+with mock.patch(
+    "ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}"),
+):
+    LLMObs.enable(ml_app="test-app", api_key="<not-a-real-key>", agentless_enabled=True)
+    with LLMObs.workflow("LLMObs span") as root_span:
+        with LLMObs._instance.tracer.trace("Non-LLMObs span") as child_span:
+            headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
+            HTTPPropagator.inject(child_span.context, headers)
 
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "1"
     env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
@@ -93,21 +97,33 @@ def test_propagate_llmobs_parent_id_complex(run_python_code_in_subprocess):
     """
     code = """
 import json
+import mock
 
-from ddtrace import tracer
-from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.http import Response
+from ddtrace.llmobs import LLMObs
 from ddtrace.propagation.http import HTTPPropagator
 
-with tracer.trace("LLMObs span", span_type=SpanTypes.LLM) as root_span:
-    with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
-        HTTPPropagator.inject(child_span.context, headers)
+with mock.patch(
+    "ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}"),
+):
+    from ddtrace import auto  # simulate ddtrace-run startup to ensure env var configs also propagate
+    with LLMObs.workflow("LLMObs span") as root_span:
+        with LLMObs._instance.tracer.trace("Non-LLMObs span") as child_span:
+            headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
+            HTTPPropagator.inject(child_span.context, headers)
 
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "1"
-    env["DD_TRACE_ENABLED"] = "0"
+    env.update(
+        {
+            "DD_LLMOBS_ENABLED": "1",
+            "DD_TRACE_ENABLED": "0",
+            "DD_AGENTLESS_ENABLED": "1",
+            "DD_API_KEY": "<not-a-real-key>",
+            "DD_LLMOBS_ML_APP": "test-app",
+        }
+    )
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -124,7 +140,7 @@ print(json.dumps(headers))
 
 
 def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(run_python_code_in_subprocess):
-    """Test that the correct LLMObs parent ID (None) is extracted from the headers in a simple distributed scenario.
+    """Test that the correct LLMObs parent ID ('undefined') is extracted from headers in a simple distributed scenario.
     Service A (subprocess) has spans, but none are LLMObs spans.
     Service B (outside subprocess) has a LLMObs span.
     Service B's span should have no LLMObs parent ID as there are no LLMObs spans from service A.
@@ -132,17 +148,17 @@ def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(run_python_code_in_su
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
 from ddtrace.propagation.http import HTTPPropagator
 
-with tracer.trace("Non-LLMObs span") as root_span:
+LLMObs.enable(ml_app="ml-app", agentless_enabled=True, api_key="<not-a-real-key>")
+with LLMObs._instance.tracer.trace("Non-LLMObs span") as root_span:
     headers = {}
     HTTPPropagator.inject(root_span.context, headers)
 
 print(json.dumps(headers))
         """
     env = os.environ.copy()
-    env["DD_LLMOBS_ENABLED"] = "1"
     env["DD_TRACE_ENABLED"] = "0"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
