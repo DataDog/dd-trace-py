@@ -14,7 +14,6 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.context import Context
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -26,6 +25,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Context
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer

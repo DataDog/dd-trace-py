@@ -9,12 +9,12 @@ from typing import Union  # noqa:F401
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
 
-from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.compat import NumericType  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
+from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
 
 from .span_context import SpanContext

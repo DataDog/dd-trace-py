@@ -12,10 +12,10 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
+from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
 from ddtrace.trace import Tracer as DatadogTracer
 from ddtrace.vendor.debtcollector import deprecate

@@ -6,7 +6,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import RateByServiceSampler
 from ddtrace._trace.sampler import RateSampler
@@ -23,6 +22,7 @@ from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 from ..subprocesstest import run_in_subprocess
