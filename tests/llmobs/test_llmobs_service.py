@@ -396,7 +396,7 @@ def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata="wrong_metadata")
         assert span._get_ctx_item(METADATA) is None
-        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
         mock_llmobs_logs.reset_mock()
 
 
@@ -411,7 +411,7 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, tags=12345)
         assert span._get_ctx_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "span_tags must be a dictionary of string key - primitive value pairs."
+            "tags must be a dictionary of string key - primitive value pairs."
         )
 
 
