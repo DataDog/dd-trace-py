@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where successive calls to LLMObs.annotate on the same span caused complete 
-          overwriting of metrics, metadata, and prompt dictionaries instead of merging the new values with existing ones.
+    LLM Observability: This fix resolves an issue where successive calls to ``LLMObs.annotate()`` on the same span caused  
+          overwriting of metrics, metadata, and prompt dictionaries. Now, calling ``LLMObs.annotate()`` will merge new metrics/metadata/prompt values with any existing ones.
