@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue on arm64 macOS where the profiler was not able
+    to find native extension modules to enable the following features:
+    ``DD_PROFILING_TIMELINE_ENABLED`` and ``DD_PROFILING_STACK_V2_ENABLED``.
