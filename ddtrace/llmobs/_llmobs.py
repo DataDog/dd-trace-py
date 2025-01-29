@@ -321,9 +321,6 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         config.env = env or config.env
         config.service = service or config.service
-        if os.getenv("DD_LLMOBS_APP_NAME"):
-            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
-            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
