@@ -9,12 +9,11 @@ import pytest
 from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.utils.http import Response
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
-from tests.ci_visibility.api_client._util import _get_test_management_tests_api_response
 from tests.ci_visibility.api_client._util import _make_fqdn_internal_test_id
 
 
 class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPIClientBase):
-    """Tests that unique tests responses from the API client are parsed properly"""
+    """Tests that Test Management tests responses from the API client are parsed properly"""
 
     def test_api_client_test_management_tests_parsed(self):
         response_dict = {
@@ -70,7 +69,6 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
         with mock.patch.object(client, "_do_request", return_value=mock_response):
             assert client.fetch_test_management_tests() == expected_tests
 
-
     @pytest.mark.parametrize(
         "do_request_side_effect",
         [
@@ -101,7 +99,7 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
         ],
     )
     def test_api_client_test_management_tests_errors(self, do_request_side_effect):
-        """Tests that the client correctly handles errors in the unique test API response"""
+        """Tests that the client correctly handles errors in the Test Management test API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
             settings = client.fetch_test_management_tests()

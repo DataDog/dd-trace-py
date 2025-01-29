@@ -554,7 +554,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         return unique_test_ids
 
     def fetch_test_management_tests(self) -> t.Optional[t.Set[InternalTestId]]:
-        metric_names = APIRequestMetricNames(
+        metric_names = APIRequestMetricNames(  # ꙮ
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
             response_bytes=EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_BYTES.value,
@@ -581,7 +581,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         if "errors" in parsed_response:
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
-            log.debug("Test management tests response contained an error")
+            log.debug("Test Management tests response contained an error")
             return None
 
         try:
@@ -603,11 +603,11 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                         test_properties[test_id] = TestProperties(quarantined=properties.get("quarantined", False))
 
         except Exception:  # noqa: E722
-            log.debug("Failed to parse test management tests data", exc_info=True)
+            log.debug("Failed to parse Test Management tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
 
-        # record_early_flake_detection_tests_count(len(unique_test_ids))
+        # record_early_flake_detection_tests_count(len(unique_test_ids)) # ꙮ
 
         return test_properties
 

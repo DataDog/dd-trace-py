@@ -105,23 +105,6 @@ def _get_tests_api_response(tests_body: t.Optional[t.Dict] = None):
     return Response(200, json.dumps(response))
 
 
-def _get_test_management_tests_api_response(modules: t.Dict):
-    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"modules": {}}}}
-
-    for module_id, suites in modules.items():
-        module = {"suites": {}}
-        response["data"]["attributes"]["modules"][module_id] = module
-
-        for suite_id, tests in suites.items():
-            suite = {"tests": {}}
-            module["suites"][suite_id] = suite
-
-            for test_id, test_properties in tests.items():
-                suite["tests"][test_id] = {"properties": test_properties}
-
-    return Response(200, json.dumps(response))
-
-
 def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: str, parameters: t.Optional[str] = None):
     """An easy way to create a test id "from the bottom up"
 
