@@ -46,7 +46,7 @@ from ddtrace.internal.logger import get_logger as _get_logger
 log = _get_logger(__name__)
 
 # this triggers the registration of trace handlers after civis startup
-import ddtrace._trace.trace_handlers  # noqa: F403
+import ddtrace._trace.trace_handlers  # noqa: F401, E402
 
 
 class TestStatus(Enum):
