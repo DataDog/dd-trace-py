@@ -604,7 +604,16 @@ if __name__ == "__main__":
 @pytest.mark.asyncio
 async def test_inferred_spans_api_gateway_default(client, tracer, test_spans):
     with override_global_config(dict(_inferred_proxy_services_enabled=True)):
-        client.get("/200")
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        client.get("/200", headers=headers)
         web_span = test_spans.find_span(name="starlette.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
         #  Assert common behavior including aws gateway metadata
