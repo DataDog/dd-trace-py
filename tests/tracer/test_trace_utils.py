@@ -13,10 +13,7 @@ from hypothesis.strategies import tuples
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace import config
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -28,7 +25,10 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Context
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
@@ -315,8 +315,8 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 )
 def test_set_http_meta_with_http_header_tags_config():
     from ddtrace import config
-    from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.trace import Span
 
     assert config._trace_http_header_tags == {
         "header1": "",
@@ -511,8 +511,8 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
 @pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
-    from ddtrace import tracer
     from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.trace import tracer
 
     config._add("myint", dict())
     with tracer.trace("error") as span1:
@@ -1041,9 +1041,9 @@ def test_sanitized_url_in_http_meta(span, int_config):
 @pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
 def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
-    from ddtrace import tracer
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
+    from ddtrace.trace import tracer
 
     assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
 
@@ -1066,9 +1066,9 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # Test that query strings are not added to urls when the obfuscation regex is an empty string
     # and obfuscation is enabled (not disabled xD)
     from ddtrace import config
-    from ddtrace import tracer
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
+    from ddtrace.trace import tracer
 
     # assert obfuscation is disabled when the regex is an empty string
     assert config.global_query_string_obfuscation_disabled is True

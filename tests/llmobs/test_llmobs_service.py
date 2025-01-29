@@ -7,7 +7,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -32,6 +31,7 @@ from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
 from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
+from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event

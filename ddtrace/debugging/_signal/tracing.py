@@ -3,7 +3,6 @@ from dataclasses import field
 import typing as t
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
@@ -20,6 +19,7 @@ from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

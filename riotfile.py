@@ -2700,17 +2700,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     pkgs={
-                        "vcrpy": "==6.0.1",
-                        "langchain": "==0.0.192",
-                        "langchain-community": "==0.0.14",
-                        "openai": "==0.27.8",
-                        "pinecone-client": "==2.2.4",
-                        "cohere": "==4.57",
-                    },
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                ),
-                Venv(
-                    pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",

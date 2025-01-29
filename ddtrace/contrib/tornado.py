@@ -8,7 +8,7 @@ importing the tornado library.
 The following is an example::
 
     # patch before importing tornado and concurrent.futures
-    from ddtrace import tracer, patch
+    from ddtrace.trace import tracer, patch
     patch(tornado=True)
 
     import tornado.web
