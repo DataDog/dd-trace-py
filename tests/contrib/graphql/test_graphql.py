@@ -7,6 +7,8 @@ from ddtrace.contrib.internal.graphql.patch import _graphql_version as graphql_v
 from ddtrace.contrib.internal.graphql.patch import patch
 from ddtrace.contrib.internal.graphql.patch import unpatch
 from ddtrace.trace import tracer
+from graphql import build_schema
+from graphql import graphql_sync
 from tests.utils import override_config
 from tests.utils import snapshot
 
@@ -73,13 +75,45 @@ async def test_graphql_with_traced_resolver(test_schema, test_source_str, snapsh
         assert result.data == {"hello": "friend"}
 
 
+
+def resolve_fail(root, info):
+    undefined_var = None
+    return undefined_var.property
+
+
+def test_graphql_fail(enable_graphql_resolvers):
+    query = """
+    query {
+      fail
+    }
+    """
+
+    resolvers = {
+        "Query": {
+            "fail": resolve_fail,
+        }
+    }
+    schema_definition = """
+    type Query {
+        fail: String
+    }
+    """
+
+    test_schema = build_schema(schema_definition)
+    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])
+
+    assert result.errors is not None
+    assert len(result.errors) == 1
+    assert isinstance(result.errors[0], graphql.error.GraphQLError)
+    assert "'NoneType' object has no attribute 'name'" in result.errors[0].message
+
 @pytest.mark.asyncio
 async def test_graphql_error(test_schema, snapshot_context):
     with snapshot_context(ignores=["meta.error.type", "meta.error.message"]):
         if graphql_version < (3, 0):
-            result = graphql.graphql(test_schema, "{ invalid_schema }")
+            result = graphql.graphql(test_schema, "query my_query{ invalid_schema }")
         else:
-            result = await graphql.graphql(test_schema, "{ invalid_schema }")
+            result = await graphql.graphql(test_schema, "query my_query{ invalid_schema }")
         assert len(result.errors) == 1
         assert isinstance(result.errors[0], graphql.error.GraphQLError)
         assert "Cannot query field" in result.errors[0].message
@@ -99,7 +133,7 @@ def test_graphql_v2_promise(test_schema, test_source_str):
 )
 @pytest.mark.skipif(graphql_version >= (3, 0), reason="graphql.graphql is NOT async in v2.0")
 def test_graphql_error_v2_promise(test_schema):
-    promise = graphql.graphql(test_schema, "{ invalid_schema }", return_promise=True)
+    promise = graphql.graphql(test_schema, "query my_query{ invalid_schema }", return_promise=True)
     result = promise.get()
     assert len(result.errors) == 1
     assert isinstance(result.errors[0], graphql.error.GraphQLError)

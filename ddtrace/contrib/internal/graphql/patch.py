@@ -328,7 +328,6 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
         locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
-        # breakpoint()
         attributes={"message": error.message, 
                     "type": span.get_tag("error.type"),
                     "locations": locations, 
