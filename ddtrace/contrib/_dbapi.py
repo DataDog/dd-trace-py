@@ -1,3 +1,0 @@
-"""
-Generic dbapi tracing code.
-"""
