@@ -154,6 +154,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph",
         "langgraph.graph",
     ),
+    "langchain": ("langchain_core",),
 }
 
 

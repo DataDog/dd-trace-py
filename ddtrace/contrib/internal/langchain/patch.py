@@ -1,51 +1,13 @@
 import os
 import sys
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Union
-
-import langchain
-from pydantic import SecretStr
-
-
-try:
-    import langchain_core
-except ImportError:
-    langchain_core = None
-try:
-    import langchain_community
-except ImportError:
-    langchain_community = None
-try:
-    import langchain_openai
-except ImportError:
-    langchain_openai = None
-try:
-    import langchain_pinecone
-except ImportError:
-    langchain_pinecone = None
-
-from ddtrace.appsec._iast import _is_iast_enabled
-
-
-try:
-    from langchain.callbacks.openai_info import get_openai_token_cost_for_model
-except ImportError:
-    try:
-        from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
-    except ImportError:
-        get_openai_token_cost_for_model = None
 
 import wrapt
 
 from ddtrace import Span
 from ddtrace import config
-from ddtrace.contrib.internal.langchain.constants import API_KEY
-from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
-from ddtrace.contrib.internal.langchain.constants import MODEL
-from ddtrace.contrib.internal.langchain.constants import PROMPT_TOKENS
-from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
+from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
@@ -65,12 +27,19 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
 
 
+langchain_core = None
+langchain_community = None
+
+
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
-    return getattr(langchain, "__version__", "")
+def get_version() -> str:
+    try:
+        import langchain_core
+    except ImportError:
+        return ""
+    return getattr(langchain_core, "__version__", "")
 
 
 config._add(
@@ -85,6 +54,21 @@ config._add(
 )
 
 
+def _import_langchain_libraries():
+    """Import available langchain packages"""
+    global langchain_core, langchain_community
+
+    try:
+        import langchain_core
+    except ImportError:
+        langchain_core = None
+
+    try:
+        import langchain_community
+    except ImportError:
+        langchain_community = None
+
+
 def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
@@ -93,7 +77,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
-def _format_api_key(api_key: Union[str, SecretStr]) -> str:
+def _format_api_key(api_key) -> str:
     """Obfuscate a given LLM provider API key by returning the last four characters."""
     if hasattr(api_key, "get_secret_value"):
         api_key = api_key.get_secret_value()
@@ -116,79 +100,6 @@ def _extract_api_key(instance: Any) -> str:
         if api_key:
             return _format_api_key(api_key)
     return ""
-
-
-def _tag_openai_token_usage(
-    span: Span, llm_output: Dict[str, Any], propagated_cost: int = 0, propagate: bool = False
-) -> None:
-    """
-    Extract token usage from llm_output, tag on span.
-    Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that
-    the root span will store the total token_usage/cost of all of its descendants.
-    """
-    for token_type in ("prompt", "completion", "total"):
-        current_metric_value = span.get_metric("langchain.tokens.%s_tokens" % token_type) or 0
-        metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
-        span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
-    total_cost = span.get_metric(TOTAL_COST) or 0
-    if not propagate and get_openai_token_cost_for_model:
-        try:
-            completion_cost = get_openai_token_cost_for_model(
-                span.get_tag(MODEL),
-                span.get_metric(COMPLETION_TOKENS),
-                is_completion=True,
-            )
-            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
-            total_cost = completion_cost + prompt_cost
-        except ValueError:
-            # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
-            log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
-    if get_openai_token_cost_for_model:
-        span.set_metric(TOTAL_COST, propagated_cost + total_cost)
-    if span._parent is not None:
-        _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
-
-
-def _is_openai_llm_instance(instance):
-    """Safely check if a traced instance is an OpenAI LLM.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_openai:
-            return isinstance(instance, langchain_openai.OpenAI)
-        if langchain_community:
-            return isinstance(instance, langchain_community.llms.OpenAI)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
-
-
-def _is_openai_chat_instance(instance):
-    """Safely check if a traced instance is an OpenAI Chat Model.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_openai:
-            return isinstance(instance, langchain_openai.ChatOpenAI)
-        if langchain_community:
-            return isinstance(instance, langchain_community.chat_models.ChatOpenAI)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
-
-
-def _is_pinecone_vectorstore_instance(instance):
-    """Safely check if a traced instance is a Pinecone VectorStore.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_pinecone:
-            return isinstance(instance, langchain_pinecone.PineconeVectorStore)
-        if langchain_community:
-            return isinstance(instance, langchain_community.vectorstores.Pinecone)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
 
 
 @with_traced_module
@@ -219,9 +130,6 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
-        if _is_openai_llm_instance(instance):
-            _tag_openai_token_usage(span, completions.llm_output)
-            integration.record_usage(span, completions.llm_output)
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
@@ -290,9 +198,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
-        if _is_openai_llm_instance(instance):
-            _tag_openai_token_usage(span, completions.llm_output)
-            integration.record_usage(span, completions.llm_output)
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
@@ -374,9 +279,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
-        if _is_openai_chat_instance(instance):
-            _tag_openai_token_usage(span, chat_completions.llm_output)
-            integration.record_usage(span, chat_completions.llm_output)
 
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
@@ -500,9 +402,6 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
-        if _is_openai_chat_instance(instance):
-            _tag_openai_token_usage(span, chat_completions.llm_output)
-            integration.record_usage(span, chat_completions.llm_output)
 
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
@@ -874,21 +773,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             span.set_tag_str("langchain.request.k", str(k))
         for kwarg_key, v in kwargs.items():
             span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
-        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
-            span.set_tag_str(
-                "langchain.request.pinecone.environment",
-                instance._index.configuration.server_variables.get("environment", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.index_name",
-                instance._index.configuration.server_variables.get("index_name", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.project_name",
-                instance._index.configuration.server_variables.get("project_name", ""),
-            )
-            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
         span.set_metric("langchain.response.document_count", len(documents))
         for idx, document in enumerate(documents):
@@ -1201,7 +1085,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     langchain_community.__name__,
                     "embeddings.%s.embed_query" % text_embedding_model,
-                    traced_embedding(langchain),
+                    traced_embedding(langchain_core),
                 )
             if not isinstance(
                 deep_getattr(langchain_community.embeddings, "%s.embed_documents" % text_embedding_model),
@@ -1210,7 +1094,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     langchain_community.__name__,
                     "embeddings.%s.embed_documents" % text_embedding_model,
-                    traced_embedding(langchain),
+                    traced_embedding(langchain_core),
                 )
     for vectorstore in vectorstore_classes:
         if hasattr(langchain_community.vectorstores, vectorstore):
@@ -1222,7 +1106,7 @@ def _patch_embeddings_and_vectorstores():
                 wrap(
                     langchain_community.__name__,
                     "vectorstores.%s.similarity_search" % vectorstore,
-                    traced_similarity_search(langchain),
+                    traced_similarity_search(langchain_core),
                 )
 
 
@@ -1256,7 +1140,9 @@ def _unpatch_embeddings_and_vectorstores():
 
 
 def patch():
-    if getattr(langchain, "_datadog_patch", False):
+    _import_langchain_libraries()
+
+    if langchain_core and getattr(langchain_core, "_datadog_patch", False):
         return
 
     version = parse_version(get_version())
@@ -1264,56 +1150,60 @@ def patch():
         log.warning("langchain version %s is not supported, please upgrade to langchain version 0.1 or later", version)
         return
 
-    langchain._datadog_patch = True
+    langchain_core._datadog_patch = True
 
-    Pin().onto(langchain)
+    Pin().onto(langchain_core)
     integration = LangChainIntegration(integration_config=config.langchain)
-    langchain._datadog_integration = integration
+    langchain_core._datadog_integration = integration
 
     # Langchain doesn't allow wrapping directly from root, so we have to import the base classes first before wrapping.
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
-    from langchain.chains.base import Chain  # noqa:F401
+    from langchain_core.language_models import chat_models  # noqa:F401
+    from langchain_core.language_models import llms  # noqa:F401
+    from langchain_core.runnables import base  # noqa:F401
     from langchain_core.tools import BaseTool  # noqa:F401
 
-    wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain_core))
+    wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain_core))
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.generate",
-        traced_chat_model_generate(langchain),
+        traced_chat_model_generate(langchain_core),
     )
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.agenerate",
-        traced_chat_model_agenerate(langchain),
+        traced_chat_model_agenerate(langchain_core),
     )
-    wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
-    wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain))
-    wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain))
+    wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain_core))
+    wrap(
+        "langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain_core)
+    )
+    wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain_core))
+    wrap(
+        "langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain_core)
+    )
+    wrap("langchain_core", "runnables.base.RunnableSequence.stream", traced_chain_stream(langchain_core))
+    wrap("langchain_core", "runnables.base.RunnableSequence.astream", traced_chain_stream(langchain_core))
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.stream",
-        traced_chat_stream(langchain),
+        traced_chat_stream(langchain_core),
     )
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.astream",
-        traced_chat_stream(langchain),
+        traced_chat_stream(langchain_core),
     )
-    wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain_core))
+    wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain_core))
 
-    wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
-    wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
-    if langchain_openai:
-        wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
-    if langchain_pinecone:
-        wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+    wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain_core))
+    wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain_core))
+    # if langchain_openai:
+    #     wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+    # if langchain_pinecone:
+    #     wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
 
     if langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1333,17 +1223,15 @@ def patch():
 
 
 def unpatch():
-    if not getattr(langchain, "_datadog_patch", False):
+    if langchain_core and not getattr(langchain_core, "_datadog_patch", False):
         return
 
-    langchain._datadog_patch = False
+    langchain_core._datadog_patch = False
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
-    unwrap(langchain.chains.base.Chain, "invoke")
-    unwrap(langchain.chains.base.Chain, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
@@ -1356,15 +1244,15 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
-    if langchain_openai:
-        unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
-    if langchain_pinecone:
-        unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
+    # if langchain_openai:
+    #     unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
+    # if langchain_pinecone:
+    #     unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
 
     if langchain_community:
         _unpatch_embeddings_and_vectorstores()
 
-    delattr(langchain, "_datadog_integration")
+    delattr(langchain_core, "_datadog_integration")
 
 
 def taint_outputs(instance, inputs, outputs):
