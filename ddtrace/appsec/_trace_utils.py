@@ -136,7 +136,7 @@ def track_user_login_success_event(
 
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
+    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
         res = call_waf_callback(
             custom_data={
@@ -396,22 +396,28 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
     if user_extra.get("login") is None:
         user_extra["login"] = user_id
     user_id = user_id_found or user_id
-    if result_user and in_asm_context() and result_user.is_authenticated:
+    if result_user and result_user.is_authenticated:
         if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-            set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True)
+            set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True, may_block=False)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
             set_user(
-                pin.tracer, str(user_id), propagate=True, email=user_extra.get("email"), name=user_extra.get("name")
+                pin.tracer,
+                str(user_id),
+                propagate=True,
+                email=user_extra.get("email"),
+                name=user_extra.get("name"),
+                may_block=False,
             )
-        real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
-        custom_data = {
-            "REQUEST_USER_ID": str(user_id) if user_id else None,
-            "REQUEST_USERNAME": user_extra.get("login"),
-            "LOGIN_SUCCESS": real_mode,
-        }
-        res = call_waf_callback(custom_data=custom_data, force_sent=True)
-        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
-            raise BlockingException(get_blocked())
+        if in_asm_context():
+            real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+            custom_data = {
+                "REQUEST_USER_ID": str(user_id) if user_id else None,
+                "REQUEST_USERNAME": user_extra.get("login"),
+                "LOGIN_SUCCESS": real_mode,
+            }
+            res = call_waf_callback(custom_data=custom_data, force_sent=True)
+            if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+                raise BlockingException(get_blocked())
 
 
 core.on("django.login", _on_django_login)
