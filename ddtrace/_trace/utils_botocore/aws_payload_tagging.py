@@ -6,7 +6,7 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace import config
-from ddtrace.trace import Span
+from ddtrace._trace.span import Span
 from ddtrace.vendor.jsonpath_ng import parse
 
 

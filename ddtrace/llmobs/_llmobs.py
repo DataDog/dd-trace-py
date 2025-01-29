@@ -10,7 +10,6 @@ from typing import Union
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -34,7 +33,6 @@ from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -68,6 +66,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
@@ -148,8 +147,6 @@ class LLMObs(Service):
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
-        if span._get_ctx_item(INPUT_PARAMETERS):
-            meta["input"]["parameters"] = span._get_ctx_item(INPUT_PARAMETERS)
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
@@ -298,7 +295,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer: Optional[ddtrace._trace.tracer.Tracer] = None,
+        _tracer: Optional[ddtrace.trace.Tracer] = None,
     ) -> None:
         """
         Enable LLM Observability tracing.
@@ -710,7 +707,6 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        parameters: Optional[Dict[str, Any]] = None,
         prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
@@ -720,7 +716,7 @@ class LLMObs(Service):
         _name: Optional[str] = None,
     ) -> None:
         """
-        Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
+        Sets metadata, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
         Note that with the exception of tags, this method will override any existing values for the provided fields.
 
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
@@ -747,7 +743,6 @@ class LLMObs(Service):
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
-        :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
@@ -773,9 +768,6 @@ class LLMObs(Service):
         if tags is not None:
             cls._tag_span_tags(span, tags)
         span_kind = span._get_ctx_item(SPAN_KIND)
-        if parameters is not None:
-            log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
-            cls._tag_params(span, parameters)
         if _name is not None:
             span.name = _name
         if prompt is not None:
@@ -802,16 +794,6 @@ class LLMObs(Service):
         except TypeError:
             log.warning("Failed to validate prompt with error: ", exc_info=True)
             return
-
-    @staticmethod
-    def _tag_params(span: Span, params: Dict[str, Any]) -> None:
-        """Tags input parameters for a given LLMObs span.
-        Will be mapped to span's `meta.input.parameters` field.
-        """
-        if not isinstance(params, dict):
-            log.warning("parameters must be a dictionary of key-value pairs.")
-            return
-        span._set_ctx_item(INPUT_PARAMETERS, params)
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):

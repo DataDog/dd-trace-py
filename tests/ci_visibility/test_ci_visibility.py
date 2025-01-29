@@ -14,7 +14,6 @@ import msgpack
 import pytest
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
@@ -32,6 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.utils.http import Response
+from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env

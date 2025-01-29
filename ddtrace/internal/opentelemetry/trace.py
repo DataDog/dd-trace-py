@@ -103,7 +103,7 @@ class Tracer(OtelTracer):
         curr_otel_span = get_current_span(context)
         if curr_otel_span is INVALID_SPAN:
             # There is no active datadog/otel span
-            dd_active = None  # type: Optional[Union[ddtrace.trace.Context, ddtrace._trace.span.Span]]
+            dd_active = None  # type: Optional[Union[ddtrace.trace.Context, ddtrace.trace.Span]]
         elif isinstance(curr_otel_span, Span):
             # Get underlying ddtrace span from the active otel span
             dd_active = curr_otel_span._ddspan

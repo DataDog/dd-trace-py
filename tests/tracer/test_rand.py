@@ -285,7 +285,7 @@ def test_span_api_fork():
     from itertools import chain
     import os
 
-    from ddtrace._trace.span import Span
+    from ddtrace.trace import Span
     from tests.tracer.test_rand import MPQueue
 
     q = MPQueue()

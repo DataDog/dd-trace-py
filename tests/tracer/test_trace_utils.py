@@ -14,8 +14,6 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -27,7 +25,9 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Context
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -315,8 +315,8 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 )
 def test_set_http_meta_with_http_header_tags_config():
     from ddtrace import config
-    from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.trace import Span
 
     assert config._trace_http_header_tags == {
         "header1": "",

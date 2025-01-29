@@ -76,7 +76,7 @@ class TestVisibilitySessionSettings:
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
-            raise TypeError("tracer must be a ddtrace._trace.tracer.Tracer")
+            raise TypeError("tracer must be a ddtrace.trace.Tracer")
         if not isinstance(self.workspace_path, Path):
             raise TypeError("root_dir must be a pathlib.Path")
         if not self.workspace_path.is_absolute():

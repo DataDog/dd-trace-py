@@ -26,7 +26,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
 
     @staticmethod
     def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace._trace.tracer.Tracer], Optional[str], Optional[float]) -> None
+        # type: (Optional[ddtrace.trace.Tracer], Optional[str], Optional[float]) -> None
         """
         Enable the runtime metrics collection service.
 

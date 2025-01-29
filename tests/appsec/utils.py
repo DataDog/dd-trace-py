@@ -2,9 +2,9 @@ import contextlib
 import sys
 import typing
 
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
+from ddtrace.trace import Span
 from ddtrace.trace import tracer as default_tracer
 from tests.utils import override_global_config
 

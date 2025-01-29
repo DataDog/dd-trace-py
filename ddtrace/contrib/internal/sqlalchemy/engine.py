@@ -37,7 +37,7 @@ def trace_engine(engine, tracer=None, service=None):
     Add tracing instrumentation to the given sqlalchemy engine or instance.
 
     :param sqlalchemy.Engine engine: a SQLAlchemy engine class or instance
-    :param ddtrace._trace.tracer.Tracer tracer: a tracer instance. will default to the global
+    :param ddtrace.trace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
     tracer = tracer or ddtrace.tracer  # by default use global

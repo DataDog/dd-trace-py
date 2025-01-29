@@ -3,10 +3,10 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace.span import Span
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.trace import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
 from tests.llmobs._utils import _expected_ragas_context_precision_spans

@@ -29,7 +29,7 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`ddtrace.context.Context` object is used to represent the state of
+The :class:`ddtrace.trace.Context` object is used to represent the state of
 a trace at a point in time. This state includes the trace id, active span id,
 distributed sampling decision and more. It is used to propagate the trace
 across execution boundaries like processes
@@ -46,7 +46,7 @@ Tracing Context Management
 --------------------------
 
 In ``ddtrace`` "context management" is the management of which
-:class:`ddtrace.trace.Span` or :class:`ddtrace.context.Context` is active in an
+:class:`ddtrace.trace.Span` or :class:`ddtrace.trace.Context` is active in an
 execution (thread, task, etc). There can only be one active span or context
 per execution at a time.
 
@@ -342,11 +342,7 @@ all traces of incoming requests to a specific url::
                     return None
             return trace
 
-    tracer.configure(settings={
-        'FILTERS': [
-            FilterbyName(),
-        ],
-    })
+    tracer.configure(trace_processors=[FilterbyName()])
 
 The filters in the filters list will be applied sequentially to each trace
 and the resulting trace will either be sent to the Agent or discarded.
@@ -367,7 +363,7 @@ the pipeline or ``None`` if the trace should be discarded::
             ...
 
     # And then configure it with
-    tracer.configure(settings={'FILTERS': [FilterExample()]})
+    tracer.configure(trace_processors=[FilterExample()])
 
 (see filters.py for other example implementations)
 

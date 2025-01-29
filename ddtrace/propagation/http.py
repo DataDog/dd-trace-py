@@ -12,7 +12,7 @@ from typing import cast  # noqa:F401
 import urllib.parse
 
 import ddtrace
-from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace.trace import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):
@@ -23,12 +23,12 @@ else:
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Context
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT

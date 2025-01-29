@@ -15,9 +15,7 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import _is_top_level
-from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -41,6 +39,8 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
+from ddtrace.trace import Context
+from ddtrace.trace import Tracer
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
