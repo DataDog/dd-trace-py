@@ -551,7 +551,7 @@ class Span(object):
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
-        core.dispatch("web.request.final_tags", (self, ))
+        core.dispatch("web.request.final_tags", (self,))
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 

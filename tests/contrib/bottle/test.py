@@ -3,9 +3,9 @@ import webtest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

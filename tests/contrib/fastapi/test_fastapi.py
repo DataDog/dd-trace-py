@@ -17,8 +17,8 @@ from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gatewa
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import flaky
 from tests.utils import override_config
-from tests.utils import override_http_config
 from tests.utils import override_global_config
+from tests.utils import override_http_config
 from tests.utils import snapshot
 
 

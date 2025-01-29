@@ -20,8 +20,8 @@ from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gatewa
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
-from tests.utils import override_http_config
 from tests.utils import override_global_config
+from tests.utils import override_http_config
 from tests.utils import snapshot
 
 
@@ -600,10 +600,11 @@ if __name__ == "__main__":
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
+
 @pytest.mark.asyncio
 async def test_inferred_spans_api_gateway_default(client, tracer, test_spans):
     with override_global_config(dict(_inferred_proxy_services_enabled=True)):
-        r = client.get("/200")
+        client.get("/200")
         web_span = test_spans.find_span(name="starlette.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
         #  Assert common behavior including aws gateway metadata

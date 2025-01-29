@@ -24,8 +24,8 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import override_config
-from tests.utils import override_http_config
 from tests.utils import override_global_config
+from tests.utils import override_http_config
 
 
 # Helpers for handling response objects across sanic versions
@@ -530,12 +530,13 @@ if __name__ == "__main__":
     )
     assert status == 0, out or err
 
+
 @pytest.mark.parametrize(
     "test",
     [
-        {"endpoint": '/hello', "status_code": "200"},
-        {"endpoint": '/error', "status_code": "500"},
-        {"endpoint": '/invalid', "status_code": "500"},
+        {"endpoint": "/hello", "status_code": "200"},
+        {"endpoint": "/error", "status_code": "500"},
+        {"endpoint": "/invalid", "status_code": "500"},
     ],
 )
 @pytest.mark.parametrize(
@@ -571,10 +572,12 @@ if __name__ == "__main__":
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
 @pytest.mark.asyncio
-async def test_inferred_spans_api_gateway_default(tracer, client, test_spans, test, inferred_proxy_enabled, test_headers):
+async def test_inferred_spans_api_gateway_default(
+    tracer, client, test_spans, test, inferred_proxy_enabled, test_headers
+):
     # When the inferred proxy feature is enabled, there should be an inferred span
     with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
-        response = await client.get(test["endpoint"], headers=test_headers["headers"])
+        await client.get(test["endpoint"], headers=test_headers["headers"])
 
         if inferred_proxy_enabled:
             web_span = test_spans.find_span(name="sanic.request")
@@ -586,12 +589,12 @@ async def test_inferred_spans_api_gateway_default(tracer, client, test_spans, te
             assert aws_gateway_span.get_tag("http.url") == "local/"
             assert aws_gateway_span.get_tag("http.method") == "GET"
             assert aws_gateway_span.get_tag("http.status_code") == test["status_code"]
-            assert aws_gateway_span.get_tag("http.route") == '/'
+            assert aws_gateway_span.get_tag("http.route") == "/"
             # Assert test specific behavior for sanic
             assert web_span.name == "sanic.request"
             assert web_span.service == "sanic"
             assert web_span.resource == "GET " + test["endpoint"]
-            assert web_span.get_tag("http.url") == 'http://mockserver:1234' + test["endpoint"]
+            assert web_span.get_tag("http.url") == "http://mockserver:1234" + test["endpoint"]
             assert web_span.get_tag("http.route") is None
             assert web_span.get_tag("span.kind") == "server"
             assert web_span.get_tag("component") == "sanic"

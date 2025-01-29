@@ -667,6 +667,7 @@ class TestSchematization(TornadoTestCase):
             request_span.name
         )
 
+
 class TestAPIGatewayTracing(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced when API Gateway is involved
@@ -683,7 +684,7 @@ class TestAPIGatewayTracing(TornadoTestCase):
         }
 
         config._inferred_proxy_services_enabled = True
-        response = self.fetch("/success/", headers=headers)
+        self.fetch("/success/", headers=headers)
         traces = self.pop_traces()
         aws_gateway_span = traces[0][0]
         web_span = traces[0][1]
