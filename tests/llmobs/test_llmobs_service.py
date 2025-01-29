@@ -110,20 +110,6 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_ml_app")
-        llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is True
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead."
-        )
-        llmobs_service.disable()
-
-
 def test_service_enable_already_enabled(mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -379,11 +365,24 @@ def test_annotate_metadata(llmobs):
         assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
+def test_annotate_metadata_updates(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
+        llmobs.annotate(span=span, metadata={"temperature": 1, "logit_bias": [{"1": 2}]})
+        assert span._get_ctx_item(METADATA) == {
+            "temperature": 1,
+            "max_tokens": 20,
+            "top_k": 10,
+            "n": 3,
+            "logit_bias": [{"1": 2}],
+        }
+
+
 def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata="wrong_metadata")
         assert span._get_ctx_item(METADATA) is None
-        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
         mock_llmobs_logs.reset_mock()
 
 
@@ -398,7 +397,7 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, tags=12345)
         assert span._get_ctx_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "span_tags must be a dictionary of string key - primitive value pairs."
+            "span tags must be a dictionary of string key - primitive value pairs."
         )
 
 
@@ -643,6 +642,13 @@ def test_annotate_metrics(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
         assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+
+
+def test_annotate_metrics_updates(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20})
+        llmobs.annotate(span=span, metrics={"input_tokens": 20, "total_tokens": 40})
+        assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
 
 
 def test_annotate_metrics_wrong_type(llmobs, mock_llmobs_logs):
