@@ -91,7 +91,7 @@ While this is default behavior for integrations, users can add a trace filter to
         return trace
 
 
-  tracer.configure(settings={'FILTERS': [ErrorFilter()]})
+  tracer.configure(trace_processors=[ErrorFilter()])
 
 
 
