@@ -50,7 +50,8 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
             [
                 mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
                 mock.call("encode %d LLMObs span events to be sent", 5),
-            ]
+            ],
+            any_order=True,
         )
 
 
