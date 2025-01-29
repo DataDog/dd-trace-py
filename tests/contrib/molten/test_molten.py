@@ -29,10 +29,6 @@ def greet():
     return "Greetings"
 
 
-def welcome():
-    return "Welcome"
-
-
 def reply_404():
     raise molten.HTTPError(molten.HTTP_404, {"error": "Nope"})
 
@@ -43,7 +39,6 @@ def molten_app():
             molten.Route("/hello/{name}/{age}", hello),
             molten.Route("/greet", greet),
             molten.Route("/404", reply_404),
-            molten.Route("/", welcome),
         ]
     )
 
@@ -67,7 +62,7 @@ class TestMolten(TracerTestCase):
 
     def make_request(self, headers=None, params=None, route=None):
         if route:
-            uri = self.app.reverse_uri(route)
+            uri = route
         else:
             uri = self.app.reverse_uri("hello", name="Jim", age=24)
         return self.client.request("GET", uri, headers=headers, params=params)
@@ -432,13 +427,13 @@ class TestMolten(TracerTestCase):
             headers = {
                 "x-dd-proxy": "aws-apigateway",
                 "x-dd-proxy-request-time-ms": "1736973768000",
-                "x-dd-proxy-path": "/",
+                "x-dd-proxy-path": "/greet",
                 "x-dd-proxy-httpmethod": "GET",
                 "x-dd-proxy-domain-name": "local",
                 "x-dd-proxy-stage": "stage",
             }
 
-            self.make_request(headers=headers, route="/")
+            self.make_request(headers=headers, route="/greet")
 
             traces = self.pop_traces()
             aws_gateway_span = traces[0][0]

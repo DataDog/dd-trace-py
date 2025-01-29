@@ -594,7 +594,9 @@ async def test_inferred_spans_api_gateway_default(
             assert web_span.name == "sanic.request"
             assert web_span.service == "sanic"
             assert web_span.resource == "GET " + test["endpoint"]
-            assert web_span.get_tag("http.url") == "http://mockserver:1234" + test["endpoint"]
+
+            # can't check full http.url since it differs between local and remote testing
+            assert web_span.get_tag("http.url").endswith(test["endpoint"])
             assert web_span.get_tag("http.route") is None
             assert web_span.get_tag("span.kind") == "server"
             assert web_span.get_tag("component") == "sanic"
