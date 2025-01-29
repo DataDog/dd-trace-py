@@ -110,20 +110,6 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_ml_app")
-        llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is True
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead."
-        )
-        llmobs_service.disable()
-
-
 def test_service_enable_already_enabled(mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
