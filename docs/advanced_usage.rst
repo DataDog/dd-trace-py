@@ -221,7 +221,7 @@ context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the
-:class:`ddtrace.provider.BaseContextProvider` interface and can be configured
+:class:`ddtrace.trace.BaseContextProvider` interface and can be configured
 with::
 
     tracer.configure(context_provider=MyContextProvider)
