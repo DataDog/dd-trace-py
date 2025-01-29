@@ -172,7 +172,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def delayed_init(self) -> None:
         try:
-            asm_config._bypass_instrumentation_for_waf = True
             if self._rules is not None and not hasattr(self, "_ddwaf"):
                 from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
                 import ddtrace.appsec._metrics as metrics  # noqa: E402

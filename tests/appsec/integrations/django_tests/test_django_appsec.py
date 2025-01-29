@@ -186,7 +186,7 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(user.ID) == "1", login_span.get_tag(user.ID)
+        assert login_span.get_tag(user.ID) == "1"
         assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
         assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
         if use_login:
