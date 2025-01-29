@@ -209,7 +209,6 @@ def _set_inferred_proxy_error_and_status(span, status_code):
 
 
 def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
-    breakpoint()
     if not config._inferred_proxy_services_enabled:
         return
 
