@@ -78,7 +78,7 @@ class RuntimeWorker(periodic.PeriodicService):
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
             self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
         )
-        self.tracer: Optional[ddtrace._trace.tracer.Tracer] = tracer
+        self.tracer: Optional[ddtrace.trace.Tracer] = tracer
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         self._services: Set[str] = set()
 
@@ -114,7 +114,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     @classmethod
     def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
-        # type: (Optional[float], Optional[ddtrace._trace.tracer.Tracer], Optional[str]) -> None
+        # type: (Optional[float], Optional[ddtrace.trace.Tracer], Optional[str]) -> None
         with cls._lock:
             if cls._instance is not None:
                 return

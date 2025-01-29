@@ -13,7 +13,7 @@ https://opentelemetry.io/docs/concepts/signals/traces/#span-links
 Usage
 -----
 
-SpanLinks can be set using :meth:`ddtrace._trace.span.Span.link_span(...)` Ex::
+SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 
     from ddtrace.trace import tracer
 
