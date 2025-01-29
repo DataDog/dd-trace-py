@@ -365,6 +365,7 @@ def test_chat_completion_function_calling(openai, openai_vcr, snapshot_tracer):
         )
 
 
+@pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0")
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_chat_completion_function_calling",
     ignores=[
