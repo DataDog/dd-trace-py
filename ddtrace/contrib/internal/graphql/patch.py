@@ -4,6 +4,7 @@ import sys
 import traceback
 from typing import TYPE_CHECKING
 from typing import List
+from typing import Dict
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span
@@ -291,30 +292,25 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-# def _validate_error_extensions(error: GraphQLError, extensions: str | None) -> Dict:
-#     # Parsing: handle `\` and `\\`
-#     # `field1\,` should match `field1,`
-#     # `field1\\` should match `field1\`
-#     if not extensions:
-#         return {}
+def _validate_error_extensions(error: GraphQLError, extensions: str | None) -> Dict:
+    # Validate user-provided extensions
+    if not extensions:
+        return {}
     
-#     # split on un-escaped commas
-#     pattern = r'(?<!\\),'
-#     fields = re.split(pattern, extensions)
+    fields = [e.strip() for e in extensions.split(',')]
+    error_extensions = {}
+    for field in fields:
+        if field in error.extensions:
+            # validate extensions formatting
+            # All extensions values MUST be stringified, EXCEPT for numeric values and 
+            # boolean values, which remain in their original type.
+            if isinstance(error.extensions[field], (int, float, bool)):
+                error_extensions[field] = error.extensions[field]
+            else:
+                # q: could this be `None`?
+                error_extensions[field] = str(error.extensions[field])
 
-#     fields = [field.replace(r'\,', ',').replace(r'\\', '\\') for field in fields]
-#     error_extensions = {}
-#     for field in fields:
-#         if field in error.extensions:
-#             # validate extensions formatting
-#             # All extensions values MUST be stringified, EXCEPT for numeric values and 
-#             # boolean values, which remain in their original type.
-#             if isinstance(error.extensions[field], (int, float, bool)):
-#                 error_extensions[field] = error.extensions[field]
-#             else:
-#                 error_extensions[field] = str(error.extensions[field])
-
-#     return error_extensions
+    return error_extensions
 
 
 def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
@@ -331,11 +327,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     # could be misleading and might obfuscate errors.
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
-        # [{'line': 1, 'column': 17} {'line': 3, 'column': 5}] -> '1:17' '3:5'
-        locations = [
-        f"{err_location.formatted['line']}:{err_location.formatted['column']}" for err_location in error.locations]
-        locations = " ".join(locations)
-
+        locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
         # breakpoint()
         attributes={"message": error.message, 
                     "type": span.get_tag("error.type"),
@@ -356,13 +348,12 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             path = ",".join([str(path_obj) for path_obj in error.path])
             attributes["path"] = path
 
-        # TODO: handle user extensions
-        # if os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS") is not None:
-        #     extensions = os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")
+        if os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS") is not None:
+            extensions = os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")
 
-        #     error_extensions = _validate_error_extensions(error, extensions)
-        #     if error_extensions:
-        #         attributes["extensions"] = str(error_extensions)
+            error_extensions = _validate_error_extensions(error, extensions)
+            if error_extensions:
+                attributes["extensions"] = str(error_extensions)
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,
