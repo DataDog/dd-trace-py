@@ -13,7 +13,9 @@ import pytest
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from tests.ci_visibility.api_client._util import _make_fqdn_internal_test_id
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
@@ -26,7 +28,6 @@ pytestmark = pytest.mark.skipif(
 _TEST_PASS_QUARANTINED = """
 import pytest
 
-@pytest.mark.dd_tags(**{"test.quarantine.is_quarantined": True})
 def test_pass_quarantined():
     assert True
 """
@@ -41,7 +42,6 @@ def test_pass_normal():
 _TEST_FAIL_QUARANTINED = """
 import pytest
 
-@pytest.mark.dd_tags(**{"test.quarantine.is_quarantined": True})
 def test_fail_quarantined():
     assert False
 """
@@ -60,7 +60,6 @@ import pytest
 def fail_setup():
     raise ValueError("fail setup")
 
-@pytest.mark.dd_tags(**{"test.quarantine.is_quarantined": True})
 def test_fail_setup(fail_setup):
     assert True
 """
@@ -73,10 +72,24 @@ def fail_teardown():
     yield
     raise ValueError("fail teardown")
 
-@pytest.mark.dd_tags(**{"test.quarantine.is_quarantined": True})
 def test_fail_teardown(fail_teardown):
     assert True
 """
+
+_TEST_PROPERTIES = {
+    _make_fqdn_internal_test_id("", "test_pass_quarantined.py", "test_pass_quarantined"): TestProperties(
+        quarantined=True
+    ),
+    _make_fqdn_internal_test_id("", "test_fail_quarantined.py", "test_fail_quarantined"): TestProperties(
+        quarantined=True
+    ),
+    _make_fqdn_internal_test_id("", "test_fail_setup_quarantined.py", "test_fail_setup"): TestProperties(
+        quarantined=True
+    ),
+    _make_fqdn_internal_test_id("", "test_fail_teardown_quarantined.py", "test_fail_teardown"): TestProperties(
+        quarantined=True
+    ),
+}
 
 
 def assert_stats(rec, **outcomes):
@@ -104,6 +117,9 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
                 quarantine=QuarantineSettings(enabled=True),
                 flaky_test_retries_enabled=False,
             ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
+            return_value=_TEST_PROPERTIES,
         ):
             yield
 
@@ -216,7 +232,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert len(rec.getcalls("pytest_pyfunc_call")) == 6
 
     def test_quarantine_fail_setup(self):
-        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
+        self.testdir.makepyfile(test_fail_setup_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
 
         rec = self.inline_run("--ddtrace", "-q")
 
@@ -226,7 +242,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         assert len(self.pop_spans()) > 0
 
     def test_quarantine_fail_teardown(self):
-        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
+        self.testdir.makepyfile(test_fail_teardown_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
 
         rec = self.inline_run("--ddtrace", "-q")
 
@@ -307,6 +323,9 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
                 quarantine=QuarantineSettings(enabled=True, skip_quarantined_tests=True),
                 flaky_test_retries_enabled=False,
             ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_test_management_tests",
+            return_value=_TEST_PROPERTIES,
         ):
             yield
 
@@ -374,7 +393,7 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         assert len(rec.getcalls("pytest_pyfunc_call")) == 0  # test function is not called
 
     def test_quarantine_fail_setup(self):
-        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
+        self.testdir.makepyfile(test_fail_setup_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
 
         rec = self.inline_run("--ddtrace", "-q")
 
@@ -384,7 +403,7 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         assert len(self.pop_spans()) > 0
 
     def test_quarantine_fail_teardown(self):
-        self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
+        self.testdir.makepyfile(test_fail_teardown_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
 
         rec = self.inline_run("--ddtrace", "-q")
 

@@ -516,7 +516,7 @@ class CIVisibility(Service):
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_test_management_tests()
-            log.warning("API client not initialized, cannot fetch unique tests")
+            log.warning("API client not initialized, cannot fetch tests from Test Management")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
         return None
@@ -650,7 +650,7 @@ class CIVisibility(Service):
         if self._api_settings.quarantine.enabled:
             test_properties = self._fetch_test_management_tests()
             if test_properties is None:
-                log.warning("Failed to fetch test management properties")
+                log.warning("Failed to fetch quarantined tests from Test Management")
             else:
                 self._test_properties = test_properties
 
