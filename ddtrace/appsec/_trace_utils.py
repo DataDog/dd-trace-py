@@ -397,15 +397,12 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
         user_extra["login"] = user_id
     user_id = user_id_found or user_id
     if result_user and in_asm_context() and result_user.is_authenticated:
-        try:
-            if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-                set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True)
-            elif mode == LOGIN_EVENTS_MODE.IDENT:
-                set_user(
-                    pin.tracer, str(user_id), propagate=True, email=user_extra.get("email"), name=user_extra.get("name")
-                )
-        except Exception:  # nosec
-            pass
+        if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+            set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True)
+        elif mode == LOGIN_EVENTS_MODE.IDENT:
+            set_user(
+                pin.tracer, str(user_id), propagate=True, email=user_extra.get("email"), name=user_extra.get("name")
+            )
         real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
         custom_data = {
             "REQUEST_USER_ID": str(user_id) if user_id else None,
