@@ -115,7 +115,7 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
 
 
 def test_evaluator_runner_unsupported_evaluator():
-    with override_env({"_DD_LLMOBS_EVALUATORS": "unsupported"}):
+    with override_env({EvaluatorRunner.EVALUATORS_ENV_VAR: "unsupported"}):
         with pytest.raises(ValueError):
             EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
 

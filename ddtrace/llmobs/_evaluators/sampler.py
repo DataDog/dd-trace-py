@@ -11,6 +11,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 logger = get_logger(__name__)
@@ -46,7 +48,8 @@ class EvaluatorRunnerSamplingRule(SamplingRule):
 
 
 class EvaluatorRunnerSampler:
-    SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
+    SAMPLING_RULES_ENV_VAR = "DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
+    DEPRECATED_SAMPLING_RULES_ENV_VAR = "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES"
 
     def __init__(self):
         self.rules = self.parse_rules()
@@ -59,8 +62,17 @@ class EvaluatorRunnerSampler:
 
     def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
-        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
-        telemetry_writer.add_configuration("_DD_LLMOBS_EVALUATOR_SAMPLING_RULES", sampling_rules_str, origin="env")
+
+        deprecated_sampling_rules_str = os.getenv(self.DEPRECATED_SAMPLING_RULES_ENV_VAR)
+        if deprecated_sampling_rules_str is not None:
+            deprecate(
+                "Using `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` is deprecated",
+                message="Please use `DD_LLMOBS_EVALUATOR_SAMPLING_RULES` instead.",
+                removal_version="3.2.0",
+                category=DDTraceDeprecationWarning,
+            )
+        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR) or deprecated_sampling_rules_str
+        telemetry_writer.add_configuration("DD_LLMOBS_EVALUATOR_SAMPLING_RULES", sampling_rules_str, origin="env")
 
         def parsing_failed_because(msg, maybe_throw_this):
             telemetry_writer.add_log(

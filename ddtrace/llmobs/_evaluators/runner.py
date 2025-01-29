@@ -8,10 +8,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.vendor.debtcollector import deprecate
 
 
 logger = get_logger(__name__)
@@ -31,6 +33,9 @@ class EvaluatorRunner(PeriodicService):
     2. triggers evaluator runs over buffered finished spans on each `periodic` call
     """
 
+    EVALUATORS_ENV_VAR = "DD_LLMOBS_EVALUATORS"
+    DEPRECATED_EVALUATORS_ENV_VAR = "_DD_LLMOBS_EVALUATORS"
+
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
@@ -45,7 +50,16 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        deprecated_evaluator_str = os.getenv(self.DEPRECATED_EVALUATORS_ENV_VAR)
+        if deprecated_evaluator_str is not None:
+            deprecate(
+                "Using `_DD_LLMOBS_EVALUATORS` is deprecated",
+                message="Please use `DD_LLMOBS_EVALUATORS` instead.",
+                removal_version="3.2.0",
+                category=DDTraceDeprecationWarning,
+            )
+
+        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR) or deprecated_evaluator_str
         if evaluator_str is None:
             return
 

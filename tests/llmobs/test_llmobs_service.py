@@ -1378,7 +1378,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 
 def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
-    with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
+    with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
             original_pid = llmobs_service._instance.tracer._pid
@@ -1749,7 +1749,7 @@ async def test_annotation_context_async_nested(llmobs):
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
+        with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
             dummy_tracer = DummyTracer()
             llmobs_service.enable(_tracer=dummy_tracer)
             llmobs_instance = llmobs_service._instance
