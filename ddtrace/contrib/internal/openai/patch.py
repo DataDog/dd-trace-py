@@ -10,7 +10,6 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
@@ -41,80 +40,43 @@ def get_version():
 OPENAI_VERSION = parse_version(get_version())
 
 
-if OPENAI_VERSION >= (1, 0, 0):
-    _RESOURCES = {
-        "models.Models": {
-            "list": _endpoint_hooks._ModelListHook,
-            "retrieve": _endpoint_hooks._ModelRetrieveHook,
-            "delete": _endpoint_hooks._ModelDeleteHook,
-        },
-        "completions.Completions": {
-            "create": _endpoint_hooks._CompletionHook,
-        },
-        "chat.Completions": {
-            "create": _endpoint_hooks._ChatCompletionHook,
-        },
-        "images.Images": {
-            "generate": _endpoint_hooks._ImageCreateHook,
-            "edit": _endpoint_hooks._ImageEditHook,
-            "create_variation": _endpoint_hooks._ImageVariationHook,
-        },
-        "audio.Transcriptions": {
-            "create": _endpoint_hooks._AudioTranscriptionHook,
-        },
-        "audio.Translations": {
-            "create": _endpoint_hooks._AudioTranslationHook,
-        },
-        "embeddings.Embeddings": {
-            "create": _endpoint_hooks._EmbeddingHook,
-        },
-        "moderations.Moderations": {
-            "create": _endpoint_hooks._ModerationHook,
-        },
-        "files.Files": {
-            "create": _endpoint_hooks._FileCreateHook,
-            "retrieve": _endpoint_hooks._FileRetrieveHook,
-            "list": _endpoint_hooks._FileListHook,
-            "delete": _endpoint_hooks._FileDeleteHook,
-            "retrieve_content": _endpoint_hooks._FileDownloadHook,
-        },
-    }
-else:
-    _RESOURCES = {
-        "model.Model": {
-            "list": _endpoint_hooks._ModelListHook,
-            "retrieve": _endpoint_hooks._ModelRetrieveHook,
-            "delete": _endpoint_hooks._ModelDeleteHook,
-        },
-        "completion.Completion": {
-            "create": _endpoint_hooks._CompletionHook,
-        },
-        "chat_completion.ChatCompletion": {
-            "create": _endpoint_hooks._ChatCompletionHook,
-        },
-        "image.Image": {
-            "create": _endpoint_hooks._ImageCreateHook,
-            "create_edit": _endpoint_hooks._ImageEditHook,
-            "create_variation": _endpoint_hooks._ImageVariationHook,
-        },
-        "audio.Audio": {
-            "transcribe": _endpoint_hooks._AudioTranscriptionHook,
-            "translate": _endpoint_hooks._AudioTranslationHook,
-        },
-        "embedding.Embedding": {
-            "create": _endpoint_hooks._EmbeddingHook,
-        },
-        "moderation.Moderation": {
-            "create": _endpoint_hooks._ModerationHook,
-        },
-        "file.File": {
-            "list": _endpoint_hooks._FileListHook,
-            "retrieve": _endpoint_hooks._FileRetrieveHook,
-            "create": _endpoint_hooks._FileCreateHook,
-            "delete": _endpoint_hooks._FileDeleteHook,
-            "download": _endpoint_hooks._FileDownloadHook,
-        },
-    }
+_RESOURCES = {
+    "models.Models": {
+        "list": _endpoint_hooks._ModelListHook,
+        "retrieve": _endpoint_hooks._ModelRetrieveHook,
+        "delete": _endpoint_hooks._ModelDeleteHook,
+    },
+    "completions.Completions": {
+        "create": _endpoint_hooks._CompletionHook,
+    },
+    "chat.Completions": {
+        "create": _endpoint_hooks._ChatCompletionHook,
+    },
+    "images.Images": {
+        "generate": _endpoint_hooks._ImageCreateHook,
+        "edit": _endpoint_hooks._ImageEditHook,
+        "create_variation": _endpoint_hooks._ImageVariationHook,
+    },
+    "audio.Transcriptions": {
+        "create": _endpoint_hooks._AudioTranscriptionHook,
+    },
+    "audio.Translations": {
+        "create": _endpoint_hooks._AudioTranslationHook,
+    },
+    "embeddings.Embeddings": {
+        "create": _endpoint_hooks._EmbeddingHook,
+    },
+    "moderations.Moderations": {
+        "create": _endpoint_hooks._ModerationHook,
+    },
+    "files.Files": {
+        "create": _endpoint_hooks._FileCreateHook,
+        "retrieve": _endpoint_hooks._FileRetrieveHook,
+        "list": _endpoint_hooks._FileListHook,
+        "delete": _endpoint_hooks._FileDeleteHook,
+        "retrieve_content": _endpoint_hooks._FileDownloadHook,
+    },
+}
 
 
 def patch():
@@ -124,43 +86,32 @@ def patch():
     if getattr(openai, "__datadog_patch", False):
         return
 
+    if OPENAI_VERSION < (1, 0, 0):
+        log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
+        return
+
     Pin().onto(openai)
     integration = OpenAIIntegration(integration_config=config.openai, openai=openai)
     openai._datadog_integration = integration
 
-    if OPENAI_VERSION >= (1, 0, 0):
-        if OPENAI_VERSION >= (1, 8, 0):
-            wrap(openai, "_base_client.SyncAPIClient._process_response", patched_convert(openai))
-            wrap(openai, "_base_client.AsyncAPIClient._process_response", patched_convert(openai))
-        else:
-            wrap(openai, "_base_client.BaseClient._process_response", patched_convert(openai))
-        wrap(openai, "OpenAI.__init__", patched_client_init(openai))
-        wrap(openai, "AsyncOpenAI.__init__", patched_client_init(openai))
-        wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
-        wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
-
-        for resource, method_hook_dict in _RESOURCES.items():
-            if deep_getattr(openai.resources, resource) is None:
-                continue
-            for method_name, endpoint_hook in method_hook_dict.items():
-                sync_method = "resources.{}.{}".format(resource, method_name)
-                async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
-                wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
-                wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
+    if OPENAI_VERSION >= (1, 8, 0):
+        wrap(openai, "_base_client.SyncAPIClient._process_response", patched_convert(openai))
+        wrap(openai, "_base_client.AsyncAPIClient._process_response", patched_convert(openai))
     else:
-        import openai.api_requestor
+        wrap(openai, "_base_client.BaseClient._process_response", patched_convert(openai))
+    wrap(openai, "OpenAI.__init__", patched_client_init(openai))
+    wrap(openai, "AsyncOpenAI.__init__", patched_client_init(openai))
+    wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
+    wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
 
-        wrap(openai, "api_requestor._make_session", _patched_make_session)
-        wrap(openai, "util.convert_to_openai_object", patched_convert(openai))
-
-        for resource, method_hook_dict in _RESOURCES.items():
-            if deep_getattr(openai.api_resources, resource) is None:
-                continue
-            for method_name, endpoint_hook in method_hook_dict.items():
-                sync_method = "api_resources.{}.{}".format(resource, method_name)
-                async_method = "api_resources.{}.a{}".format(resource, method_name)
-                wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
-                wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
+    for resource, method_hook_dict in _RESOURCES.items():
+        if deep_getattr(openai.resources, resource) is None:
+            continue
+        for method_name, endpoint_hook in method_hook_dict.items():
+            sync_method = "resources.{}.{}".format(resource, method_name)
+            async_method = "resources.{}.{}".format(".Async".join(resource.split(".")), method_name)
+            wrap(openai, sync_method, _patched_endpoint(openai, endpoint_hook))
+            wrap(openai, async_method, _patched_endpoint_async(openai, endpoint_hook))
 
     openai.__datadog_patch = True
 
@@ -171,40 +122,30 @@ def unpatch():
     if not getattr(openai, "__datadog_patch", False):
         return
 
+    if OPENAI_VERSION < (1, 0, 0):
+        log.warning("openai version %s is not supported, please upgrade to openai version 1.0 or later", OPENAI_VERSION)
+        return
+
     openai.__datadog_patch = False
 
-    if OPENAI_VERSION >= (1, 0, 0):
-        if OPENAI_VERSION >= (1, 8, 0):
-            unwrap(openai._base_client.SyncAPIClient, "_process_response")
-            unwrap(openai._base_client.AsyncAPIClient, "_process_response")
-        else:
-            unwrap(openai._base_client.BaseClient, "_process_response")
-        unwrap(openai.OpenAI, "__init__")
-        unwrap(openai.AsyncOpenAI, "__init__")
-        unwrap(openai.AzureOpenAI, "__init__")
-        unwrap(openai.AsyncAzureOpenAI, "__init__")
-
-        for resource, method_hook_dict in _RESOURCES.items():
-            if deep_getattr(openai.resources, resource) is None:
-                continue
-            for method_name, _ in method_hook_dict.items():
-                sync_resource = deep_getattr(openai.resources, resource)
-                async_resource = deep_getattr(openai.resources, ".Async".join(resource.split(".")))
-                unwrap(sync_resource, method_name)
-                unwrap(async_resource, method_name)
+    if OPENAI_VERSION >= (1, 8, 0):
+        unwrap(openai._base_client.SyncAPIClient, "_process_response")
+        unwrap(openai._base_client.AsyncAPIClient, "_process_response")
     else:
-        import openai.api_requestor
+        unwrap(openai._base_client.BaseClient, "_process_response")
+    unwrap(openai.OpenAI, "__init__")
+    unwrap(openai.AsyncOpenAI, "__init__")
+    unwrap(openai.AzureOpenAI, "__init__")
+    unwrap(openai.AsyncAzureOpenAI, "__init__")
 
-        unwrap(openai.api_requestor, "_make_session")
-        unwrap(openai.util, "convert_to_openai_object")
-
-        for resource, method_hook_dict in _RESOURCES.items():
-            if deep_getattr(openai.api_resources, resource) is None:
-                continue
-            for method_name, _ in method_hook_dict.items():
-                resource_obj = deep_getattr(openai.api_resources, resource)
-                unwrap(resource_obj, method_name)
-                unwrap(resource_obj, "a{}".format(method_name))
+    for resource, method_hook_dict in _RESOURCES.items():
+        if deep_getattr(openai.resources, resource) is None:
+            continue
+        for method_name, _ in method_hook_dict.items():
+            sync_resource = deep_getattr(openai.resources, resource)
+            async_resource = deep_getattr(openai.resources, ".Async".join(resource.split(".")))
+            unwrap(sync_resource, method_name)
+            unwrap(async_resource, method_name)
 
     delattr(openai, "_datadog_integration")
 
@@ -223,19 +164,6 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
     if api_key is not None:
         integration.user_api_key = api_key
     return
-
-
-def _patched_make_session(func, instance, args, kwargs):
-    """Patch for `openai.api_requestor._make_session` which sets the service name on the
-    requests session so that spans from the requests integration will use the service name openai.
-    This is done so that the service break down will include OpenAI time spent querying the OpenAI backend.
-
-    This should technically be a ``peer.service`` but this concept doesn't exist yet.
-    """
-    session = func(*args, **kwargs)
-    service = schematize_service_name("openai")
-    Pin.override(session, service=service)
-    return session
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
