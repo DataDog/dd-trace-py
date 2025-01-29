@@ -58,7 +58,7 @@ def test_propagate_correct_llmobs_parent_id_simple(run_python_code_in_subprocess
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -94,7 +94,7 @@ def test_propagate_llmobs_parent_id_complex(run_python_code_in_subprocess):
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -132,7 +132,7 @@ def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(run_python_code_in_su
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.propagation.http import HTTPPropagator
 
 with tracer.trace("Non-LLMObs span") as root_span:
@@ -198,7 +198,7 @@ def test_activate_distributed_headers_propagate_correct_llmobs_parent_id_simple(
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs
 
@@ -233,7 +233,7 @@ def test_activate_distributed_headers_propagate_llmobs_parent_id_complex(run_pyt
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs
 
@@ -271,7 +271,7 @@ def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(run_
     code = """
 import json
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="test-app", api_key="<not-a-real-key>")

@@ -19,7 +19,7 @@ class TestTracerCompatibility(object):
         """A user should be able to specify their own Datadog tracer instance if
         they wish.
         """
-        custom_dd_tracer = ddtrace.Tracer()
+        custom_dd_tracer = ddtrace.trace.Tracer()
         tracer = ddtrace.opentracer.Tracer(dd_tracer=custom_dd_tracer)
         assert tracer._dd_tracer is custom_dd_tracer
 

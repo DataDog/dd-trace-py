@@ -3,7 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import tracer
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -16,7 +15,8 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.span import Span
+from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 class LangGraphIntegration(BaseLLMIntegration):

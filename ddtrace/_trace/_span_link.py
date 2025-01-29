@@ -15,7 +15,7 @@ Usage
 
 SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     s1 = tracer.trace("s1")
     s2 = tracer.trace("s2")
