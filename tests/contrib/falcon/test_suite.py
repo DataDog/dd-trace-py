@@ -3,8 +3,11 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 class FalconTestMixin(object):
@@ -284,3 +287,22 @@ class FalconTestCase(FalconTestMixin):
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_inferred_spans_api_gateway_default(self):
+        with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+            headers = {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+            }
+
+            self.make_test_call("/", headers=headers)
+            traces = self.tracer.pop_traces()
+            aws_gateway_span = traces[0][0]
+            web_span = traces[0][1]
+            #  Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)

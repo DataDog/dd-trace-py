@@ -5,7 +5,10 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
@@ -38,6 +41,28 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert err_span.get_tag(ERROR_MSG) == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
     assert err_span.get_tag("component") == "django"
+
+
+def test_inferred_spans_api_gateway_default(client, test_spans):
+    with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+        # must be in this form to override headers
+        headers = {
+            "HTTP_X_DD_PROXY": "aws-apigateway",
+            "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+            "HTTP_X_DD_PROXY_PATH": "/",
+            "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+            "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+            "HTTP_X_DD_PROXY_STAGE": "stage",
+        }
+
+        client.get("/", **headers)
+
+        traces = test_spans.spans
+        aws_gateway_span = traces[0]
+        web_span = traces[1]
+        #  Assert common behavior including aws gateway metadata
+        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")

@@ -12,9 +12,12 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.trace import Pin
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -24,6 +27,10 @@ def hello(name: str, age: int) -> str:
 
 def greet():
     return "Greetings"
+
+
+def welcome():
+    return "Welcome"
 
 
 def reply_404():
@@ -36,6 +43,7 @@ def molten_app():
             molten.Route("/hello/{name}/{age}", hello),
             molten.Route("/greet", greet),
             molten.Route("/404", reply_404),
+            molten.Route("/", welcome),
         ]
     )
 
@@ -57,8 +65,11 @@ class TestMolten(TracerTestCase):
         super(TestMolten, self).setUp()
         unpatch()
 
-    def make_request(self, headers=None, params=None):
-        uri = self.app.reverse_uri("hello", name="Jim", age=24)
+    def make_request(self, headers=None, params=None, route=None):
+        if route:
+            uri = self.app.reverse_uri(route)
+        else:
+            uri = self.app.reverse_uri("hello", name="Jim", age=24)
         return self.client.request("GET", uri, headers=headers, params=params)
 
     def test_route_success(self):
@@ -415,3 +426,23 @@ class TestMolten(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")
+
+    def test_inferred_spans_api_gateway_default(self):
+        with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+            headers = {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+            }
+
+            self.make_request(headers=headers, route="/")
+
+            traces = self.pop_traces()
+            aws_gateway_span = traces[0][0]
+            web_span = traces[0][1]
+            #  Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)

@@ -45,9 +45,8 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
 
     proxy_span_info = supported_proxies[proxy_context["proxy_system_name"]]
 
-    log.debug(
-        "Successfully extracted inferred span info", proxy_context, " for proxy: ", proxy_context["proxy_system_name"]
-    )
+    # this log line is breaking cherrypy with: TypeError: not all arguments converted during string formatting
+    # log.debug("Successfully extracted inferred span info for proxy: ", str(proxy_context["proxy_system_name"]))
 
     span = tracer.start_span(
         proxy_span_info["span_name"],

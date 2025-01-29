@@ -18,8 +18,11 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 from .web import StubApp
@@ -478,6 +481,25 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag(http.METHOD) == "GET"
 
         cherrypy.tools.tracer.service = previous_service
+
+    def test_inferred_spans_api_gateway_default(self):
+        with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+            headers = [
+                ("x-dd-proxy", "aws-apigateway"),
+                ("x-dd-proxy-request-time-ms", "1736973768000"),
+                ("x-dd-proxy-path", "/"),
+                ("x-dd-proxy-httpmethod", "GET"),
+                ("x-dd-proxy-domain-name", "local"),
+                ("x-dd-proxy-stage", "stage"),
+            ]
+
+            self.getPage("/", headers=headers)
+            traces = self.pop_traces()
+            aws_gateway_span = traces[0][0]
+            web_span = traces[0][1]
+            #  Assert common behavior including aws gateway metadata
+            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
 
 
 class TestCherrypySnapshot(helper.CPWebCase):
