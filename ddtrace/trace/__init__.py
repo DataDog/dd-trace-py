@@ -10,6 +10,7 @@ from ddtrace._trace.tracer import Tracer
 tracer = Tracer()
 
 __all__ = [
+    "BaseContextProvider",
     "Context",
     "Pin",
     "TraceFilter",

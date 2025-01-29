@@ -5,8 +5,8 @@ import os
 import mock
 import pytest
 
-from ddtrace import Tracer
-from ddtrace import tracer
+from ddtrace.trace import Tracer
+from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess()
 def test_single_trace_single_span(tracer):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     s = tracer.trace("operation", service="my-svc")
     s.set_tag("k", "v")
@@ -35,7 +35,7 @@ def test_single_trace_single_span(tracer):
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess()
 def test_multiple_traces(tracer):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
@@ -61,8 +61,8 @@ def test_multiple_traces(tracer):
 def test_filters():
     import os
 
-    from ddtrace import tracer
     from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import tracer
 
     writer = os.environ.get("DD_WRITER_MODE", "default")
 
@@ -101,8 +101,8 @@ def test_filters():
 @pytest.mark.subprocess()
 @snapshot(async_mode=False)
 def test_synchronous_writer():
-    from ddtrace import tracer
     from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import tracer
 
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
     tracer._configure(writer=writer)
@@ -171,7 +171,7 @@ def test_wrong_span_name_type_not_sent():
     """Span names should be a text type."""
     import mock
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     with mock.patch("ddtrace._trace.span.log") as log:
         with tracer.trace(123):
@@ -227,10 +227,10 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
 @pytest.mark.subprocess()
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
-    from ddtrace import tracer
     from ddtrace.constants import _SAMPLING_PRIORITY_KEY
     from ddtrace.constants import AUTO_KEEP
     from ddtrace.constants import USER_KEEP
+    from ddtrace.trace import tracer
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
@@ -261,7 +261,7 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
 
     fn(
         """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
         env=env,

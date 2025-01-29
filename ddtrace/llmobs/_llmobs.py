@@ -8,10 +8,8 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -68,6 +66,8 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -296,7 +296,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer: Optional[ddtrace.Tracer] = None,
+        _tracer: Optional[ddtrace.trace.Tracer] = None,
     ) -> None:
         """
         Enable LLM Observability tracing.

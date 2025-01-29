@@ -4,7 +4,6 @@ from time import sleep
 import mock
 import pytest
 
-from ddtrace import tracer
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
@@ -15,6 +14,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.trace import tracer
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
