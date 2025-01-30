@@ -261,7 +261,9 @@ class DatadogSampler(RateByServiceSampler):
                 if isinstance(rule, SamplingRule):
                     self.rules.append(rule)
                 elif config._raise:
-                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
+                    raise TypeError(
+                        "Rule {!r} must be a sub-class of type ddtrace._trace.sampler.SamplingRules".format(rule)
+                    )
 
         # DEV: sampling rule must come last
         if effective_sample_rate is not None:

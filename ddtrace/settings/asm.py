@@ -16,9 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
-from ddtrace.vendor.debtcollector import deprecate
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -73,36 +71,8 @@ class ASMConfig(Env):
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
-    _use_metastruct_for_triggers = False
+    _use_metastruct_for_triggers = True
 
-    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="", parser=str.lower)
-    # Deprecation phase, to be removed in ddtrace 3.0.0
-    if _automatic_login_events_mode is not None:
-        if _automatic_login_events_mode == "extended":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=identification instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            _automatic_login_events_mode = LOGIN_EVENTS_MODE.IDENT
-        elif _automatic_login_events_mode == "safe":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anonymisation instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            _automatic_login_events_mode = LOGIN_EVENTS_MODE.ANON
-        elif _automatic_login_events_mode == "disabled":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=disabled"
-                " instead or DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false"
-                " to disable the feature and bypass Remote Config",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
     _auto_user_instrumentation_local_mode = Env.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
@@ -209,7 +179,6 @@ class ASMConfig(Env):
         "_iast_telemetry_report_lvl",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
-        "_automatic_login_events_mode",
         "_auto_user_instrumentation_local_mode",
         "_auto_user_instrumentation_rc_mode",
         "_auto_user_instrumentation_enabled",
@@ -251,9 +220,6 @@ class ASMConfig(Env):
         super().__init__()
         # Is one click available?
         self._eval_asm_can_be_enabled()
-        # Only for deprecation phase
-        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
-            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
