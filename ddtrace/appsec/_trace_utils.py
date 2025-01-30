@@ -402,9 +402,11 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
         if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             hash_id = _hash_user_id(user_id)
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+            span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(pin.tracer, hash_id, propagate=True, may_block=False, span=span)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(
                 pin.tracer,
                 str(user_id),
