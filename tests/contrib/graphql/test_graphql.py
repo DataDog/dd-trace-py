@@ -81,6 +81,7 @@ def resolve_fail(root, info):
     return undefined_var.property
 
 
+@snapshot(ignores=["meta.error.type", "meta.error.message", "meta.events"])
 def test_graphql_fail(enable_graphql_resolvers):
     query = """
     query {
@@ -109,7 +110,7 @@ def test_graphql_fail(enable_graphql_resolvers):
 
 @pytest.mark.asyncio
 async def test_graphql_error(test_schema, snapshot_context):
-    with snapshot_context(ignores=["meta.error.type", "meta.error.message"]):
+    with snapshot_context(ignores=["meta.error.type", "meta.error.message", "meta.events"]):
         if graphql_version < (3, 0):
             result = graphql.graphql(test_schema, "query my_query{ invalid_schema }")
         else:
