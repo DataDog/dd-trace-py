@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Optional
 
+import langchain_core
 import wrapt
 
 from ddtrace import Span
@@ -27,18 +28,16 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
 
 
-langchain_core = None
-langchain_community = None
+try:
+    import langchain_community
+except ImportError:
+    langchain_community = None
 
 
 log = get_logger(__name__)
 
 
 def get_version() -> str:
-    try:
-        import langchain_core
-    except ImportError:
-        return ""
     return getattr(langchain_core, "__version__", "")
 
 
@@ -1032,9 +1031,7 @@ def _unpatch_embeddings_and_vectorstores():
 
 
 def patch():
-    _import_langchain_libraries()
-
-    if langchain_core and getattr(langchain_core, "_datadog_patch", False):
+    if getattr(langchain_core, "_datadog_patch", False):
         return
 
     version = parse_version(get_version())
@@ -1115,7 +1112,7 @@ def patch():
 
 
 def unpatch():
-    if langchain_core is None or (langchain_core and not getattr(langchain_core, "_datadog_patch", False)):
+    if not getattr(langchain_core, "_datadog_patch", False):
         return
 
     langchain_core._datadog_patch = False

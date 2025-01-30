@@ -488,34 +488,34 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS
-    + ["meta.langchain.response.outputs.input_documents", "meta.langchain.request.inputs.input_documents"]
-)
-@pytest.mark.skip(reason="This test is flaky and needs to be fixed.")
-def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
-    """
-    Test that calling a similarity search on a Pinecone vectorstore with langchain will
-    result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
-    """
-    import langchain_pinecone
-    import pinecone
+# @pytest.mark.snapshot(
+#     ignores=IGNORE_FIELDS
+#     + ["meta.langchain.response.outputs.input_documents", "meta.langchain.request.inputs.input_documents"]
+# )
+# @pytest.mark.skip(reason="This test is flaky and needs to be fixed.")
+# def test_pinecone_vectorstore_retrieval_chain(langchain_openai, request_vcr):
+#     """
+#     Test that calling a similarity search on a Pinecone vectorstore with langchain will
+#     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
+#     """
+#     import langchain_pinecone
+#     import pinecone
 
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-        with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
-            pc = pinecone.Pinecone(
-                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-            )
-            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-            index = pc.Index("langchain-retrieval")
-            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+#         with request_vcr.use_cassette("openai_pinecone_vectorstore_retrieval_chain.yaml"):
+#             pc = pinecone.Pinecone(
+#                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+#                 environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+#             )
+#             embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+#             index = pc.Index("langchain-retrieval")
+#             vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
 
-            llm = langchain_openai.OpenAI()
-            qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
-                llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
-            )
-            qa_with_sources.invoke("What did the president say about Ketanji Brown Jackson?")
+#             llm = langchain_openai.OpenAI()
+#             qa_with_sources = langchain.chains.RetrievalQAWithSourcesChain.from_chain_type(
+#                 llm=llm, chain_type="stuff", retriever=vectorstore.as_retriever()
+#             )
+#             qa_with_sources.invoke("What did the president say about Ketanji Brown Jackson?")
 
 
 @pytest.mark.skip(reason="This test is flaky and needs to be fixed.")
