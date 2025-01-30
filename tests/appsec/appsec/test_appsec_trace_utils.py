@@ -238,7 +238,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert is_blocked(span)
 
     def test_no_span_doesnt_raise(self):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         with self._caplog.at_level(logging.DEBUG):
             try:

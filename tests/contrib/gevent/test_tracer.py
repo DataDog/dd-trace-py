@@ -8,7 +8,7 @@ import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
 from tests.opentracer.utils import init_tracer
