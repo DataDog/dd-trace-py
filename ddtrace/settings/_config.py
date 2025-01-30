@@ -274,9 +274,11 @@ def _parse_global_tags(s):
 
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
+        # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
         "_trace_sample_rate": _ConfigItem(
             default=1.0,
-            envs=[("DD_TRACE_SAMPLE_RATE", float)],
+            # _DD_TRACE_SAMPLE_RATE is placeholder, this code will be removed up after v3.0
+            envs=[("_DD_TRACE_SAMPLE_RATE", float)],
         ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
@@ -388,12 +390,6 @@ class Config(object):
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
-        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
-        if sample_rate is not None:
-            log.error(
-                "DD_TRACE_SAMPLE_RATE configuration is not supported. Use DD_TRACE_SAMPLING_RULES instead.",
-            )
-
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
@@ -402,9 +398,6 @@ class Config(object):
 
         rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
         if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
-            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
-            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
-            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
                 "Tracer rate limiting is only applied to spans that match tracer sampling rules. "

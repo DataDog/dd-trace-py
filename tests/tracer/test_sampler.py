@@ -645,21 +645,6 @@ def test_sampling_rule_sample():
         )
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLE_RATE": "0.2"})
-def test_sampling_rate_config_deprecated():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        from ddtrace import config
-
-        assert config._trace_sample_rate == 0.2
-
-        assert len(ws) >= 1
-        assert any(w for w in ws if "DD_TRACE_SAMPLE_RATE is deprecated" in str(w.message)), [w.message for w in ws]
-
-
 def test_sampling_rule_sample_rate_1():
     rule = SamplingRule(sample_rate=1)
 
@@ -726,15 +711,6 @@ def test_datadog_sampler_init():
         assert sampler.rules == [
             SamplingRule(sample_rate=0.5)
         ], "DatadogSampler initialized with no arguments and envvars set should hold a sample_rate from the envvar"
-
-    with override_global_config(dict(_trace_sample_rate=0)):
-        sampler = DatadogSampler()
-        assert (
-            sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-        ), "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold the default rate limit"
-        assert sampler.rules == [
-            SamplingRule(sample_rate=0)
-        ], "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold sample_rate=0"
 
     with override_global_config(dict(_trace_sample_rate="asdf")):
         with pytest.raises(ValueError):

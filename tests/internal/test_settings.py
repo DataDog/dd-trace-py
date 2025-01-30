@@ -62,22 +62,35 @@ def _deleted_rc_config():
             },
         },
         {
-            "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
-            "expected": {"_trace_sample_rate": 0.9},
-            "expected_source": {"_trace_sample_rate": "env_var"},
+            "env": {"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.91}]'},
+            "expected": {"_trace_sampling_rules": '[{"sample_rate":0.91}]'},
+            "expected_source": {"_trace_sampling_rules": "env_var"},
         },
         {
-            "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
-            "code": {"_trace_sample_rate": 0.8},
-            "expected": {"_trace_sample_rate": 0.8},
-            "expected_source": {"_trace_sample_rate": "code"},
+            "env": {"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.92}]'},
+            "code": {"_trace_sampling_rules": '[{"sample_rate":0.82}]'},
+            "expected": {"_trace_sampling_rules": '[{"sample_rate":0.82}]'},
+            "expected_source": {"_trace_sampling_rules": "code"},
         },
         {
-            "env": {"DD_TRACE_SAMPLE_RATE": "0.9"},
-            "code": {"_trace_sample_rate": 0.8},
-            "rc": {"tracing_sampling_rate": 0.7},
-            "expected": {"_trace_sample_rate": 0.7},
-            "expected_source": {"_trace_sample_rate": "remote_config"},
+            "env": {"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.93}]'},
+            "code": {"_trace_sampling_rules": '[{"sample_rate":0.83}]'},
+            "rc": {
+                "tracing_sampling_rules": [
+                    {
+                        "sample_rate": "0.73",
+                        "service": "*",
+                        "name": "*",
+                        "resource": "*",
+                        "tags": [],
+                        "provenance": "customer",
+                    }
+                ]
+            },
+            "expected": {
+                "_trace_sampling_rules": '[{"sample_rate": "0.73", "service": "*", "name": "*", "resource": "*", "tags": [], "provenance": "customer"}]'
+            },
+            "expected_source": {"_trace_sampling_rules": "remote_config"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
@@ -227,60 +240,6 @@ def test_config_subscription(config):
         _handler.assert_called_once_with(config, [s])
 
 
-def test_remoteconfig_sampling_rate_user(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update({"DD_TRACE_SAMPLE_RATE": "0.1"})
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-from ddtrace import config, tracer
-from ddtrace._trace.sampler import DatadogSampler
-from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
-
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.1
-
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.2}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.2
-
-config._handle_remoteconfig(_base_rc_config({}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.1
-
-custom_sampler = DatadogSampler(default_sample_rate=0.3)
-tracer._configure(sampler=custom_sampler)
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.4}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.4
-
-config._handle_remoteconfig(_base_rc_config({}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.4}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.4
-
-config._handle_remoteconfig(_deleted_rc_config())
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-        """,
-        env=env,
-    )
-    assert status == 0, err.decode("utf-8")
-
-
 def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
@@ -368,13 +327,12 @@ assert span.get_tag("_dd.p.dm") == "-3"
     assert status == 0, err.decode("utf-8")
 
 
-def test_remoteconfig_sample_rate_and_rules(run_python_code_in_subprocess):
+def test_remoteconfig_global_sample_rate_and_rules(run_python_code_in_subprocess):
     """There is complex logic regarding the interaction between setting new
     sample rates and rules with remote config.
     """
     env = os.environ.copy()
-    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}]'})
-    env.update({"DD_TRACE_SAMPLE_RATE": "0.8"})
+    env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9, "name":"rules"}, {"sample_rate":0.8}]'})
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
@@ -410,8 +368,9 @@ assert span.get_tag("_dd.p.dm") == "-11"
 
 with tracer.trace("sample_rate") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.8
-assert span.get_tag("_dd.p.dm") == "-3"
+# Global sampling rule was overwritten
+assert span.get_metric("_dd.rule_psr") is None
+assert span.get_tag("_dd.p.dm") == "-0"
 
 
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.2}))
@@ -482,8 +441,8 @@ assert span.get_tag("_dd.p.dm") == "-11"
 
 with tracer.trace("sample_rate") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.8
-assert span.get_tag("_dd.p.dm") == "-3"
+assert span.get_metric("_dd.rule_psr") is None
+assert span.get_tag("_dd.p.dm") == "-0"
 
          """,
         env=env,

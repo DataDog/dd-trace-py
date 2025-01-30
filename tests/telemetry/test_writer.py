@@ -235,7 +235,6 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
-    env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
     env["DD_PROFILING_ENABLED"] = "True"
@@ -451,7 +450,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "env_var", "value": 0.5},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "env_var",
