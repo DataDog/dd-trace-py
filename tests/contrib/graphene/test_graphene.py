@@ -95,7 +95,7 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.error.stack", "meta.events"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)
