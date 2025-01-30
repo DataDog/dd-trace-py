@@ -89,19 +89,6 @@ def test_schema_execute(test_schema, test_source_str):
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
 
 
-@pytest.mark.snapshot(
-    ignores=["meta.events", "meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
-)
-@pytest.mark.snapshot
-def test_schema_failing_extensions():
-    schema = graphene.Schema(query=Query)
-    os.environ["DD_TRACE_GRAPHQL_ERROR_EXTENSIONS"] = "code, status"
-
-    query_string = '{ user(id: "999") }'
-    result = schema.execute(query_string)
-    assert result.errors
-
-
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute")
 @pytest.mark.skipif(graphene.VERSION < (3, 0, 0), reason="execute_async is only supported in graphene>=3.0")
@@ -125,6 +112,15 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
     result = await test_schema.execute_async(test_source_str)
     assert not result.errors
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
+
+
+@pytest.mark.snapshot
+def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_resolvers):
+    schema = graphene.Schema(query=Query)
+    os.environ["DD_TRACE_GRAPHQL_ERROR_EXTENSIONS"] = "code, status"
+    query_string = '{ user(id: "999") }'
+    result = schema.execute(query_string)
+    assert result.errors
 
 
 @pytest.mark.snapshot(
