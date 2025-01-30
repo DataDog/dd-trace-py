@@ -23,13 +23,11 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.coverage.patch import get_version
-from ddtrace.contrib.internal.coverage.patch import patch
-from ddtrace.contrib.internal.coverage.patch import unpatch
+
+from ddtrace.contrib.internal.coverage.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.coverage.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.coverage.patch import unpatch  # noqa: F401
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-__all__ = ["patch", "unpatch", "get_version"]

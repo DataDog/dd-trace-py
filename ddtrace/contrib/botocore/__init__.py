@@ -161,9 +161,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.botocore.patch import get_version
-from ddtrace.contrib.internal.botocore.patch import patch
-from ddtrace.contrib.internal.botocore.patch import patch_submodules
-
-
-__all__ = ["patch", "patch_submodules", "get_version"]
+from ddtrace.contrib.internal.botocore.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.botocore.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.botocore.patch import patch_submodules  # noqa: F401

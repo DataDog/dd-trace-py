@@ -1,7 +1,7 @@
 import falcon
 
-from ddtrace.contrib.falcon import TraceMiddleware
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.middleware import TraceMiddleware
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 
 from . import resources
 

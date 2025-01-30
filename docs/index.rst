@@ -186,7 +186,7 @@ contacting support.
 
 .. [1] Libraries that are automatically instrumented when the
   :ref:`ddtrace-run<ddtracerun>` command is used or the ``import ddtrace.auto`` import
-  is used. Always use ``patch()``, ``patch_all()``, and ``import ddtrace.auto`` as soon
+  is used. Always use ``import ddtrace.auto`` as soon
   as possible in your Python entrypoint.
 
 .. [2] only the synchronous client

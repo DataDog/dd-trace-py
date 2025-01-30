@@ -4,9 +4,9 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
@@ -218,6 +218,15 @@ def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
 def test_meta_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with get_request_vcr().use_cassette("meta_invoke.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
+def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
+    body = json.dumps(_REQUEST_BODIES["amazon"])
+    model = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
+    with request_vcr.use_cassette("amazon_invoke_model_arn.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 

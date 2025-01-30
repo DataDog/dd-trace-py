@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #define PY_SSIZE_T_CLEAN
+#include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -27,7 +28,6 @@ typedef struct
 } heap_tracker_t;
 
 static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMHEAP_CRASH_ON_MUTEX_PASS";
-static const char* g_truthy_values[] = { "1", "true", "yes", "on", "enable", "enabled", NULL }; // NB the sentinel NULL
 static memlock_t g_memheap_lock;
 
 static heap_tracker_t global_heap_tracker;
@@ -68,16 +68,7 @@ static void
 memheap_init()
 {
     // Check if we should crash the process on mutex pass
-    char* crash_on_mutex_pass_str = getenv(g_crash_on_mutex_pass_str);
-    bool crash_on_mutex_pass = false;
-    if (crash_on_mutex_pass_str) {
-        for (int i = 0; g_truthy_values[i]; i++) {
-            if (strcmp(crash_on_mutex_pass_str, g_truthy_values[i]) == 0) {
-                crash_on_mutex_pass = true;
-                break;
-            }
-        }
-    }
+    bool crash_on_mutex_pass = memalloc_get_bool_env(g_crash_on_mutex_pass_str);
     memlock_init(&g_memheap_lock, crash_on_mutex_pass);
 #ifndef _WIN32
     pthread_atfork(memheap_prefork, memheap_postfork_parent, memheap_postfork_child);

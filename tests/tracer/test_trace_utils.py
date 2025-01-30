@@ -13,13 +13,12 @@ from hypothesis.strategies import tuples
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_client_ip
+from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -29,6 +28,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Pin
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
@@ -316,7 +316,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 def test_set_http_meta_with_http_header_tags_config():
     from ddtrace import config
     from ddtrace._trace.span import Span
-    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
 
     assert config._trace_http_header_tags == {
         "header1": "",
@@ -483,7 +483,7 @@ def test_set_http_meta(
             assert core.get_item("http.request.path_params", span=span) == path_params
 
 
-@mock.patch("ddtrace.settings.config.log")
+@mock.patch("ddtrace.settings._config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
@@ -499,7 +499,7 @@ def test_set_http_meta(
     ],
 )
 def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, status_code, error, log_call):
-    config.http_server.error_statuses = error_codes
+    config._http_server.error_statuses = error_codes
     trace_utils.set_http_meta(span, int_config, status_code=status_code)
     assert span.error == error
     if log_call:
@@ -512,7 +512,7 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace import tracer
-    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
 
     config._add("myint", dict())
     with tracer.trace("error") as span1:
@@ -528,7 +528,7 @@ def test_set_http_meta_custom_errors_via_env():
         assert span3.error == 0
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     assert int_config.myint.is_header_tracing_configured is False
     trace_utils.set_http_meta(
@@ -543,7 +543,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
@@ -572,7 +572,7 @@ def test_set_http_meta_headers_useragent(
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -585,7 +585,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
     int_config.myint.http._header_tags = {"enabled": True}
     trace_utils.set_http_meta(
@@ -810,7 +810,7 @@ def test_ip_subnet_regression():
     assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@mock.patch("ddtrace.contrib.internal.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
@@ -835,7 +835,7 @@ def test_set_http_meta_headers_useragent(  # noqa:F811
     mock_store_headers.assert_not_called()
 
 
-@mock.patch("ddtrace.contrib.trace_utils.log")
+@mock.patch("ddtrace.contrib.internal.trace_utils.log")
 @pytest.mark.parametrize(
     "val, bad",
     [
@@ -1042,7 +1042,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
 def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace import tracer
-    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
 
     assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
@@ -1067,7 +1067,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # and obfuscation is enabled (not disabled xD)
     from ddtrace import config
     from ddtrace import tracer
-    from ddtrace.contrib.trace_utils import set_http_meta
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
 
     # assert obfuscation is disabled when the regex is an empty string

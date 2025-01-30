@@ -9,11 +9,7 @@ from ddtrace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer._configure(trace_processors=[PingFilter()])
 
 
 app = Sanic("test_sanic_server")

@@ -47,6 +47,7 @@ jobs:
           - weblog-variant: fastapi
           # runs django-poc for 3.12
           - weblog-variant: python3.12
+          - weblog-variant: django-py3.13
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -96,7 +97,7 @@ jobs:
     needs: [system-tests-build-agent, system-tests-build-weblog]
     strategy:
       matrix:
-        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12]
+        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13]
         scenario: [remote-config, appsec, appsec-1, other, debugger-1, debugger-2]
 
       fail-fast: false

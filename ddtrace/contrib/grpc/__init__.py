@@ -45,13 +45,14 @@ To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
 
     import grpc
-    from ddtrace import Pin, patch, Tracer
+    from ddtrace import patch
+    from ddtrace.trace import Pin
+
 
     patch(grpc=True)
-    custom_tracer = Tracer()
 
     # override the pin on the client
-    Pin.override(grpc.Channel, service='mygrpc', tracer=custom_tracer)
+    Pin.override(grpc.Channel, service='mygrpc')
     with grpc.insecure_channel('localhost:50051') as channel:
         # create stubs and send requests
         pass
@@ -61,13 +62,13 @@ To configure the gRPC integration on the server use the ``Pin`` API::
     import grpc
     from grpc.framework.foundation import logging_pool
 
-    from ddtrace import Pin, patch, Tracer
+    from ddtrace import patch
+    from ddtrace.trace import Pin
 
     patch(grpc=True)
-    custom_tracer = Tracer()
 
     # override the pin on the server
-    Pin.override(grpc.Server, service='mygrpc', tracer=custom_tracer)
+    Pin.override(grpc.Server, service='mygrpc')
     server = grpc.server(logging_pool.pool(2))
     server.add_insecure_port('localhost:50051')
     add_MyServicer_to_server(MyServicer(), server)
@@ -83,10 +84,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.grpc.patch import get_version
-from ddtrace.contrib.internal.grpc.patch import patch
-from ddtrace.contrib.internal.grpc.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.grpc.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.grpc.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.grpc.patch import unpatch  # noqa: F401

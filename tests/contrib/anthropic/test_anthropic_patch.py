@@ -1,6 +1,6 @@
-from ddtrace.contrib.anthropic import get_version
-from ddtrace.contrib.anthropic import patch
-from ddtrace.contrib.anthropic import unpatch
+from ddtrace.contrib.internal.anthropic.patch import get_version
+from ddtrace.contrib.internal.anthropic.patch import patch
+from ddtrace.contrib.internal.anthropic.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

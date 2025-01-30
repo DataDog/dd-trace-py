@@ -1,5 +1,5 @@
-from ddtrace.contrib.grpc import get_version
-from ddtrace.contrib.grpc import patch
+from ddtrace.contrib.internal.grpc.patch import get_version
+from ddtrace.contrib.internal.grpc.patch import patch
 from tests.contrib.patch import PatchTestCase
 
 

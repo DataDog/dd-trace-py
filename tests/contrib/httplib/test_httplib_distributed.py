@@ -7,7 +7,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.internal.compat import httplib
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from .test_httplib import SOCKET
@@ -71,14 +71,14 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
 
     def test_propagation_connection_true(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = config.get_from(conn)
+        cfg = config._get_from(conn)
         cfg["distributed_tracing"] = True
         self.request(conn=conn)
         self.check_enabled()
 
     def test_propagation_connection_false(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = config.get_from(conn)
+        cfg = config._get_from(conn)
         cfg["distributed_tracing"] = False
         self.request(conn=conn)
         self.check_disabled()

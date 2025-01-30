@@ -5,11 +5,11 @@ import mock
 import pymysql
 import pytest
 
-from ddtrace import Pin
 from ddtrace import Tracer
-from ddtrace.contrib.aiomysql import patch
-from ddtrace.contrib.aiomysql import unpatch
+from ddtrace.contrib.internal.aiomysql.patch import patch
+from ddtrace.contrib.internal.aiomysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio

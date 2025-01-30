@@ -148,17 +148,13 @@ import logging
 logging.basicConfig()
 
 from ddtrace import tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):
        raise Exception("Exception raised in trace filter")
 
-tracer.configure(
-    settings={
-        "FILTERS": [FailingFilture()],
-    }
-)
+tracer._configure(trace_processors=[FailingFilture()])
 
 # generate and encode span to trigger sampling failure
 tracer.trace("hello").finish()

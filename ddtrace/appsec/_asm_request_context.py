@@ -17,10 +17,8 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import add_context_log
 from ddtrace.appsec._utils import get_triggers
@@ -508,27 +506,8 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
-def _on_set_request_tags(request, span, flask_config):
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-    if _is_iast_enabled():
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        if not is_iast_request_enabled():
-            return
-
-        request.cookies = taint_structure(
-            request.cookies,
-            OriginType.COOKIE_NAME,
-            OriginType.COOKIE,
-            override_pyobject_tainted=True,
-        )
-
-
 def _on_pre_tracedrequest(ctx):
     current_span = ctx.span
-    _on_set_request_tags(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
@@ -599,7 +578,6 @@ def asm_listen():
     core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
     core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
-    core.on("flask.set_request_tags", _on_set_request_tags)
 
     core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)

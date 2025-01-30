@@ -27,10 +27,10 @@ from graphql.language.source import Source
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -43,7 +43,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 _graphql_version_str = graphql.__version__
@@ -180,7 +180,7 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
@@ -210,7 +210,7 @@ def _traced_query(func, args, kwargs):
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         sample_rate = config.graphql.get_analytics_sample_rate()
         if sample_rate is not None:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)

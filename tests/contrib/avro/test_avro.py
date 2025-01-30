@@ -4,11 +4,11 @@ from avro.io import DatumReader
 from avro.io import DatumWriter
 from wrapt import ObjectProxy
 
-from ddtrace import Pin
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.avro.patch import patch
 from ddtrace.contrib.internal.avro.patch import unpatch
 from ddtrace.ext import schema as SCHEMA_TAGS
+from ddtrace.trace import Pin
 
 
 OPENAPI_USER_SCHEMA_DEF = (

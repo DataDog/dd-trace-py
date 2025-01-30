@@ -221,7 +221,7 @@ context management.
 
 If there is a case where the default is insufficient then a custom context
 provider can be used. It must implement the
-:class:`ddtrace.provider.BaseContextProvider` interface and can be configured
+:class:`ddtrace.trace.BaseContextProvider` interface and can be configured
 with::
 
     tracer.configure(context_provider=MyContextProvider)
@@ -332,23 +332,24 @@ configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
     from ddtrace import tracer
+    from ddtrace.trace import TraceFilter
+
+    class FilterbyName(TraceFilter):
+        def process_trace(self, trace):
+            for span in trace:
+                if span.name == "some_name"
+                    # drop the full trace chunk
+                    return None
+            return trace
 
     tracer.configure(settings={
         'FILTERS': [
-            FilterRequestsOnUrl(r'http://test\.example\.com'),
+            FilterbyName(),
         ],
     })
 
 The filters in the filters list will be applied sequentially to each trace
 and the resulting trace will either be sent to the Agent or discarded.
-
-**Built-in filters**
-
-The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
-filter out incoming requests to specific urls:
-
-.. autoclass:: ddtrace.filters.FilterRequestsOnUrl
-    :members:
 
 **Writing a custom filter**
 
@@ -358,7 +359,7 @@ providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
 the pipeline or ``None`` if the trace should be discarded::
 
     from ddtrace import Span, tracer
-    from ddtrace.filters import TraceFilter
+    from ddtrace.trace import TraceFilter
 
     class FilterExample(TraceFilter):
         def process_trace(self, trace):
@@ -395,7 +396,7 @@ Examples::
     from ddtrace import config
 
     # Global config
-    config.http.trace_query_string = True
+    # Set DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING environment variable to true/false
 
     # Integration level config, e.g. 'falcon'
     config.falcon.http.trace_query_string = True
@@ -470,14 +471,9 @@ structure like in the following example::
 Custom Error Codes
 ^^^^^^^^^^^^^^^^^^
 It is possible to have a custom mapping of which HTTP status codes are considered errors.
-By default, 500-599 status codes are considered errors.
-Configuration is provided both at the global level.
+By default, 500-599 status codes are considered errors. The default value can be overridden 
+by setting the ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` environment variable.
 
-Examples::
-
-    from ddtrace import config
-
-    config.http_server.error_statuses = '500-599'
 
 Certain status codes can be excluded by providing a list of ranges. Valid options:
     - ``400-400``

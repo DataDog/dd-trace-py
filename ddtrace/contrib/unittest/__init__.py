@@ -34,11 +34,6 @@ Global Configuration
 
    Default: ``True``
 """
-
-
-from .patch import get_version
-from .patch import patch
-from .patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ..internal.unittest.patch import get_version  # noqa: F401
+from ..internal.unittest.patch import patch  # noqa: F401
+from ..internal.unittest.patch import unpatch  # noqa: F401

@@ -3,11 +3,11 @@ import sys
 import celery
 from celery import signals
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace._trace.pin import _DD_PIN_NAME
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery.signals import trace_after_publish
 from ddtrace.contrib.internal.celery.signals import trace_before_publish
@@ -19,7 +19,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import _DD_PIN_NAME
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -102,7 +102,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             rate = config.celery.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
 
             return func(*args, **kwargs)
 

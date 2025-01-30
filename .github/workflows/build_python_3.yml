@@ -35,7 +35,8 @@ jobs:
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -112,6 +113,7 @@ jobs:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
@@ -132,6 +134,10 @@ jobs:
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+          # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
@@ -148,6 +154,7 @@ jobs:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 

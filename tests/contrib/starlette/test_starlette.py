@@ -8,13 +8,13 @@ import starlette
 from starlette.testclient import TestClient
 
 import ddtrace
-from ddtrace import Pin
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.sqlalchemy import patch as sql_patch
-from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
-from ddtrace.contrib.starlette import patch as starlette_patch
-from ddtrace.contrib.starlette import unpatch as starlette_unpatch
+from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
+from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
+from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
+from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
+from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer

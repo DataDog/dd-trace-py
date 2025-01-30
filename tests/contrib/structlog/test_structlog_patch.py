@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.structlog import get_version
-from ddtrace.contrib.structlog.patch import patch
+from ddtrace.contrib.internal.structlog.patch import get_version
+from ddtrace.contrib.internal.structlog.patch import patch
 
 
 try:
-    from ddtrace.contrib.structlog.patch import unpatch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

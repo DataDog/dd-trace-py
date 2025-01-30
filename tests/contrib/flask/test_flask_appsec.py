@@ -2,7 +2,7 @@ import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
-from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 import tests.appsec.rules as rules
@@ -31,7 +31,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        self.tracer.configure(api_version="v0.4")
+        self.tracer._configure(api_version="v0.4")
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just

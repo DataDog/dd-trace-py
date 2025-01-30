@@ -184,7 +184,7 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
             from selenium.webdriver.common.by import By
             from selenium.webdriver.chrome.options import Options
 
-            from ddtrace.contrib.selenium import unpatch
+            from ddtrace.contrib.internal.selenium.patch import unpatch
 
             def test_selenium_local_unpatch():
                 unpatch()

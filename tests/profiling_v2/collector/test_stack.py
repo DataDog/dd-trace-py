@@ -11,7 +11,6 @@ import pytest
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
-from ddtrace.settings.profiling import config
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 
@@ -30,7 +29,6 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
-        DD_PROFILING_STACK_V2_ENABLED="1",
     )
 )
 @pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
@@ -62,9 +60,8 @@ def test_collect_truncate():
         assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_stack_locations(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+def test_stack_locations(tmp_path):
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     test_name = "test_stack_locations"
@@ -84,7 +81,7 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
     def foo():
         bar()
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(None, _stack_collector_v2_enabled=True):
         for _ in range(10):
             foo()
     ddup.upload()
@@ -118,9 +115,8 @@ def test_stack_locations(stack_v2_enabled, tmp_path):
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_span(stack_v2_enabled, tmp_path, tracer):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+def test_push_span(tmp_path, tracer):
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     test_name = "test_push_span"
@@ -141,7 +137,7 @@ def test_push_span(stack_v2_enabled, tmp_path, tracer):
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=stack_v2_enabled,
+        _stack_collector_v2_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
@@ -171,7 +167,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
-        monkeypatch.setattr(config.stack, "v2_enabled", True)
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"
@@ -220,12 +215,11 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
                 ),
             )
 
-        unregister_thread.assert_called_once_with(thread_id)
+        unregister_thread.assert_called_with(thread_id)
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_non_web_span(stack_v2_enabled, tmp_path, tracer):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+def test_push_non_web_span(tmp_path, tracer):
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -246,7 +240,7 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path, tracer):
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=stack_v2_enabled,
+        _stack_collector_v2_enabled=True,
     ):
         with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
             span_id = span.span_id
@@ -271,10 +265,9 @@ def test_push_non_web_span(stack_v2_enabled, tmp_path, tracer):
         )
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_push_span_none_span_type(stack_v2_enabled, tmp_path, tracer):
+def test_push_span_none_span_type(tmp_path, tracer):
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     test_name = "test_push_span_none_span_type"
@@ -294,7 +287,7 @@ def test_push_span_none_span_type(stack_v2_enabled, tmp_path, tracer):
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
-        _stack_collector_v2_enabled=stack_v2_enabled,
+        _stack_collector_v2_enabled=True,
     ):
         # Explicitly set None span_type as the default could change in the
         # future.
@@ -486,9 +479,8 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
             )
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_collect_once_with_class(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+def test_collect_once_with_class(tmp_path):
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     class SomeClass(object):
@@ -508,7 +500,7 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=True):
         SomeClass.sleep_class()
 
     ddup.upload()
@@ -523,7 +515,6 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            class_name="SomeClass" if not stack_v2_enabled else None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
@@ -538,16 +529,15 @@ def test_collect_once_with_class(stack_v2_enabled, tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 23,
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 22,
                 ),
             ],
         ),
     )
 
 
-@pytest.mark.parametrize("stack_v2_enabled", [True, False])
-def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
+def test_collect_once_with_class_not_right_type(tmp_path):
+    if sys.version_info[:2] == (3, 7):
         pytest.skip("stack_v2 is not supported on Python 3.7")
 
     class SomeClass(object):
@@ -567,7 +557,7 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=True):
         SomeClass.sleep_class(123)
 
     ddup.upload()
@@ -582,9 +572,6 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            # stack v1 relied on using cls and self to figure out class name
-            # so we can't find it here.
-            class_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep_instance",
@@ -599,7 +586,7 @@ def test_collect_once_with_class_not_right_type(stack_v2_enabled, tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 23,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 22,
                 ),
             ],
         ),
@@ -748,6 +735,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
 
 # TODO: support ignore profiler with stack_v2 and update this test
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skip(reason="ignore_profiler is not supported with stack v2")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task"),

@@ -31,6 +31,8 @@ autopatching
 autoreload
 autoreloading
 aws
+AWS
+ARN
 backend
 backends
 backport

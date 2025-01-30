@@ -3,7 +3,7 @@ import webtest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.bottle import TracePlugin
+from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

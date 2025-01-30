@@ -59,9 +59,9 @@ CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.22.0"
 
-# DEV: update this accordingly when src/core upgrades libdatadog dependency.
-# libdatadog v14.1.0 requires rust 1.76.
-RUST_MINIMUM_VERSION = "1.76"
+# DEV: update this accordingly when src/native upgrades libdatadog dependency.
+# libdatadog v15.0.0 requires rust 1.78.
+RUST_MINIMUM_VERSION = "1.78"
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -660,8 +660,8 @@ setup(
     + get_exts_for("psutil"),
     rust_extensions=[
         RustExtension(
-            "ddtrace.internal.core._core",
-            path="src/core/Cargo.toml",
+            "ddtrace.internal.native._native",
+            path="src/native/Cargo.toml",
             py_limited_api="auto",
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
