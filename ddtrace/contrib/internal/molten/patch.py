@@ -5,11 +5,15 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal.compat import urlencode
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -85,21 +89,25 @@ def patch_app_call(wrapped, instance, args, kwargs):
     request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
 
-    with core.context_with_data(
-        "molten.request",
-        span_name=schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
-        span_type=SpanTypes.WEB,
+    # request.headers is type Iterable[Tuple[str, str]]
+    trace_utils.activate_distributed_headers(
+        pin.tracer, int_config=config.molten, request_headers=dict(request.headers)
+    )
+
+    with pin.tracer.trace(
+        schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
         service=trace_utils.int_service(pin, config.molten),
         resource=resource,
-        tags={},
-        tracer=pin.tracer,
-        distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
-        distributed_headers_config=config.molten,
-        headers_case_sensitive=True,
-        analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
-    ) as ctx, ctx.span as req_span:
-        ctx.set_item("req_span", req_span)
-        core.dispatch("web.request.start", (ctx, config.molten))
+        span_type=SpanTypes.WEB,
+    ) as span:
+        span.set_tag_str(COMPONENT, config.molten.integration_name)
+
+        # set span.kind tag equal to type of operation being performed
+        span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
+        span.set_tag(_SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.molten.get_analytics_sample_rate(use_global_config=True))
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
@@ -117,13 +125,11 @@ def patch_app_call(wrapped, instance, args, kwargs):
             except ValueError:
                 pass
 
-            if not req_span.get_tag(MOLTEN_ROUTE):
+            if not span.get_tag(MOLTEN_ROUTE):
                 # if route never resolve, update root resource
-                req_span.resource = "{} {}".format(request.method, code)
+                span.resource = "{} {}".format(request.method, code)
 
-            core.dispatch(
-                "web.request.finish", (req_span, config.molten, None, None, code, None, None, None, None, False)
-            )
+            trace_utils.set_http_meta(span, config.molten, status_code=code)
 
             return wrapped(*args, **kwargs)
 
@@ -137,13 +143,11 @@ def patch_app_call(wrapped, instance, args, kwargs):
             request.path,
         )
         query = urlencode(dict(request.params))
-
-        core.dispatch(
-            "web.request.finish",
-            (req_span, config.molten, request.method, url, None, query, request.headers, None, None, False),
+        trace_utils.set_http_meta(
+            span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
         )
 
-        req_span.set_tag_str("molten.version", molten.__version__)
+        span.set_tag_str("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 
