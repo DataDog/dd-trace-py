@@ -36,6 +36,8 @@ from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import recor
 from ddtrace.internal.ci_visibility.telemetry.git import record_settings_response
 from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
+from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGEMENT_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -554,6 +556,13 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         return unique_test_ids
 
     def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
+        metric_names = APIRequestMetricNames(
+            count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
+            duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
+            response_bytes=TEST_MANAGEMENT_TELEMETRY.RESPONSE_BYTES.value,
+            error=TEST_MANAGEMENT_TELEMETRY.REQUEST_ERRORS.value,
+        )
+
         test_properties: t.Dict[InternalTestId, TestProperties] = {}
         payload = {
             "data": {
@@ -599,6 +608,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             log.debug("Failed to parse Test Management tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
+
+        record_test_management_tests_count(len(test_properties))
 
         return test_properties
 
