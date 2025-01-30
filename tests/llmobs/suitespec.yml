@@ -108,3 +108,16 @@ suites:
       - tests/contrib/langgraph/*
     runner: riot
     snapshot: true
+  langchain_openai:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@langchain_openai'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/langchain_openai/*
+    runner: riot
+    snapshot: true

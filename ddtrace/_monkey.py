@@ -100,6 +100,7 @@ PATCH_MODULES = {
     "tornado": False,
     "openai": True,
     "langchain": True,
+    "langchain_openai": True,
     "anthropic": True,
     "subprocess": True,
     "unittest": True,

@@ -2759,6 +2759,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="langchain_openai",
+            command="pytest {cmdargs} tests/contrib/langchain_openai",
+            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "langchain-openai": latest,
+            }
+        ),
+        Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),

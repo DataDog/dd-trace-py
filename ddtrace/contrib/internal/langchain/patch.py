@@ -53,21 +53,6 @@ config._add(
 )
 
 
-def _import_langchain_libraries():
-    """Import available langchain packages"""
-    global langchain_core, langchain_community
-
-    try:
-        import langchain_core
-    except ImportError:
-        langchain_core = None
-
-    try:
-        import langchain_community
-    except ImportError:
-        langchain_community = None
-
-
 def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
@@ -1089,8 +1074,6 @@ def patch():
 
     wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain_core))
     wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain_core))
-    # if langchain_openai:
-    # wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain_core))
     # if langchain_pinecone:
     # wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain_core))
 
@@ -1133,8 +1116,6 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
-    # if langchain_openai:
-    #     unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     # if langchain_pinecone:
     #     unwrap(langchain_pinecone.PineconeVectorStore, "similarity_search")
 
