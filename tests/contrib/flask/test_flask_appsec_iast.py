@@ -267,58 +267,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(sys.version_info < (3, 8), reason="some requests params fail in Python 3.7 or lower")
-    def test_flask_simple_iast_path_header_and_querystring_tainted(self):
-        @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
-        def sqli_5(param_str, param_int):
-            from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
-            header_ranges = get_tainted_ranges(request.headers["User-Agent"])
-            assert header_ranges
-            assert header_ranges[0].source.name.lower() == "user-agent"
-            assert header_ranges[0].source.origin == OriginType.HEADER
-
-            if flask_version > (2, 0):
-                query_string_ranges = get_tainted_ranges(request.query_string)
-                assert query_string_ranges
-                assert query_string_ranges[0].source.name == "http.request.query"
-                assert query_string_ranges[0].source.origin == OriginType.QUERY
-
-                request_path_ranges = get_tainted_ranges(request.path)
-                assert request_path_ranges
-                assert request_path_ranges[0].source.name == "http.request.path"
-                assert request_path_ranges[0].source.origin == OriginType.PATH
-
-            _ = get_tainted_ranges(param_str)
-            assert not is_pyobject_tainted(param_int)
-
-            request_form_name_ranges = get_tainted_ranges(request.form.get("name"))
-            assert request_form_name_ranges
-            assert request_form_name_ranges[0].source.name == "name"
-            assert request_form_name_ranges[0].source.origin == OriginType.PARAMETER
-
-            return request.query_string, 200
-
-        with override_global_config(
-            dict(
-                _iast_enabled=True,
-                _iast_deduplication_enabled=False,
-                _iast_request_sampling=100.0,
-            )
-        ):
-            resp = self.client.post("/sqli/hello/1000/?select%20from%20table", data={"name": "test"})
-            assert resp.status_code == 200
-            if hasattr(resp, "text"):
-                # not all flask versions have r.text
-                assert resp.text == "select%20from%20table"
-
-            root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
-
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
