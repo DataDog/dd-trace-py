@@ -291,7 +291,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_API_SECURITY_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "default", "value": True},
         {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": "identification"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},

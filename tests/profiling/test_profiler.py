@@ -236,8 +236,8 @@ def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
 def test_tracer_url():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     t._configure(hostname="foobar")
@@ -249,8 +249,8 @@ def test_tracer_url():
 def test_tracer_url_https():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     t._configure(hostname="foobar", https=True)
@@ -262,8 +262,8 @@ def test_tracer_url_https():
 def test_tracer_url_uds_hostname():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     t._configure(hostname="foobar", uds_path="/foobar")
@@ -275,8 +275,8 @@ def test_tracer_url_uds_hostname():
 def test_tracer_url_uds():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     t._configure(uds_path="/foobar")
@@ -288,8 +288,8 @@ def test_tracer_url_uds():
 def test_tracer_url_configure_after():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     prof = profiler.Profiler(tracer=t)
@@ -306,8 +306,8 @@ def test_env_no_api_key():
 def test_env_endpoint_url():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     prof = profiler.Profiler(tracer=t)
