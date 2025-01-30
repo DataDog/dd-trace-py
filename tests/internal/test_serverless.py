@@ -107,7 +107,11 @@ expanded_blocklist = standard_blocklist + [
     ('ddtrace.contrib.internal.aws_lambda', expanded_blocklist),
     ('ddtrace.contrib.internal.psycopg', expanded_blocklist),
     # requests imports urlib3 which imports importlib.metadata
-    ('ddtrace.contrib.requests', standard_blocklist),
+    pytest.param('ddtrace.contrib.requests', standard_blocklist,
+            # Currently this package will import `ddtrace.appsec._iast._taint_tracking._native`
+            # and so is expected to fail for now. Once that is fixed and this test
+            # begins to XPASS, the xfail should be removed.
+            marks=pytest.mark.xfail(strict=True)),
 ])
 def test_slow_imports(package, blocklist):
     # We should lazy load certain modules to avoid slowing down the startup
