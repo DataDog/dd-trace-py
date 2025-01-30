@@ -1,4 +1,7 @@
+import os
+
 import graphene
+import graphql
 import pytest
 
 from ddtrace.contrib.internal.graphql.patch import patch
@@ -24,6 +27,23 @@ class FailingQuery(graphene.ObjectType):
 
     def resolve_patron(root, info):
         raise Exception("exception was raised in a graphene query")
+
+
+class Query(graphene.ObjectType):
+    user = graphene.String(id=graphene.ID())
+
+    def resolve_user(self, info, id):
+        if id != "123":
+            raise graphql.error.GraphQLError(
+                "User not found",
+                extensions={
+                    "code": "USER_NOT_FOUND",
+                    "timestamp": "2025-01-30T12:34:56Z",
+                    "status": 404,
+                    "retryable": False,
+                },
+            )
+        return "John Doe"
 
 
 @pytest.fixture(autouse=True)
@@ -69,6 +89,19 @@ def test_schema_execute(test_schema, test_source_str):
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
 
 
+@pytest.mark.snapshot(
+    ignores=["meta.events", "meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+)
+@pytest.mark.snapshot
+def test_schema_failing_extensions():
+    schema = graphene.Schema(query=Query)
+    os.environ["DD_TRACE_GRAPHQL_ERROR_EXTENSIONS"] = "code, status"
+
+    query_string = '{ user(id: "999") }'
+    result = schema.execute(query_string)
+    assert result.errors
+
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot(token="tests.contrib.graphene.test_graphene.test_schema_execute")
 @pytest.mark.skipif(graphene.VERSION < (3, 0, 0), reason="execute_async is only supported in graphene>=3.0")
@@ -95,7 +128,7 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.events", "meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)
