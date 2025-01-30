@@ -12,8 +12,14 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "679aab7300000000",
       "langchain.request.api_key": "...key>",
-      "langchain.request.messages.0.0.content": "When do you use 'whom' instead of 'who'?",
-      "langchain.request.messages.0.0.message_type": "HumanMessage",
+      "langchain.request.messages.0.0.content": "Respond like a frat boy.",
+      "langchain.request.messages.0.0.message_type": "SystemMessage",
+      "langchain.request.messages.0.1.content": "Where's the nearest equinox gym from Hudson Yards manhattan?",
+      "langchain.request.messages.0.1.message_type": "HumanMessage",
+      "langchain.request.messages.1.0.content": "Respond with a pirate accent.",
+      "langchain.request.messages.1.0.message_type": "SystemMessage",
+      "langchain.request.messages.1.1.content": "How does one get to Bikini Bottom from New York?",
+      "langchain.request.messages.1.1.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.logprobs": "False",
       "langchain.request.openai.parameters.max_tokens": "256",
@@ -24,8 +30,10 @@
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
-      "langchain.response.completions.0.0.content": "'Who' is used as a subject pronoun, while 'whom' is used as an object pronoun. \\n\\nYou use 'who' when referring to the subject o...",
+      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance, you can't miss it! Get your pump on and show those w...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
+      "langchain.response.completions.1.0.content": "Arrr matey, ye be needin' to sail the high seas to reach Bikini Bottom from New York! Hoist the sails, chart a course, and bewar...",
+      "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
       "runtime-id": "679f4511596f4babb907c0e4363ca523"
     },
@@ -36,6 +44,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 77141
     },
-    "duration": 3513000,
-    "start": 1738189683915384000
+    "duration": 7031000,
+    "start": 1738189683984580000
   }]]

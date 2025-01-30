@@ -13,7 +13,7 @@ class TestLangchainPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    def assert_module_patched(self, langchain):
+    def assert_module_patched(self, langchain_core):
         try:
             import langchain_community
         except ImportError:
@@ -48,7 +48,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             if vectorstore_interface:
                 self.assert_wrapped(vectorstore_interface.similarity_search)
 
-    def assert_not_module_patched(self, langchain):
+    def assert_not_module_patched(self, langchain_core):
         try:
             import langchain_community
             from langchain_community import embeddings  # noqa: F401
@@ -84,7 +84,7 @@ class TestLangchainPatch(PatchTestCase.Base):
             if vectorstore_interface:
                 self.assert_not_wrapped(vectorstore_interface.similarity_search)
 
-    def assert_not_module_double_patched(self, langchain):
+    def assert_not_module_double_patched(self, langchain_core):
         try:
             import langchain_community
         except ImportError:

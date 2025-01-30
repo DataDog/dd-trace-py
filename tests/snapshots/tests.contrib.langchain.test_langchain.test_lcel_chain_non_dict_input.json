@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "tests.contrib.langchain",
-    "resource": "langchain_community.embeddings.fake.FakeEmbeddings",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,11 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679aab4900000000",
-      "langchain.request.api_key": "",
-      "langchain.request.inputs.0.text": "foo",
-      "langchain.request.provider": "fake",
-      "langchain.request.type": "embedding",
+      "_dd.p.tid": "679aab4800000000",
+      "langchain.request.inputs.0": "1",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "4",
       "language": "python",
       "runtime-id": "c2cda0d993744989b72279f9663af27d"
     },
@@ -23,10 +22,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.request.input_count": 1,
-      "langchain.response.outputs.embedding_length": 99,
       "process_id": 75317
     },
-    "duration": 123000,
-    "start": 1738189641807666000
+    "duration": 2156000,
+    "start": 1738189640838314000
   }]]

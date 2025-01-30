@@ -47,18 +47,18 @@ def mock_logs(scope="session"):
 
 
 @pytest.fixture
-def snapshot_tracer(langchain, mock_logs, mock_metrics):
-    pin = Pin.get_from(langchain)
+def snapshot_tracer(langchain_core, mock_logs, mock_metrics):
+    pin = Pin.get_from(langchain_core)
     yield pin.tracer
     mock_logs.reset_mock()
     mock_metrics.reset_mock()
 
 
 @pytest.fixture
-def mock_tracer(langchain, mock_logs, mock_metrics):
-    pin = Pin.get_from(langchain)
+def mock_tracer(langchain_core, mock_logs, mock_metrics):
+    pin = Pin.get_from(langchain_core)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(langchain, tracer=mock_tracer)
+    pin.override(langchain_core, tracer=mock_tracer)
     pin.tracer._configure()
     yield mock_tracer
 
@@ -79,7 +79,17 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
-def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
+def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langchain_core):
+    try:
+        import langchain_community
+
+        yield langchain_community
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def langchain_core(ddtrace_config_langchain, mock_logs, mock_metrics):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         with override_config("langchain", ddtrace_config_langchain):
             with override_env(
@@ -92,35 +102,17 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
                 )
             ):
                 patch()
-                import langchain
+                import langchain_core
 
                 mock_logs.reset_mock()
                 mock_metrics.reset_mock()
 
-                yield langchain
+                yield langchain_core
                 unpatch()
 
 
 @pytest.fixture
-def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
-    try:
-        import langchain_community
-
-        yield langchain_community
-    except ImportError:
-        yield
-
-
-@pytest.fixture
-def langchain_core(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
-    import langchain_core
-    import langchain_core.prompts  # noqa: F401
-
-    yield langchain_core
-
-
-@pytest.fixture
-def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchain_core):
     try:
         import langchain_openai
 
@@ -130,7 +122,7 @@ def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchai
 
 
 @pytest.fixture
-def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchain_core):
     try:
         import langchain_cohere
 
@@ -140,7 +132,7 @@ def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchai
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langchain_core):
     try:
         import langchain_anthropic
 
@@ -150,7 +142,7 @@ def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langc
 
 
 @pytest.fixture
-def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langchain_core):
     with override_env(
         dict(
             PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),

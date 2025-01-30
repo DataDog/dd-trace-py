@@ -543,114 +543,6 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_chain_call(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
-    span = integration.trace(
-        pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain",
-    )
-    inputs = None
-    final_outputs = {}
-    try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            inputs = {instance.input_keys[0]: inputs}
-        if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            template = deep_getattr(instance, "prompt.template", default="")
-            if template:
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
-        final_outputs = func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            for k, v in final_outputs.items():
-                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-        if _is_iast_enabled():
-            taint_outputs(instance, inputs, final_outputs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            log_outputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
-            for k, v in final_outputs.items():
-                log_outputs[k] = str(v)
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "inputs": log_inputs,
-                    "prompt": str(deep_getattr(instance, "prompt.template", default="")),
-                    "outputs": log_outputs,
-                },
-            )
-    return final_outputs
-
-
-@with_traced_module
-async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
-    span = integration.trace(
-        pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain",
-    )
-    inputs = None
-    final_outputs = {}
-    try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            inputs = {instance.input_keys[0]: inputs}
-        if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            template = deep_getattr(instance, "prompt.template", default="")
-            if template:
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
-        final_outputs = await func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            for k, v in final_outputs.items():
-                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            log_outputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
-            for k, v in final_outputs.items():
-                log_outputs[k] = str(v)
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "inputs": log_inputs,
-                    "prompt": str(deep_getattr(instance, "prompt.template", default="")),
-                    "outputs": log_outputs,
-                },
-            )
-    return final_outputs
-
-
-@with_traced_module
 def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     """
     Traces the top level call of a LangChain Expression Language (LCEL) chain.
@@ -1201,9 +1093,9 @@ def patch():
     wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain_core))
     wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain_core))
     # if langchain_openai:
-    #     wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
+    # wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain_core))
     # if langchain_pinecone:
-    #     wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain))
+    # wrap("langchain_pinecone", "PineconeVectorStore.similarity_search", traced_similarity_search(langchain_core))
 
     if langchain_community:
         _patch_embeddings_and_vectorstores()
@@ -1223,7 +1115,7 @@ def patch():
 
 
 def unpatch():
-    if langchain_core and not getattr(langchain_core, "_datadog_patch", False):
+    if langchain_core is None or getattr(langchain_core, "_datadog_patch", False):
         return
 
     langchain_core._datadog_patch = False
