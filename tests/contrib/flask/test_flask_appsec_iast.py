@@ -1,5 +1,4 @@
 import json
-import sys
 import traceback
 
 from flask import request

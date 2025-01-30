@@ -4,7 +4,6 @@ import ast
 import codecs
 import os
 from sys import builtin_module_names
-from sys import version_info
 import textwrap
 from types import ModuleType
 from typing import Iterable

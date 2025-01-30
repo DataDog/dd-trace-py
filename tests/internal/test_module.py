@@ -2,13 +2,11 @@ import json
 import os
 from pathlib import Path
 import sys
-import warnings
 from warnings import warn
 
 import mock
 import pytest
 
-from ddtrace import check_supported_python_version
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin

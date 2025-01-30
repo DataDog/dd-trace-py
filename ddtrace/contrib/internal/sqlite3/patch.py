@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
-import sys
 
 import wrapt
 
