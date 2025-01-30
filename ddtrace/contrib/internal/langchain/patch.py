@@ -36,6 +36,13 @@ except ImportError:
         from langchain_community.callbacks.openai_info import get_openai_token_cost_for_model
     except ImportError:
         get_openai_token_cost_for_model = None
+try:
+    from langchain.callbacks.openai_info import TokenType
+except ImportError:
+    try:
+        from langchain_community.callbacks.openai_info import TokenType
+    except ImportError:
+        TokenType = None
 
 import wrapt
 
@@ -142,9 +149,13 @@ def _tag_openai_token_usage(
             completion_cost = get_openai_token_cost_for_model(
                 span.get_tag(MODEL),
                 span.get_metric(COMPLETION_TOKENS),
-                is_completion=True,
+                token_type=TokenType.COMPLETION,
             )
-            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
+            prompt_cost = get_openai_token_cost_for_model(
+                span.get_tag(MODEL),
+                span.get_metric(PROMPT_TOKENS),
+                token_type=TokenType.PROMPT,
+            )
             total_cost = completion_cost + prompt_cost
         except ValueError:
             # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
