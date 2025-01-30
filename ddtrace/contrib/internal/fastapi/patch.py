@@ -10,7 +10,7 @@ from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
-from ddtrace.contrib.starlette.patch import traced_route_init
+from ddtrace.contrib.internal.starlette.patch import traced_route_init
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u

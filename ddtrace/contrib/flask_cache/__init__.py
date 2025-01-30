@@ -5,9 +5,9 @@ You can use this tracer together with the Flask tracer middleware.
 The tracer supports both `Flask-Cache <https://pythonhosted.org/Flask-Cache/>`_
 and `Flask-Caching <https://flask-caching.readthedocs.io/>`_.
 
-To install the tracer, ``from ddtrace import tracer`` needs to be added::
+To install the tracer, ``from ddtrace.trace import tracer`` needs to be added::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.flask_cache import get_traced_cache
 
 and the tracer needs to be initialized::
@@ -18,7 +18,7 @@ Here is the end result, in a sample app::
 
     from flask import Flask
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.flask_cache import get_traced_cache
 
     app = Flask(__name__)
@@ -35,7 +35,7 @@ Here is the end result, in a sample app::
 
 Use a specific ``Cache`` implementation with::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.flask_cache import get_traced_cache
 
     from flask_caching import Cache
@@ -45,8 +45,8 @@ Use a specific ``Cache`` implementation with::
 """
 
 
-from ddtrace.contrib.internal.flask_cache.tracers import get_traced_cache
-from ddtrace.contrib.internal.flask_cache.tracers import get_version  # noqa: F401
+from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
+from ddtrace.contrib.internal.flask_cache.patch import get_version  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 

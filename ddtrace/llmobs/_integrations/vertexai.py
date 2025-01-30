@@ -4,7 +4,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -20,6 +19,7 @@ from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.trace import Span
 
 
 class VertexAIIntegration(BaseLLMIntegration):

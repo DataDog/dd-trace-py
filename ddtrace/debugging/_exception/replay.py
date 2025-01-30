@@ -8,7 +8,6 @@ from types import TracebackType
 import typing as t
 import uuid
 
-from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
@@ -22,6 +21,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.utils.time import HourGlass
 from ddtrace.settings.exception_replay import config
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

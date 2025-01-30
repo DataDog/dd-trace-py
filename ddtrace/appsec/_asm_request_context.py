@@ -12,7 +12,6 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -27,6 +26,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
@@ -63,7 +63,7 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         self.root = not in_asm_context()
         if self.root:
@@ -178,7 +178,7 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 def flush_waf_triggers(env: ASM_Environment) -> None:
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         current_span = tracer.current_span()
         if current_span is None:

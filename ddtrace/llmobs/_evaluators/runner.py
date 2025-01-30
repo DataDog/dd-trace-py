@@ -2,7 +2,6 @@ from concurrent import futures
 import os
 from typing import Dict
 
-from ddtrace import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
@@ -12,6 +11,7 @@ from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevan
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
