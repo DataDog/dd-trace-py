@@ -273,7 +273,7 @@ async def sanic_http_lifecycle_exception(request, exception):
     # Do not attach exception for exceptions not considered as errors
     # ex: Http 400s
     # DEV: We still need to set `__dd_span_call_finish` below
-    if not hasattr(exception, "status_code") or config.http_server.is_error_code(exception.status_code):
+    if not hasattr(exception, "status_code") or config._http_server.is_error_code(exception.status_code):
         ex_type = type(exception)
         ex_tb = getattr(exception, "__traceback__", None)
         span.set_exc_info(ex_type, exception, ex_tb)

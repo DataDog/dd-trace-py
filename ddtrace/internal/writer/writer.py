@@ -14,7 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings import _config as config
+from ddtrace.settings import _global_config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
