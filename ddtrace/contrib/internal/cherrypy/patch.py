@@ -11,10 +11,12 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import compat
-from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -75,23 +77,20 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
-        with core.context_with_data(
-            "cherrypy.request",
-            span_name=SPAN_NAME,
-            span_type=SpanTypes.WEB,
+        trace_utils.activate_distributed_headers(
+            self._tracer, int_config=config.cherrypy, request_headers=cherrypy.request.headers
+        )
+
+        cherrypy.request._datadog_span = self._tracer.trace(
+            SPAN_NAME,
             service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
-            tags={},
-            tracer=self._tracer,
-            distributed_headers=cherrypy.request.headers,
-            distributed_headers_config=config.cherrypy,
-            headers_case_sensitive=True,
-        ) as ctx:
-            req_span = ctx.span
+            span_type=SpanTypes.WEB,
+        )
 
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request.start", (ctx, config.cherrypy))
+        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy.integration_name)
 
-            cherrypy.request._datadog_span = req_span
+        # set span.kind to the type of request being performed
+        cherrypy.request._datadog_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)
@@ -136,21 +135,17 @@ class TraceTool(cherrypy.Tool):
         url = compat.to_unicode(cherrypy.request.base + cherrypy.request.path_info)
         status_code, _, _ = valid_status(cherrypy.response.status)
 
-        core.dispatch(
-            "web.request.finish",
-            (
-                span,
-                config.cherrypy,
-                cherrypy.request.method,
-                url,
-                status_code,
-                None,
-                cherrypy.request.headers,
-                cherrypy.response.headers,
-                None,
-                True,
-            ),
+        trace_utils.set_http_meta(
+            span,
+            config.cherrypy,
+            method=cherrypy.request.method,
+            url=url,
+            status_code=status_code,
+            request_headers=cherrypy.request.headers,
+            response_headers=cherrypy.response.headers,
         )
+
+        span.finish()
 
         # Clear our span just in case.
         cherrypy.request._datadog_span = None
