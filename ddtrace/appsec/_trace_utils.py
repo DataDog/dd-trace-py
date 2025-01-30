@@ -378,7 +378,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
 
 
 def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_config):
-    if not asm_config._asm_enabled:
+    if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
@@ -398,9 +398,13 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
         user_extra["login"] = user_id
     user_id = user_id_found or user_id
     if result_user and result_user.is_authenticated:
+        span = pin.tracer.current_root_span()
         if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-            set_user(pin.tracer, _hash_user_id(str(user_id)), propagate=True, may_block=False)
+            hash_id = _hash_user_id(user_id)
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+            set_user(pin.tracer, hash_id, propagate=True, may_block=False, span=span)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
             set_user(
                 pin.tracer,
                 str(user_id),
@@ -408,8 +412,8 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
                 email=user_extra.get("email"),
                 name=user_extra.get("name"),
                 may_block=False,
+                span=span,
             )
-        pin.tracer.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
         if in_asm_context():
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
