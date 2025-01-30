@@ -2766,10 +2766,13 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            venvs=[
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
-            ],
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": "==0.21.1",
+                "ragas": "==0.1.21",
+                "langchain": latest,
+            },
+            pys=select_pys(min_version="3.8"),
         ),
         Venv(
             name="profile",
