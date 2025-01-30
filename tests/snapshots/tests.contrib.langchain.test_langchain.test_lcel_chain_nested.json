@@ -10,13 +10,13 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679ba55b00000000",
+      "_dd.p.tid": "679bca4400000000",
       "langchain.request.inputs.0.language": "Spanish",
       "langchain.request.inputs.0.person": "Spongebob Squarepants",
       "langchain.request.type": "chain",
       "langchain.response.outputs.0": "La ciudad ficticia de Fondo de Bikini, de la serie de televisi\u00f3n Spongebob Squarepants, est\u00e1 ubicada en el fondo del mar en un l...",
       "language": "python",
-      "runtime-id": "7e8d59d58db840a2a6e56428bbceea15"
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -27,10 +27,10 @@
       "langchain.tokens.prompt_tokens": 50,
       "langchain.tokens.total_cost": 0.000181,
       "langchain.tokens.total_tokens": 103,
-      "process_id": 27394
+      "process_id": 82010
     },
-    "duration": 12234000,
-    "start": 1738253659199074000
+    "duration": 76825000,
+    "start": 1738263108943331000
   },
      {
        "name": "langchain.request",
@@ -54,8 +54,8 @@
          "langchain.tokens.total_cost": 5.9e-05,
          "langchain.tokens.total_tokens": 34
        },
-       "duration": 4905000,
-       "start": 1738253659202605000
+       "duration": 63808000,
+       "start": 1738263108951960000
      },
         {
           "name": "langchain.request",
@@ -88,8 +88,8 @@
             "langchain.tokens.total_cost": 5.9e-05,
             "langchain.tokens.total_tokens": 34
           },
-          "duration": 3265000,
-          "start": 1738253659203997000
+          "duration": 61552000,
+          "start": 1738263108953638000
         },
      {
        "name": "langchain.request",
@@ -122,6 +122,6 @@
          "langchain.tokens.total_cost": 0.000122,
          "langchain.tokens.total_tokens": 69
        },
-       "duration": 3026000,
-       "start": 1738253659208033000
+       "duration": 3288000,
+       "start": 1738263109016607000
      }]]

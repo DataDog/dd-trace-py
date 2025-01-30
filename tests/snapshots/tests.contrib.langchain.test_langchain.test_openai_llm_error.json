@@ -10,7 +10,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679ba55b00000000",
+      "_dd.p.tid": "679bca4500000000",
       "error.message": "Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/sam.brenner/dd/dd-trace-py/ddtrace/contrib/internal/langchain/patch.py\", line 221, in traced_llm_generate\n    completions = func(*args, **kwargs)\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 803, in generate\n    output = self._generate_helper(\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 670, in _generate_helper\n    raise e\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/langchain_core/language_models/llms.py\", line 657, in _generate_helper\n    self._generate(\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/langchain_openai/llms/base.py\", line 350, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/openai/_utils/_utils.py\", line 277, in wrapper\n    return func(*args, **kwargs)\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/openai/resources/completions.py\", line 528, in create\n    return self._post(\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/openai/_base_client.py\", line 1240, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/openai/_base_client.py\", line 921, in request\n    return self._request(\n  File \"/Users/sam.brenner/dd/dd-trace-py/.riot/venv_py31013_19f22257743a59a1/lib/python3.10/site-packages/openai/_base_client.py\", line 1020, in _request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123456. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}\n",
       "error.type": "openai.BadRequestError",
@@ -28,15 +28,15 @@
       "langchain.request.provider": "openai",
       "langchain.request.type": "llm",
       "language": "python",
-      "runtime-id": "7e8d59d58db840a2a6e56428bbceea15"
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 27394
+      "process_id": 82010
     },
-    "duration": 8670000,
-    "start": 1738253659313680000
+    "duration": 7324000,
+    "start": 1738263109621524000
   }]]
