@@ -1,7 +1,7 @@
 from typing import Optional
 
 import ddtrace
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 
 
 def _wrap_submit(func, args, kwargs):

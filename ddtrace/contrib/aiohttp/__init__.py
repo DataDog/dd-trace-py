@@ -47,7 +47,7 @@ Automatic instrumentation is not available for the server, instead
 the provided ``trace_app`` function must be used::
 
     from aiohttp import web
-    from ddtrace import tracer, patch
+    from ddtrace.trace import tracer, patch
     from ddtrace.contrib.aiohttp import trace_app
 
     # create your application

@@ -40,7 +40,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     def __init__(
         self,
-        tracer: ddtrace.Tracer = ddtrace.tracer,
+        tracer: ddtrace.trace.Tracer = ddtrace.tracer,
         enable_code_provenance: bool = True,
         api_key: typing.Optional[str] = None,
         timeout: float = config.api_timeout,

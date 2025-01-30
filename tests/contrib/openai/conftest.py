@@ -19,7 +19,7 @@ from tests.utils import override_global_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 def pytest_configure(config):
@@ -34,7 +34,7 @@ def api_key_in_env():
 @pytest.fixture
 def request_api_key(api_key_in_env, openai_api_key):
     """
-    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    OpenAI allows both using an env var or client param for the API key, so this fixture specifies the API key
     (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
     to make sure the env var will be used.
     """
@@ -68,14 +68,6 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
     for m in mods:
         del sys.modules[m]
-
-
-@pytest.fixture
-def azure_openai(openai):
-    openai.api_type = "azure"
-    openai.api_version = "2023-05-15"
-    openai.api_base = "https://test-openai.openai.azure.com/"
-    yield openai
 
 
 @pytest.fixture

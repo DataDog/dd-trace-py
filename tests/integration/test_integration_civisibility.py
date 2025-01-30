@@ -75,10 +75,10 @@ def test_civisibility_intake_with_apikey():
 def test_civisibility_intake_payloads():
     import mock
 
-    from ddtrace import tracer as t
     from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
     from ddtrace.internal.ci_visibility.recorder import CIVisibilityWriter
     from ddtrace.internal.utils.http import Response
+    from ddtrace.trace import tracer as t
     from tests.utils import override_env
 
     with override_env(dict(DD_API_KEY="foobar.baz")):
