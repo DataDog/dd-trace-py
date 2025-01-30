@@ -644,114 +644,6 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_chain_call(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
-    span = integration.trace(
-        pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain",
-    )
-    inputs = None
-    final_outputs = {}
-    try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            inputs = {instance.input_keys[0]: inputs}
-        if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            template = deep_getattr(instance, "prompt.template", default="")
-            if template:
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
-        final_outputs = func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            for k, v in final_outputs.items():
-                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-        if _is_iast_enabled():
-            taint_outputs(instance, inputs, final_outputs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            log_outputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
-            for k, v in final_outputs.items():
-                log_outputs[k] = str(v)
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "inputs": log_inputs,
-                    "prompt": str(deep_getattr(instance, "prompt.template", default="")),
-                    "outputs": log_outputs,
-                },
-            )
-    return final_outputs
-
-
-@with_traced_module
-async def traced_chain_acall(langchain, pin, func, instance, args, kwargs):
-    integration = langchain._datadog_integration
-    span = integration.trace(
-        pin,
-        "{}.{}".format(instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
-        interface_type="chain",
-    )
-    inputs = None
-    final_outputs = {}
-    try:
-        inputs = get_argument_value(args, kwargs, 0, "input")
-        if not isinstance(inputs, dict):
-            inputs = {instance.input_keys[0]: inputs}
-        if integration.is_pc_sampled_span(span):
-            for k, v in inputs.items():
-                span.set_tag_str("langchain.request.inputs.%s" % k, integration.trunc(str(v)))
-            template = deep_getattr(instance, "prompt.template", default="")
-            if template:
-                span.set_tag_str("langchain.request.prompt", integration.trunc(str(template)))
-        final_outputs = await func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            for k, v in final_outputs.items():
-                span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
-        raise
-    finally:
-        integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_outputs, operation="chain")
-        span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            log_inputs = {}
-            log_outputs = {}
-            for k, v in inputs.items():
-                log_inputs[k] = str(v)
-            for k, v in final_outputs.items():
-                log_outputs[k] = str(v)
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "inputs": log_inputs,
-                    "prompt": str(deep_getattr(instance, "prompt.template", default="")),
-                    "outputs": log_outputs,
-                },
-            )
-    return final_outputs
-
-
-@with_traced_module
 def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     """
     Traces the top level call of a LangChain Expression Language (LCEL) chain.
@@ -1287,8 +1179,6 @@ def patch():
         "language_models.chat_models.BaseChatModel.agenerate",
         traced_chat_model_agenerate(langchain),
     )
-    wrap("langchain", "chains.base.Chain.invoke", traced_chain_call(langchain))
-    wrap("langchain", "chains.base.Chain.ainvoke", traced_chain_acall(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
@@ -1342,8 +1232,6 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
-    unwrap(langchain.chains.base.Chain, "invoke")
-    unwrap(langchain.chains.base.Chain, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
