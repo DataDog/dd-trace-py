@@ -9,9 +9,7 @@ from PIL import Image
 import pytest
 
 import ddtrace
-from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
-from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -39,42 +37,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
     # Ensure overriding the config works
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
-
-
-def test_patching(openai):
-    """Ensure that the correct objects are patched and not double patched."""
-
-    # for some reason these can't be specified as the real python objects...
-    # no clue why (eg. openai.Completion.create doesn't work)
-    methods = [
-        (openai.Completion, "create"),
-        (openai.api_resources.completion.Completion, "create"),
-        (openai.Completion, "acreate"),
-        (openai.api_resources.completion.Completion, "acreate"),
-        (openai.api_requestor, "_make_session"),
-        (openai.util, "convert_to_openai_object"),
-        (openai.Embedding, "create"),
-        (openai.Embedding, "acreate"),
-    ]
-    if hasattr(openai, "ChatCompletion"):
-        methods += [
-            (openai.ChatCompletion, "create"),
-            (openai.api_resources.chat_completion.ChatCompletion, "create"),
-            (openai.ChatCompletion, "acreate"),
-            (openai.api_resources.chat_completion.ChatCompletion, "acreate"),
-        ]
-
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]))
-
-    patch(openai=True)
-    for m in methods:
-        assert iswrapped(getattr(m[0], m[1]))
-
-    # Ensure double patching does not occur
-    patch(openai=True)
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])

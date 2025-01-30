@@ -248,7 +248,6 @@ To configure the OpenAI integration on a per-instance basis use the
     Pin.override(openai, service="my-openai-service")
 """  # noqa: E501
 
-
 # Required to allow users to import from  `ddtrace.contrib.openai.patch` directly
 import warnings as _w
 

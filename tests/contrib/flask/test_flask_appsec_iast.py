@@ -39,7 +39,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -71,7 +71,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -123,7 +123,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post(
@@ -304,7 +304,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -337,7 +337,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         class MockSpan:
             _trace_id_64bits = 17577308072598193742
 
-        with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=0.0)):
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=0.0)
+        ):
             oce.reconfigure()
             _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
@@ -367,7 +369,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -434,7 +436,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
@@ -495,7 +497,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.get("/sqli/parameter/?table=sqlite_master")
@@ -550,7 +552,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -608,7 +610,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -673,7 +675,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1078,7 +1080,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=True,
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1171,7 +1173,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1208,7 +1210,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1237,7 +1239,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1266,7 +1268,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/insecure_cookie/", data={"name": "test"})
@@ -1304,7 +1306,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/insecure_cookie_empty/", data={"name": "test"})
@@ -1334,7 +1336,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_http_only_cookie/", data={"name": "test"})
@@ -1372,7 +1374,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1403,7 +1405,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_samesite_cookie/", data={"name": "test"})
@@ -1441,7 +1443,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_samesite_cookie_empty/", data={"name": "test"})
@@ -1469,7 +1471,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):

@@ -185,10 +185,10 @@ def _unserializable_default_repr(obj):
     return default_repr
 
 
-def safe_json(obj):
+def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
-        return json.dumps(obj, ensure_ascii=False, skipkeys=True, default=_unserializable_default_repr)
+        return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
