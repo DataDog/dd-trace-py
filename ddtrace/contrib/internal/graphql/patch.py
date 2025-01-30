@@ -292,27 +292,6 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: GraphQLError, extensions: str | None) -> Dict:
-    # Validate user-provided extensions
-    if not extensions:
-        return {}
-    
-    fields = [e.strip() for e in extensions.split(',')]
-    error_extensions = {}
-    for field in fields:
-        if field in error.extensions:
-            # validate extensions formatting
-            # All extensions values MUST be stringified, EXCEPT for numeric values and 
-            # boolean values, which remain in their original type.
-            if isinstance(error.extensions[field], (int, float, bool)):
-                error_extensions[field] = error.extensions[field]
-            else:
-                # q: could this be `None`?
-                error_extensions[field] = str(error.extensions[field])
-
-    return error_extensions
-
-
 def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
@@ -347,12 +326,6 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             path = ",".join([str(path_obj) for path_obj in error.path])
             attributes["path"] = path
 
-        if os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS") is not None:
-            extensions = os.environ.get("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")
-
-            error_extensions = _validate_error_extensions(error, extensions)
-            if error_extensions:
-                attributes["extensions"] = str(error_extensions)
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,
