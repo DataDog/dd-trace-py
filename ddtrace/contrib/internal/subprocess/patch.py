@@ -327,6 +327,8 @@ def unpatch() -> None:
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf:
+            return wrapped(*args, **kwargs)
         if isinstance(args[0], str):
             for callback in _STR_CALLBACKS.values():
                 callback(args[0])
@@ -393,6 +395,8 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf:
+            return wrapped(*args, **kwargs)
         cmd_args = args[0] if len(args) else kwargs["args"]
         if isinstance(cmd_args, (list, tuple, str)):
             if kwargs.get("shell", False):
@@ -425,6 +429,8 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf:
+            return wrapped(*args, **kwargs)
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:

@@ -15,7 +15,7 @@ from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 import typing as t
