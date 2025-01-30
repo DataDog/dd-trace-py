@@ -39,6 +39,7 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
+from .logging import DDTelemetryLogHandler
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
@@ -68,6 +69,10 @@ class _TelemetryConfig:
     INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
     INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
     FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
+    LOG_COLLECTION_ENABLED = TELEMETRY_ENABLED and os.getenv("DD_TELEMETRY_LOG_COLLECTION_ENABLED", "true").lower() in (
+        "true",
+        "1",
+    )
 
 
 class LogData(dict):
@@ -222,6 +227,8 @@ class TelemetryWriter(PeriodicService):
             # Force app started for unit tests
             if _TelemetryConfig.FORCE_START:
                 self._app_started()
+            if _TelemetryConfig.LOG_COLLECTION_ENABLED:
+                getLogger("ddtrace").addHandler(DDTelemetryLogHandler(self))
 
     def enable(self):
         # type: () -> bool
@@ -484,7 +491,7 @@ class TelemetryWriter(PeriodicService):
                     "value": value,
                 }
 
-    def add_log(self, level, message, stack_trace="", tags=None, count=1):
+    def add_log(self, level, message, stack_trace="", tags=None):
         """
         Queues log. This event is meant to send library logs to Datadog’s backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -504,8 +511,7 @@ class TelemetryWriter(PeriodicService):
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
-            if count > 1:
-                data["count"] = count
+            # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
