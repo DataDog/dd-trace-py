@@ -533,7 +533,7 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
 
 
 # some versions will append extra content to the input message, like `additional_kwargs` and `response_metadata`
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS.append("meta.langchain.request.inputs.0"))
+@pytest.mark.snapshot(ignores=(IGNORE_FIELDS + ["meta.langchain.request.inputs.0"]))
 def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
