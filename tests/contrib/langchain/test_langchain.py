@@ -24,10 +24,9 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai.parameters.seed",  # langchain-openai llm call now includes seed as param
     "meta.langchain.request.openai.parameters.logprobs",  # langchain-openai llm call now includes seed as param
     "metrics.langchain.tokens.total_cost",  # total_cost depends on if tiktoken is installed
-
     # these are sometimes named differently
     "meta.langchain.request.openai.parameters.max_tokens",
-    "meta.langchain.request.openai.parameters.max_completion_tokens"
+    "meta.langchain.request.openai.parameters.max_completion_tokens",
 ]
 
 
