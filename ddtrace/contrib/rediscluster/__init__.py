@@ -3,7 +3,8 @@
 ``import ddtrace.auto`` will automatically patch your Redis Cluster client to make it work.
 ::
 
-    from ddtrace import Pin, patch
+    from ddtrace import patch
+    from ddtrace.trace import Pin
     import rediscluster
 
     # If not patched yet, you can patch redis specifically
@@ -57,9 +58,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.rediscluster.patch import get_version
-from ddtrace.contrib.internal.rediscluster.patch import patch
 
-
-__all__ = ["patch", "get_version"]
+from ddtrace.contrib.internal.rediscluster.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.rediscluster.patch import patch  # noqa: F401

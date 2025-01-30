@@ -17,13 +17,14 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
-from ddtrace import Pin
+import ddtrace
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -49,6 +50,7 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -126,7 +128,7 @@ def patch_conn(django, conn):
     for tag, attr in DB_CONN_ATTR_BY_TAG.items():
         if attr in settings_dict:
             try:
-                tags[tag] = trace_utils._convert_to_string(conn.settings_dict.get(attr))
+                tags[tag] = _convert_to_string(conn.settings_dict.get(attr))
             except Exception:
                 tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags
@@ -147,7 +149,12 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        pin = Pin(service, tags=tags, tracer=pin.tracer)
+        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Remove this if statement when the `tracer` argument is removed
+        if pin.tracer is ddtrace.tracer:
+            pin = Pin(service, tags=tags)
+        else:
+            pin = Pin(service, tags=tags, tracer=pin.tracer)
 
         cursor = func(*args, **kwargs)
 
@@ -690,6 +697,23 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
+def traced_technical_500_response(django, pin, func, instance, args, kwargs):
+    """
+    Wrapper for django's views.debug.technical_500_response
+    """
+    response = func(*args, **kwargs)
+    try:
+        request = get_argument_value(args, kwargs, 0, "request")
+        exc_type = get_argument_value(args, kwargs, 1, "exc_type")
+        exc_value = get_argument_value(args, kwargs, 2, "exc_value")
+        tb = get_argument_value(args, kwargs, 3, "tb")
+        core.dispatch("django.technical_500_response", (request, response, exc_type, exc_value, tb))
+    except Exception:
+        log.debug("Error while trying to trace Django technical 500 response", exc_info=True)
+    return response
+
+
+@trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
@@ -884,6 +908,9 @@ def _patch(django):
             trace_utils.wrap(m, "re_path", traced_urls_path(django))
 
     when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
+    when_imported("django.views.debug")(
+        lambda m: trace_utils.wrap(m, "technical_500_response", traced_technical_500_response(django))
+    )
 
     @when_imported("channels.routing")
     def _(m):
@@ -928,6 +955,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.conf.urls, "url")
     trace_utils.unwrap(django.contrib.auth.login, "login")
     trace_utils.unwrap(django.contrib.auth.authenticate, "authenticate")
+    trace_utils.unwrap(django.view.debug.technical_500_response, "technical_500_response")
     if django.VERSION >= (2, 0, 0):
         trace_utils.unwrap(django.urls, "path")
         trace_utils.unwrap(django.urls, "re_path")

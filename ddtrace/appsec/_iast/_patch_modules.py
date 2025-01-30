@@ -2,6 +2,7 @@ from wrapt.importer import when_imported
 
 
 IAST_PATCH = {
+    "code_injection": True,
     "command_injection": True,
     "header_injection": True,
     "weak_cipher": True,

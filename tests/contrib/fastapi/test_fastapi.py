@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from ddtrace.contrib.starlette.patch import patch as patch_starlette
-from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
+from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME

@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.dogpile_cache import get_version
-from ddtrace.contrib.dogpile_cache.patch import patch
+from ddtrace.contrib.internal.dogpile_cache.patch import get_version
+from ddtrace.contrib.internal.dogpile_cache.patch import patch
 
 
 try:
-    from ddtrace.contrib.dogpile_cache.patch import unpatch
+    from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

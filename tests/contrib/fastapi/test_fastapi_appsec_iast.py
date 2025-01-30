@@ -13,17 +13,24 @@ from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
+from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
-from ddtrace.contrib.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -40,7 +47,7 @@ def _aux_appsec_prepare_tracer(tracer):
     oce.reconfigure()
 
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
 
 
 def get_response_body(response):
@@ -73,9 +80,6 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
 def test_query_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
-        from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
 
@@ -105,12 +109,82 @@ def test_query_param_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_origin"] == "http.request.parameter"
 
 
+def test_query_param_name_source_get(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        query_params = [k for k in request.query_params.keys() if k == "iast_queryparam"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html?iast_queryparam=test1234",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_queryparam"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 15
+        assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
+
+
+def test_query_param_name_source_post(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.post("/index.html")
+    async def test_route(request: Request):
+        form_data = await request.form()
+        query_params = [k for k in form_data.keys() if k == "iast_queryparam"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.post(
+            "/index.html",
+            data={"iast_queryparam": "test1234"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_queryparam"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 15
+        assert result["ranges_origin"] == "http.request.parameter.name"
+        assert result["ranges_origin_name"] == "iast_queryparam"
+        assert result["ranges_origin_value"] == "iast_queryparam"
+
+
 def test_header_value_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
-        from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-
         query_params = request.headers.get("iast_header")
         ranges_result = get_tainted_ranges(query_params)
 
@@ -138,6 +212,42 @@ def test_header_value_source(fastapi_application, client, tracer, test_spans):
         assert result["ranges_start"] == 0
         assert result["ranges_length"] == 8
         assert result["ranges_origin"] == "http.request.header"
+
+
+def test_header_name_source(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        query_params = [k for k in request.headers.keys() if k == "iast_header"][0]
+        ranges_result = get_tainted_ranges(query_params)
+
+        return JSONResponse(
+            {
+                "result": query_params,
+                "is_tainted": len(ranges_result),
+                "ranges_start": ranges_result[0].start,
+                "ranges_length": ranges_result[0].length,
+                "ranges_origin": origin_to_str(ranges_result[0].source.origin),
+                "ranges_origin_name": ranges_result[0].source.name,
+                "ranges_origin_value": ranges_result[0].source.value,
+            }
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        # disable callback
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html",
+            headers={"iast_header": "test1234"},
+        )
+        assert resp.status_code == 200
+        result = json.loads(get_response_body(resp))
+        assert result["result"] == "iast_header"
+        assert result["is_tainted"] == 1
+        assert result["ranges_start"] == 0
+        assert result["ranges_length"] == 11
+        assert result["ranges_origin"] == "http.request.header.name"
+        assert result["ranges_origin_name"] == "iast_header"
+        assert result["ranges_origin_value"] == "iast_header"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="typing.Annotated was introduced on 3.9")
@@ -538,7 +648,9 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         # label test_fastapi_sqli_path_parameter
         cur.execute(add_aspect("SELECT 1 FROM ", param_str))
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         # disable callback
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
@@ -594,7 +706,9 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -635,7 +749,9 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -670,7 +786,9 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -746,7 +864,9 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
 
         return response
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/insecure_cookie/?iast_queryparam=insecure",
@@ -764,3 +884,106 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
+
+
+def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/header_injection/")
+    async def header_injection(request: Request):
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+
+        tainted_string = request.headers.get("test")
+        assert is_pyobject_tainted(tainted_string)
+        result_response = JSONResponse(content={"message": "OK"})
+        # label test_fastapi_header_injection
+        result_response.headers["Header-Injection"] = tainted_string
+        result_response.headers["Vary"] = tainted_string
+        result_response.headers["Foo"] = "bar"
+
+        return result_response
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        patch_iast({"header_injection": True})
+        resp = client.get(
+            "/header_injection/",
+            headers={"test": "test_injection_header"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE_PATH
+        )
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_HEADER_INJECTION
+        assert vulnerability["hash"] == hash_value
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["spanId"]
+
+
+def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/header_injection_inline_response/", response_class=PlainTextResponse)
+    async def header_injection_inline_response(request: Request):
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+
+        tainted_string = request.headers.get("test")
+        assert is_pyobject_tainted(tainted_string)
+        return PlainTextResponse(
+            content="OK",
+            headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
+        )
+
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
+        _aux_appsec_prepare_tracer(tracer)
+        patch_iast({"header_injection": True})
+        resp = client.get(
+            "/header_injection_inline_response/",
+            headers={"test": "test_injection_header"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_HEADER_INJECTION
+
+
+def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/stacktrace_leak/", response_class=PlainTextResponse)
+    async def stacktrace_leak_inline_response(request: Request):
+        return PlainTextResponse(
+            content=_load_text_stacktrace(),
+        )
+
+    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/stacktrace_leak/",
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_STACKTRACE_LEAK

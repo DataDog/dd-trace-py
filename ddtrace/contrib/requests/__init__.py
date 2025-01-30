@@ -65,12 +65,11 @@ To set configuration options for all requests made with a ``requests.Session`` o
 use the config API::
 
     from ddtrace import config
+    from ddtrace.trace import Pin
     from requests import Session
 
     session = Session()
-    cfg = config.get_from(session)
-    cfg['service_name'] = 'auth-api'
-    cfg['distributed_tracing'] = False
+    Pin.override(session, service='auth-api')
 """
 
 
@@ -82,11 +81,27 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.requests.patch import get_version
-from ddtrace.contrib.internal.requests.patch import patch
-from ddtrace.contrib.internal.requests.patch import unpatch
+
+from ddtrace.contrib.internal.requests.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.requests.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.requests.patch import unpatch  # noqa: F401
 from ddtrace.contrib.internal.requests.session import TracedSession
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
-__all__ = ["patch", "unpatch", "TracedSession", "get_version"]
+def __getattr__(name):
+    if name in ("patch", "unpatch", "get_version"):
+        deprecate(
+            ("%s.%s is deprecated" % (__name__, name)),
+            message="Use ``import ddtrace.auto`` or the ``ddtrace-run`` command to configure this integration.",
+            category=DDTraceDeprecationWarning,
+            removal_version="3.0.0",
+        )
+
+    if name in globals():
+        return globals()[name]
+    raise AttributeError("%s has no attribute %s", __name__, name)
+
+
+__all__ = ["TracedSession"]

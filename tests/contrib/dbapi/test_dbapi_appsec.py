@@ -1,12 +1,12 @@
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import TracerTestCase
@@ -19,7 +19,7 @@ class TestTracedCursor(TracerTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -29,7 +29,7 @@ class TestTracedCursor(TracerTestCase):
 
     def tearDown(self):
         with override_global_config(
-            dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
         ):
             _end_iast_context_and_oce()
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    asyncio: Resolves an issue where asyncio event loops fail to register when ``ddtrace-run``/``import ddtrace.auto`` is used and gevent is installed.

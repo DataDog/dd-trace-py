@@ -2,16 +2,16 @@ import molten
 from molten.testing import TestClient
 import pytest
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.molten import patch
-from ddtrace.contrib.molten import unpatch
-from ddtrace.contrib.molten.patch import MOLTEN_VERSION
+from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION
+from ddtrace.contrib.internal.molten.patch import patch
+from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

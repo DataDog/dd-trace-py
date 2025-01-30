@@ -35,7 +35,7 @@ def asm_context(
         if tracer is None:
             tracer = default_tracer
         if config:
-            tracer.configure(api_version="v0.4")
+            tracer._configure(api_version="v0.4")
 
         with core.context_with_data(
             "test.asm",

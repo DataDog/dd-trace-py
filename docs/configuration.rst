@@ -368,6 +368,26 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT:
+     default: |
+         ``continue``
+     
+     description: |
+         String for how to handle incoming request headers that are extracted for propagation of trace info.
+
+         The supported values are ``continue``, ``restart``, and ``ignore``.
+
+         After extracting the headers for propagation, this configuration determines what is done with them.
+
+         The default value is ``continue`` which always propagates valid headers.
+         ``ignore`` ignores all incoming headers and ``restart`` turns the first extracted valid propagation header 
+         into a span link and propagates baggage if present.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="ignore"`` to ignore all incoming headers and to start a root span without a parent.
+
+     version_added:
+       v2.20.0:
+
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
          ``tracecontext,datadog``
@@ -464,6 +484,11 @@ AppSec
      type: Integer
      default: 2
      description: Number of requests analyzed at the same time.
+
+   DD_IAST_DEDUPLICATION_ENABLED:
+     type: Integer
+     default: True
+     description: Avoid sending vulnerabilities in the span if they have already been reported in the last hour.
 
    DD_IAST_REDACTION_ENABLED:
      type: Boolean

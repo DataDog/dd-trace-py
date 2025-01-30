@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import subprocess
 import tempfile
 
 import django
@@ -129,13 +130,33 @@ def rasp(request, endpoint: str):
                 res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
-    elif endpoint == "command_injection":
-        res = ["command_injection endpoint"]
+    elif endpoint == "shell_injection":
+        res = ["shell_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    if param.startswith("cmdsys"):
+                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    else:
+                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
+        for param in query_params:
+            if param.startswith("cmda"):
+                cmd = query_params[param]
+                try:
+                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            elif param.startswith("cmds"):
+                cmd = query_params[param]
+                try:
+                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
@@ -175,7 +196,7 @@ def login_user(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 

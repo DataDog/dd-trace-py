@@ -14,12 +14,13 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sts
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.boto.patch import patch
-from ddtrace.contrib.boto.patch import unpatch
+from ddtrace.contrib.internal.boto.patch import patch
+from ddtrace.contrib.internal.boto.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+# project
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

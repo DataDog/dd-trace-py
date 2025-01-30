@@ -7,8 +7,8 @@ from ddtrace import tracer
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.logbook import patch
-from ddtrace.contrib.logbook import unpatch
+from ddtrace.contrib.internal.logbook.patch import patch
+from ddtrace.contrib.internal.logbook.patch import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import override_global_config
 
@@ -78,8 +78,8 @@ def test_log_trace():
 
     from ddtrace import config
     from ddtrace import tracer
-    from ddtrace.contrib.logbook import patch
-    from ddtrace.contrib.logbook import unpatch
+    from ddtrace.contrib.internal.logbook.patch import patch
+    from ddtrace.contrib.internal.logbook.patch import unpatch
 
     config.service = "logging"
     config.env = "global.env"
@@ -116,8 +116,8 @@ def test_log_trace_128bit_trace_ids():
 
     from ddtrace import config
     from ddtrace import tracer
-    from ddtrace.contrib.logbook import patch
-    from ddtrace.contrib.logbook import unpatch
+    from ddtrace.contrib.internal.logbook.patch import patch
+    from ddtrace.contrib.internal.logbook.patch import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
 
     config.service = "logging"
@@ -151,8 +151,8 @@ def test_log_DD_TAGS():
     from logbook import TestHandler
 
     from ddtrace import tracer
-    from ddtrace.contrib.logbook import patch
-    from ddtrace.contrib.logbook import unpatch
+    from ddtrace.contrib.internal.logbook.patch import patch
+    from ddtrace.contrib.internal.logbook.patch import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
 
     handler = TestHandler()

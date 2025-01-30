@@ -3,9 +3,9 @@ import inspect
 import os
 from typing import List  # noqa:F401
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import dbapi
+from ddtrace.trace import Pin
 
 
 try:

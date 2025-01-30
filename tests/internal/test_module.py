@@ -572,23 +572,11 @@ def __getattr__(name):
 
     assert missing_deprecations == set(
         [
-            # Note: The following ddtrace.contrib modules are expected to be part of the public API
-            # TODO: Revisit whether integration utils should be part of the public API
-            "ddtrace.contrib.redis_utils",
             "ddtrace.contrib.trace_utils",
+            # Note: The modules below are deprecated but they do not follow the template above
+            "ddtrace.contrib.redis_utils",
             "ddtrace.contrib.trace_utils_async",
             "ddtrace.contrib.trace_utils_redis",
-            # TODO: The following contrib modules are part of the public API (unlike most integrations).
-            # We should consider privatizing the internals of these integrations.
-            "ddtrace.contrib.unittest.patch",
-            "ddtrace.contrib.unittest.constants",
-            "ddtrace.contrib.pytest.constants",
-            "ddtrace.contrib.pytest.newhooks",
-            "ddtrace.contrib.pytest.plugin",
-            "ddtrace.contrib.pytest_benchmark.constants",
-            "ddtrace.contrib.pytest_benchmark.plugin",
-            "ddtrace.contrib.pytest_bdd.constants",
-            "ddtrace.contrib.pytest_bdd.plugin",
         ]
     )
 

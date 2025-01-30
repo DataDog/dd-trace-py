@@ -19,7 +19,7 @@ Tracing
 .. autoclass:: ddtrace.Span
     :members:
 
-.. autoclass:: ddtrace.Pin
+.. autoclass:: ddtrace.trace.Pin
     :members:
 
 .. autoclass:: ddtrace.trace.Context

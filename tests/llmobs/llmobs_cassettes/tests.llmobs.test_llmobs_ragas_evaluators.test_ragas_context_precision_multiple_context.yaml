@@ -1,0 +1,312 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "Given question, answer and context verify if
+      the context was useful in arriving at the given answer. Give verdict as \"1\"
+      if useful and \"0\" if not with json output.\n\nThe output should be a well-formatted
+      JSON instance that conforms to the JSON schema below.\n\nAs an example, for
+      the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\":
+      \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}},
+      \"required\": [\"foo\"]}\nthe object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted
+      instance of the schema. The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}}
+      is not well-formatted.\n\nHere is the output JSON schema:\n```\n{\"description\":
+      \"Answer for the verification task wether the context was useful.\", \"type\":
+      \"object\", \"properties\": {\"reason\": {\"title\": \"Reason\", \"description\":
+      \"Reason for verification\", \"type\": \"string\"}, \"verdict\": {\"title\":
+      \"Verdict\", \"description\": \"Binary (0/1) verdict of verification\", \"type\":
+      \"integer\"}}, \"required\": [\"reason\", \"verdict\"]}\n```\n\nDo not return
+      any preamble or explanations, return only a pure JSON string surrounded by triple
+      backticks (```).\n\nExamples:\n\nquestion: \"What can you tell me about albert
+      Albert Einstein?\"\ncontext: \"Albert Einstein (14 March 1879 \u2013 18 April
+      1955) was a German-born theoretical physicist, widely held to be one of the
+      greatest and most influential scientists of all time. Best known for developing
+      the theory of relativity, he also made important contributions to quantum mechanics,
+      and was thus a central figure in the revolutionary reshaping of the scientific
+      understanding of nature that modern physics accomplished in the first decades
+      of the twentieth century. His mass\u2013energy equivalence formula E = mc2,
+      which arises from relativity theory, has been called \\\"the world''s most famous
+      equation\\\". He received the 1921 Nobel Prize in Physics \\\"for his services
+      to theoretical physics, and especially for his discovery of the law of the photoelectric
+      effect\\\", a pivotal step in the development of quantum theory. His work is
+      also known for its influence on the philosophy of science. In a 1999 poll of
+      130 leading physicists worldwide by the British journal Physics World, Einstein
+      was ranked the greatest physicist of all time. His intellectual achievements
+      and originality have made Einstein synonymous with genius.\"\nanswer: \"Albert
+      Einstein born in 14 March 1879 was German-born theoretical physicist, widely
+      held to be one of the greatest and most influential scientists of all time.
+      He received the 1921 Nobel Prize in Physics for his services to theoretical
+      physics. He published 4 papers in 1905. Einstein moved to Switzerland in 1895\"\nverification:
+      ```{\"reason\": \"The provided context was indeed useful in arriving at the
+      given answer. The context includes key information about Albert Einstein''s
+      life and contributions, which are reflected in the answer.\", \"verdict\": 1}```\n\nquestion:
+      \"who won 2020 icc world cup?\"\ncontext: \"The 2022 ICC Men''s T20 World Cup,
+      held from October 16 to November 13, 2022, in Australia, was the eighth edition
+      of the tournament. Originally scheduled for 2020, it was postponed due to the
+      COVID-19 pandemic. England emerged victorious, defeating Pakistan by five wickets
+      in the final to clinch their second ICC Men''s T20 World Cup title.\"\nanswer:
+      \"England\"\nverification: ```{\"reason\": \"the context was useful in clarifying
+      the situation regarding the 2020 ICC World Cup and indicating that England was
+      the winner of the tournament that was intended to be held in 2020 but actually
+      took place in 2022.\", \"verdict\": 1}```\n\nquestion: \"What is the tallest
+      mountain in the world?\"\ncontext: \"The Andes is the longest continental mountain
+      range in the world, located in South America. It stretches across seven countries
+      and features many of the highest peaks in the Western Hemisphere. The range
+      is known for its diverse ecosystems, including the high-altitude Andean Plateau
+      and the Amazon rainforest.\"\nanswer: \"Mount Everest.\"\nverification: ```{\"reason\":
+      \"the provided context discusses the Andes mountain range, which, while impressive,
+      does not include Mount Everest or directly relate to the question about the
+      world''s tallest mountain.\", \"verdict\": 0}```\n\nYour actual task:\n\nquestion:
+      \"Is france part of europe?\"\ncontext: \"irrelevant\"\nanswer: \"France is
+      indeed part of europe\"\nverification: \n", "role": "user"}], "model": "gpt-4o-mini",
+      "n": 1, "stream": false, "temperature": 1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4612'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=2N0lRp5YNIBKY6AUc.tpQsJVlWEga7Ys924AChkX4qk-1733967111-1.0.1.1-IJEARyUXuMN2pbqt5jU4yaj77.QHaVM0uVSztZt49GpbAV1HXoPr6.uIdz2viIUlRExuu5tYN_.v5wUpYjyBSQ;
+        _cfuvid=TvHcCPz7N_.kfviRP.Y0iD_HMeA.0uxvji5nzbbTR5w-1733967111302-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.52.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.52.0
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFNNj5swFLzzK5586QVWZJNtPm49dC+tVKmteikVGPsFnBrbsR9Roij/
+        vTLJBlbdSr0g9ObNaGYenBMApiTbABMtJ9E5nX2Q3z5//dTu9WH/vJD57stx79z6JFD+oBVLI8PW
+        OxT0wnoQtnMaSVlzhYVHThhVZ8v5fP1+OZvNB6CzEnWkNY6yhc06ZVT2mD8usnyZzW7iorVKYGAb
+        +JkAAJyHZ/RpJB7ZBvL0ZdJhCLxBtrkvATBvdZwwHoIKxA2xdASFNYRmsF5V1S5YU5hzwTzy+Mo2
+        ULDvLcKwdiRw3h6URAkqgPIeNR64IeBGgrQYwFgadr2qe0Lg5gTKbK3veGwDPDbcS2UaePbcCHwX
+        oEHbeO5aJbiGQJz6AMrAx95bhw8FS6FgB/RSCYp28kthqqqaRvC47QOPNZpe69v8cu9E28Z5W4cb
+        fp9vlVGhLa9JY/5A1rEBvSQAv4bu+1d1Mudt56gk+xtNFFw/PV312HjyEZ0vbiBZ4nrCWq3TN/RK
+        icSVDpPrMcFFi3KkjqfmvVR2AiST1H+7eUv7mlyZ5n/kR0AIdISydB7jUV4lHtc8xj/iX2v3lgfD
+        LJwCYVdulWnQO6+u3+PWlXXN52KFy7xmySX5AwAA//8DAEriHaudAwAA
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8f09f515b8157281-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 12 Dec 2024 01:31:53 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '976'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149998903'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2c2d33a1a025655db6ab9a62096b644a
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"content": "Given question, answer and context verify if
+      the context was useful in arriving at the given answer. Give verdict as \"1\"
+      if useful and \"0\" if not with json output.\n\nThe output should be a well-formatted
+      JSON instance that conforms to the JSON schema below.\n\nAs an example, for
+      the schema {\"properties\": {\"foo\": {\"title\": \"Foo\", \"description\":
+      \"a list of strings\", \"type\": \"array\", \"items\": {\"type\": \"string\"}}},
+      \"required\": [\"foo\"]}\nthe object {\"foo\": [\"bar\", \"baz\"]} is a well-formatted
+      instance of the schema. The object {\"properties\": {\"foo\": [\"bar\", \"baz\"]}}
+      is not well-formatted.\n\nHere is the output JSON schema:\n```\n{\"description\":
+      \"Answer for the verification task wether the context was useful.\", \"type\":
+      \"object\", \"properties\": {\"reason\": {\"title\": \"Reason\", \"description\":
+      \"Reason for verification\", \"type\": \"string\"}, \"verdict\": {\"title\":
+      \"Verdict\", \"description\": \"Binary (0/1) verdict of verification\", \"type\":
+      \"integer\"}}, \"required\": [\"reason\", \"verdict\"]}\n```\n\nDo not return
+      any preamble or explanations, return only a pure JSON string surrounded by triple
+      backticks (```).\n\nExamples:\n\nquestion: \"What can you tell me about albert
+      Albert Einstein?\"\ncontext: \"Albert Einstein (14 March 1879 \u2013 18 April
+      1955) was a German-born theoretical physicist, widely held to be one of the
+      greatest and most influential scientists of all time. Best known for developing
+      the theory of relativity, he also made important contributions to quantum mechanics,
+      and was thus a central figure in the revolutionary reshaping of the scientific
+      understanding of nature that modern physics accomplished in the first decades
+      of the twentieth century. His mass\u2013energy equivalence formula E = mc2,
+      which arises from relativity theory, has been called \\\"the world''s most famous
+      equation\\\". He received the 1921 Nobel Prize in Physics \\\"for his services
+      to theoretical physics, and especially for his discovery of the law of the photoelectric
+      effect\\\", a pivotal step in the development of quantum theory. His work is
+      also known for its influence on the philosophy of science. In a 1999 poll of
+      130 leading physicists worldwide by the British journal Physics World, Einstein
+      was ranked the greatest physicist of all time. His intellectual achievements
+      and originality have made Einstein synonymous with genius.\"\nanswer: \"Albert
+      Einstein born in 14 March 1879 was German-born theoretical physicist, widely
+      held to be one of the greatest and most influential scientists of all time.
+      He received the 1921 Nobel Prize in Physics for his services to theoretical
+      physics. He published 4 papers in 1905. Einstein moved to Switzerland in 1895\"\nverification:
+      ```{\"reason\": \"The provided context was indeed useful in arriving at the
+      given answer. The context includes key information about Albert Einstein''s
+      life and contributions, which are reflected in the answer.\", \"verdict\": 1}```\n\nquestion:
+      \"who won 2020 icc world cup?\"\ncontext: \"The 2022 ICC Men''s T20 World Cup,
+      held from October 16 to November 13, 2022, in Australia, was the eighth edition
+      of the tournament. Originally scheduled for 2020, it was postponed due to the
+      COVID-19 pandemic. England emerged victorious, defeating Pakistan by five wickets
+      in the final to clinch their second ICC Men''s T20 World Cup title.\"\nanswer:
+      \"England\"\nverification: ```{\"reason\": \"the context was useful in clarifying
+      the situation regarding the 2020 ICC World Cup and indicating that England was
+      the winner of the tournament that was intended to be held in 2020 but actually
+      took place in 2022.\", \"verdict\": 1}```\n\nquestion: \"What is the tallest
+      mountain in the world?\"\ncontext: \"The Andes is the longest continental mountain
+      range in the world, located in South America. It stretches across seven countries
+      and features many of the highest peaks in the Western Hemisphere. The range
+      is known for its diverse ecosystems, including the high-altitude Andean Plateau
+      and the Amazon rainforest.\"\nanswer: \"Mount Everest.\"\nverification: ```{\"reason\":
+      \"the provided context discusses the Andes mountain range, which, while impressive,
+      does not include Mount Everest or directly relate to the question about the
+      world''s tallest mountain.\", \"verdict\": 0}```\n\nYour actual task:\n\nquestion:
+      \"Is france part of europe?\"\ncontext: \"France is part of europe\"\nanswer:
+      \"France is indeed part of europe\"\nverification: \n", "role": "user"}], "model":
+      "gpt-4o-mini", "n": 1, "stream": false, "temperature": 1e-08}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4626'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=2N0lRp5YNIBKY6AUc.tpQsJVlWEga7Ys924AChkX4qk-1733967111-1.0.1.1-IJEARyUXuMN2pbqt5jU4yaj77.QHaVM0uVSztZt49GpbAV1HXoPr6.uIdz2viIUlRExuu5tYN_.v5wUpYjyBSQ;
+        _cfuvid=TvHcCPz7N_.kfviRP.Y0iD_HMeA.0uxvji5nzbbTR5w-1733967111302-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.52.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.52.0
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFLLbtswELzrKxY8S4EVu7Wtm4H0ccilSHtpVUg0uZLoSCRLrmKnhv+9
+        oOxYCpoCvRDEzs5wZpfHCIApyTJgouEkOtsmG/lw//Bp83tffRH2+7duU9/dfT7gPS53j79YHBhm
+        u0NBL6wbYTrbIimjz7BwyAmDarqcz9fvl2m6GIDOSGwDrbaULEzSKa2S29ntIpktk3R1YTdGCfQs
+        gx8RAMBxOINPLfHAMpjFL5UOvec1suzaBMCcaUOFce+VJ66JxSMojCbUg/WyLHfe6Fwfc+aQhyvL
+        IGdfG4Sh7UAglUNB7TN44oQeqOEEHx3XAkF5sNwRmAo+9M5YjGHfKNFMSL21xlGgIXDt9+jAOvOk
+        JMqbnMWQsyd0UgkKL6enXJdlOXXrsOo9DxPTfdte6qdr/NbU1pmtv+DXeqW08k1xDhWiejKWDegp
+        Avg5jLl/NTlmneksFWQeUQfB9bvVWY+N2x3R+fwCkiHeTljrNH5Dr5BIXLV+sigmuGhQjtRxq7yX
+        ykyAaJL6bzdvaZ+TK13/j/wICIGWUBbWYVjKq8Rjm8Pw+f/Vdp3yYJj5Z0/YFZXSNTrr1PnrVbbY
+        bvlcrHA527LoFP0BAAD//wMAcOvPiIgDAAA=
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 8f09f51cdbaf7281-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 12 Dec 2024 01:31:54 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '779'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149998900'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_4b6ae2d675e25726729e2577e662f691
+    status:
+      code: 200
+      message: OK
+version: 1

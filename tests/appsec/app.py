@@ -87,7 +87,7 @@ from tests.appsec.iast_packages.packages.pkg_werkzeug import pkg_werkzeug
 from tests.appsec.iast_packages.packages.pkg_wrapt import pkg_wrapt
 from tests.appsec.iast_packages.packages.pkg_yarl import pkg_yarl
 from tests.appsec.iast_packages.packages.pkg_zipp import pkg_zipp
-import tests.appsec.integrations.module_with_import_errors as module_with_import_errors
+import tests.appsec.integrations.flask_tests.module_with_import_errors as module_with_import_errors
 
 
 app = Flask(__name__)

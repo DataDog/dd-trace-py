@@ -4,13 +4,13 @@ import sys
 
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.subprocess.constants import COMMANDS
-from ddtrace.contrib.subprocess.patch import SubprocessCmdLine
-from ddtrace.contrib.subprocess.patch import patch
-from ddtrace.contrib.subprocess.patch import unpatch
+from ddtrace.contrib.internal.subprocess.constants import COMMANDS
+from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
+from ddtrace.contrib.internal.subprocess.patch import patch
+from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -220,7 +220,7 @@ def test_fork(tracer):
             pid = os.fork()
             if pid == 0:
                 # Exit, otherwise the rest of this process will continue to be pytest
-                from ddtrace.contrib.coverage import unpatch
+                from ddtrace.contrib.internal.coverage.patch import unpatch
 
                 unpatch()
                 import pytest

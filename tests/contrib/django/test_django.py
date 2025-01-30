@@ -18,15 +18,15 @@ import pytest
 import wrapt
 
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.django.patch import instrument_view
-from ddtrace.contrib.django.patch import traced_get_response
-from ddtrace.contrib.django.utils import get_request_uri
+from ddtrace.contrib.internal.django.patch import instrument_view
+from ddtrace.contrib.internal.django.patch import traced_get_response
+from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
@@ -1729,7 +1729,7 @@ def test_django_request_distributed(client, test_spans):
         trace_id=12345,
         parent_id=78910,
         metrics={
-            SAMPLING_PRIORITY_KEY: USER_KEEP,
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
     assert root.get_tag("span.kind") == "server"
@@ -1888,7 +1888,8 @@ def test_collecting_requests_handles_improperly_configured_error(client, test_sp
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
     with mock.patch(
-        "ddtrace.contrib.django.utils.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+        "ddtrace.contrib.internal.django.utils.user_is_authenticated",
+        side_effect=django.core.exceptions.ImproperlyConfigured,
     ):
         # If ImproperlyConfigured error bubbles up, should automatically fail the test.
         resp = client.get("/")

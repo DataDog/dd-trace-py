@@ -21,27 +21,4 @@ Please follow the instructions for enabling `pytest` integration.
    for more details.
 
 """
-
-from ddtrace import config
-
-
-# pytest-bdd default settings
-config._add(
-    "pytest_bdd",
-    dict(
-        _default_service="pytest_bdd",
-    ),
-)
-
-
-def get_version():
-    # type: () -> str
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    return str(importlib_metadata.version("pytest-bdd"))
-
-
-__all__ = ["get_version"]
+from ddtrace.contrib.internal.pytest_bdd.patch import get_version  # noqa: F401

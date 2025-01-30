@@ -6,8 +6,8 @@ import functools
 import wrapt
 
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -42,7 +42,7 @@ def get_psycopg2_extensions(psycopg_module):
                 # set span.kind to the type of operation being performed
                 s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-                s.set_tag(SPAN_MEASURED_KEY)
+                s.set_tag(_SPAN_MEASURED_KEY)
                 if s.context.sampling_priority is None or s.context.sampling_priority <= 0:
                     return super(TracedCursor, self).execute(query, vars)
 

@@ -73,20 +73,21 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
-  appsec_iast_packages:
-    parallelism: 5
+  iast_aggregated_leak_testing:
+    parallelism: 3
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/iast/*
+      - tests/appsec/iast_aggregated_memcheck/*
+    runner: hatch
+    timeout: 50m
+  appsec_iast_packages:
+    parallelism: 4
+    paths:
+      - '@appsec_iast'
       - tests/appsec/iast_packages/*
-    runner: riot
-    snapshot: true
-  appsec_integrations:
+    runner: hatch
+    timeout: 50m
+  appsec_integrations_pygoat:
     parallelism: 7
     paths:
       - '@bootstrap'
@@ -95,11 +96,41 @@ suites:
       - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
-      - tests/appsec/*
+      - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
     runner: riot
     snapshot: true
+  appsec_integrations_flask:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/flask_tests/*
+    retry: 2
+    runner: hatch
+    services:
+      - testagent
+    timeout: 40m
+  appsec_integrations_django:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/django_tests/*
+    retry: 2
+    runner: hatch
+    services:
+      - testagent
+    timeout: 30m
   appsec_threats_django:
     parallelism: 12
     paths:

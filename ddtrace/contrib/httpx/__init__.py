@@ -57,10 +57,10 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.Pin>` API::
+To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.trace.Pin>` API::
 
     import httpx
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     client = httpx.Client()
     # Override service name for this instance
@@ -87,10 +87,7 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-# Expose public methods
-from ddtrace.contrib.internal.httpx.patch import get_version
-from ddtrace.contrib.internal.httpx.patch import patch
-from ddtrace.contrib.internal.httpx.patch import unpatch
 
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.httpx.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.httpx.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.httpx.patch import unpatch  # noqa: F401

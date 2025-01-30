@@ -3,7 +3,7 @@ import threading
 from urllib import request
 
 from ddtrace import config
-from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from tests.utils import assert_is_measured
 from tests.utils import override_global_config
 

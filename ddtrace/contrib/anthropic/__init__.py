@@ -76,7 +76,8 @@ To configure the Anthropic integration on a per-instance basis use the
 ``Pin`` API::
 
     import anthropic
-    from ddtrace import Pin, config
+    from ddtrace import config
+    from ddtrace.trace import Pin
 
     Pin.override(anthropic, service="my-anthropic-service")
 """  # noqa: E501
@@ -90,9 +91,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.anthropic.patch import get_version
-from ddtrace.contrib.internal.anthropic.patch import patch
-from ddtrace.contrib.internal.anthropic.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.anthropic.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.anthropic.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.anthropic.patch import unpatch  # noqa: F401

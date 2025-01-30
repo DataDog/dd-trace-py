@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 import pytest
 
 import ddtrace
-from ddtrace.contrib.fastapi import patch as fastapi_patch
-from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 
