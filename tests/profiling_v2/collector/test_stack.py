@@ -338,7 +338,7 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
                         pprof_utils.StackLocation(
                             filename="test_stack.py",
                             function_name="test_exception_collection",
-                            line_no=test_exception_collection.__code__.co_firstlineno + 18,
+                            line_no=test_exception_collection.__code__.co_firstlineno + 15,
                         ),
                     ],
                 ),
@@ -447,7 +447,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
                         pprof_utils.StackLocation(
                             filename="test_stack.py",
                             function_name="test_exception_collection_trace",
-                            line_no=test_exception_collection_trace.__code__.co_firstlineno + 21,
+                            line_no=test_exception_collection_trace.__code__.co_firstlineno + 18,
                         ),
                     ],
                 ),
@@ -501,7 +501,7 @@ def test_collect_once_with_class(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 22,
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 19,
                 ),
             ],
         ),
@@ -555,7 +555,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
                 pprof_utils.StackLocation(
                     function_name="test_collect_once_with_class_not_right_type",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 22,
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 19,
                 ),
             ],
         ),
