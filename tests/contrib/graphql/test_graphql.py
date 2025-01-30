@@ -1,12 +1,12 @@
 import os
 
 import graphql
+from graphql import build_schema
+from graphql import graphql_sync
 import pytest
 
 from ddtrace import tracer
 from ddtrace.contrib.internal.graphql.patch import _graphql_version as graphql_version
-from graphql import build_schema
-from graphql import graphql_sync
 from ddtrace.contrib.internal.graphql.patch import patch
 from ddtrace.contrib.internal.graphql.patch import unpatch
 from tests.utils import override_config
@@ -75,7 +75,6 @@ async def test_graphql_with_traced_resolver(test_schema, test_source_str, snapsh
         assert result.data == {"hello": "friend"}
 
 
-
 def resolve_fail(root, info):
     undefined_var = None
     return undefined_var.property
@@ -101,12 +100,15 @@ def test_graphql_fail(enable_graphql_resolvers):
     """
 
     test_schema = build_schema(schema_definition)
-    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])
+    result = graphql_sync(
+        test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name]
+    )
 
     assert result.errors is not None
     assert len(result.errors) == 1
     assert isinstance(result.errors[0], graphql.error.GraphQLError)
     assert "'NoneType' object has no attribute 'name'" in result.errors[0].message
+
 
 @pytest.mark.asyncio
 async def test_graphql_error(test_schema, snapshot_context):

@@ -4,7 +4,6 @@ import sys
 import traceback
 from typing import TYPE_CHECKING
 from typing import List
-from typing import Dict
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -20,7 +19,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 import graphql
 from graphql import MiddlewareManager
-
 from graphql.error import GraphQLError
 from graphql.execution import ExecutionResult
 from graphql.language.source import Source
@@ -71,6 +69,7 @@ config._add(
 _GRAPHQL_SOURCE = "graphql.source"
 _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
 _GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+
 
 def patch():
     if getattr(graphql, "_datadog_patch", False):
@@ -307,20 +306,20 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
         locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
-        attributes={"message": error.message, 
-                    "type": span.get_tag("error.type"),
-                    "locations": locations, 
+        attributes = {
+            "message": error.message,
+            "type": span.get_tag("error.type"),
+            "locations": locations,
         }
 
         if error.__traceback__:
             stacktrace = "".join(
-                    traceback.format_exception(
-                        type(error), error, error.__traceback__, limit=config._span_traceback_max_size
-                    )
+                traceback.format_exception(
+                    type(error), error, error.__traceback__, limit=config._span_traceback_max_size
                 )
+            )
             attributes["stacktrace"] = stacktrace
             span.set_tag_str(ERROR_STACK, stacktrace)
-
 
         if error.path is not None:
             path = ",".join([str(path_obj) for path_obj in error.path])
@@ -330,6 +329,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             name="dd.graphql.query.error",
             attributes=attributes,
         )
+
 
 def _set_span_operation_tags(span, document):
     operation_def = graphql.get_operation_ast(document)
