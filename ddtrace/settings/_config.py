@@ -116,7 +116,6 @@ def _parse_propagation_styles(styles_str):
     - "datadog"
     - "b3multi"
     - "b3" (formerly 'b3 single header')
-    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "baggage"
     - "none"
@@ -142,14 +141,6 @@ def _parse_propagation_styles(styles_str):
     styles = []
     for style in styles_str.split(","):
         style = style.strip().lower()
-        if style == "b3 single header":
-            deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            style = PROPAGATION_STYLE_B3_SINGLE
         # None has no propagator so we pull it out
         if not style or style == _PROPAGATION_STYLE_NONE:
             continue

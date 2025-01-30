@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    propagation: Setting ``DD_TRACE_PROPAGATION_STYLE`` to ``b3 single header`` is no longer supported. Use ``b3`` instead.
