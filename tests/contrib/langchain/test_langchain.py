@@ -27,6 +27,8 @@ IGNORE_FIELDS = [
     # these are sometimes named differently
     "meta.langchain.request.openai.parameters.max_tokens",
     "meta.langchain.request.openai.parameters.max_completion_tokens",
+    "meta.langchain.request.openai-chat.parameters.max_completion_tokens"
+    "meta.langchain.request.openai-chat.parameters.max_tokens",
 ]
 
 
