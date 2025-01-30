@@ -9,8 +9,8 @@ from ddtrace.internal.utils import get_argument_value
 from ...appsec._constants import IAST_SPAN_TAGS
 from ...appsec._iast._metrics import increment_iast_span_metric
 from ...constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import _SPAN_MEASURED_KEY
 from ...constants import SPAN_KIND
-from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanKind
 from ...ext import SpanTypes
 from ...trace import Pin
@@ -67,7 +67,7 @@ class TracedAsyncCursor(TracedCursor):
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
-                s.set_tag(SPAN_MEASURED_KEY)
+                s.set_tag(_SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)

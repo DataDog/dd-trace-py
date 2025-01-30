@@ -4,8 +4,8 @@ from tornado.web import HTTPError
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanKind
@@ -50,7 +50,7 @@ def execute(func, handler, args, kwargs):
         # set span.kind to the type of operation being performed
         request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-        request_span.set_tag(SPAN_MEASURED_KEY)
+        request_span.set_tag(_SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
         analytics_enabled = settings["analytics_enabled"]

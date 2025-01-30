@@ -3,8 +3,8 @@ from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanKind
@@ -50,7 +50,7 @@ async def trace_middleware(app, handler):
             service=service,
             span_type=SpanTypes.WEB,
         )
-        request_span.set_tag(SPAN_MEASURED_KEY)
+        request_span.set_tag(_SPAN_MEASURED_KEY)
 
         request_span.set_tag_str(COMPONENT, config.aiohttp.integration_name)
 
