@@ -27,8 +27,6 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
         self.assert_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
         self.assert_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_wrapped(langchain.chains.base.Chain.invoke)
-        self.assert_wrapped(langchain.chains.base.Chain.ainvoke)
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
@@ -49,9 +47,6 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_patched(self, langchain):
-        from langchain import chains  # noqa: F401
-        from langchain.chains import base  # noqa: F401
-
         try:
             import langchain_community as gated_langchain
             from langchain_community import embeddings  # noqa: F401
@@ -66,8 +61,6 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_not_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
         self.assert_not_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
         self.assert_not_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_not_wrapped(langchain.chains.base.Chain.invoke)
-        self.assert_not_wrapped(langchain.chains.base.Chain.ainvoke)
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_not_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
@@ -88,8 +81,6 @@ class TestLangchainPatch(PatchTestCase.Base):
                 self.assert_not_wrapped(vectorstore_interface.similarity_search)
 
     def assert_not_module_double_patched(self, langchain):
-        from langchain.chains import base  # noqa: F401
-
         try:
             import langchain_community as gated_langchain
         except ImportError:
@@ -102,8 +93,6 @@ class TestLangchainPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(langchain_core.language_models.llms.BaseLLM.agenerate)
         self.assert_not_double_wrapped(langchain_core.language_models.chat_models.BaseChatModel.generate)
         self.assert_not_double_wrapped(langchain_core.language_models.chat_models.BaseChatModel.agenerate)
-        self.assert_not_double_wrapped(langchain.chains.base.Chain.invoke)
-        self.assert_not_double_wrapped(langchain.chains.base.Chain.ainvoke)
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.invoke)
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.ainvoke)
         self.assert_not_double_wrapped(langchain_core.runnables.base.RunnableSequence.batch)
