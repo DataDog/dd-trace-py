@@ -414,7 +414,7 @@ venv = Venv(
                     },
                     venvs=[
                         Venv(
-                            pys=select_pys("3.8"),
+                            pys="3.8",
                             pkgs={
                                 "gevent": "~=20.12.0",
                                 # greenlet v1.0.0 adds support for contextvars
@@ -1335,7 +1335,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys("3.8"),
+                    pys="3.8",
                     pkgs={"mongoengine": ["~=0.23", latest]},
                 ),
                 Venv(

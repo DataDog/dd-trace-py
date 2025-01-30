@@ -29,7 +29,7 @@ suites:
   appsec_iast:
     env:
       TEST_POSTGRES_HOST: postgres
-    parallelism: 6
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
