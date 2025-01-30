@@ -1,0 +1,11 @@
+---
+deprecations:
+  - |
+    tracing: Internalizes the ``ddtrace.settings.config`` module and deprecates the following ``ddtrace.config`` attributes:
+    - http, use ``DD_TRACE_HEADER_TAGS`` environment variable instead.
+    - http_server, use ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` environment variable instead.
+    - trace_headers, this attribute is internal to the tracer.
+    - header_is_traced, this attribute is internal to the tracer.
+    - convert_rc_trace_sampling_rules, this attribute is internal to the tracer.
+    - enable_remote_configuration, use ``DD_REMOTE_CONFIGURATION_ENABLED`` environment variable instead.
+    - get_from, use ``ddtrace.trace.Pin`` to set instance level configurations.

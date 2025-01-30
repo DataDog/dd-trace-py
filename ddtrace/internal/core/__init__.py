@@ -115,7 +115,6 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
-from ._core import DDSketch  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401
@@ -277,7 +276,7 @@ class ExecutionContext(AbstractContextManager):
         if self._inner_span is None:
             log.warning("No span found in ExecutionContext %s", self.identifier)
             # failsafe
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
 
             self._inner_span = tracer.current_span() or tracer.trace("default")
         return self._inner_span

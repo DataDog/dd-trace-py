@@ -3,7 +3,6 @@ import sys
 from typing import Dict
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import _is_iast_enabled
@@ -14,10 +13,11 @@ from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -147,8 +147,8 @@ def _create_and_attach_iast_report_to_span(req_span: Span, existing_data: Option
     set_iast_request_enabled(False)
     end_iast_context(req_span)
 
-    if req_span.get_tag(ORIGIN_KEY) is None:
-        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+    if req_span.get_tag(_ORIGIN_KEY) is None:
+        req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
     oce.release_request()
 

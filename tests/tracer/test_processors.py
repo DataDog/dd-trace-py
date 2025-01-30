@@ -3,22 +3,19 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
-from ddtrace import Tracer
-from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.span import Span
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
@@ -27,6 +24,9 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace import Context
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -581,7 +581,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):

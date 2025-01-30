@@ -2,8 +2,8 @@ import sys
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -39,7 +39,7 @@ class TraceMiddleware(object):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         # set analytics sample rate with global config enabled
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))

@@ -8,10 +8,8 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -27,6 +25,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
@@ -34,7 +33,6 @@ from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -68,6 +66,8 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -147,8 +147,6 @@ class LLMObs(Service):
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
-        if span._get_ctx_item(INPUT_PARAMETERS):
-            meta["input"]["parameters"] = span._get_ctx_item(INPUT_PARAMETERS)
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
@@ -297,7 +295,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        _tracer: Optional[ddtrace.Tracer] = None,
+        _tracer: Optional[ddtrace.trace.Tracer] = None,
     ) -> None:
         """
         Enable LLM Observability tracing.
@@ -323,9 +321,6 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         config.env = env or config.env
         config.service = service or config.service
-        if os.getenv("DD_LLMOBS_APP_NAME"):
-            log.warning("`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead.")
-            config._llmobs_ml_app = ml_app or os.getenv("DD_LLMOBS_APP_NAME")
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         # validate required values for LLMObs
@@ -485,7 +480,7 @@ class LLMObs(Service):
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
-        patch(**integrations_to_patch)  # type: ignore[arg-type]
+        patch(**integrations_to_patch)
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
@@ -520,6 +515,15 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         ml_app: Optional[str] = None,
     ) -> Span:
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
+            name="span.start",
+            value=1,
+            tags=(
+                ("autoinstrumented", "false"),
+                ("kind", operation_kind),
+            ),
+        )
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
@@ -700,7 +704,6 @@ class LLMObs(Service):
     def annotate(
         cls,
         span: Optional[Span] = None,
-        parameters: Optional[Dict[str, Any]] = None,
         prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
@@ -710,7 +713,7 @@ class LLMObs(Service):
         _name: Optional[str] = None,
     ) -> None:
         """
-        Sets parameters, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
+        Sets metadata, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
         Note that with the exception of tags, this method will override any existing values for the provided fields.
 
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
@@ -737,7 +740,6 @@ class LLMObs(Service):
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
-        :param parameters: (DEPRECATED) Dictionary of JSON serializable key-value pairs to set as input parameters.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
@@ -757,19 +759,29 @@ class LLMObs(Service):
             log.warning("Cannot annotate a finished span.")
             return
         if metadata is not None:
-            cls._tag_metadata(span, metadata)
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be a dictionary")
+            else:
+                cls._set_dict_attribute(span, METADATA, metadata)
         if metrics is not None:
-            cls._tag_metrics(span, metrics)
+            if not isinstance(metrics, dict):
+                log.warning("metrics must be a dictionary of string key - numeric value pairs.")
+            else:
+                cls._set_dict_attribute(span, METRICS, metrics)
         if tags is not None:
-            cls._tag_span_tags(span, tags)
+            if not isinstance(tags, dict):
+                log.warning("span tags must be a dictionary of string key - primitive value pairs.")
+            else:
+                cls._set_dict_attribute(span, TAGS, tags)
         span_kind = span._get_ctx_item(SPAN_KIND)
-        if parameters is not None:
-            log.warning("Setting parameters is deprecated, please set parameters and other metadata as tags instead.")
-            cls._tag_params(span, parameters)
         if _name is not None:
             span.name = _name
         if prompt is not None:
-            cls._tag_prompt(span, prompt)
+            try:
+                validated_prompt = validate_prompt(prompt)
+                cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+            except TypeError:
+                log.warning("Failed to validate prompt with error: ", exc_info=True)
         if not span_kind:
             log.debug("Span kind not specified, skipping annotation for input/output data")
             return
@@ -782,26 +794,6 @@ class LLMObs(Service):
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
-
-    @staticmethod
-    def _tag_prompt(span, prompt: dict) -> None:
-        """Tags a given LLMObs span with a prompt"""
-        try:
-            validated_prompt = validate_prompt(prompt)
-            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
-        except TypeError:
-            log.warning("Failed to validate prompt with error: ", exc_info=True)
-            return
-
-    @staticmethod
-    def _tag_params(span: Span, params: Dict[str, Any]) -> None:
-        """Tags input parameters for a given LLMObs span.
-        Will be mapped to span's `meta.input.parameters` field.
-        """
-        if not isinstance(params, dict):
-            log.warning("parameters must be a dictionary of key-value pairs.")
-            return
-        span._set_ctx_item(INPUT_PARAMETERS, params)
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None):
@@ -873,41 +865,14 @@ class LLMObs(Service):
             span._set_ctx_item(OUTPUT_VALUE, str(output_value))
 
     @staticmethod
-    def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
-        """Tags a given LLMObs span with a dictionary of key-value tag pairs.
-        If tags are already set on the span, the new tags will be merged with the existing tags.
+    def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
+        """Sets a given LLM Obs span attribute with a dictionary key/values.
+        If the attribute is already set on the span, the new dict with be merged with the existing
+        dict.
         """
-        if not span_tags:
-            return
-        if not isinstance(span_tags, dict):
-            log.warning("span_tags must be a dictionary of string key - primitive value pairs.")
-            return
-        try:
-            existing_tags = span._get_ctx_item(TAGS) or {}
-            existing_tags.update(span_tags)
-            span._set_ctx_item(TAGS, existing_tags)
-        except Exception:
-            log.warning("Failed to parse tags.", exc_info=True)
-
-    @staticmethod
-    def _tag_metadata(span: Span, metadata: Dict[str, Any]) -> None:
-        """Tags a given LLMObs span with a dictionary of key-value metadata pairs."""
-        if not metadata:
-            return
-        if not isinstance(metadata, dict):
-            log.warning("metadata must be a dictionary of string key-value pairs.")
-            return
-        span._set_ctx_item(METADATA, metadata)
-
-    @staticmethod
-    def _tag_metrics(span: Span, metrics: Dict[str, Any]) -> None:
-        """Tags a given LLMObs span with a dictionary of key-value metric pairs."""
-        if not metrics:
-            return
-        if not isinstance(metrics, dict):
-            log.warning("metrics must be a dictionary of string key - numeric value pairs.")
-            return
-        span._set_ctx_item(METRICS, metrics)
+        existing_value = span._get_ctx_item(key) or {}
+        existing_value.update(value)
+        span._set_ctx_item(key, existing_value)
 
     @classmethod
     def submit_evaluation_for(

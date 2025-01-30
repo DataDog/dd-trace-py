@@ -8,8 +8,8 @@ from wrapt import ObjectProxy
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -51,7 +51,7 @@ class TracedClient(ObjectProxy):
         super(TracedClient, self).__init__(client)
 
         schematized_service = schematize_service_name(service)
-        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Calling ddtrace.trace.Pin(...) with the `tracer` argument generates a deprecation warning.
         # Remove this if statement when the `tracer` argument is removed
         if tracer is ddtrace.tracer:
             pin = ddtrace.trace.Pin(service=schematized_service)
@@ -177,7 +177,7 @@ class TracedClient(ObjectProxy):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         try:
             self._tag_span(span)
