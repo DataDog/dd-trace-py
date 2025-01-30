@@ -136,7 +136,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
     )
-    chat = langchain_openai.ChatOpenAI(model="gpt-4-vision-preview", temperature=0, max_tokens=256)
+    chat = langchain_openai.ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_image_input_sync_generate.yaml"):
         chat.generate(
             [
@@ -146,7 +146,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
                             {"type": "text", "text": "What’s in this image?"},
                             {
                                 "type": "image_url",
-                                "image_url": image_url,
+                                "image_url": {"url": image_url},
                             },
                         ],
                     ),
