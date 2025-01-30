@@ -1115,7 +1115,7 @@ def patch():
 
 
 def unpatch():
-    if langchain_core is None or getattr(langchain_core, "_datadog_patch", False):
+    if langchain_core is None or (langchain_core and not getattr(langchain_core, "_datadog_patch", False)):
         return
 
     langchain_core._datadog_patch = False
