@@ -8,13 +8,13 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import is_tainted
-from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking import set_ranges_from_values
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_range as TaintRange  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_tainted  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking.ops import set_ranges_from_values  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ddtrace.internal.logger import get_logger
 

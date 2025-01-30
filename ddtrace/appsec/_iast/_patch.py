@@ -5,8 +5,8 @@ from typing import Text
 from wrapt import FunctionWrapper
 
 from ddtrace.appsec._common_module_patches import wrap_object
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger

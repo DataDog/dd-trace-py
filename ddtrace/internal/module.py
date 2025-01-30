@@ -13,6 +13,7 @@ from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ._module_handler import setup_optional_module
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -282,6 +283,14 @@ class _ImportHookChainedLoader:
             self.loader.get_code = get_code.__get__(self.loader, type(self.loader))  # type: ignore[union-attr]
 
         pre_exec_hook = self._find_first_pre_exec_hook(module)
+
+        if "_iast" in module.__name__:
+            setup_optional_module("ddtrace.appsec._iast._taint_tracking._taint_objects")
+            setup_optional_module("ddtrace.appsec._iast._iast_request_context")
+            setup_optional_module("ddtrace.appsec._iast._patches.json_tainting")
+            setup_optional_module("ddtrace.appsec._iast._taint_tracking._native.taint_tracking")
+            setup_optional_module("ddtrace.appsec._iast._taint_tracking._native.initializer")
+            setup_optional_module("ddtrace.appsec._iast._taint_tracking._native")
 
         if pre_exec_hook:
             pre_exec_hook(self, module)

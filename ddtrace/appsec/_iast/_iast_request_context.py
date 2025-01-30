@@ -11,8 +11,8 @@ from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
-from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
+from ddtrace.appsec._iast._taint_tracking._native.initializer import create_context as create_propagation_context
+from ddtrace.appsec._iast._taint_tracking._native.initializer import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core

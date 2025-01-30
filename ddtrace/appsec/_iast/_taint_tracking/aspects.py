@@ -40,7 +40,7 @@ from ddtrace.appsec._iast._taint_tracking import common_replace
 from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
+from ddtrace.appsec._iast._taint_tracking._native.ops import new_pyobject_id
 from ddtrace.appsec._iast._taint_tracking import parse_params
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
