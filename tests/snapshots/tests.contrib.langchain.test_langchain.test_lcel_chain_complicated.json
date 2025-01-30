@@ -1,0 +1,68 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679ba55b00000000",
+      "langchain.request.inputs.0.style": "a 90s rapper",
+      "langchain.request.inputs.0.topic": "chickens",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "Why did the chicken cross the road? To drop some sick rhymes on the other side!",
+      "language": "python",
+      "runtime-id": "7e8d59d58db840a2a6e56428bbceea15"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 19,
+      "langchain.tokens.prompt_tokens": 53,
+      "langchain.tokens.total_cost": 0.0001175,
+      "langchain.tokens.total_tokens": 72,
+      "process_id": 27394
+    },
+    "duration": 9640000,
+    "start": 1738253659077088000
+  },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.0.content": "Tell me a short joke about {'topic': 'chickens', 'style': 'a 90s rapper'} in the style of {'topic': 'chickens', 'style': 'a 90s ...",
+         "langchain.request.messages.0.0.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.n": "1",
+         "langchain.request.openai.parameters.stream": "False",
+         "langchain.request.openai.parameters.temperature": "0.7",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "Why did the chicken cross the road? To drop some sick rhymes on the other side!",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 19,
+         "langchain.tokens.prompt_tokens": 53,
+         "langchain.tokens.total_cost": 0.0001175,
+         "langchain.tokens.total_tokens": 72
+       },
+       "duration": 2999000,
+       "start": 1738253659083520000
+     }]]

@@ -179,7 +179,7 @@ def streamed_response_responder():
 
             def handle_request(self, request: httpx.Request) -> httpx.Response:
                 with open(
-                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    os.path.join(os.path.dirname(__file__), f"cassettes/{self.file}"),
                     "r",
                     encoding="utf-8",
                 ) as f:
@@ -219,7 +219,7 @@ def async_streamed_response_responder():
 
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
                 with open(
-                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    os.path.join(os.path.dirname(__file__), f"cassettes/{self.file}"),
                     "r",
                     encoding="utf-8",
                 ) as f:
