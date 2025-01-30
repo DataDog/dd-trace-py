@@ -24,9 +24,10 @@ struct ThreadArgs
 void*
 call_sampling_thread(void* args)
 {
-    ThreadArgs* thread_args = static_cast<ThreadArgs*>(args);
-    Sampler* sampler = thread_args->sampler;
-    sampler->sampling_thread(thread_args->seq_num);
+    ThreadArgs thread_args = *static_cast<ThreadArgs*>(args);
+    delete static_cast<ThreadArgs*>(args); // no longer needed, dynamic alloc
+    Sampler* sampler = thread_args.sampler;
+    sampler->sampling_thread(thread_args.seq_num);
     return nullptr;
 }
 
@@ -42,12 +43,13 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     }
 
     pthread_t thread_id;
-    ThreadArgs thread_args = { sampler, seq_num };
-    int ret = pthread_create(&thread_id, &attr, call_sampling_thread, &thread_args);
+    ThreadArgs* thread_args = new ThreadArgs{ sampler, seq_num };
+    int ret = pthread_create(&thread_id, &attr, call_sampling_thread, thread_args);
 
     pthread_attr_destroy(&attr);
 
     if (ret != 0) {
+        delete thread_args; // usually deleted in the thread, but need to clean it up here
         return 0;
     }
     return thread_id;
