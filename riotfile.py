@@ -2765,7 +2765,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "langchain-openai": latest,
-            }
+            },
         ),
         Venv(
             name="langgraph",

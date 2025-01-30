@@ -1,18 +1,18 @@
+from importlib.metadata import version
 import os
 import sys
 
-from ddtrace import Span
+import langchain_openai
+
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.langchain import LangChainIntegration
-from importlib.metadata import version
 from ddtrace.trace import Pin
 
-import langchain_openai
 
 config._add(
     "langchain",
@@ -21,6 +21,7 @@ config._add(
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
     },
 )
+
 
 def _extract_model_name(instance):
     """Extract model name or ID from llm instance."""
@@ -54,8 +55,10 @@ def _extract_api_key(instance) -> str:
             return _format_api_key(api_key)
     return ""
 
+
 def get_version() -> str:
     return version("langchain_openai")
+
 
 @with_traced_module
 def traced_embedding(langchain, pin, func, instance, args, kwargs):
@@ -111,13 +114,13 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 def patch():
     if getattr(langchain_openai, "_datadog_patch", False):
         return
-    
+
     langchain_openai._datadog_patch = True
 
     Pin().onto(langchain_openai)
     integration = LangChainIntegration(integration_config=config.langchain)
     langchain_openai._datadog_integration = integration
-    
+
     wrap("langchain_openai", "embeddings.base.OpenAIEmbeddings.embed_query", traced_embedding(langchain_openai))
     wrap("langchain_openai", "embeddings.base.OpenAIEmbeddings.embed_documents", traced_embedding(langchain_openai))
 
@@ -125,9 +128,9 @@ def patch():
 def unpatch():
     if not getattr(langchain_openai, "_datadog_patch", False):
         return
-    
+
     langchain_openai._datadog_patch = False
-    
+
     unwrap(langchain_openai.embeddings.base.OpenAIEmbeddings, "embed_query")
     unwrap(langchain_openai.embeddings.base.OpenAIEmbeddings, "embed_documents")
 

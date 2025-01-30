@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from ddtrace.contrib.internal.langchain_openai.patch import patch
@@ -6,6 +7,7 @@ from ddtrace.contrib.internal.langchain_openai.patch import unpatch
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
+
 
 @pytest.fixture
 def langchain_openai():
@@ -24,4 +26,4 @@ def langchain_openai():
                 import langchain_openai
 
                 yield langchain_openai
-                unpatch()  
+                unpatch()
