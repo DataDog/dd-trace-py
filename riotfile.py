@@ -776,7 +776,14 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django_hosts": ["~=4.0", "~=5.0", latest],
+                        "django_hosts": "~=4.0",
+                        "django": "~=3.2",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
                         "django": "~=4.0",
                     },
                 ),
@@ -801,8 +808,15 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django": ["~=4.0", "~=3.2"],
-                        "djangorestframework": [">=3.11,<3.12", "~=3.13", latest],
+                        "django": "~=3.2",
+                        "djangorestframework": ">=3.11,<3.12",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": ["~=4.0"],
+                        "djangorestframework": ["~=3.13", latest],
                     },
                 ),
             ],
@@ -1099,10 +1113,14 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    pys="3.8",
+                    pkgs={"psycopg2-binary": "~=2.8.0"},
+                ),
+                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.12"),
                     # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
                     # psycopg2-binary added support for Python 3.11 in 2.9.2
-                    pkgs={"psycopg2-binary": ["~=2.8.0", "~=2.9.2", latest]},
+                    pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                 ),
             ],
         ),
