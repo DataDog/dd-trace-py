@@ -14,6 +14,8 @@ components:
   asgi:
     - ddtrace/contrib/asgi/*
     - ddtrace/contrib/internal/asgi/*
+  asyncio:
+    - ddtrace/contrib/asyncio/*
   avro:
     - ddtrace/contrib/avro/*
     - ddtrace/contrib/internal/avro/*
@@ -325,6 +327,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@asyncio'
       - '@appsec'
       - '@asgi'
       - tests/contrib/asgi/*
@@ -592,6 +595,7 @@ suites:
       - '@starlette'
       - '@fastapi'
       - '@asgi'
+      - '@asyncio'
       - tests/contrib/fastapi/*
       - tests/snapshots/tests.contrib.starlette.*
       - tests/snapshots/tests.{suite}.*
@@ -1013,6 +1017,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@sanic'
+      - '@asyncio'
       - tests/contrib/sanic/*
       - tests/snapshots/tests.contrib.sanic.*
     runner: riot
@@ -1053,6 +1058,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@asyncio'
       - '@starlette'
       - '@asgi'
       - tests/contrib/starlette/*
@@ -1064,16 +1070,18 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@logging'
+      - '@asyncio'
       - '@futures'
       - '@sqlite3'
       - '@dbapi'
       - '@contrib'
       - tests/contrib/logging/*
       - tests/contrib/sqlite3/*
+      - tests/contrib/asyncio/*
       - tests/contrib/futures/*
       - tests/contrib/dbapi/*
       - tests/contrib/dbapi_async/*
-    pattern: sqlite3$|futures$|dbapi$|dbapi_async$
+    pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     runner: riot
     snapshot: true
   structlog:
