@@ -170,6 +170,7 @@ class Dataset:
             expected_output = attrs.get("expected_output")
                 
             class_records.append({
+                "record_id": record.get("id"),
                 "input": input_data,
                 "expected_output": expected_output,
                 **attrs.get("metadata", {}),
@@ -182,16 +183,10 @@ class Dataset:
         return dataset
 
     def push(self, chunk_size: int = 300) -> None:
-        """Push the dataset to Datadog.
+        """Push the dataset to Datadog and refresh with pulled data.
 
         Args:
             chunk_size: Number of records to upload in each chunk. Defaults to 300.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing dataset information including:
-                - dataset_id: The ID of the created/updated dataset
-                - dataset_name: The name of the dataset
-                - record_count: Number of records uploaded
         """
         # Check if dataset exists
         encoded_name = quote(self.name)
@@ -244,6 +239,12 @@ class Dataset:
             
             if show_progress:
                 _print_progress_bar(i + 1, total_chunks, prefix='Uploading:', suffix='Complete')
+
+        # Pull the dataset to get all record IDs and metadata
+        pulled_dataset = self.pull(self.name)
+        self._data = pulled_dataset._data
+        self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+        self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
 
         # Print url to the dataset in Datadog
         print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n")
@@ -504,14 +505,16 @@ class Experiment:
         self.metadata = metadata
         self.config = config
 
-        # Enforce that the task function has the @task decorator
-        if not hasattr(self.task, '_is_task'):
+        # Make sure the task is decorated with @task
+        if not hasattr(self.task, "_is_task"):
             raise TypeError("Task function must be decorated with @task decorator.")
 
-        # Enforce that all evaluators have the @evaluator decorator
+        # Make sure every evaluator is decorated with @evaluator
         for evaluator_func in self.evaluators:
-            if not hasattr(evaluator_func, '_is_evaluator'):
-                raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
+            if not hasattr(evaluator_func, "_is_evaluator"):
+                raise TypeError(
+                    f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator."
+                )
 
         # Post-run attributes
         self.has_run = False
@@ -519,98 +522,228 @@ class Experiment:
         self.outputs = []
         self.evaluations = []
 
+        # We'll store the experiment's Datadog ID once it's created.
+        self._datadog_experiment_id: Optional[str] = None
+        self._datadog_project_id: Optional[str] = None
+
+    def _get_or_create_project(self) -> str:
+        """
+        Internal helper to retrieve or create a project in Datadog, returning the project_id.
+        """
+        url = f"/api/unstable/llm-obs/v1/projects?filter[name]={self.project_name}"
+        resp = exp_http_request("GET", url)
+        response_data = resp.json()
+        projects = response_data.get("data", [])
+
+        if not projects:
+            # Create new project
+            project_payload = {
+                "data": {
+                    "type": "projects",
+                    "attributes": {
+                        "name": self.project_name,
+                        "description": "",
+                        "metadata": {"team": "ml-obs"},
+                    },
+                }
+            }
+            resp = exp_http_request(
+                "POST",
+                "/api/unstable/llm-obs/v1/projects",
+                body=json.dumps(project_payload).encode("utf-8"),
+            )
+            response_data = resp.json()
+            return response_data["data"]["id"]
+        else:
+            return projects[0]["id"]
+
+    def _create_experiment_in_datadog(self) -> str:
+        """
+        Internal helper to create an experiment in Datadog, returning the new experiment_id.
+        Raises ValueError if the dataset hasn't been pushed (no _datadog_dataset_id).
+        """
+        if not self.dataset._datadog_dataset_id:
+            raise ValueError(
+                "Dataset must be pushed to Datadog (so it has an ID) before creating an experiment. "
+                "Please call dataset.push() first."
+            )
+
+        project_id = self._get_or_create_project()
+
+        experiment_payload = {
+            "data": {
+                "type": "experiments",
+                "attributes": {
+                    "name": self.name,
+                    "description": self.description,
+                    "dataset_id": self.dataset._datadog_dataset_id,
+                    "project_id": project_id,
+                    "dataset_version": self.dataset._datadog_dataset_version,
+                    "metadata": {
+                        "tags": self.tags,
+                        **(self.metadata or {}),
+                        "config": self.config,
+                    },
+                    "ensure_unique": True,
+                },
+            }
+        }
+        resp = exp_http_request(
+            "POST",
+            "/api/unstable/llm-obs/v1/experiments",
+            body=json.dumps(experiment_payload).encode("utf-8"),
+        )
+        response_data = resp.json()
+        experiment_id = response_data["data"]["id"]
+
+        # The API may rename the experiment (e.g., adding a suffix), so update local name:
+        self.name = response_data["data"]["attributes"]["name"]
+        return experiment_id
+
+    def run(
+        self,
+        _jobs: int = 10,
+        raise_errors: bool = False,
+    ) -> "ExperimentResults":
+        """
+        Execute the task and evaluations, returning the results.
+        Here, we guarantee an experiment is created first,
+        so run_task() can tag traces with the real experiment ID.
+        """
+        print("Running experiment...")
+        # 1) Make sure the dataset is pushed
+        if not self.dataset._datadog_dataset_id:
+            raise ValueError(
+                "Dataset must be pushed to Datadog before running the experiment."
+            )
+
+        # 2) Create project + experiment if this hasn't been done yet
+        if not self._datadog_experiment_id:
+            project_id = self._get_or_create_project()  # your existing helper
+            self._datadog_project_id = project_id
+            
+            experiment_id = self._create_experiment_in_datadog()  # your existing helper
+            self._datadog_experiment_id = experiment_id
+
+        # 3) Now run the task and evaluations
+        self.run_task(_jobs=_jobs, raise_errors=raise_errors)
+        experiment_results = self.run_evaluations(raise_errors=raise_errors)
+        return experiment_results
+
     def run_task(
         self,
         _jobs: int = 10,
         raise_errors: bool = False,
     ) -> None:
-        """Execute the task function on the dataset and store the outputs.
-
-        Args:
-            _jobs: Number of concurrent jobs to run (between 1-20). Defaults to 10.
-            raise_errors: If True, raises exceptions from failed tasks. If False, stores
-                          errors in the output. Defaults to False.
-
-        Raises:
-            ValueError: If _jobs is not between 1 and 30
+        """
+        Execute the task function on the dataset and store the outputs.
+        The caller (run()) ensures that self._datadog_experiment_id is set first.
         """
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
         if not 1 <= _jobs <= 30:
             raise ValueError("Number of jobs must be between 1 and 30")
-        
-        def instrumented_task(input_data, expected_output, config=None): 
+
+        def instrumented_task(
+            record_id: str, input_data: Any, expected_output: Any, config: Optional[Dict[str, Any]] = None
+        ):
             with LLMObs._experiment(name="experiment-task") as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 output = self.task(input_data, config)
-                # LLMObs._tag_expected_output(span, expected_output)
-                LLMObs.annotate(span, input_data=input_data, output_data=output)
-                return output
-        
+                LLMObs.annotate(
+                    span,
+                    input_data=input_data,
+                    output_data=output,
+                    tags={
+                        "dataset_id": self.dataset._datadog_dataset_id,
+                        "dataset_record_id": record_id,
+                        "experiment_id": self._datadog_experiment_id,
+
+                    },
+                )
+                LLMObs._tag_expected_output(span, expected_output)
+                return (output, span)
+
         self.outputs = []
         total_rows = len(self.dataset)
         completed = 0
-        error_count = 0 
+        error_count = 0
 
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            
-            try:
-                input_data = row['input']
-                expected_output = row['expected_output']
-                
-                if getattr(self.task, '_accepts_config', False):
-                    output = instrumented_task(input_data, expected_output, self.config)
-                else:
-                    output = instrumented_task(input_data, expected_output)
-                
-                # Periodic flush every 10 rows (approximate because it's concurrent)
-                if idx % 10 == 0:
-                    LLMObs.flush()
-                
-                output_data = {
-                    "idx": idx,
-                    "output": output,
-                    "metadata": {
-                        "timestamp": start_time,
-                        "duration": time.time() - start_time,
-                        "dataset_record_idx": idx,
-                        "project_name": self.project_name,
-                        "experiment_name": self.name,
-                        "dataset_name": self.dataset.name,
-                    },
-                    "error": {
-                        "message": None,
-                        "stack": None,
-                        "type": None,
-                    }
-                }
-                return output_data
 
-            except Exception as e:
-                error_message = str(e)
-                return {
-                    "idx": idx,
-                    "output": None,
-                    "metadata": {
-                        "timestamp": start_time,
-                        "duration": time.time() - start_time,
-                        "dataset_record_idx": idx,
-                        "project_name": self.project_name,
-                        "experiment_name": self.name,
-                        "dataset_name": self.dataset.name,
-                    },
-                    "error": {
-                        "message": error_message,
-                        "stack": traceback.format_exc(),
-                        "type": type(e).__name__,
+            with LLMObs._experiment(name="experiment-task") as span:
+                span.context.set_baggage_item("is_experiment_task", True)
+                try:
+                    input_data = row["input"]
+                    expected_output = row["expected_output"]
+
+                    if getattr(self.task, "_accepts_config", False):
+                        output = self.task(input_data, self.config)
+                    else:
+                        output = self.task(input_data)
+
+                    # Periodic flush for concurrency
+                    if idx % 10 == 0:
+                        LLMObs.flush()
+
+                    LLMObs.annotate(
+                        span,
+                        input_data=input_data,
+                        output_data=output,
+                        tags={
+                            "dataset_id": self.dataset._datadog_dataset_id,
+                            "dataset_record_id": row["record_id"],
+                            "experiment_id": self._datadog_experiment_id,
+                        },
+                    )
+                    LLMObs._tag_expected_output(span, expected_output)
+
+                    return {
+                        "idx": idx,
+                        "output": output,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": time.time() - start_time,
+                            "dataset_record_index": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                            "span_id": span.span_id,
+                            "trace_id": span.trace_id,
+                        },
+                        "error": {"message": None, "stack": None, "type": None},
                     }
-                }
+
+                except Exception as e:
+                    error_message = str(e)
+                    return {
+                        "idx": idx,
+                        "output": None,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": time.time() - start_time,
+                            "dataset_record_index": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                            "span_id": span.span_id,
+                            "trace_id": span.trace_id,
+                        },
+                        "error": {
+                            "message": error_message,
+                            "stack": traceback.format_exc(),
+                            "type": type(e).__name__,
+                        }
+                    }
 
         _print_progress_bar(0, total_rows, prefix='Processing:', suffix='Complete')
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
-            futures = {executor.submit(process_row, (idx, row)): idx for idx, row in enumerate(self.dataset)}
+            futures = {
+                executor.submit(process_row, (idx, row)): idx
+                for idx, row in enumerate(self.dataset)
+            }
             outputs_buffer = [None] * total_rows
 
             try:
@@ -619,11 +752,13 @@ class Experiment:
                     try:
                         output_data = future.result()
                         outputs_buffer[idx] = output_data
-                        if raise_errors and output_data['error']['message']:
-                            error_message = output_data['error']['message']
-                            raise ExperimentTaskError(error_message, idx, output_data['error']['type'])
-                            
-                        elif output_data['error']['message']:
+                        if raise_errors and output_data["error"]["message"]:
+                            error_message = output_data["error"]["message"]
+                            raise ExperimentTaskError(
+                                error_message, idx, output_data["error"]["type"]
+                            )
+
+                        elif output_data["error"]["message"]:
                             error_count += 1
 
                     except Exception as e:
@@ -633,16 +768,18 @@ class Experiment:
                             "metadata": {
                                 "timestamp": time.time(),
                                 "duration": 0,
-                                "dataset_record_idx": idx,
+                                "dataset_record_index": idx,
                                 "project_name": self.project_name,
                                 "experiment_name": self.name,
                                 "dataset_name": self.dataset.name,
+                                "span_id": span.span_id,
+                                "trace_id": span.trace_id,
                             },
                             "error": {
                                 "message": str(e),
                                 "stack": traceback.format_exc(),
                                 "type": type(e).__name__,
-                            }
+                            },
                         }
                         if raise_errors:
                             raise e
@@ -650,7 +787,7 @@ class Experiment:
                             error_count += 1
 
                     completed += 1
-                    _print_progress_bar(completed, total_rows, prefix='Processing:', suffix='Complete')
+                    _print_progress_bar(completed, total_rows, prefix="Processing:", suffix="Complete")
 
             except Exception as e:
                 for future in futures:
@@ -660,8 +797,7 @@ class Experiment:
 
         self.outputs = outputs_buffer
         self.has_run = True
-        
-        # Final flush at the end
+
         LLMObs.flush()
 
         error_rate = (error_count / total_rows) * 100
@@ -669,9 +805,16 @@ class Experiment:
         os.environ["DD_LLMOBS_ENABLED"] = "False"
         print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
         if error_count > 0:
-            print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
+            print(
+                "If you'd like to halt execution on errors and see the full traceback, "
+                "set `raise_errors=True` when running the experiment."
+            )
 
-    def run_evaluations(self, evaluators: Optional[List[Callable]] = None, raise_errors: bool = False) -> "ExperimentResults":
+    def run_evaluations(
+        self,
+        evaluators: Optional[List[Callable]] = None,
+        raise_errors: bool = False
+    ) -> "ExperimentResults":
         """Run evaluators on the outputs and return ExperimentResults.
         
         Args:
@@ -753,26 +896,7 @@ class Experiment:
         self.has_evaluated = True
         return ExperimentResults(self.dataset, self, self.outputs, evaluations)
 
-    def run(
-        self,
-        _jobs: int = 10,
-        raise_errors: bool = False,
-    ) -> "ExperimentResults":
-        """Execute the task and evaluations, returning the results.
-
-        Args:
-            _jobs (int): Number of worker threads.
-            timeout (float, optional): Time limit for the task execution in seconds.
-            raise_errors (bool): If True, raises exceptions from failed tasks. If False, stores
-                                errors in the output. Defaults to False.
-
-        Returns:
-            ExperimentResults: The results of the experiment.
-        """
-        self.run_task(_jobs=_jobs, raise_errors=raise_errors)
-        experiment_results = self.run_evaluations(raise_errors=raise_errors)
-        return experiment_results
-
+ 
 
 class ExperimentResults:
     """Contains and manages the results of an experiment run.
@@ -808,6 +932,7 @@ class ExperimentResults:
 
             merged_result = {
                 "idx": idx,
+                "record_id": dataset_record.get('record_id'),
                 "input": dataset_record.get('input', {}),
                 "expected_output": dataset_record.get('expected_output', {}),
                 "output": output_data.get('output'),
@@ -901,80 +1026,43 @@ class ExperimentResults:
         return final_df
 
     def push(self, chunk_size: int = 300) -> None:
-        """Push the experiment results to Datadog.
-
-        Args:
-            chunk_size: Number of records to upload in each chunk. Defaults to 300.
-
-        Raises:
-            ValueError: If the dataset hasn't been pushed to Datadog first
         """
+        Push the experiment results to Datadog, without re-creating the project/experiment.
+        Assumes self.experiment._datadog_experiment_id and self.experiment._datadog_project_id
+        have already been set in Experiment.run().
+        """
+        # Ensure the dataset is hosted in Datadog
         if not self.experiment.dataset._datadog_dataset_id:
             raise ValueError(
                 "Dataset has not been pushed to Datadog. "
                 "Please call dataset.push() before pushing experiment results."
             )
 
-        # Check if project exists
-        url = f"/api/unstable/llm-obs/v1/projects?filter[name]={self.experiment.project_name}"
-        resp = exp_http_request("GET", url)
-        response_data = resp.json()
-        projects = response_data.get("data", [])
-        if not projects:
-            # Create new project
-            project_payload = {
-                "data": {
-                    "type": "projects",
-                    "attributes": {
-                        "name": self.experiment.project_name,
-                        "description": "",
-                        "metadata": {"team": "ml-obs"},
-                    },
-                }
-            }
-            resp = exp_http_request(
-                "POST",
-                "/api/unstable/llm-obs/v1/projects",
-                body=json.dumps(project_payload).encode("utf-8"),
+        # Ensure the experiment was already created (via run())
+        if not self.experiment._datadog_experiment_id:
+            raise ValueError(
+                "Experiment has not been created in Datadog. "
+                "Please call experiment.run() before pushing results."
             )
-            response_data = resp.json()
-            project_id = response_data["data"]["id"]
-        else:
-            project_id = projects[0]["id"]
 
-        # Create new experiment
-        experiment_payload = {
-            "data": {
-                "type": "experiments",
-                "attributes": {
-                    "name": self.experiment.name,
-                    "description": self.experiment.description,
-                    "dataset_id": self.experiment.dataset._datadog_dataset_id,
-                    "project_id": project_id,
-                    "dataset_version": self.experiment.dataset._datadog_dataset_version,
-                    "metadata": {
-                        "tags": self.experiment.tags,
-                        **(self.experiment.metadata or {}),
-                        "config": self.experiment.config,
-                    },
-                    "ensure_unique": True, # Generates a new experiment with a unique name if the experiment name already exists
-                },
-            }
-        }
-        resp = exp_http_request(
-            "POST", "/api/unstable/llm-obs/v1/experiments", body=json.dumps(experiment_payload).encode("utf-8")
-        )
-        response_data = resp.json()
-        experiment_id = response_data["data"]["id"]
-        self.experiment.name = response_data["data"]["attributes"]["name"]
+        # Grab IDs from the already-created experiment
+        experiment_id = self.experiment._datadog_experiment_id
+        project_id = self.experiment._datadog_project_id
+        experiment_name = self.experiment.name
 
-        # Process results in chunks
+        # Now proceed with chunked uploading of your results — no project or experiment creation here.
+
         total_results = len(self.merged_results)
-        chunks = [self.merged_results[i:i + chunk_size] for i in range(0, total_results, chunk_size)]
+        # Optional progress bar
+        show_progress = total_results > chunk_size
+
+        # Just an example of how you'd do chunked uploads:
+        chunks = [
+            self.merged_results[i : i + chunk_size]
+            for i in range(0, total_results, chunk_size)
+        ]
         total_chunks = len(chunks)
 
-        # Only show progress bar for large result sets
-        show_progress = total_results > chunk_size
         if show_progress:
             print(f"\nUploading {total_results} results in {total_chunks} chunks...")
             _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
@@ -988,39 +1076,15 @@ class ExperimentResults:
                 idx = result['idx']
                 merged_result = result
                 output = merged_result.get('output')
+                record_id = merged_result.get('record_id')
                 input = merged_result.get('input', {})
                 evaluations = merged_result.get('evaluations', {})
                 expected_output = merged_result.get('expected_output', {})
-                metadata = merged_result.get('metadata', {})
                 error = merged_result.get('error', {})
+                metadata = merged_result.get('metadata', {})
+                span_id = metadata.get('span_id')
+                trace_id = metadata.get('trace_id')
 
-                # When the dataset is not hosted, we use the hash of the input and expected output as the dataset record id
-                dataset_record_id = hashlib.md5((str(input) + str(expected_output)).encode('utf-8')).hexdigest()
-
-                span = {
-                    "span_id": _make_id(),
-                    "project_id": project_id,
-                    "experiment_id": experiment_id,
-                    "dataset_id": self.experiment.dataset._datadog_dataset_id,
-                    #TODO: Extract the record id from the dataset for hosted datasets
-                    "dataset_record_id": dataset_record_id,
-                    "start_ns": int(metadata.get("timestamp", time.time()) * 1e9),
-                    "duration": float(metadata.get("duration", 0) * 1e9),
-                    "status": "ok" if not error else "error",
-                    "metrics": {},  # TODO: Fill in with actual metrics once we have tracing and llm spans
-                    "meta": {
-                        "span": {"kind": "experiment-result"},
-                        "input": merged_result.get('input', {}),
-                        "output": output,
-                        "expected_output": merged_result.get('expected_output', {}),
-                        "error": {
-                            "message": error.get("message"),
-                            "type": error.get("type"),
-                            "stack": error.get("stack"),
-                        }
-                    },
-                }
-                spans.append(span)
 
                 # Add evaluation metrics
                 for metric_payload_name, metric_payload_value in evaluations.items():
@@ -1047,33 +1111,43 @@ class ExperimentResults:
 
 
                     metric = {
-                        "span_id": span["span_id"],
+                        "span_id": str(span_id),
+                        "trace_id": str(trace_id),
                         "metric_type": metric_type,
                         "timestamp_ms": timestamp_ms,
                         "label": metric_payload_name,
                         "score_value" if metric_type == "score" else "categorical_value": metric_value,
                         "error": metric_payload_value["error"],
+                        "join_on": {
+                            "span": {
+                                "trace_id": str(trace_id),
+                                "span_id": str(span_id),
+                            },
+                        }
                     }
 
                     metrics.append(metric)
+                    
 
             # Prepare and send chunk payload
             chunk_payload = {
                 "data": {
-                    "type": "experiments",
-                    "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__],
-                    "attributes": {"spans": [], "metrics": []} #metrics}, #TODO: Remove this whole thing since experiment spans results will be part of tracing
+                    "type": "evaluation_metric",
+                    "attributes": {"scope": "experiments", "metrics": metrics, "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + experiment_id]}, 
                 }
             }
 
-            url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            print("chunk_payload: ", chunk_payload)
+
+            url = f"/api/intake/llm-obs/v2/eval-metric"
             exp_http_request("POST", url, body=json.dumps(chunk_payload).encode("utf-8"))
 
             if show_progress:
-                _print_progress_bar(chunk_idx + 1, total_chunks, prefix='Uploading:', suffix='Complete')
+                _print_progress_bar(
+                    chunk_idx + 1, total_chunks, prefix='Uploading:', suffix='Complete'
+                )
 
-        # Print URL to the experiment in Datadog
-        print(f"\nExperiment '{self.experiment.name}' created: {BASE_URL}/llm/experiments/experiment-list/{experiment_id}\n")
+        print(f"\nExperiment '{experiment_name}' results pushed to Datadog.\n")
 
     def export_to_jsonl(self, file_path):
         """

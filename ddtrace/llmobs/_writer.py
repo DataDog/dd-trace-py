@@ -390,8 +390,6 @@ class LLMObsSpanWriter(HTTPWriter):
                     continue
 
                 try:
-                    print("Sending experiment spans")
-                    print(encoded)
                     self._send_payload_with_backoff(encoded, count, client)
                 except Exception:
                     self._metrics_dist("http.errors", tags=["type:err"])

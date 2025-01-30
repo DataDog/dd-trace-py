@@ -813,9 +813,6 @@ class LLMObs(Service):
         """Tags a given LLMObs span with a prompt"""
         try:
             span._set_ctx_item(EXPECTED_OUTPUT, expected_output)
-            print("added expected output")
-            print("expected output: ", span._get_ctx_item(EXPECTED_OUTPUT))
-            print("span: ", span)
         except TypeError:
             log.warning("Failed to validate expected output with error: ", exc_info=True)
             return
