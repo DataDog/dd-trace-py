@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    langchain: removed patching for ``langchain.chains.base.Chains``.
