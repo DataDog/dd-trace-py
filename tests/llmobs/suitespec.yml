@@ -20,6 +20,9 @@ components:
   langgraph:
     - ddtrace/contrib/langgraph/*
     - ddtrace/contrib/internal/langgraph/*
+  langchain_openai:
+    - ddtrace/contrib/langchain_openai/*
+    - ddtrace/contrib/internal/langchain_openai/*
 suites:
   anthropic:
     parallelism: 3
