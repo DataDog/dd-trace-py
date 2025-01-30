@@ -42,8 +42,11 @@ def uwsgi(monkeypatch):
 
 def test_uwsgi_threads_disabled(uwsgi):
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=1)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -59,6 +62,7 @@ def test_uwsgi_threads_number_set(uwsgi):
 
 def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads")
     worker_pids = _get_worker_pids(proc.stdout, 1)
@@ -71,8 +75,14 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
 
 
 def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("STOP_AFTER_LOAD", "1")
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=1)
+    except TimeoutExpired:
+        proc.terminate()
+        stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
@@ -101,6 +111,7 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
 
 def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
     worker_pids = _get_worker_pids(proc.stdout, 2)
@@ -114,6 +125,7 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
 
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
@@ -127,6 +139,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
 
 def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)

@@ -266,7 +266,10 @@ def test_lock_release_events():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_PROFILING_FILE_PATH": __file__})
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_PROFILING_ENABLED": "1", "DD_PROFILING_LOCK_ENABLED": "1", "DD_PROFILING_FILE_PATH": __file__},
+)
 def test_lock_gevent_tasks():
     from gevent import monkey  # noqa:F401
 

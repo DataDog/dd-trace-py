@@ -79,6 +79,7 @@ def test_fork(tmp_path):
 
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, pid = call_program(

@@ -194,6 +194,7 @@ def test_wrapt_disable_extensions():
 @pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    stderr=None,
 )
 def test_lock_gevent_tasks():
     from gevent import monkey

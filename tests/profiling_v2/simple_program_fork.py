@@ -2,8 +2,8 @@ import os
 import sys
 import threading
 
+import ddtrace.auto
 from ddtrace.internal import service
-import ddtrace.profiling.auto
 import ddtrace.profiling.bootstrap
 import ddtrace.profiling.profiler
 
