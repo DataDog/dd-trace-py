@@ -9,7 +9,7 @@ from typing import Optional  # noqa:F401
 from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
@@ -127,7 +127,7 @@ class BaseLLMIntegration:
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
             if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:

@@ -7,8 +7,8 @@ from ddtrace import Span
 from ddtrace import config
 from ddtrace._trace.utils_botocore.aws_payload_tagging import AWSPayloadTagging
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import aws
 from ddtrace.ext import http
@@ -23,7 +23,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
 
     if args:
         # DEV: join is the fastest way of concatenating strings that is compatible

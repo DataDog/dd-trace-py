@@ -11,10 +11,10 @@ import pytest
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
@@ -286,7 +286,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id == 1234
         assert s.parent_id == 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) == 2
 
     def test_disabled_distributed_tracing_config(self):
         previous_distributed_tracing = config.cherrypy["distributed_tracing"]
@@ -313,7 +313,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
 
         config.cherrypy["distributed_tracing"] = previous_distributed_tracing
 
@@ -342,7 +342,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
 
         cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 

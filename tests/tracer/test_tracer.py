@@ -18,15 +18,15 @@ import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import _is_top_level
 from ddtrace._trace.tracer import Tracer
+from ddtrace.constants import _HOSTNAME_KEY
+from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import PID
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
@@ -1459,9 +1459,9 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.get_metric(SAMPLING_PRIORITY_KEY) == 1
-    assert s2.get_metric(SAMPLING_PRIORITY_KEY) is None
-    assert ORIGIN_KEY not in s1.get_tags()
+    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
+    assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
+    assert _ORIGIN_KEY not in s1.get_tags()
 
     t = test_spans.pop_traces()
     assert len(t) == 1
@@ -1535,8 +1535,8 @@ def test_ctx_distributed(tracer, test_spans):
 
     trace = test_spans.pop_traces()
     assert len(trace) == 1
-    assert s2.get_metric(SAMPLING_PRIORITY_KEY) == 2
-    assert s2.get_tag(ORIGIN_KEY) == "somewhere"
+    assert s2.get_metric(_SAMPLING_PRIORITY_KEY) == 2
+    assert s2.get_tag(_ORIGIN_KEY) == "somewhere"
 
 
 def test_manual_keep(tracer, test_spans):
@@ -1544,14 +1544,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1561,7 +1561,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1569,14 +1569,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1590,8 +1590,8 @@ def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(HOSTNAME_KEY) == "test-hostname"
-    assert child.get_tag(HOSTNAME_KEY) is None
+    assert root.get_tag(_HOSTNAME_KEY) == "test-hostname"
+    assert child.get_tag(_HOSTNAME_KEY) is None
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1605,8 +1605,8 @@ def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(HOSTNAME_KEY) is None
-    assert child.get_tag(HOSTNAME_KEY) is None
+    assert root.get_tag(_HOSTNAME_KEY) is None
+    assert child.get_tag(_HOSTNAME_KEY) is None
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1620,8 +1620,8 @@ def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(HOSTNAME_KEY) is None
-    assert child.get_tag(HOSTNAME_KEY) is None
+    assert root.get_tag(_HOSTNAME_KEY) is None
+    assert child.get_tag(_HOSTNAME_KEY) is None
 
 
 def test_non_active_span(tracer, test_spans):
@@ -1743,7 +1743,7 @@ def test_context_priority(tracer, test_spans):
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
         if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
-            assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == p
+            assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == p
 
 
 def test_spans_sampled_out(tracer, test_spans):

@@ -18,10 +18,10 @@ import pytest
 import wrapt
 
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.patch import instrument_view
@@ -1729,7 +1729,7 @@ def test_django_request_distributed(client, test_spans):
         trace_id=12345,
         parent_id=78910,
         metrics={
-            SAMPLING_PRIORITY_KEY: USER_KEEP,
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
     assert root.get_tag("span.kind") == "server"
