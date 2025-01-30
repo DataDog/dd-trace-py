@@ -38,7 +38,6 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
 
     # Combine all conditions into a single expression
     logic = "'frozen' not in file_name and " + " or ".join(conditions)
-
     # Dynamically define the function using `exec`
     namespace = {}
     exec(f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace)
@@ -48,9 +47,7 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
 checks = {
     "all_user" if _er_config._instrument_user_code else None,
     "all_third_party" if _er_config._instrument_third_party_code else None,
-    "modules"
-    if (not _er_config._configured_user_modules and not _er_config._configured_third_party) is False
-    else None,
+    "modules" if (not _er_config._configured_modules) is False else None,
 } - {None}
 _should_report_exception = create_should_report_exception_optimized(checks)
 
@@ -93,25 +90,18 @@ def _install_sys_monitoring_reporting():
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     _instrumented_modules: set[str] = set()
-    _configured_user_modules: list[str] = _er_config._configured_user_modules
-    _configured_third_party_modules: list[str] = _er_config._configured_third_party
+    _configured_modules: list[str] = _er_config._configured_modules
 
-    def conditionally_instrument_module(
-        self, configured_modules: list[str], module_name: str, module: ModuleType
-    ) -> bool:
+    def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         if len(configured_modules) == 0:
-            return False
+            return
         for enabled_module in configured_modules:
-            if enabled_module in module_name:
-                result = module_name[module_name.index(enabled_module) :]
-                result_splitted = result.split(".")
-                if result_splitted[0] == enabled_module or result == enabled_module:
-                    INSTRUMENTED_FILE_PATHS.append(module.__file__)
-                    return True
-        return False
+            if module_name.startswith(enabled_module):
+                INSTRUMENTED_FILE_PATHS.append(module.__file__)
+                break
 
     def after_import(self, module: ModuleType):
-        if len(self._configured_user_modules) + len(self._configured_third_party_modules) == 0:
+        if len(self._configured_modules) == 0:
             return
 
         module_name = module.__name__
@@ -119,22 +109,13 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
             return
         self._instrumented_modules.add(module_name)
 
-        if self.conditionally_instrument_module(self._configured_user_modules, module_name, module) is False:
-            self.conditionally_instrument_module(self._configured_third_party_modules, module_name, module)
+        self.conditionally_instrument_module(self._configured_modules, module_name, module)
 
     def after_install(self):
-        if len(self._configured_user_modules) + len(self._configured_third_party_modules) == 0:
+        if len(self._configured_modules) == 0:
             return
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.
         existing_modules = set(sys.modules.keys())
         for module_name in existing_modules:
-            if (
-                self.conditionally_instrument_module(
-                    self._configured_user_modules, module_name, sys.modules[module_name]
-                )
-                is False
-            ):
-                self.conditionally_instrument_module(
-                    self._configured_third_party_modules, module_name, sys.modules[module_name]
-                )
+            self.conditionally_instrument_module(self._configured_modules, module_name, sys.modules[module_name])

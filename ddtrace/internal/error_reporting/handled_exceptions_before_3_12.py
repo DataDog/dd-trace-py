@@ -7,8 +7,7 @@ from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
 from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
-
-# from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
+from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.packages import is_stdlib
@@ -62,8 +61,6 @@ class HandledExceptionReportingInjector:
             self._instrument_module(module_name)
         elif _er_config._instrument_third_party_code and self._is_third_party(module_name):
             self._instrument_module(module_name)
-        if _er_config._instrument_python_internal_code and self._is_std_lib(module_name):
-            self._instrument_module(module_name)
         else:
             for enabled_module in self._configured_modules:
                 if module_name.startswith(enabled_module):
@@ -79,12 +76,17 @@ class HandledExceptionReportingInjector:
         names = dir(mod)
 
         for name in names:
-            obj = mod.__dict__[name]
-            if type(obj) in INSTRUMENTABLE_TYPES and obj.__module__ == module_name and not name.startswith("__"):
-                self._instrument_obj(obj)
+            if name in mod.__dict__:
+                obj = mod.__dict__[name]
+                if type(obj) in INSTRUMENTABLE_TYPES and obj.__module__ == module_name and not name.startswith("__"):
+                    self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
-        if type(obj) in (types.FunctionType, types.MethodType, staticmethod) and not self._is_reserved(obj.__name__):
+        if (
+            type(obj) in (types.FunctionType, types.MethodType, staticmethod)
+            and hasattr(obj, "__name__")
+            and not self._is_reserved(obj.__name__)
+        ):
             # functions/methods
             _inject_handled_exception_reporting(obj, callback=self._callback)
         elif type(obj) is type:
@@ -104,7 +106,12 @@ class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
         self._injector.instrument_module_conditionally(module.__name__)
 
     def after_install(self):
-        self._injector = HandledExceptionReportingInjector(_er_config._configured_modules)
+        if _er_config._report_after_unhandled is False:
+            self._injector = HandledExceptionReportingInjector(_er_config._configured_modules)
+        else:
+            self._injector = HandledExceptionReportingInjector(
+                _er_config._configured_modules, _unhandled_exc_datadog_exc_callback
+            )
 
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.

@@ -7,7 +7,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
-from ddtrace.internal.packages import filename_to_package
 from ddtrace.settings.error_reporting import _er_config
 
 
@@ -50,47 +49,69 @@ def _generate_span_event(exc=None) -> tuple[Span, SpanEvent] | None:
     #             tb += f'\t\t{line}\n'
     # tb += f"{exc.__class__.__name__}: {exc}"
 
-    # know which package it is
-    source = "unknown"
-    if exc.__traceback__ is not None:
-        source = "user"
-        filename = exc.__traceback__.tb_frame.f_code.co_filename
-        third_party_package = filename_to_package(filename)
-        if third_party_package is not None:
-            source = third_party_package.name
-
     return span, SpanEvent(
         "handled exception",
         {
             "exception.message": str(exc),
             "exception.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
             "exception.stacktrace": tb,
-            "exception.source": source,
         },
     )
 
 
-def _conditionally_pop_span_events(span: Span) -> None:
-    if span.error == 1:
-        span._exception_events.popitem()
+"""
+On python >= 3,12, we are using sys.monitoring
+it will automatically records multiple times an error if
+it raised during tracing. Therefore we need additional
+logic to remove it
+"""
+if sys.version_info >= (3, 12):
+
+    def _add_span_events(span: Span) -> None:
+        if span.error == 1:
+            span._exception_events.popitem()
         for event in span._exception_events.values():
             span._events.append(event)
-    del span._meta["EXCEPTION_CB"]
+        del span._meta["EXCEPTION_CB"]
 
+    def _conditionally_pop_span_events(span: Span) -> None:
+        if span.error == 1:
+            span._exception_events.popitem()
+            for event in span._exception_events.values():
+                span._events.append(event)
+        del span._meta["EXCEPTION_CB"]
 
-def _add_span_events(span: Span) -> None:
-    if span.error == 1:
-        span._exception_events.popitem()
-    for event in span._exception_events.values():
-        span._events.append(event)
-    del span._meta["EXCEPTION_CB"]
+    def _add_exception_event(exc: Exception | None, span: Span, span_event: SpanEvent):
+        span._add_exception_event(hash(exc), span_event)
+
+    def _add_span_event(exc: Exception | None, span: Span, span_event: SpanEvent):
+        _add_exception_event(exc, span, span_event)
+
+else:
+
+    def _add_span_events(span: Span) -> None:
+        for event in span._exception_events.values():
+            span._events.append(event)
+        del span._meta["EXCEPTION_CB"]
+
+    def _conditionally_pop_span_events(span: Span) -> None:
+        if span.error == 1:
+            for event in span._exception_events.values():
+                span._events.append(event)
+        del span._meta["EXCEPTION_CB"]
+
+    def _add_span_event(_: Exception | None, span: Span, span_event: SpanEvent):
+        span._events.append(span_event)
+
+    def _add_exception_event(_: Exception | None, span: Span, span_event: SpanEvent):
+        span._add_exception_event(hash(span_event), span_event)
 
 
 def _default_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
         span, span_event = generated
-        span._add_exception_event(exc.__hash__(), span_event)
+        _add_span_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_add_span_events)
 
     if _er_config._internal_logger:
@@ -104,7 +125,7 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
         span, span_event = generated
-        span._add_exception_event(exc.__hash__(), span_event)
+        _add_exception_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_conditionally_pop_span_events)
 
     if _er_config._internal_logger:

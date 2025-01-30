@@ -22,7 +22,7 @@ class ErrorReportingConfig(Env):
         list, "experimental_reported_handled_exceptions_third_party", parser=parse_modules, default=[]
     )
     _internal_logger = Env.var(str, "experimental_reported_handled_exceptions_logger", default="")
-    _report_after_unhandled = Env.var(bool, "experimental_report_handled_exceptions_after_unhandled", default=False)
+    _report_after_unhandled = Env.var(bool, "experimental_reported_handled_exceptions_after_unhandled", default=False)
 
     if sys.version_info >= (3, 12):
         """
@@ -39,8 +39,7 @@ class ErrorReportingConfig(Env):
 
     _instrument_user_code = False
     _instrument_third_party_code = False
-    _configured_user_modules: list[str] = list()
-    _configured_third_party: list[str] = list()
+    _configured_modules: list[str] = list()
     _enabled = False
 
     def _init_scope(self):
@@ -51,12 +50,12 @@ class ErrorReportingConfig(Env):
             if self.user_env_scope == ["all"]:
                 self._instrument_user_code = True
             else:
-                self._configured_user_modules = self.user_env_scope
+                self._configured_modules.extend(self.user_env_scope)
 
             if self.third_party_env_scope == ["all"]:
                 self._instrument_third_party_code = True
             else:
-                self._configured_third_party = self.third_party_env_scope
+                self._configured_modules.extend(self.third_party_env_scope)
 
 
 _er_config = ErrorReportingConfig()
