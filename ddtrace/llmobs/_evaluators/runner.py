@@ -8,6 +8,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 
@@ -73,6 +74,8 @@ class EvaluatorRunner(PeriodicService):
         self.executor.shutdown()
 
     def enqueue(self, span_event: Dict, span: Span) -> None:
+        if self.status == ServiceStatus.STOPPED:
+            return
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
