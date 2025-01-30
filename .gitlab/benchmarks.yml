@@ -34,8 +34,6 @@ variables:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
-    # Disable vpa for benchmarks
-    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
 
 microbenchmarks:
   extends: .benchmarks
