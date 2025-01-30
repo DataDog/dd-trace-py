@@ -8,13 +8,9 @@ from ddtrace.contrib import dbapi
 from ddtrace.trace import Pin
 
 
-try:
-    from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
-    from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
-    from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
-# catch async function syntax errors when using Python<3.7 with no async support
-except SyntaxError:
-    pass
+from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
+from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
+from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.psycopg.connection import patched_connect_factory

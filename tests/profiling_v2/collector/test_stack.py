@@ -31,7 +31,6 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False) and (
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
     )
 )
-@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
 def test_collect_truncate():
     import os
 
@@ -61,9 +60,6 @@ def test_collect_truncate():
 
 
 def test_stack_locations(tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -116,9 +112,6 @@ def test_stack_locations(tmp_path):
 
 
 def test_push_span(tmp_path, tracer):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -163,9 +156,6 @@ def test_push_span(tmp_path, tracer):
 
 
 def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
 
@@ -219,9 +209,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
 
 
 def test_push_non_web_span(tmp_path, tracer):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     tracer._endpoint_call_counter_span_processor.enable()
 
     test_name = "test_push_non_web_span"
@@ -267,9 +254,6 @@ def test_push_non_web_span(tmp_path, tracer):
 
 def test_push_span_none_span_type(tmp_path, tracer):
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_push_span_none_span_type"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -317,9 +301,6 @@ def test_push_span_none_span_type(tmp_path, tracer):
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_exception_collection(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_exception_collection"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -367,9 +348,6 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_exception_collection_threads(stack_v2_enabled, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_exception_collection_threads"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -429,9 +407,6 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions are not supported")
 @pytest.mark.parametrize("stack_v2_enabled", [True, False])
 def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_exception_collection_trace"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -480,9 +455,6 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
 
 
 def test_collect_once_with_class(tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     class SomeClass(object):
         @classmethod
         def sleep_class(cls):
@@ -537,9 +509,6 @@ def test_collect_once_with_class(tmp_path):
 
 
 def test_collect_once_with_class_not_right_type(tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     class SomeClass(object):
         @classmethod
         def sleep_class(foobar, cls):
@@ -695,9 +664,6 @@ def test_max_time_usage_over():
     [True, False],
 )
 def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
-    if sys.version_info[:2] == (3, 7) and stack_v2_enabled:
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     test_name = "test_ignore_profiler"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())

@@ -307,7 +307,6 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
         ),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="the dir wrappers enters and infinite loop in 3.7")
 def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_names):
     """
     Check that the patched dir doesn't have any __ddtrace symbols and match the original

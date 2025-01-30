@@ -1,28 +1,11 @@
 import os
-import sys
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Tuple
 
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-
-    try:
-        from typing_extensions import Optional
-    except ImportError:
-        # hack to support the Optional type for python3.7 + typing_extensions<4.0 (ex: molton)
-        from typing import Union
-
-        class Optional:
-            def __class_getitem__(self, item):
-                return Union[item, type(None)]
-
-else:
-    from typing import Literal
-    from typing import Optional
-
+from typing import Literal
+from typing import Optional
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY

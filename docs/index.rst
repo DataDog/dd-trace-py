@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 3.7 and above.
+We officially support Python 3.8 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -191,10 +191,7 @@ contacting support.
 
 .. [2] only the synchronous client
 
-.. [3] only in Python 3.7 and above.
-
-.. [4] Activating the legacy context provider is required in Python < 3.7. See
-       :ref:`asyncio` for more details.
+.. [3] only in Python 3.8 and above.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
