@@ -390,10 +390,8 @@ class Config(object):
 
         sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
         if sample_rate is not None:
-            deprecate(
-                "DD_TRACE_SAMPLE_RATE is deprecated",
-                message="Please use DD_TRACE_SAMPLING_RULES instead.",
-                removal_version="3.0.0",
+            log.error(
+                "DD_TRACE_SAMPLE_RATE configuration is not supported. Use DD_TRACE_SAMPLING_RULES instead.",
             )
 
         # Use a dict as underlying storing mechanism for integration configs
@@ -424,13 +422,9 @@ class Config(object):
         )
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
-            deprecate(
-                "DD_TRACE_API_VERSION=v0.3 is deprecated",
-                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
+            raise log.error(
+                "Setting DD_TRACE_API_VERSION to ``v0.3`` is not supported. The default ``v0.5`` format will be used.",
             )
-            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = _get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
         self._trace_writer_payload_size = _get_config(
             "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
@@ -454,18 +448,8 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # Master switch for turning on and off trace search by default
-        # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
-        # legacy environment variable. It should be removed in the future
-        self._analytics_enabled = _get_config(["DD_TRACE_ANALYTICS_ENABLED", "DD_ANALYTICS_ENABLED"], False, asbool)
-        if self._analytics_enabled:
-            deprecate(
-                "Datadog App Analytics is deprecated and will be removed in a future version. "
-                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
-                "environment variables and ddtrace.config.analytics_enabled configuration. "
-                "These configurations will also be removed.",
-                category=DDTraceDeprecationWarning,
-            )
+        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
+        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
@@ -512,15 +496,8 @@ class Config(object):
 
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
-        self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
-        if self._128_bit_trace_id_logging_enabled:
-            deprecate(
-                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
-                message="Log injection format is now configured automatically.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-
+        # Disabling DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is not supported. Remove this configuration in the future.
+        self._128_bit_trace_id_logging_enabled = True
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
@@ -572,18 +549,7 @@ class Config(object):
             ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
-
-        legacy_client_tag_enabled = _get_config("DD_HTTP_CLIENT_TAG_QUERY_STRING")
-        if legacy_client_tag_enabled is None:
-            self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
-        else:
-            deprecate(
-                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
-                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
+        self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -613,15 +579,8 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        self._span_aggregator_rlock = _get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
-        if self._span_aggregator_rlock is False:
-            deprecate(
-                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
-                message="Soon the ddtrace library will only support using threading.Rlock to "
-                "aggregate and encode span data. If you need to disable the re-entrant lock and "
-                "revert to using threading.Lock, please contact Datadog support.",
-                removal_version="3.0.0",
-            )
+        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
+        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
