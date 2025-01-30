@@ -133,7 +133,7 @@ def track_user_login_success_event(
         return
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
-
+    span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
     set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span, may_block=False)
@@ -185,6 +185,7 @@ def track_user_login_failure_event(
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
+        span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
         if login:
@@ -408,6 +409,7 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
                 name=user_extra.get("name"),
                 may_block=False,
             )
+        pin.tracer.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
         if in_asm_context():
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
