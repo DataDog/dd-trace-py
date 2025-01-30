@@ -105,6 +105,7 @@ def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, request_
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_generate(langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -531,7 +532,8 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+# some versions will append extra content to the input message, like `additional_kwargs` and `response_metadata`
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS.append("meta.langchain.request.inputs.0"))
 def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
