@@ -13,7 +13,7 @@ certifi==2024.7.4
 charset-normalizer==3.3.2
 coverage[toml]==7.5.4
 datadog==0.49.1
-datadog-lambda==6.96.0
+datadog-lambda==6.105.0
 ddsketch==3.0.1
 ddtrace==2.9.2
 deprecated==1.2.14

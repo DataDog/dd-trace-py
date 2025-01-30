@@ -2867,7 +2867,7 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.9"),
             pkgs={
                 "boto3": latest,
-                "datadog-lambda": [">=6.104.0", latest],
+                "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
