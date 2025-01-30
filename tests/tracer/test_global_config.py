@@ -1,4 +1,3 @@
-import os
 from unittest import TestCase
 
 import mock
@@ -6,7 +5,6 @@ import pytest
 
 from ddtrace import config as global_config
 from ddtrace.settings import Config
-from ddtrace.settings._config import _parse_propagation_styles
 
 from ..utils import DummyTracer
 from ..utils import override_env
