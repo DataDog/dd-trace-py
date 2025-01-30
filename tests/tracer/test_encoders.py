@@ -3,7 +3,6 @@ import contextlib
 import json
 import random
 import string
-import sys
 import threading
 from unittest import TestCase
 
