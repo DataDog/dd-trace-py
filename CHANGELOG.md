@@ -4,6 +4,30 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.20.1
+
+
+### Deprecation Notes
+
+  - tracing: Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
+
+### New Features
+
+  - openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13.
+
+### Bug Fixes
+
+  - CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+  - LLM Observability: Resolves an issue where explicitly only using `LLMObs.enable()` to configure LLM Observability without environment variables would not automatically propagate distributed tracing headers.
+  - LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+  - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - LLM Observability: This fix resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError.
+  - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+  - profiling: fix SystemError from the memory profiler returning NULL when collecting events
+
+
+---
+
 ## 2.19.2
 ### Bug Fixes
 
