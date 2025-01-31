@@ -88,7 +88,16 @@ def _deleted_rc_config():
                 ]
             },
             "expected": {
-                "_trace_sampling_rules": '[{"sample_rate": "0.73", "service": "*", "name": "*", "resource": "*", "tags": [], "provenance": "customer"}]'
+                "_trace_sampling_rules": [
+                    {
+                        "sample_rate": "0.73",
+                        "service": "*",
+                        "name": "*",
+                        "resource": "*",
+                        "tags": [],
+                        "provenance": "customer",
+                    }
+                ],
             },
             "expected_source": {"_trace_sampling_rules": "remote_config"},
         },

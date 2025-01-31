@@ -183,7 +183,22 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
 
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules": [{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", "tags": {}, "provenance": "customer"}]}))
+config._handle_remoteconfig(
+    _base_rc_config(
+        {
+            "tracing_sampling_rules": [
+                {
+                    "sample_rate": "0.5",
+                    "service": "*",
+                    "name": "*",
+                    "resource": "*",
+                    "tags": {},
+                    "provenance": "customer",
+                }
+            ]
+        }
+    )
+)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
@@ -197,7 +212,8 @@ assert span.get_metric("_dd.rule_psr") == 0.5
     assert {
         "name": "DD_TRACE_SAMPLING_RULES",
         "origin": "remote_config",
-        "value": '[{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", "tags": {}, "provenance": "customer"}]',
+        "value": '[{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", '
+        '"tags": {}, "provenance": "customer"}]',
     } in events_trace_sample_rate
 
 
@@ -222,9 +238,11 @@ config._handle_remoteconfig(_base_rc_config({
         {"header": "used-with-default", "tag_name":""}]
 }))
 with tracer.trace("test") as span:
-    trace_utils.set_http_meta(span,
-                              config.falcon,  # randomly chosen http integration config
-                              request_headers={"used": "foobarbanana", "used-with-default": "defaultname"})
+    trace_utils.set_http_meta(
+        span,
+        config.falcon,  # randomly chosen http integration config
+        request_headers={"used": "foobarbanana", "used-with-default": "defaultname"},
+    )
 assert span.get_tag("header_tag_69") == "foobarbanana"
 assert span.get_tag("header_tag_70") is None
 assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
