@@ -711,13 +711,13 @@ class TestAPIGatewayTracing(TornadoTestCase):
                         "endpoint": "/exception/",
                         "status": 500,
                         "resource_name": "tests.contrib.tornado.web.app.ExceptionHandler",
-                        "http.route": "/exception/"
+                        "http.route": "/exception/",
                     },
                     {
                         "endpoint": "/status_code/500/",
                         "status": 500,
                         "resource_name": "tornado.web.ErrorHandler",
-                        "http.route": "^$"
+                        "http.route": "^$",
                     },
                 ]:
                     self.fetch(test_endpoint["endpoint"], headers=test_headers)
@@ -730,6 +730,10 @@ class TestAPIGatewayTracing(TornadoTestCase):
                         assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
                         assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
                         assert 1 == len(traces)
+                        assert (
+                            aws_gateway_span.resource
+                            == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+                        )
                         # Assert test specific behavior for tornado
                         assert web_span.service == "tornado-web"
                         assert web_span.resource == test_endpoint["resource_name"]
