@@ -1274,7 +1274,7 @@ class Tracer(object):
 
         exc_type, exc_val, exc_tb = type(exception), exception, exception.__traceback__
 
-        if escaped is True:
+        if escaped:
             current_span.set_exc_info(exc_type, exc_val, exc_tb)
 
         # get the traceback

@@ -168,8 +168,8 @@ class TracerTestCases(TracerTestCase):
         @self.tracer.wrap()
         def f():
             try:
-                raise Exception("bim")
-            except Exception as e:
+                raise RuntimeError("bim")
+            except RuntimeError as e:
                 self.tracer.record_exception(e)
 
         f()
@@ -181,20 +181,20 @@ class TracerTestCases(TracerTestCase):
         )
         self.assert_span_event_count(1)
         self.assert_span_event_attributes(
-            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "False"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
         )
 
     def test_tracer_record_multiple_exceptions(self):
         @self.tracer.wrap()
         def f():
             try:
-                raise Exception("bim")
-            except Exception as e:
+                raise RuntimeError("bim")
+            except RuntimeError as e:
                 self.tracer.record_exception(e)
 
             try:
-                raise Exception("bam")
-            except Exception as e:
+                raise RuntimeError("bam")
+            except RuntimeError as e:
                 self.tracer.record_exception(e)
 
         f()
@@ -206,20 +206,20 @@ class TracerTestCases(TracerTestCase):
             )
         )
         self.assert_span_event_attributes(
-            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "False"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
         )
         self.assert_span_event_attributes(
-            1, {"exception.type": "builtins.Exception", "exception.message": "bam", "exception.escaped": "False"}
+            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": "False"}
         )
 
     def test_tracer_record_escaped_exception(self):
-        exc = Exception("bim")
+        exc = RuntimeError("bim")
 
         @self.tracer.wrap()
         def f():
             try:
                 raise exc
-            except Exception as e:
+            except RuntimeError as e:
                 self.tracer.record_exception(e, escaped=True)
 
         f()
@@ -236,7 +236,7 @@ class TracerTestCases(TracerTestCase):
         )
         self.assert_span_event_count(1)
         self.assert_span_event_attributes(
-            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "True"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "True"}
         )
 
     def test_tracer_wrap_multiple_calls(self):
