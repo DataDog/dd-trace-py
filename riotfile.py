@@ -2493,13 +2493,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys="3.7",
-                    pkgs={
-                        "openai[datalib]": "==1.30.1",
-                        "pillow": "==9.5.0",
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "openai[embeddings,datalib]": ["==1.0.0", "==1.30.1"],
@@ -2927,11 +2920,13 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            venvs=[
-                Venv(pys="3.7"),
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
-            ],
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": "==0.21.1",
+                "ragas": "==0.1.21",
+                "langchain": latest,
+            },
+            pys=select_pys(min_version="3.8"),
         ),
         Venv(
             name="profile",

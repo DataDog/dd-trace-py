@@ -1,0 +1,89 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679bca4500000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.inputs.0.text": "this is a test query.",
+      "langchain.request.model": "text-embedding-ada-002",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "embedding",
+      "language": "python",
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.request.input_count": 1,
+      "langchain.response.outputs.0.embedding_length": 1536,
+      "process_id": 82010
+    },
+    "duration": 88000,
+    "start": 1738263109998107000
+  }],
+[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_community.vectorstores.faiss.FAISS",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679bca4600000000",
+      "langchain.request.api_key": "",
+      "langchain.request.provider": "faiss",
+      "langchain.request.query": "What was the message of the last test query?",
+      "langchain.request.type": "similarity_search",
+      "langchain.response.document.0.page_content": "this is a test query.",
+      "language": "python",
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.response.document_count": 1,
+      "process_id": 82010
+    },
+    "duration": 1453000,
+    "start": 1738263110003391000
+  },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.inputs.0.text": "What was the message of the last test query?",
+         "langchain.request.model": "text-embedding-ada-002",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "embedding"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.request.input_count": 1,
+         "langchain.response.outputs.0.embedding_length": 1536
+       },
+       "duration": 39000,
+       "start": 1738263110003495000
+     }]]
