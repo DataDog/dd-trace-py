@@ -606,6 +606,10 @@ class TraceBottleTest(TracerTestCase):
                         # Assert common behavior including aws gateway metadata
                         assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
                         assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+                        assert (
+                            aws_gateway_span.resource
+                            == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+                        )
                         # Assert test specific behavior for aws api gateway
                         assert aws_gateway_span.get_tag("http.url") == "local/"
                         assert aws_gateway_span.get_tag("http.method") == "GET"
