@@ -1,5 +1,7 @@
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
@@ -289,20 +291,70 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
     def test_inferred_spans_api_gateway_default(self):
-        with override_global_config(dict(_inferred_proxy_services_enabled=True)):
-            headers = {
-                "x-dd-proxy": "aws-apigateway",
-                "x-dd-proxy-request-time-ms": "1736973768000",
-                "x-dd-proxy-path": "/",
-                "x-dd-proxy-httpmethod": "GET",
-                "x-dd-proxy-domain-name": "local",
-                "x-dd-proxy-stage": "stage",
-            }
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
 
-            self.make_test_call("/", headers=headers)
-            traces = self.tracer.pop_traces()
-            aws_gateway_span = traces[0][0]
-            web_span = traces[0][1]
-            #  Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+        for setting_enabled in [False, True]:
+            for test_headers in [distributed_headers, headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/200",
+                        "status": 200,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.Resource200",
+                        "http.route": "/200",
+                    },
+                    {
+                        "endpoint": "/exception",
+                        "status": 500,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.ResourceException",
+                        "http.route": "/exception",
+                    }
+                ]:
+                    with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                        self.make_test_call(test_endpoint["endpoint"], headers=test_headers)
+                        traces = self.tracer.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+                            assert web_span.name == "falcon.request"
+                            #  Assert common behavior including aws gateway metadata
+                            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+                            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+                            assert (
+                                aws_gateway_span.resource
+                                == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+                             )
+                            # Assert test specific behavior for falcon
+                            assert web_span.service == "falcon"
+                            assert web_span.resource == test_endpoint["resource_name"]
+                            assert test_endpoint["endpoint"] in web_span.get_tag("http.url")
+                            assert web_span.get_tag("http.route") == test_endpoint["http.route"]
+                            assert web_span.get_tag("span.kind") == "server"
+                            assert web_span.get_tag("component") == "falcon"
+                            assert web_span.get_tag("_dd.inferred_span") is None
+                            if test_headers == distributed_headers:
+                                assert web_span.sampled is True
+                                assert web_span.trace_id == 1
+                                assert aws_gateway_span.trace_id == 1
+                                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None
