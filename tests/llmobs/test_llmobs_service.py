@@ -7,7 +7,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -32,6 +31,7 @@ from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
 from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
+from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -59,7 +59,6 @@ def test_service_enable_proxy_default():
         assert llmobs_instance.tracer == dummy_tracer
         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
-
         llmobs_service.disable()
 
 
@@ -365,11 +364,24 @@ def test_annotate_metadata(llmobs):
         assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
+def test_annotate_metadata_updates(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
+        llmobs.annotate(span=span, metadata={"temperature": 1, "logit_bias": [{"1": 2}]})
+        assert span._get_ctx_item(METADATA) == {
+            "temperature": 1,
+            "max_tokens": 20,
+            "top_k": 10,
+            "n": 3,
+            "logit_bias": [{"1": 2}],
+        }
+
+
 def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata="wrong_metadata")
         assert span._get_ctx_item(METADATA) is None
-        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
         mock_llmobs_logs.reset_mock()
 
 
@@ -384,7 +396,7 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, tags=12345)
         assert span._get_ctx_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "span_tags must be a dictionary of string key - primitive value pairs."
+            "span tags must be a dictionary of string key - primitive value pairs."
         )
 
 
@@ -629,6 +641,13 @@ def test_annotate_metrics(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
         assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+
+
+def test_annotate_metrics_updates(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20})
+        llmobs.annotate(span=span, metrics={"input_tokens": 20, "total_tokens": 40})
+        assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
 
 
 def test_annotate_metrics_wrong_type(llmobs, mock_llmobs_logs):
@@ -1364,6 +1383,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 
 def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
+    pytest.importorskip("ragas")
     with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
@@ -1445,6 +1465,8 @@ def test_llmobs_fork_submit_evaluation(monkeypatch):
 def test_llmobs_fork_evaluator_runner_run(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
+    pytest.importorskip("ragas")
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
         pid = os.fork()

@@ -6,10 +6,9 @@ from typing import Optional
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
-
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 

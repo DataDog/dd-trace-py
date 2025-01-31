@@ -4,6 +4,21 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.2
+### Bug Fixes
+
+- Tracing
+  - celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+  - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - openai: Ensures the OpenAI integration is compatible with Python versions 3.12 and 3.13.
+  - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+- LLM Observability
+  - This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+- Lib-Injection
+  - Fixes incorrect telemetry data payload format.
+
+---
+
 ## 2.19.1
 ### Bug Fixes
 

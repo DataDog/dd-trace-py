@@ -8,7 +8,7 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.tracer import Tracer
+from ddtrace.trace import Tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
@@ -54,7 +54,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
 def test_priority_sampling_rate_honored():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
 
@@ -95,7 +95,7 @@ def test_priority_sampling_rate_honored():
 def test_priority_sampling_response():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()
@@ -136,7 +136,7 @@ def test_agent_sample_rate_keep():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():
     """Ensure that the agent sample rate is respected when a trace is auto rejected."""
-    from ddtrace.tracer import Tracer
+    from ddtrace.trace import Tracer
 
     tracer = Tracer()
 

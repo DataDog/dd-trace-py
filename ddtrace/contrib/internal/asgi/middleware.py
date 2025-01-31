@@ -7,7 +7,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -24,6 +23,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
