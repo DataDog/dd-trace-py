@@ -74,6 +74,10 @@ target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Dat
                                                      ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+if (MSVC)
+    # Not sure why explicit linking is necessary for Windows
+    target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
+endif()
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
