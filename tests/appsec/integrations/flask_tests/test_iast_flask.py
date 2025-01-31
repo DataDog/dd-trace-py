@@ -16,7 +16,9 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -45,11 +47,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_request_sampling=100.0,
             )
         ):
-            super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
             patch_header_injection()
+            patch_xss_injection()
             patch_json()
+            from jinja2.filters import FILTERS
+            from jinja2.filters import do_mark_safe
 
+            FILTERS["safe"] = do_mark_safe
+            super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
@@ -1193,8 +1199,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
 
-    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_header_injection_exlusions_location(self):
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_header_injection_exclusions_location(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
@@ -1222,8 +1228,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_header_injection_exlusions_access_control(self):
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_header_injection_exclusions_access_control(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
@@ -1586,6 +1592,159 @@ Lorem Ipsum Foobar
                 in vulnerability["evidence"]["valueParts"][0]["value"]
             )
             assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
+
+    def test_flask_xss(self):
+        @self.app.route("/xss/", methods=["GET"])
+        def xss_view():
+            from flask import render_template_string
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss
+            return render_template_string("<p>XSS: {{ user_input|safe }}</p>", user_input=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+
+    def test_flask_xss_concat(self):
+        @self.app.route("/xss/concat/", methods=["GET"])
+        def xss_view():
+            from flask import render_template_string
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_concat
+            return render_template_string(add_aspect(add_aspect("<p>XSS: ", user_input), "</p>"))
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/concat/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss_concat", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<p>XSS: "},
+                    {"source": 0, "value": "<script>alert('XSS')</script>"},
+                    {"value": "</p>"},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+
+    def test_flask_xss_template_secure(self):
+        @self.app.route("/xss/template/secure/", methods=["GET"])
+        def xss_view_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_template
+            return render_template("test.html", world=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/template/secure/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"hello &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    def test_flask_xss_template(self):
+        @self.app.route("/xss/template/", methods=["GET"])
+        def xss_view_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_template
+            return render_template("test_insecure.html", world=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/template/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"hello <script>alert('XSS')</script>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_insecure.html"
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
