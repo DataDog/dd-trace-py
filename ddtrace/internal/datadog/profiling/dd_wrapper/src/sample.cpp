@@ -6,7 +6,7 @@
 #include <chrono>
 #include <string_view>
 #include <thread>
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #endif
@@ -424,7 +424,7 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
         LARGE_INTEGER frequency, counter;
         QueryPerformanceFrequency(&frequency); // Frequency of the performance counter
         QueryPerformanceCounter(&counter);     // Current value of the performance counter

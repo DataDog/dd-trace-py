@@ -145,7 +145,8 @@ ddup_start() // cppcheck-suppress unusedFunction
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
-#if defined(_WIN32) || defined(_WIN64)
+#ifdef _WIN32
+        // NOTE: Windows does not have fork(), leaving this empty for now
 #else
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
