@@ -1,6 +1,6 @@
 variables:
   MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
-  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
+  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:latest
 
 .benchmarks:
   stage: benchmarks
