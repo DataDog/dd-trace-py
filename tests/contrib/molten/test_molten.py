@@ -488,10 +488,9 @@ class TestMolten(TracerTestCase):
                                 aws_gateway_span.resource
                                 == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
                             )
-                            # Assert test specific behavior for tornado
+                            # Assert test specific behavior for molten
                             assert web_span.service == "molten"
                             assert web_span.resource == test_endpoint["resource_name"]
-                            # Ports change per test, ie: http://127.0.0.1:59345/success/, which affects the http.url
                             assert web_span.get_tag("http.url") == "http://127.0.0.1:8000" + test_endpoint["endpoint"]
                             assert web_span.get_tag("http.route") is None
                             assert web_span.get_tag("span.kind") == "server"

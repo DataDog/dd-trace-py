@@ -738,7 +738,7 @@ async def test_response_headers(scope, tracer, test_spans):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "application_type",
+    "app_type",
     [
         {"testapp": basic_app, "status_code": "200"},
         {"testapp": error_app, "status_code": "500"},
@@ -746,9 +746,9 @@ async def test_response_headers(scope, tracer, test_spans):
     ],
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
-async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, application_type, inferred_proxy_enabled):
-    app = TraceMiddleware(application_type["testapp"], tracer=tracer)
-    headers = [
+async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app_type, inferred_proxy_enabled):
+    app = TraceMiddleware(app_type["testapp"], tracer=tracer)
+    default_headers = [
         ("x-dd-proxy", "aws-apigateway"),
         ("x-dd-proxy-request-time-ms", "1736973768000"),
         ("x-dd-proxy-path", "/"),
@@ -756,63 +756,8 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
         ("x-dd-proxy-domain-name", "local"),
         ("x-dd-proxy-stage", "stage"),
     ]
-    scope["headers"] = headers
 
-    # When the inferred proxy feature is enabled, there should be an inferred span
-    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
-        test_spans.reset()
-        instance = ApplicationCommunicator(app, scope)
-
-        if application_type["testapp"] == error_app:
-            with pytest.raises(RuntimeError):
-                await instance.send_input({"type": "http.request", "body": b""})
-                await instance.receive_output(1)
-        else:
-            await instance.send_input({"type": "http.request", "body": b""})
-            await instance.receive_output(1)
-
-        web_span = test_spans.find_span(name="asgi.request")
-        if inferred_proxy_enabled is False:
-            assert web_span._parent is None
-        else:
-            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # Assert test specific behavior for aws api gateway
-            assert aws_gateway_span.get_tag("http.url") == "local/"
-            assert aws_gateway_span.get_tag("http.method") == "GET"
-            assert aws_gateway_span.get_tag("http.status_code") == application_type["status_code"]
-            assert aws_gateway_span.get_tag("http.route") == "/"
-            # Assert test specific behavior for asgi
-            assert web_span.name == "asgi.request"
-            assert web_span.service == "tests.contrib.asgi"
-            assert web_span.resource == "GET /"
-            # Fixtures spin up with different "servers" so the http.url can be different values for
-            # the test outcomes
-            possible_servers = ["http://127.0.0.1/", "http://dev/", "http://dev:8000/", None]
-            assert web_span.get_tag("http.url") in possible_servers
-            assert web_span.get_tag("http.route") is None
-            assert web_span.get_tag("span.kind") == "server"
-            assert web_span.get_tag("component") == "asgi"
-            assert web_span.get_tag("_dd.inferred_span") is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "application_type",
-    [
-        {"testapp": basic_app, "status_code": "200"},
-        {"testapp": error_app, "status_code": "500"},
-        {"testapp": error_handled_app, "status_code": "500"},
-    ],
-)
-@pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
-async def test_inferred_spans_api_gateway_distributed_tracing(
-    scope, tracer, test_spans, application_type, inferred_proxy_enabled
-):
-    app = TraceMiddleware(application_type["testapp"], tracer=tracer)
-    headers = [
+    distributed_headers = [
         ("x-dd-proxy", "aws-apigateway"),
         ("x-dd-proxy-request-time-ms", "1736973768000"),
         ("x-dd-proxy-path", "/"),
@@ -824,49 +769,75 @@ async def test_inferred_spans_api_gateway_distributed_tracing(
         ("x-datadog-origin", "rum"),
         ("x-datadog-sampling-priority", "2"),
     ]
-    scope["headers"] = headers
 
-    # When the inferred proxy feature is enabled, there should be an inferred span
-    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
-        test_spans.reset()
-        instance = ApplicationCommunicator(app, scope)
+    for headers in [default_headers, distributed_headers]:
+        scope["headers"] = headers
 
-        if application_type["testapp"] == error_app:
-            with pytest.raises(RuntimeError):
+        # When the inferred proxy feature is enabled, there should be an inferred span
+        with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+            test_spans.reset()
+            instance = ApplicationCommunicator(app, scope)
+
+            if app_type["testapp"] == error_app:
+                with pytest.raises(RuntimeError):
+                    await instance.send_input({"type": "http.request", "body": b""})
+                    await instance.receive_output(1)
+            else:
                 await instance.send_input({"type": "http.request", "body": b""})
                 await instance.receive_output(1)
-        else:
-            await instance.send_input({"type": "http.request", "body": b""})
-            await instance.receive_output(1)
 
-        web_span = test_spans.find_span(name="asgi.request")
-        if inferred_proxy_enabled is False:
-            assert web_span._parent is None
-            web_span.assert_matches(
-                name="asgi.request",
-                trace_id=1,
-                parent_id=2,
-                metrics={
-                    _SAMPLING_PRIORITY_KEY: USER_KEEP,
-                },
-                sampled=True,
-            )
-        else:
-            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
-            web_span.assert_matches(
-                name="asgi.request",
-                trace_id=1,
-                sampled=True,
-            )
-            aws_gateway_span.assert_matches(
-                name="aws.apigateway",
-                trace_id=1,
-                metrics={
-                    _SAMPLING_PRIORITY_KEY: USER_KEEP,
-                },
-                sampled=True,
-            )
+            web_span = test_spans.find_span(name="asgi.request")
+            if inferred_proxy_enabled is False:
+                assert web_span._parent is None
+
+                if headers == distributed_headers:
+                    web_span.assert_matches(
+                        name="asgi.request",
+                        trace_id=1,
+                        parent_id=2,
+                        metrics={
+                            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+                        },
+                        sampled=True,
+                    )
+            else:
+                aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+                # Assert common behavior including aws gateway metadata
+                assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+                assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+                assert (
+                    aws_gateway_span.resource
+                    == dict(headers)["x-dd-proxy-httpmethod"] + " " + dict(headers)["x-dd-proxy-path"]
+                )
+                # Assert test specific behavior for aws api gateway
+                assert aws_gateway_span.get_tag("http.url") == "local/"
+                assert aws_gateway_span.get_tag("http.method") == "GET"
+                assert aws_gateway_span.get_tag("http.status_code") == app_type["status_code"]
+                assert aws_gateway_span.get_tag("http.route") == "/"
+                # Assert test specific behavior for asgi
+                assert web_span.name == "asgi.request"
+                assert web_span.service == "tests.contrib.asgi"
+                assert web_span.resource == "GET /"
+                # Fixtures spin up with different "servers" so the http.url can be
+                # different values for the test outcomes
+                possible_servers = ["http://127.0.0.1/", "http://dev/", "http://dev:8000/", None]
+                assert web_span.get_tag("http.url") in possible_servers
+                assert web_span.get_tag("http.route") is None
+                assert web_span.get_tag("span.kind") == "server"
+                assert web_span.get_tag("component") == "asgi"
+                assert web_span.get_tag("_dd.inferred_span") is None
+                if headers == distributed_headers:
+                    # No SAMPLING_PRIORITY_KEY when the web span is a child
+                    web_span.assert_matches(
+                        name="asgi.request",
+                        trace_id=1,
+                        sampled=True,
+                    )
+                    aws_gateway_span.assert_matches(
+                        name="aws.apigateway",
+                        trace_id=1,
+                        metrics={
+                            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+                        },
+                        sampled=True,
+                    )
