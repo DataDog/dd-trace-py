@@ -51,7 +51,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
     test_appsec_iast_processor_ensure_span_is_manual_keep.
     This test throws  'finished span not connected to a trace' log error
     """
-    with override_env(dict(DD_TRACE_SAMPLING_RULES=f'[{"sample_rate":{sampling_rate}}]')):
+    with override_env({"DD_TRACE_SAMPLING_RULES": f'[{"sample_rate":{sampling_rate}}]'}):
         oce.reconfigure()
         tracer = DummyTracer(iast_enabled=True)
 

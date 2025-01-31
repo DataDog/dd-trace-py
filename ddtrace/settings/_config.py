@@ -277,8 +277,8 @@ def _default_config() -> Dict[str, _ConfigItem]:
         # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
         "_trace_sample_rate": _ConfigItem(
             default=1.0,
-            # _DD_TRACE_SAMPLE_RATE is placeholder, this code will be removed up after v3.0
-            envs=[("_DD_TRACE_SAMPLE_RATE", float)],
+            # trace_sample_rate is placeholder, this code will be removed up after v3.0
+            envs=[("trace_sample_rate", float)],
         ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
