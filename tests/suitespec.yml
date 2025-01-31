@@ -223,6 +223,7 @@ suites:
     pattern: profile$|profile-v2
     retry: 2
     runner: riot
+    timeout: 30m
   runtime:
     paths:
       - '@bootstrap'
