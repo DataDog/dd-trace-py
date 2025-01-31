@@ -51,7 +51,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
     span = tracer.start_span(
         proxy_span_info["span_name"],
         service=proxy_context.get("domain_name", config._get_service()),
-        resource=proxy_span_info["span_name"],
+        resource=proxy_context["method"] + " " + proxy_context["path"],
         span_type=SpanTypes.WEB,
         activate=True,
         child_of=child_of,
@@ -65,8 +65,6 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
     # we need a callback to finish the api gateway span, this callback will be added to the child spans finish callbacks
     def finish_callback(_):
         span.finish()
-
-    # headers = delete_inferred_header_keys(headers)
 
     if span:
         ctx.set_item("inferred_proxy_span", span)
@@ -109,20 +107,3 @@ def extract_inferred_proxy_context(headers) -> Union[None, Dict[str, str]]:
 
 def normalize_headers(headers) -> Dict[str, str]:
     return {key.lower(): value for key, value in headers.items()}
-
-
-def delete_inferred_header_keys(headers) -> Dict[str, str]:
-    keys_to_delete = [
-        PROXY_HEADER_START_TIME_MS,
-        PROXY_HEADER_HTTPMETHOD,
-        PROXY_HEADER_PATH,
-        PROXY_HEADER_STAGE,
-        PROXY_HEADER_DOMAIN,
-        PROXY_HEADER_SYSTEM,
-    ]
-
-    for key in keys_to_delete:
-        if key in headers:
-            del headers[key]
-
-    return headers

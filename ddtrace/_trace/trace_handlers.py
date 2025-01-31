@@ -186,15 +186,6 @@ def _on_web_framework_finish_request(
 def _set_inferred_proxy_tags(span, status_code):
     if span._parent and span._parent.name == "aws.apigateway":
         inferred_span = span._parent
-
-        # make resource equal to web span resource
-        inferred_span.resource = span.resource
-        _set_inferred_proxy_error_and_status(span, status_code)
-
-
-def _set_inferred_proxy_error_and_status(span, status_code):
-    if span._parent and span._parent.name == "aws.apigateway":
-        inferred_span = span._parent
         status_code = status_code if status_code else span.get_tag("http.status_code")
         if status_code:
             inferred_span.set_tag("http.status_code", status_code)
@@ -509,7 +500,7 @@ def _on_web_request_final_tags(span):
     # Necessary to add remaining http status codes and
     # errors relevant to the aws api gateway spans on close
     if span and span.span_type == "web":
-        _set_inferred_proxy_error_and_status(span, None)
+        _set_inferred_proxy_tags(span, None)
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
@@ -518,7 +509,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     after_request_tags(ctx["pin"], span, request, response)
 
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
-    _set_inferred_proxy_error_and_status(span, None)
+    _set_inferred_proxy_tags(span, None)
 
 
 def _on_django_start_response(
