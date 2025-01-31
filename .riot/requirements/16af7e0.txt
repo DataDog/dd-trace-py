@@ -15,7 +15,7 @@ coverage[toml]==7.5.4
 datadog==0.51.0
 datadog-lambda==6.105.0
 ddsketch==3.0.1
-ddtrace==2.9.2
+ddtrace==2.20.0
 deprecated==1.2.14
 envier==0.5.2
 exceptiongroup==1.2.1
