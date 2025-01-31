@@ -357,7 +357,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``b3``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, extraction is disabled.
