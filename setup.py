@@ -642,11 +642,6 @@ setup(
                 sources=["ddtrace/profiling/exporter/pprof.pyx"],
                 language="c",
             ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling._build",
-                sources=["ddtrace/profiling/_build.pyx"],
-                language="c",
-            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
