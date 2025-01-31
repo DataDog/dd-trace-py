@@ -132,7 +132,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        forksafe.unregister(self.reset_at_fork)
         atexit.unregister(self.disable)
 
         self.stop(join=join)
