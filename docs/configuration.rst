@@ -397,7 +397,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``,``b3``, ``tracecontext``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
          When ``none`` is the only propagator listed, injection is disabled.
