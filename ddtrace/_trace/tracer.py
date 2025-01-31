@@ -1255,11 +1255,15 @@ class Tracer(object):
         escaped=False,
     ) -> None:
         """
-        Records an exception as an event if the exception is handled (escaped=False)
-        If the exception is not handled (escaped=True), tag the span with an error tuple
+        Records an exception as span event.
+        If the exception is unhandled, :obj:`escaped` should be set :obj:`True`. It
+        will tag the span with an error tuple.
 
-        There is no real use case of recording an unhandled exceptions as the tracer does it
-        automatically. It is just to comply with otel spec.
+        :param Exception exception: the exception to record<
+        :param dict attributes: optional attributes to add to the span event. It will override
+            the base attributes if :obj:`attributes` contains existing keys.
+        :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
+        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for an unhandled exception.
         """
         current_span = self.current_span()
         if current_span is None:
