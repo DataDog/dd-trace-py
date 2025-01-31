@@ -3,7 +3,9 @@ from molten.testing import TestClient
 import pytest
 
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
@@ -32,6 +34,9 @@ def greet():
 def reply_404():
     raise molten.HTTPError(molten.HTTP_404, {"error": "Nope"})
 
+def unhandled_error_endpoint():
+    return 1/0
+
 
 def molten_app():
     return molten.App(
@@ -39,6 +44,7 @@ def molten_app():
             molten.Route("/hello/{name}/{age}", hello),
             molten.Route("/greet", greet),
             molten.Route("/404", reply_404),
+            molten.Route("/unhandlederror", unhandled_error_endpoint)
         ]
     )
 
@@ -423,21 +429,79 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")
 
     def test_inferred_spans_api_gateway_default(self):
-        with override_global_config(dict(_inferred_proxy_services_enabled=True)):
-            headers = {
-                "x-dd-proxy": "aws-apigateway",
-                "x-dd-proxy-request-time-ms": "1736973768000",
-                "x-dd-proxy-path": "/greet",
-                "x-dd-proxy-httpmethod": "GET",
-                "x-dd-proxy-domain-name": "local",
-                "x-dd-proxy-stage": "stage",
-            }
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
 
-            self.make_request(headers=headers, route="/greet")
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
 
-            traces = self.pop_traces()
-            aws_gateway_span = traces[0][0]
-            web_span = traces[0][1]
-            #  Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+        for setting_enabled in [False, True]:
+            for test_headers in [distributed_headers, headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/greet",
+                        "status": 200,
+                        "resource_name": "GET 200",
+                        "http.route": "/greet",
+                    },
+                    {
+                        "endpoint": "/unhandlederror",
+                        "status": 500,
+                        "resource_name": "GET 500",
+                        "http.route": "/unhandlederror",
+                    },
+                    {
+                        "endpoint": "/404",
+                        "status": 404,
+                        "resource_name": "GET 404",
+                        "http.route": "/404",
+                    }
+                ]:
+                    with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                        self.make_request(headers=test_headers, route=test_endpoint["endpoint"])
+
+                        traces = self.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+                            assert web_span.name == "molten.request"
+                            #  Assert common behavior including aws gateway metadata
+                            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+                            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+                            assert (
+                                aws_gateway_span.resource
+                                == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+                            )
+                            # Assert test specific behavior for tornado
+                            assert web_span.service == "molten"
+                            assert web_span.resource == test_endpoint["resource_name"]
+                            # Ports change per test, ie: http://127.0.0.1:59345/success/, which affects the http.url
+                            assert web_span.get_tag("http.url") == "http://127.0.0.1:8000" + test_endpoint["endpoint"]
+                            assert web_span.get_tag("http.route") is None
+                            assert web_span.get_tag("span.kind") == "server"
+                            assert web_span.get_tag("component") == "molten"
+                            assert web_span.get_tag("_dd.inferred_span") is None
+                            if test_headers == distributed_headers:
+                                assert web_span.sampled is True
+                                assert web_span.trace_id == 1
+                                assert aws_gateway_span.trace_id == 1
+                                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None
