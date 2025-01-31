@@ -11,7 +11,7 @@ def start():
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.enable()
-        config.enable_remote_configuration()
+        config._enable_remote_configuration()
 
 
 def restart(join=False):
