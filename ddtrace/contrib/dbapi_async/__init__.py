@@ -1,13 +1,12 @@
 from ddtrace import config
-from ddtrace.appsec._iast._utils import _is_iast_enabled
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.settings.asm import config as asm_config
 
-from ...appsec._constants import IAST_SPAN_TAGS
-from ...appsec._iast._metrics import increment_iast_span_metric
 from ...constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import _SPAN_MEASURED_KEY
 from ...constants import SPAN_KIND
@@ -78,8 +77,9 @@ class TracedAsyncCursor(TracedCursor):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            if _is_iast_enabled():
+            if asm_config._iast_enabled:
                 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+                from ddtrace.appsec._iast._metrics import increment_iast_span_metric
                 from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
                 from ddtrace.appsec._iast.taint_sinks.sql_injection import SqlInjection
 

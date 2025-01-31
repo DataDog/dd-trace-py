@@ -4,7 +4,6 @@ import functools
 from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
@@ -18,6 +17,7 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from ._iast_request_context import is_iast_request_enabled
 from ._taint_tracking._taint_objects import taint_pyobject
@@ -48,7 +48,7 @@ def _on_set_http_meta_iast(
     response_headers,
     response_cookies,
 ):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
         if response_cookies:
@@ -57,7 +57,7 @@ def _on_set_http_meta_iast(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -76,7 +76,7 @@ def _on_request_init(wrapped, instance, args, kwargs):
 
 
 def _on_flask_patch(flask_version):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         try_wrap_function_wrapper(
             "werkzeug.datastructures",
             "Headers.items",
@@ -137,14 +137,14 @@ def _on_flask_patch(flask_version):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled() and args and is_iast_request_enabled():
+    if asm_config._iast_enabled and args and is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
 
 
 def _on_django_patch():
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         try:
             when_imported("django.http.request")(
                 lambda m: try_wrap_function_wrapper(
@@ -171,7 +171,7 @@ def _on_django_patch():
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
-    if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
+    if asm_config._iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
         if not is_iast_request_enabled():
             return
 
@@ -279,13 +279,13 @@ def _patch_protobuf_class(cls):
 
 
 def _on_grpc_response(message):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         msg_cls = type(message)
         _patch_protobuf_class(msg_cls)
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
@@ -302,7 +302,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -316,7 +316,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             res = []
             for element in value:
@@ -422,7 +422,7 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,
@@ -446,7 +446,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    if not response or not _is_iast_enabled() or not is_iast_request_enabled() or get_iast_stacktrace_reported():
+    if not response or not asm_config._iast_enabled or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
     try:
@@ -459,7 +459,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
-    if not exc_value or not _is_iast_enabled() or not is_iast_request_enabled():
+    if not exc_value or not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     try:
@@ -473,7 +473,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    if not response or not _is_iast_enabled() or not is_iast_request_enabled() or get_iast_stacktrace_reported():
+    if not response or not asm_config._iast_enabled or not is_iast_request_enabled() or get_iast_stacktrace_reported():
         return
 
     try:
@@ -486,7 +486,7 @@ def _on_flask_finalize_request_post(response, _):
 
 
 def _on_asgi_finalize_response(body, _):
-    if not body or not _is_iast_enabled() or not is_iast_request_enabled():
+    if not body or not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     try:
@@ -499,7 +499,7 @@ def _on_asgi_finalize_response(body, _):
 
 
 def _on_werkzeug_render_debugger_html(html):
-    if not html or not _is_iast_enabled() or not is_iast_request_enabled():
+    if not html or not asm_config._iast_enabled or not is_iast_request_enabled():
         return
 
     try:

@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+import sys
 from typing import List
 from typing import Optional
 
@@ -225,6 +226,8 @@ class ASMConfig(Env):
             self._asm_can_be_enabled = False
             self._iast_enabled = False
             self._api_security_enabled = False
+        if not ((3, 6, 0) <= sys.version_info < (3, 14, 0)):
+            self._iast_enabled = False
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
