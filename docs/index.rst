@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 3.8 and above.
+dd-trace-py works with Python 3.8 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -58,7 +58,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 3.0        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`asyncio`                                   | \*            | Yes [4]_       |
+| :ref:`asyncio`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asyncpg`                                   | >= 0.22.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
