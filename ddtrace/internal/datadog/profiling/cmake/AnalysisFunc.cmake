@@ -21,7 +21,7 @@ function(add_ddup_config target)
                     /wd4996 # 'getpid': The POSIX name for this item is deprecated. Instead, use the ISO C and C++
                             # conformant name: _getpid.
                     /wd4100 # '_unusedop': unreferenced formal parameter
-                    /wd4245 # conversion fro 'int' to 'uint64_t'
+                    /wd4245 # conversion from 'int' to 'uint64_t'
                     /wd4244 # conversion from 'int64_t' to 'int'
                     /wd4551)
     else()
