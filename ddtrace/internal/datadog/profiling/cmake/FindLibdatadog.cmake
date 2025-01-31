@@ -120,8 +120,6 @@ get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
 if(WIN32)
     find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
 
-    message("Find path succeeded")
-
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         find_library(
             Datadog_LIBRARY
@@ -134,16 +132,11 @@ if(WIN32)
             HINTS ${Datadog_ROOT}/debug/static)
     endif()
 
-    message("find library succeeded")
-
     include(FindPackageHandleStandardArgs)
 
     find_package_handle_standard_args(Datadog DEFAULT_MSG Datadog_LIBRARY Datadog_INCLUDE_DIR)
 
-    message("find package handle succeeded")
-
     if(Datadog_FOUND)
-        message("=============== DATADOG FOUND==============")
         set(Datadog_INCLUDE_DIRS ${Datadog_INCLUDE_DIR})
         set(Datadog_LIBRARIES ${Datadog_LIBRARY})
         mark_as_advanced(Datadog_ROOT Datadog_LIBRARY Datadog_INCLUDE_DIR)
@@ -167,7 +160,6 @@ if(WIN32)
 
         add_library(Datadog::Profiling ALIAS datadog_profiling_ffi)
     else()
-        message("=============== DATADOG not found==============")
         set(Datadog_ROOT
             ""
             CACHE STRING "Directory containing libdatadog")
