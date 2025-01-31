@@ -164,6 +164,81 @@ class TracerTestCases(TracerTestCase):
                 ),
             )
 
+    def test_tracer_record_exception(self):
+        @self.tracer.wrap()
+        def f():
+            try:
+                raise Exception("bim")
+            except Exception as e:
+                self.tracer.record_exception(e)
+
+        f()
+        self.assert_structure(
+            dict(
+                name="tests.tracer.test_tracer.f",
+                error=0,
+            ),
+        )
+        self.assert_span_event_count(1)
+        self.assert_span_event_attributes(
+            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "False"}
+        )
+
+    def test_tracer_record_multiple_exceptions(self):
+        @self.tracer.wrap()
+        def f():
+            try:
+                raise Exception("bim")
+            except Exception as e:
+                self.tracer.record_exception(e)
+
+            try:
+                raise Exception("bam")
+            except Exception as e:
+                self.tracer.record_exception(e)
+
+        f()
+        self.assert_span_event_count(2)
+        self.assert_structure(
+            dict(
+                name="tests.tracer.test_tracer.f",
+                error=0,
+            )
+        )
+        self.assert_span_event_attributes(
+            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "False"}
+        )
+        self.assert_span_event_attributes(
+            1, {"exception.type": "builtins.Exception", "exception.message": "bam", "exception.escaped": "False"}
+        )
+
+    def test_tracer_record_escaped_exception(self):
+        exc = Exception("bim")
+
+        @self.tracer.wrap()
+        def f():
+            try:
+                raise exc
+            except Exception as e:
+                self.tracer.record_exception(e, escaped=True)
+
+        f()
+
+        self.assert_structure(
+            dict(
+                name="tests.tracer.test_tracer.f",
+                error=1,
+                meta={
+                    "error.message": str(exc),
+                    "error.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
+                },
+            ),
+        )
+        self.assert_span_event_count(1)
+        self.assert_span_event_attributes(
+            0, {"exception.type": "builtins.Exception", "exception.message": "bim", "exception.escaped": "True"}
+        )
+
     def test_tracer_wrap_multiple_calls(self):
         @self.tracer.wrap()
         def f():
