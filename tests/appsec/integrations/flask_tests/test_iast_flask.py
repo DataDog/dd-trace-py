@@ -10,6 +10,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -25,7 +26,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
+TEST_FILE_PATH = "tests/appsec/integrations/flask_tests/test_iast_flask.py"
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
@@ -1582,7 +1583,10 @@ Lorem Ipsum Foobar
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_STACKTRACE_LEAK
             assert "valueParts" in vulnerability["evidence"]
-            assert "tests.contrib.flask.test_flask_appsec_iast" in vulnerability["evidence"]["valueParts"][0]["value"]
+            assert (
+                "tests.appsec.integrations.flask_tests.test_iast_flask"
+                in vulnerability["evidence"]["valueParts"][0]["value"]
+            )
             assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
 
 
@@ -1733,8 +1737,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)
