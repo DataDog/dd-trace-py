@@ -7,6 +7,8 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
 from tests.utils import TracerTestCase
 from tests.utils import flaky
 from tests.webclient import Client
@@ -265,3 +267,88 @@ def pyramid_client(snapshot, pyramid_app):
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200
+
+
+class TestAPIGatewayTracing(PyramidBase):
+    """
+    Ensure that Pyramid web applications are properly traced when API Gateway is involved
+    """
+
+    instrument = True
+
+    def test_inferred_spans_api_gateway_default(self):
+        # we do not inherit context if distributed tracing is disabled
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        for setting_enabled in [False, True]:
+            config._inferred_proxy_services_enabled = setting_enabled
+            for test_headers in [distributed_headers, headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/",
+                        "status": 200,
+                        "resource_name": "GET index",
+                        "http.route": "/",
+                    },
+                    {
+                        "endpoint": "/error",
+                        "status": 500,
+                        "resource_name": "GET error",
+                        "http.route": "/error",
+                    },
+                    {
+                        "endpoint": "/exception",
+                        "status": 500,
+                        "resource_name": "GET exception",
+                        "http.route": "/exception",
+                    },
+                ]:
+                    try:
+                        self.app.get(test_endpoint["endpoint"], headers=test_headers, status=test_endpoint["status"])
+                    except ZeroDivisionError:
+                        # Passing because /exception raises a ZeroDivisionError but we still need to create spans
+                        pass
+
+                    spans = self.pop_spans()
+                    if setting_enabled:
+                        aws_gateway_span = spans[0]
+                        web_span = spans[1]
+                        assert web_span.name == "pyramid.request"
+                        # Assert common behavior including aws gateway metadata
+                        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
+                        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+                        assert (
+                            aws_gateway_span.resource
+                            == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+                        )
+                        # Assert test specific behavior for pyramid
+                        assert web_span.service == "pyramid"
+                        assert web_span.resource == test_endpoint["resource_name"]
+                        assert test_endpoint["endpoint"] in web_span.get_tag("http.url")
+                        assert web_span.get_tag("http.route") == test_endpoint["http.route"]
+                        assert web_span.get_tag("span.kind") == "server"
+                        assert web_span.get_tag("component") == "pyramid"
+                        assert web_span.get_tag("_dd.inferred_span") is None
+                    else:
+                        web_span = spans[0]
+                        assert web_span._parent is None

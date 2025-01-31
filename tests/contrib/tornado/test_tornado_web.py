@@ -699,7 +699,7 @@ class TestAPIGatewayTracing(TornadoTestCase):
 
         for setting_enabled in [False, True]:
             config._inferred_proxy_services_enabled = setting_enabled
-            for test_headers in [distributed_headers]:
+            for test_headers in [distributed_headers, headers]:
                 for test_endpoint in [
                     {
                         "endpoint": "/success/",
