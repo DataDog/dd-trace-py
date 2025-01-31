@@ -135,14 +135,14 @@ class TestIntegrationConfig(BaseTestCase):
         assert not self.integration_config.http.header_is_traced("other_header")
 
     def test_allow_exist_both_global_and_integration_config(self):
-        self.config.trace_headers("global_header")
+        self.config._trace_headers("global_header")
         assert self.integration_config.header_is_traced("global_header")
 
         self.integration_config.http.trace_headers("integration_header")
         assert self.integration_config.header_is_traced("integration_header")
 
         assert not self.integration_config.http.header_is_traced("global_header")
-        assert not self.config.header_is_traced("integration_header")
+        assert not self.config._header_is_traced("integration_header")
 
     def test_service(self):
         ic = IntegrationConfig(self.config, "foo")

@@ -1071,11 +1071,11 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     from ddtrace.trace import tracer
 
     # assert obfuscation is disabled when the regex is an empty string
-    assert config.global_query_string_obfuscation_disabled is True
+    assert config._global_query_string_obfuscation_disabled is True
     assert config._obfuscation_query_string_pattern is not None
 
     # Enable obfucation with an empty regex
-    config.global_query_string_obfuscation_disabled = False
+    config._global_query_string_obfuscation_disabled = False
 
     config._add("myint", dict())
     with tracer.trace("s") as span:
