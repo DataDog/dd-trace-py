@@ -832,7 +832,7 @@ Sampling
      
      version_added:
         v0.33.0:
-        v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, or DD_SPAN_SAMPLING_RULE are set.
+        v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
         v3.0.0: Only applied when DD_TRACE_SAMPLING_RULES or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
