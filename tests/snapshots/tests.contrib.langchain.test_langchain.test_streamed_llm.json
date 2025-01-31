@@ -12,6 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "679bca4600000000",
       "langchain.request.api_key": "...key>",
+      "langchain.request.messages.0.content": "How do I write technical documentation?",
       "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.openai.parameters.frequency_penalty": "0",
       "langchain.request.openai.parameters.max_tokens": "256",
@@ -20,12 +21,10 @@
       "langchain.request.openai.parameters.presence_penalty": "0",
       "langchain.request.openai.parameters.temperature": "0.7",
       "langchain.request.openai.parameters.top_p": "1",
-      "langchain.request.prompts.0": "Can you explain what Descartes meant by 'I think, therefore I am'?",
       "langchain.request.provider": "openai",
+      "langchain.request.stream": "True",
       "langchain.request.type": "llm",
-      "langchain.response.completions.0.finish_reason": "length",
-      "langchain.response.completions.0.logprobs": "None",
-      "langchain.response.completions.0.text": "\\n\\nDescartes, a 17th-century French philosopher, is known for his famous statement \"Cogito, ergo sum\" which is often translated...",
+      "langchain.response.content": "\\n\\nPython is cool!",
       "language": "python",
       "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
     },
@@ -34,12 +33,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 256,
-      "langchain.tokens.prompt_tokens": 17,
-      "langchain.tokens.total_cost": 0.0005375,
-      "langchain.tokens.total_tokens": 273,
       "process_id": 82010
     },
-    "duration": 3387000,
-    "start": 1738263110205796000
+    "duration": 3698000,
+    "start": 1738263110128412000
   }]]
