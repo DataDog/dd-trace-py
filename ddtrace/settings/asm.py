@@ -217,6 +217,8 @@ class ASMConfig(Env):
     )
     _bypass_instrumentation_for_waf = False
 
+    _iast_supported: bool = (3, 6, 0) <= sys.version_info < (3, 14, 0)
+
     def __init__(self):
         super().__init__()
         # Is one click available?
@@ -226,7 +228,7 @@ class ASMConfig(Env):
             self._asm_can_be_enabled = False
             self._iast_enabled = False
             self._api_security_enabled = False
-        if not ((3, 6, 0) <= sys.version_info < (3, 14, 0)):
+        if not self._iast_supported:
             self._iast_enabled = False
 
     def reset(self):
