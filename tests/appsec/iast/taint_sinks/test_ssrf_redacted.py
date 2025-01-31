@@ -21,9 +21,11 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.mark.parametrize(
-    "evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SSRF, ignore_list={9, 10}))
+    "evidence_input,sources_expected,vulnerabilities_expected,element", list(get_parametrize(VULN_SSRF))
 )
-def test_ssrf_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
+def test_ssrf_redaction_suite(
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+):
     tainted_object = evidence_input_value = evidence_input.get("value", "")
     if evidence_input_value:
         tainted_object = _taint_pyobject_multiranges(
