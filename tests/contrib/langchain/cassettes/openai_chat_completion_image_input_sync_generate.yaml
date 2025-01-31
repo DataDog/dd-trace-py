@@ -1,0 +1,112 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": [{"type": "text", "text": "What\u2019s in this
+      image?"}, {"type": "image_url", "image_url": {"url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"}}],
+      "role": "user"}], "model": "gpt-4o", "max_tokens": 256, "n": 1, "stream": false,
+      "temperature": 0.0}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '391'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.30.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.30.3
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    content: "{\n  \"id\": \"chatcmpl-AvVRbVB63Y7YqyObD4g19l2rEvVyT\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1738268931,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"The image shows a scenic landscape with
+      a wooden boardwalk path leading through a lush green field. The sky is blue
+      with scattered clouds, and there are trees and bushes in the background. The
+      setting appears to be a natural, open area, possibly a park or nature reserve.\",\n
+      \       \"refusal\": null\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 1151,\n    \"completion_tokens\":
+      56,\n    \"total_tokens\": 1207,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+      0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\": {\n
+      \     \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+      0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+      \"default\",\n  \"system_fingerprint\": \"fp_4691090a87\"\n}\n"
+    headers:
+      CF-Cache-Status:
+      - DYNAMIC
+      CF-RAY:
+      - 90a435e92e5f3886-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 30 Jan 2025 20:28:53 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=EtaA_3HrijluA2A.uMDQOkBRagq6Eqa0ziQjjtoMEkI-1738268933-1.0.1.1-XvP8eM82g.sBn55XMHXky_W9MdyhhpI59F4jjVs6gNGkr3yMhls52I8W17Hq9dALpVfeo6_9JgI_GRR91fCNAw;
+        path=/; expires=Thu, 30-Jan-25 20:58:53 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=LkUsOec2_120X6243XrZtosQrPDmEid5lf0bvqAXKBM-1738268933437-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '3853'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-input-images:
+      - '50000'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-input-images:
+      - '49999'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29998972'
+      x-ratelimit-reset-input-images:
+      - 1ms
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 2ms
+      x-request-id:
+      - req_2e4b323f38d4af3122652e8eb58377c0
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1
