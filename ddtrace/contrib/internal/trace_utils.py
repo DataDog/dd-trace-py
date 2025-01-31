@@ -639,6 +639,7 @@ def set_user(
     session_id=None,  # type: Optional[str]
     propagate=False,  # type bool
     span=None,  # type: Optional[Span]
+    may_block=True,  # type: bool
 ):
     # type: (...) -> None
     """Set user tags.
@@ -666,7 +667,7 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if asm_config._asm_enabled:
+        if may_block and asm_config._asm_enabled:
             exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
             if exc:
                 raise exc
