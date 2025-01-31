@@ -1383,6 +1383,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 
 def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
+    pytest.importorskip("ragas")
     with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
@@ -1464,6 +1465,8 @@ def test_llmobs_fork_submit_evaluation(monkeypatch):
 def test_llmobs_fork_evaluator_runner_run(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
+    pytest.importorskip("ragas")
+    monkeypatch.setenv("_DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
