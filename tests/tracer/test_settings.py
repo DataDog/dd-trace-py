@@ -161,34 +161,6 @@ class TestIntegrationConfig(BaseTestCase):
         assert ic.service == "foo-svc"
 
 
-@pytest.mark.parametrize(
-    "global_headers,int_headers,expected",
-    (
-        (None, None, (False, False, False)),
-        ([], None, (False, False, False)),
-        (["Header"], None, (True, False, True)),
-        (None, ["Header"], (False, True, True)),
-        (None, [], (False, False, False)),
-        (["Header"], ["Header"], (True, True, True)),
-        ([], [], (False, False, False)),
-    ),
-)
-def test_config_is_header_tracing_configured(global_headers, int_headers, expected):
-    config = Config()
-    integration_config = config.myint
-
-    if global_headers is not None:
-        config.trace_headers(global_headers)
-    if int_headers is not None:
-        integration_config.http.trace_headers(int_headers)
-
-    assert (
-        config._http.is_header_tracing_configured,
-        integration_config.http.is_header_tracing_configured,
-        integration_config.is_header_tracing_configured,
-    ) == expected
-
-
 def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
         config = Config()
@@ -213,58 +185,3 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
-
-
-@pytest.mark.parametrize(
-    "deprecated_name,name,test_value,env",
-    (
-        ("http_tag_query_string", "_http_tag_query_string", True, "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"),
-        ("trace_http_header_tags", "_trace_http_header_tags", {"x-dd": "x_dd"}, "DD_TRACE_HEADER_TAGS"),
-        ("report_hostname", "_report_hostname", True, "DD_TRACE_REPORT_HOSTNAME"),
-        ("health_metrics_enabled", "_health_metrics_enabled", True, "DD_TRACE_HEALTH_METRICS_ENABLED"),
-        ("analytics_enabled", "_analytics_enabled", True, "DD_TRACE_ANALYTICS_ENABLED"),
-        ("client_ip_header", "_client_ip_header", True, "DD_TRACE_CLIENT_IP_HEADER"),
-        ("retrieve_client_ip", "_retrieve_client_ip", True, "DD_TRACE_CLIENT_IP_ENABLED"),
-        (
-            "propagation_http_baggage_enabled",
-            "_propagation_http_baggage_enabled",
-            True,
-            "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED",
-        ),
-        (
-            "global_query_string_obfuscation_disabled",
-            "_global_query_string_obfuscation_disabled",
-            True,
-            'DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""',
-        ),
-        ("trace_methods", "_trace_methods", ["monkey.banana_melon"], "DD_TRACE_METHODS"),
-        ("ci_visibility_log_level", "_ci_visibility_log_level", True, "DD_CIVISIBILITY_LOG_LEVEL"),
-        ("test_session_name", "_test_session_name", "yessirapp", "DD_TEST_SESSION_NAME"),
-        ("logs_injection", "_logs_injection", False, "DD_LOGS_INJECTION"),
-    ),
-)
-def test_deprecated_config_attributes(deprecated_name, name, test_value, env):
-    """Ensures setting and getting deprecated attributes log a warning and still
-    set/return the expected values.
-    """
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-        config = Config()
-        # Test getting/setting a configuration by the expected name
-        setattr(config, name, test_value)
-        assert getattr(config, name) == test_value
-        assert len(warns) == 0
-        expected_warning = (
-            f"ddtrace.config.{deprecated_name} is deprecated and will be "
-            f"removed in version '3.0.0': Use the environment variable {env} "
-            "instead. This variable must be set before importing ddtrace."
-        )
-        # Test getting the configuration by the deprecated name
-        getattr(config, deprecated_name) == test_value
-        assert len(warns) == 1
-        assert str(warns[0].message) == expected_warning
-        # Test setting the configuration by the deprecated name
-        setattr(config, deprecated_name, None)
-        assert getattr(config, name) is None
-        assert len(warns) == 2
-        assert str(warns[1].message) == expected_warning

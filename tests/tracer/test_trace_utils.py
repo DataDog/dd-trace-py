@@ -407,8 +407,8 @@ def test_set_http_meta(
     appsec_enabled,
     span_type,
 ):
-    int_config.http.trace_headers(["my-header"])
-    int_config.trace_query_string = True
+    int_config._http.trace_headers(["my-header"])
+    int_config._trace_query_string = True
     span.span_type = span_type
     with asm_context(config={"_asm_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
@@ -443,7 +443,7 @@ def test_set_http_meta(
         else:
             expected_url = url
 
-        if query and int_config.trace_query_string:
+        if query and int_config._trace_query_string:
             assert span.get_tag(http.URL) == str(expected_url + "?" + query)
         else:
             assert span.get_tag(http.URL) == str(expected_url)
@@ -462,7 +462,7 @@ def test_set_http_meta(
     if status_msg is not None:
         assert span.get_tag(http.STATUS_MSG) == str(status_msg)
 
-    if query is not None and int_config.trace_query_string:
+    if query is not None and int_config._trace_query_string:
         assert span.get_tag(http.QUERY_STRING) == query
 
     if request_headers is not None:

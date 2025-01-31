@@ -615,34 +615,3 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         env=env,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
-
-
-def test_config_public_properties_and_methods():
-    # Regression test to prevent unexpected changes to public attributes in Config
-    # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings import Config
-
-    public_attrs = set()
-    c = Config()
-    # Check for public attributes in Config
-    for attr in dir(c):
-        if not attr.startswith("_") and not attr.startswith("__"):
-            public_attrs.add(attr)
-    # Check for public keys in Config._config
-    for key in c._config:
-        if not key.startswith("_"):
-            public_attrs.add(key)
-
-    assert public_attrs == {
-        "service",
-        "service_mapping",
-        "env",
-        "tags",
-        "version",
-        # Attributes below are deprecated and will be removed in v3.0
-        "trace_headers",
-        "header_is_traced",
-        "convert_rc_trace_sampling_rules",
-        "enable_remote_configuration",
-        "get_from",
-    }, public_attrs
