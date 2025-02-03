@@ -411,7 +411,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 api_gateway_resource="GET /",
                 method="GET",
                 route="/",
-                status_code="599",
+                status_code="200",
                 url="local/",
                 start=1736973768,
                 is_distributed=True,

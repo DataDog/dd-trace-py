@@ -618,9 +618,9 @@ def test_inferred_spans_api_gateway(client, test_spans):
         assert_web_and_inferred_aws_api_gateway_span_data(
             aws_gateway_span,
             web_span,
-            web_span_name="molten.request",
-            web_span_component="molten",
-            web_span_service_name="molten",
+            web_span_name="starlette.request",
+            web_span_component="starlette",
+            web_span_service_name="starlette",
             web_span_resource="GET /200",
             api_gateway_service_name="local",
             api_gateway_resource="GET /",

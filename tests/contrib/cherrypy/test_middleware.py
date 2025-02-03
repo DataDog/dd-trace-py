@@ -545,7 +545,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 route="/",
-                                status_code=dict(test_headers)["status"],
+                                status_code=test_endpoint["status"],
                                 url="local/",
                                 start=1736973768,
                                 is_distributed=test_headers == distributed_headers,
