@@ -46,9 +46,6 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets,
     in the given code object. Injection is recursive, in case of nested code objects (e.g. inline functions).
     """
-    if len(injection_context.injection_offsets) == 0:
-        return (injection_context.original_code, [])
-
     code = injection_context.original_code
     new_code, new_consts, new_linetable, new_exctable, seen_lines = _inject_invocation_nonrecursive(
         injection_context, path, package
@@ -64,7 +61,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
     if sys.version_info >= (3, 11):
         code = code.replace(
-            co_code=bytes(new_code),
+            co_code=new_code,
             co_consts=tuple(new_consts),
             co_linetable=new_linetable,
             co_stacksize=code.co_stacksize + 4,  # TODO: Compute the value!
@@ -159,12 +156,24 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-) -> t.Tuple[bytearray, t.List[object], bytes, bytes, t.List[int]]:
+) -> t.Tuple[bytes, tuple[t.Any, ...], bytes, bytes, t.List[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
     given code object. Injection is non-recursive, i.e. it does not instrument nested code objects.
     """
     code = injection_context.original_code
+    # if there is no place to inject code, we return the original code
+    if len(injection_context.injection_offsets) == 0:
+        exception_table = code.co_exceptiontable if is_python_3_11 else b""  # type: ignore
+
+        return (
+            code.co_code,
+            code.co_consts,
+            code.co_linetable,
+            exception_table,
+            [],
+        )
+
     old_code = code.co_code
     new_code = bytearray()
 
@@ -372,7 +381,7 @@ def _inject_invocation_nonrecursive(
         exception_table = b""
 
     return (
-        new_code,
+        bytes(new_code),
         new_consts,
         _generate_adjusted_location_data(injection_context.original_code, offsets_map, extended_arg_offsets),
         exception_table,
@@ -498,9 +507,9 @@ def _generate_adjusted_location_data_3_11(
                 injected_code_units_size = offsets_map[original_offset]
                 n, r = divmod(injected_code_units_size, 8)
                 for _ in range(n):
-                    new_data.append(0x80 | (0xF << 3) | 7)
+                    chunk.append(0x80 | (0xF << 3) | 7)
                 if r:
-                    new_data.append(0x80 | (0xF << 3) | r - 1)
+                    chunk.append(0x80 | (0xF << 3) | r - 1)
                 offset += injected_code_units_size << 1
 
             # Extend the line table record if we added any EXTENDED_ARGs
