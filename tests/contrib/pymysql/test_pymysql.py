@@ -2,8 +2,8 @@ import mock
 import pymysql
 
 from ddtrace import Pin
-from ddtrace.contrib.pymysql.patch import patch
-from ddtrace.contrib.pymysql.patch import unpatch
+from ddtrace.contrib.internal.pymysql.patch import patch
+from ddtrace.contrib.internal.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests
 from tests.opentracer.utils import init_tracer

@@ -3,13 +3,14 @@ import sys
 
 import pytest
 
-from ddtrace.internal.bytecode_injection.core import InjectionContext
-from ddtrace.internal.bytecode_injection.core import inject_invocation
 
+if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
+    from ddtrace.internal.bytecode_injection.core import InjectionContext
+    from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10),
-    reason="Injection is only supported for 3.10+",
+    sys.version_info[:2] < (3, 10) and sys.version_info[:2] > (3, 11),
+    reason="Injection is currently only supported for 3.10 and 3.11",
 )
 
 
@@ -325,7 +326,9 @@ def test_import_adjustment_if_injection_did_occur():
     original = the_function.__code__
 
     # Injection index from dis.dis(<function to inject into>)
-    ic = InjectionContext(original, _callback, lambda _: [14])
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    injection_indexes = {"3.10": 8, "3.11": 14}
+    ic = InjectionContext(original, _callback, lambda _: [injection_indexes[python_version]])
     injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
     the_function.__code__ = injected
 

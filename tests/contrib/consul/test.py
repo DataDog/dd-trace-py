@@ -2,8 +2,8 @@ import consul
 from wrapt import BoundFunctionWrapper
 
 from ddtrace import Pin
-from ddtrace.contrib.consul.patch import patch
-from ddtrace.contrib.consul.patch import unpatch
+from ddtrace.contrib.internal.consul.patch import patch
+from ddtrace.contrib.internal.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase

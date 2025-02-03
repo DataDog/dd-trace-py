@@ -1180,11 +1180,11 @@ class Tracer(object):
 
         if "_logs_injection" in items:
             if config._logs_injection:
-                from ddtrace.contrib.logging import patch
+                from ddtrace.contrib.internal.logging.patch import patch
 
                 patch()
             else:
-                from ddtrace.contrib.logging import unpatch
+                from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
 

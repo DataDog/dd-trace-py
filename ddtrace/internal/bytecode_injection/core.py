@@ -410,8 +410,6 @@ def _generate_adjusted_location_data_3_10(
         offset_delta = old_data[idx]
         new_data.append(offset_delta)
         new_data.append(old_data[idx + 1])
-        # print('Adding offset delta:', offset_delta)
-        # print('Adding line delta:', old_data[idx + 1])
 
         next_offset = old_offset + offset_delta
 

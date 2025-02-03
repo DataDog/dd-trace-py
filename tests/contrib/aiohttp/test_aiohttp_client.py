@@ -4,9 +4,9 @@ import aiohttp
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.aiohttp import patch
-from ddtrace.contrib.aiohttp import unpatch
-from ddtrace.contrib.aiohttp.patch import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.aiohttp.patch import patch
+from ddtrace.contrib.internal.aiohttp.patch import unpatch
 from tests.utils import override_config
 from tests.utils import override_http_config
 

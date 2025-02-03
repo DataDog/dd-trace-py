@@ -2,7 +2,7 @@ import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
-from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
 import tests.appsec.rules as rules

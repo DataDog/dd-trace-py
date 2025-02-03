@@ -1,6 +1,6 @@
-from ddtrace.contrib.starlette import get_version
-from ddtrace.contrib.starlette import patch
-from ddtrace.contrib.starlette import unpatch
+from ddtrace.contrib.internal.starlette.patch import get_version
+from ddtrace.contrib.internal.starlette.patch import patch
+from ddtrace.contrib.internal.starlette.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

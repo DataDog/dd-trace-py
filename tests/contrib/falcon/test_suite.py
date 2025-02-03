@@ -1,6 +1,6 @@
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured

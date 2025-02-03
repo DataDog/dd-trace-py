@@ -13,9 +13,9 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace import Tracer
-from ddtrace.contrib.kafka.patch import TracedConsumer
-from ddtrace.contrib.kafka.patch import patch
-from ddtrace.contrib.kafka.patch import unpatch
+from ddtrace.contrib.internal.kafka.patch import TracedConsumer
+from ddtrace.contrib.internal.kafka.patch import patch
+from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.filters import TraceFilter
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
@@ -499,8 +499,8 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
 
 def _generate_in_subprocess(random_topic):
     import ddtrace
-    from ddtrace.contrib.kafka.patch import patch
-    from ddtrace.contrib.kafka.patch import unpatch
+    from ddtrace.contrib.internal.kafka.patch import patch
+    from ddtrace.contrib.internal.kafka.patch import unpatch
     from tests.contrib.kafka.test_kafka import KafkaConsumerPollFilter
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
@@ -800,7 +800,7 @@ import random
 import sys
 
 from ddtrace import Pin
-from ddtrace.contrib.kafka.patch import patch
+from ddtrace.contrib.internal.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
 from tests.contrib.kafka.test_kafka import kafka_topic
@@ -1040,7 +1040,7 @@ import random
 import sys
 
 from ddtrace import Pin
-from ddtrace.contrib.kafka.patch import patch
+from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
 from tests.contrib.kafka.test_kafka import consumer

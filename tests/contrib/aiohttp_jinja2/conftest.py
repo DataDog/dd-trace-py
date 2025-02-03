@@ -1,8 +1,8 @@
 import aiohttp_jinja2
 import pytest
 
-from ddtrace.contrib.aiohttp_jinja2 import patch
-from ddtrace.contrib.aiohttp_jinja2 import unpatch
+from ddtrace.contrib.internal.aiohttp_jinja2.patch import patch
+from ddtrace.contrib.internal.aiohttp_jinja2.patch import unpatch
 from ddtrace.pin import Pin
 from tests.contrib.aiohttp.conftest import app_tracer  # noqa:F401
 from tests.contrib.aiohttp.conftest import patched_app_tracer  # noqa:F401

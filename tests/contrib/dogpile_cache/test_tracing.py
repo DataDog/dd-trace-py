@@ -4,8 +4,8 @@ import dogpile
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.dogpile_cache.patch import patch
-from ddtrace.contrib.dogpile_cache.patch import unpatch
+from ddtrace.contrib.internal.dogpile_cache.patch import patch
+from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer

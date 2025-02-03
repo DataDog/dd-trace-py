@@ -5,7 +5,7 @@ from django.conf import settings
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.django import patch
+from ddtrace.contrib.internal.django.patch import patch
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 

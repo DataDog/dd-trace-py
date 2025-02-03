@@ -6,8 +6,8 @@ import pytest
 from wrapt import ObjectProxy
 
 from ddtrace import Pin
-from ddtrace.contrib.aredis.patch import patch
-from ddtrace.contrib.aredis.patch import unpatch
+from ddtrace.contrib.internal.aredis.patch import patch
+from ddtrace.contrib.internal.aredis.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config

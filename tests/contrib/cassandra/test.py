@@ -13,9 +13,9 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.cassandra.patch import patch
-from ddtrace.contrib.cassandra.patch import unpatch
-from ddtrace.contrib.cassandra.session import SERVICE
+from ddtrace.contrib.internal.cassandra.patch import patch
+from ddtrace.contrib.internal.cassandra.patch import unpatch
+from ddtrace.contrib.internal.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME

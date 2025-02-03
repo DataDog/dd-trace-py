@@ -9,8 +9,8 @@ from wrapt import ObjectProxy
 
 from ddtrace import Pin
 from ddtrace import tracer
-from ddtrace.contrib.redis.patch import patch
-from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.contrib.internal.redis.patch import patch
+from ddtrace.contrib.internal.redis.patch import unpatch
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG

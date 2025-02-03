@@ -17,9 +17,9 @@ from ddtrace import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
-from ddtrace.contrib.sqlite3.patch import patch
-from ddtrace.contrib.sqlite3.patch import unpatch
+from ddtrace.contrib.internal.sqlite3.patch import TracedSQLiteCursor
+from ddtrace.contrib.internal.sqlite3.patch import patch
+from ddtrace.contrib.internal.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

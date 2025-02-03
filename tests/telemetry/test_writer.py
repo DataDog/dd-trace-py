@@ -407,7 +407,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
-        {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "env_var", "value": True},
+        {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "default", "value": False},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
         {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},

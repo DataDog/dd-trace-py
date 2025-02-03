@@ -11,9 +11,9 @@ import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.client import WrappedClient
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.contrib.internal.pymemcache.client import WrappedClient
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase

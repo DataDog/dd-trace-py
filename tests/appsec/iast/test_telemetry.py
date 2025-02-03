@@ -25,8 +25,8 @@ from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_inje
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
-from ddtrace.contrib.sqlalchemy import patch as sqli_sqlalchemy_patch
-from ddtrace.contrib.sqlite3 import patch as sqli_sqlite3_patch
+from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqli_sqlalchemy_patch
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
