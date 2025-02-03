@@ -5,13 +5,15 @@ import pytest
 
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.internal.compat import urlencode
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
 
@@ -81,7 +83,7 @@ def _aux_appsec_get_root_span_with_exception(
         return False
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
     str_json = root_span.get_tag(IAST.JSON)
@@ -91,7 +93,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     assert vulnerability["evidence"]["value"] == "md5"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -131,7 +133,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
         50.0,
     ],
 )
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
         dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
@@ -147,7 +149,7 @@ def test_django_view_with_exception(client, test_spans, tracer, payload, content
         assert response is False
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False, _iast_deduplication_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -167,7 +169,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -213,7 +215,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(clie
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -261,7 +263,7 @@ def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer)
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -310,7 +312,7 @@ def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_request_header_value(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -347,7 +349,7 @@ def test_django_sqli_http_request_header_value(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_request_header_value(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -367,7 +369,7 @@ def test_django_iast_disabled_sqli_http_request_header_value(client, test_spans,
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_request_header_name(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -404,7 +406,7 @@ def test_django_sqli_http_request_header_name(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_request_header_name(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -424,7 +426,7 @@ def test_django_iast_disabled_sqli_http_request_header_name(client, test_spans, 
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_path_parameter(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -459,7 +461,7 @@ def test_django_sqli_http_path_parameter(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_path_parameter(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -477,7 +479,7 @@ def test_django_iast_disabled_sqli_http_path_parameter(client, test_spans, trace
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_cookies_name(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -514,7 +516,7 @@ def test_django_sqli_http_cookies_name(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -532,7 +534,7 @@ def test_django_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer)
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_cookies_value(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -571,7 +573,7 @@ def test_django_sqli_http_cookies_value(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -596,7 +598,7 @@ def test_django_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer
     ],
 )
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_sqli_http_body(client, test_spans, tracer, payload, content_type):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -652,7 +654,7 @@ def test_django_sqli_http_body(client, test_spans, tracer, payload, content_type
     ],
 )
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
         dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
@@ -672,7 +674,7 @@ def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, con
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_iast_disabled_sqli_http_body(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
@@ -690,7 +692,7 @@ def test_django_iast_disabled_sqli_http_body(client, test_spans, tracer):
         assert response.content == b"master"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_querydict(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -707,7 +709,7 @@ def test_django_querydict(client, test_spans, tracer):
     )
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection(client, test_spans, tracer):
     patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
@@ -735,7 +737,7 @@ def test_django_command_injection(client, test_spans, tracer):
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -760,7 +762,7 @@ def test_django_header_injection(client, test_spans, tracer):
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -783,7 +785,7 @@ def test_django_insecure_cookie(client, test_spans, tracer):
     assert vulnerability["hash"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_secure(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -797,7 +799,7 @@ def test_django_insecure_cookie_secure(client, test_spans, tracer):
     assert root_span.get_tag(IAST.JSON) is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_empty_cookie(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -811,7 +813,7 @@ def test_django_insecure_cookie_empty_cookie(client, test_spans, tracer):
     assert root_span.get_tag(IAST.JSON) is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_2_insecure_1_secure(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -827,7 +829,7 @@ def test_django_insecure_cookie_2_insecure_1_secure(client, test_spans, tracer):
     assert len(loaded["vulnerabilities"]) == 2
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -850,7 +852,7 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     assert vulnerability["hash"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_stacktrace_leak(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -874,7 +876,6 @@ def test_django_stacktrace_leak(client, test_spans, tracer):
     assert vulnerability["hash"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_stacktrace_from_technical_500_response(client, test_spans, tracer, debug_mode):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -1004,3 +1005,4 @@ def test_django_xss_secure(client, test_spans, tracer):
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
+ 
