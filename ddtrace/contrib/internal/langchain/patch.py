@@ -26,7 +26,7 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -1208,7 +1208,7 @@ def patch():
     if langchain_community:
         _patch_embeddings_and_vectorstores()
 
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
         def wrap_output_parser(module, parser):
