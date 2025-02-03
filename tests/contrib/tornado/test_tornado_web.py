@@ -715,7 +715,7 @@ class TestAPIGatewayTracing(TornadoTestCase):
                     {
                         "endpoint": "/status_code/500",
                         "status": 500,
-                        "resource_name": "tornado.web.ErrorHandler",
+                        "resource_name": "tests.contrib.tornado.web.app.ResponseStatusHandler",
                         "http.route": "^$",
                     },
                 ]:
