@@ -2857,10 +2857,10 @@ venv = Venv(
         Venv(
             name="aws_lambda",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
-            pys=select_pys(min_version="3.7", max_version="3.9"),
+            pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "boto3": latest,
-                "datadog-lambda": [">=4.66.0", latest],
+                "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
