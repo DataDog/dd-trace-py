@@ -5,7 +5,8 @@ from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._iast import _is_iast_enabled
-from ddtrace.appsec._iast._iast_request_context import in_iast_context
+from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
@@ -56,7 +57,7 @@ def _on_set_http_meta_iast(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled() and in_iast_context():
+    if _is_iast_enabled() and is_iast_request_enabled():
         try:
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -105,9 +106,6 @@ def _on_flask_patch(flask_version):
         _set_metric_iast_instrumented_source(OriginType.PATH)
         _set_metric_iast_instrumented_source(OriginType.QUERY)
 
-        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
-
         try_wrap_function_wrapper(
             "werkzeug.wrappers.request",
             "Request.get_data",
@@ -129,9 +127,17 @@ def _on_flask_patch(flask_version):
             )
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
+        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+        # Instrumented on _on_set_request_tags_iast
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled() and args and in_iast_context():
+    if _is_iast_enabled() and args and is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
@@ -140,6 +146,13 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 def _on_django_patch():
     if _is_iast_enabled():
         try:
+            when_imported("django.http.request")(
+                lambda m: try_wrap_function_wrapper(
+                    m,
+                    "QueryDict.__getitem__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+                )
+            )
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -150,13 +163,7 @@ def _on_django_patch():
             _set_metric_iast_instrumented_source(OriginType.PARAMETER)
             _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
             _set_metric_iast_instrumented_source(OriginType.BODY)
-            when_imported("django.http.request")(
-                lambda m: try_wrap_function_wrapper(
-                    m,
-                    "QueryDict.__getitem__",
-                    functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-                )
-            )
+
         except Exception:
             log.debug("Unexpected exception while patch IAST functions", exc_info=True)
 
@@ -165,7 +172,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
-        if not in_iast_context():
+        if not is_iast_request_enabled():
             return
 
         http_req = fn_args[0]
@@ -278,18 +285,16 @@ def _on_grpc_response(message):
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if _is_iast_enabled():
-        if not is_iast_request_enabled():
-            for key, value in wrapped(*args, **kwargs):
-                yield key, value
-        else:
+    if _is_iast_enabled() and is_iast_request_enabled():
+        try:
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
                 new_value = taint_pyobject(
                     pyobject=value, source_name=key, source_value=value, source_origin=origins[1]
                 )
                 yield new_key, new_value
-
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     else:
         for key, value in wrapped(*args, **kwargs):
             yield key, value
@@ -319,7 +324,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
                     res.append(
                         taint_pyobject(
                             pyobject=element,
-                            source_name=origin_to_str(origin),
+                            source_name=element,
                             source_value=element,
                             source_origin=origin,
                         )
@@ -399,6 +404,12 @@ def _on_iast_fastapi_patch():
         "FormData.get",
         functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
     )
+    try_wrap_function_wrapper(
+        "starlette.datastructures",
+        "FormData.keys",
+        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+    )
+
     _set_metric_iast_instrumented_source(OriginType.BODY)
 
     # Instrumented on _iast_starlette_scope_taint
@@ -411,14 +422,7 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if _is_iast_enabled():
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
-
-        if not is_iast_request_enabled():
-            return
-
+    if _is_iast_enabled() and is_iast_request_enabled():
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,
@@ -439,3 +443,69 @@ def _on_set_request_tags_iast(request, span, flask_config):
             OriginType.PARAMETER,
             override_pyobject_tainted=True,
         )
+
+
+def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
+    if not response or not _is_iast_enabled() or not is_iast_request_enabled() or get_iast_stacktrace_reported():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = response.content.decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_django_technical_500_response(request, response, exc_type, exc_value, tb):
+    if not exc_value or not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_report_stacktrace_leak_from_django_debug_page
+
+        exc_name = exc_type.__name__
+        module = tb.tb_frame.f_globals.get("__name__", "")
+        asm_report_stacktrace_leak_from_django_debug_page(exc_name, module)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak on 500 response view", exc_info=True)
+
+
+def _on_flask_finalize_request_post(response, _):
+    if not response or not _is_iast_enabled() or not is_iast_request_enabled() or get_iast_stacktrace_reported():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = response[0].decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_asgi_finalize_response(body, _):
+    if not body or not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        content = body.decode("utf-8", errors="ignore")
+        asm_check_stacktrace_leak(content)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _on_werkzeug_render_debugger_html(html):
+    if not html or not _is_iast_enabled() or not is_iast_request_enabled():
+        return
+
+    try:
+        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+
+        asm_check_stacktrace_leak(html)
+        set_iast_stacktrace_reported(True)
+    except Exception:
+        log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)

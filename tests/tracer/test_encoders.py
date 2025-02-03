@@ -21,7 +21,7 @@ from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY as ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull

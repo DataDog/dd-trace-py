@@ -117,7 +117,7 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
         )
     else:
         call = CallInfo.from_call(lambda: hook(item=item), when=when)
-    report = pytest.TestReport.from_item_and_call(item=item, call=call)
+    report = item.ihook.pytest_runtest_makereport(item=item, call=call)
     if report.outcome == "passed":
         report.outcome = outcomes.PASSED
     elif report.outcome == "failed" or report.outcome == "error":

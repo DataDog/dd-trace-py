@@ -9,13 +9,15 @@ from typing import Optional  # noqa:F401
 from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -127,7 +129,7 @@ class BaseLLMIntegration:
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
         )
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
             if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
@@ -136,6 +138,15 @@ class BaseLLMIntegration:
                 # in these cases to avoid conflicting with the later propagated tags.
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
                 span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
+            name="span.start",
+            value=1,
+            tags=(
+                ("integration", self._integration_name),
+                ("autoinstrumented", "true"),
+            ),
+        )
         return span
 
     @classmethod

@@ -35,7 +35,8 @@ jobs:
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -112,6 +113,7 @@ jobs:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
@@ -152,6 +154,7 @@ jobs:
             choco install -y 7zip &&
             7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 

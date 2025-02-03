@@ -27,6 +27,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
@@ -286,6 +287,7 @@ class LLMObs(Service):
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
+        core.reset_listeners("http.span_inject", self._inject_llmobs_context)
 
         forksafe.unregister(self._child_after_fork)
 
@@ -370,6 +372,7 @@ class LLMObs(Service):
         # Register hooks for span events
         core.on("trace.span_start", cls._instance._on_span_start)
         core.on("trace.span_finish", cls._instance._on_span_finish)
+        core.on("http.span_inject", cls._instance._inject_llmobs_context)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -571,6 +574,15 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         ml_app: Optional[str] = None,
     ) -> Span:
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
+            name="span.start",
+            value=1,
+            tags=(
+                ("autoinstrumented", "false"),
+                ("kind", operation_kind),
+            ),
+        )
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
@@ -1203,6 +1215,11 @@ class LLMObs(Service):
 
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
+    def _inject_llmobs_context(self, span_context: Context, request_headers: Dict[str, str]) -> None:
+        if self.enabled is False:
+            return
+        _inject_llmobs_parent_id(span_context)
+
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
@@ -1220,7 +1237,6 @@ class LLMObs(Service):
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
-        _inject_llmobs_parent_id(span.context)
         HTTPPropagator.inject(span.context, request_headers)
         return request_headers
 
