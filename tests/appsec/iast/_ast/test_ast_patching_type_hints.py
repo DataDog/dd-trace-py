@@ -32,7 +32,7 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
         return new_code
 
 
-@pytest.mark.skipif(sys.version_info <= (3, 8, 0), reason="Sample code not compatible with Python 3.7")
+@pytest.mark.skipif(sys.version_info == (3, 8, 0), reason="Sample code not compatible with Python 3.8")
 def test_no_index_aspects_py38plus():
     """
     Methods should not be replaced by the aspect since it's not the builtin method

@@ -25,7 +25,7 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - id: run_needed
@@ -71,16 +71,16 @@ jobs:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -170,19 +170,19 @@ jobs:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: django/django
           ref: 5.0.7
           path: django
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.11"
@@ -268,12 +268,12 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -282,7 +282,7 @@ jobs:
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
           ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
           path: graphene
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.9"
@@ -338,23 +338,23 @@ jobs:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@v4.1.2
+      - uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
         if: needs.needs-run.outputs.outcome == 'success'
         id: cache
         with:
@@ -409,19 +409,19 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: pallets/flask
           ref: 3.0.3
           path: flask
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -461,19 +461,19 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
@@ -535,19 +535,19 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: sqlalchemy/mako
           ref: rel_1_3_5
           path: mako
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -603,16 +603,16 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -670,16 +670,16 @@ jobs:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -739,16 +739,16 @@ jobs:
       run:
         working-directory: asyncpg
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -796,16 +796,16 @@ jobs:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -855,16 +855,16 @@ jobs:
       run:
         working-directory: uwsgi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
