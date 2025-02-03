@@ -156,7 +156,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-) -> t.Tuple[bytes, tuple[t.Any, ...], bytes, bytes, t.List[int]]:
+) -> t.Tuple[bytes, t.List[t.Any], bytes, bytes, t.List[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
     given code object. Injection is non-recursive, i.e. it does not instrument nested code objects.
@@ -168,7 +168,7 @@ def _inject_invocation_nonrecursive(
 
         return (
             code.co_code,
-            code.co_consts,
+            code.co_consts,  # type: ignore
             code.co_linetable,
             exception_table,
             [],
