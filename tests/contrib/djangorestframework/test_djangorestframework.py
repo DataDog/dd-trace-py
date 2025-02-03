@@ -43,6 +43,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
     assert err_span.get_tag("component") == "django"
 
+
 @pytest.mark.parametrize(
     "test_endpoint",
     [
