@@ -324,32 +324,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    # Maps deprecated configuration attributes to their corresponding environment variable and
-    # internalized attribute name
-    _DEPRECATED_ATTRS = {
-        "http_tag_query_string": ("_http_tag_query_string", "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"),
-        "trace_http_header_tags": ("_trace_http_header_tags", "DD_TRACE_HEADER_TAGS"),
-        "report_hostname": ("_report_hostname", "DD_TRACE_REPORT_HOSTNAME"),
-        "health_metrics_enabled": ("_health_metrics_enabled", "DD_TRACE_HEALTH_METRICS_ENABLED"),
-        "analytics_enabled": ("_analytics_enabled", "DD_TRACE_ANALYTICS_ENABLED"),
-        "client_ip_header": ("_client_ip_header", "DD_TRACE_CLIENT_IP_HEADER"),
-        "retrieve_client_ip": ("_retrieve_client_ip", "DD_TRACE_CLIENT_IP_ENABLED"),
-        "propagation_http_baggage_enabled": (
-            "_propagation_http_baggage_enabled",
-            "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED",
-        ),
-        "global_query_string_obfuscation_disabled": (
-            "_global_query_string_obfuscation_disabled",
-            'DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""',
-        ),
-        "trace_methods": ("_trace_methods", "DD_TRACE_METHODS"),
-        "ci_visibility_log_level": ("_ci_visibility_log_level", "DD_CIVISIBILITY_LOG_LEVEL"),
-        "test_session_name": ("_test_session_name", "DD_TEST_SESSION_NAME"),
-        "logs_injection": ("_logs_injection", "DD_LOGS_INJECTION"),
-        "http_server": ("_http_server", "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"),
-        "http": ("_http", "DD_TRACE_HEADER_TAGS"),
-    }
-
     class _HTTPServerConfig(object):
         _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -642,22 +616,6 @@ class Config(object):
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
 
     def __getattr__(self, name) -> Any:
-        if name in self._DEPRECATED_ATTRS:
-            new_name, env_var = self._DEPRECATED_ATTRS[name]
-            deprecate(
-                f"ddtrace.config.{name} is deprecated",
-                message=f"Use the environment variable {env_var} instead. "
-                "This variable must be set before importing ddtrace.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            if name == new_name:
-                raise RuntimeError(
-                    f"Circular mapping detected: deprecated attribute {name} "
-                    f"in {self._DEPRECATED_ATTRS} maps to a deprecated attribute {new_name}"
-                )
-            return getattr(self, new_name)
-
         if name in self._config:
             return self._config[name].value()
 
@@ -680,13 +638,6 @@ class Config(object):
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
-
-    def get_from(self, obj):
-        deprecate(
-            "ddtrace.config.get_from is deprecated",
-            message="Use the `config` attribute directly.",
-        )
-        self._get_from(obj)
 
     def _get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -731,36 +682,6 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
-
-    def trace_headers(self, whitelist):
-        """
-        Registers a set of headers to be traced at global level or integration level.
-        :param whitelist: the case-insensitive list of traced headers
-        :type whitelist: list of str or str
-        :return: self
-        :rtype: HttpConfig
-        """
-        deprecate(
-            "ddtrace.config.trace_headers is deprecated",
-            message="Use the environment variable DD_TRACE_HEADER_TAGS instead.",
-            removal_version="3.0.0",
-        )
-        self._http.trace_headers(whitelist)
-        return self
-
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
-        deprecate(
-            "ddtrace.config.header_is_traced is deprecated",
-            removal_version="3.0.0",
-        )
-        return self._http.header_is_traced(header_name)
 
     @cachedmethod()
     def _header_tag_name(self, header_name):
@@ -812,17 +733,6 @@ class Config(object):
             self._set_config_items([(key, value, "code")])
             return None
         else:
-            if key in self._DEPRECATED_ATTRS:
-                # replace deprecated attribute name with the new name
-                new_key, env_var = self._DEPRECATED_ATTRS[key]
-                deprecate(
-                    f"ddtrace.config.{key} is deprecated",
-                    message=f"Use the environment variable {env_var} instead. "
-                    "This variable must be set before importing ddtrace.",
-                    removal_version="3.0.0",
-                    category=DDTraceDeprecationWarning,
-                )
-                key = new_key
             return super(self.__class__, self).__setattr__(key, value)
 
     def _set_config_items(self, items):
@@ -933,14 +843,6 @@ class Config(object):
             pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
         return {k: v for k, v in pairs}
 
-    def enable_remote_configuration(self):
-        deprecate(
-            "ddtrace.config.enable_remote_configuration(...) is deprecated",
-            message="Use DD_TRACE_REMOTE_CONFIG_ENABLED instead.",
-            version="3.0.0",
-        )
-        self._enable_remote_configuration()
-
     def _enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
@@ -977,14 +879,6 @@ class Config(object):
         if isinstance(tags, list):
             return {tag["key"]: tag["value_glob"] for tag in tags}
         return tags
-
-    def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
-        deprecate(
-            "ddtrace.config.convert_rc_trace_sampling_rules(...) is deprecated",
-            message="Use DD_REMOTE_CONFIGURATION_ENABLED instead.",
-            version="3.0.0",
-        )
-        return self._convert_rc_trace_sampling_rules(rc_rules)
 
     def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:

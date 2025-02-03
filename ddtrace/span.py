@@ -1,5 +1,5 @@
-from ddtrace._trace.span import Span  # noqa: F401
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.trace import Span  # noqa: F401
 from ddtrace.vendor.debtcollector import deprecate
 
 

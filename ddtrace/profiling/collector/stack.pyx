@@ -10,7 +10,7 @@ import typing
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
-from ddtrace._trace.tracer import Tracer
+from ddtrace.trace import Tracer
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2

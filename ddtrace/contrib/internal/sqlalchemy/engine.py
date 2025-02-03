@@ -2,7 +2,7 @@
 To trace sqlalchemy queries, add instrumentation to the engine class or
 instance you are using::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.sqlalchemy import trace_engine
     from sqlalchemy import create_engine
 
@@ -37,7 +37,7 @@ def trace_engine(engine, tracer=None, service=None):
     Add tracing instrumentation to the given sqlalchemy engine or instance.
 
     :param sqlalchemy.Engine engine: a SQLAlchemy engine class or instance
-    :param ddtrace.Tracer tracer: a tracer instance. will default to the global
+    :param ddtrace.trace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
     tracer = tracer or ddtrace.tracer  # by default use global
@@ -67,7 +67,7 @@ class EngineTracer(object):
         self.name = schematize_database_operation("%s.query" % self.vendor, database_provider=self.vendor)
 
         # attach the PIN
-        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Calling ddtrace.trace.Pin(...) with the `tracer` argument generates a deprecation warning.
         # Remove this if statement when the `tracer` argument is removed
         if self.tracer is ddtrace.tracer:
             Pin(service=self.service).onto(engine)

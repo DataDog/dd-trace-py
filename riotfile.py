@@ -2495,27 +2495,9 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # openai[embeddings] broken install with sklearn was never fixed on 0.26
-                    # https://github.com/openai/openai-python/issues/210
-                    pys="3.7",
-                    env={"SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL": "True"},
-                    pkgs={
-                        "openai": "==0.26.5",
-                        "scikit-learn": "==1.0.2",
-                        "pillow": "==9.5.0",
-                    },
-                ),
-                Venv(
-                    pys="3.7",
-                    pkgs={
-                        "openai[datalib]": "==1.30.1",
-                        "pillow": "==9.5.0",
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "openai[embeddings,datalib]": "==1.30.1",
+                        "openai[embeddings,datalib]": ["==1.0.0", "==1.30.1"],
                         "pillow": "==9.5.0",
                         "httpx": "==0.27.2",
                     },
@@ -2713,17 +2695,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     pkgs={
-                        "vcrpy": "==6.0.1",
-                        "langchain": "==0.0.192",
-                        "langchain-community": "==0.0.14",
-                        "openai": "==0.27.8",
-                        "pinecone-client": "==2.2.4",
-                        "cohere": "==4.57",
-                    },
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                ),
-                Venv(
-                    pkgs={
                         "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
@@ -2888,10 +2859,10 @@ venv = Venv(
         Venv(
             name="aws_lambda",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/aws_lambda",
-            pys=select_pys(min_version="3.7", max_version="3.9"),
+            pys=select_pys(min_version="3.8", max_version="3.13"),
             pkgs={
                 "boto3": latest,
-                "datadog-lambda": [">=4.66.0", latest],
+                "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "envier": "==0.5.2",
@@ -2951,11 +2922,13 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
-            pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
-            venvs=[
-                Venv(pys="3.7"),
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
-            ],
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": "==0.21.1",
+                "ragas": "==0.1.21",
+                "langchain": latest,
+            },
+            pys=select_pys(min_version="3.8"),
         ),
         Venv(
             name="profile",

@@ -35,11 +35,11 @@ from tests.utils import override_env
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.Span],
+    spans: t.List[ddtrace.trace.Span],
     span_type: str,
     name: str = None,
     status: t.Optional[str] = None,
-) -> t.List[ddtrace.Span]:
+) -> t.List[ddtrace.trace.Span]:
     _names_map = {
         "session": ("test_session_end",),
         "module": ("test_module_end", "test.module"),
