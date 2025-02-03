@@ -1,4 +1,4 @@
-# This module must not import other modules inconditionnaly that require iast
+# This module must not import other modules unconditionally that require iast
 
 import ctypes
 import os
