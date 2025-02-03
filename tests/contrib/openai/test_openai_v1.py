@@ -104,9 +104,7 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_ll
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_acompletion(
-    api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer
-):
+async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
