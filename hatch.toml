@@ -558,7 +558,6 @@ dependencies = [
 ]
 
 [envs.pytest_plugin_v2.env-vars]
-DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
 DD_AGENT_PORT = "9126"
 
 [envs.pytest_plugin_v2.scripts]
@@ -599,9 +598,6 @@ dependencies = [
     "hypothesis",
 ]
 
-[envs.freezegun.env-vars]
-DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
-
 [envs.freezegun.scripts]
 test = [
     "pytest tests/contrib/freezegun {args:}",
@@ -637,6 +633,6 @@ tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]
 matrix.tested_pytest_plugin_version.env-vars = [
-    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "false", if = ["v1"]},
-    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "true", if = ["v2"]}
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
 ]
