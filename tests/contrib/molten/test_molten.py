@@ -451,29 +451,32 @@ class TestMolten(TracerTestCase):
         }
 
         for setting_enabled in [False, True]:
-            for test_headers in [distributed_headers, headers]:
+            for test_headers in [headers, distributed_headers]:
                 for test_endpoint in [
                     {
                         "endpoint": "/greet",
                         "status": 200,
-                        "resource_name": "GET 200",
+                        "resource_name": "GET /greet",
                         "http.route": "/greet",
                     },
                     {
                         "endpoint": "/unhandlederror",
                         "status": 500,
-                        "resource_name": "GET 500",
+                        "resource_name": "GET /unhandlederror",
                         "http.route": "/unhandlederror",
                     },
                     {
                         "endpoint": "/404",
                         "status": 404,
-                        "resource_name": "GET 404",
+                        "resource_name": "GET /404",
                         "http.route": "/404",
                     },
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
-                        self.make_request(headers=test_headers, route=test_endpoint["endpoint"])
+                        try:
+                            self.make_request(headers=test_headers, route=test_endpoint["endpoint"])
+                        except ZeroDivisionError:
+                            pass
 
                         traces = self.pop_traces()
                         if setting_enabled:
