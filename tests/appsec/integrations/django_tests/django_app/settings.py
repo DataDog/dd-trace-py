@@ -6,7 +6,6 @@ from tests.webclient import PingFilter
 
 tracer._configure(trace_processors=[PingFilter()])
 
-
 ALLOWED_HOSTS = [
     "testserver",
     "localhost",
