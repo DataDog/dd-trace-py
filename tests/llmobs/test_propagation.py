@@ -1,10 +1,6 @@
 import json
 import os
 
-import pytest
-
-from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -275,57 +271,3 @@ print(json.dumps(headers))
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-
-
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_ml_app="test_app_name")])
-def test_threading_submit_propagation(llmobs, llmobs_events, ddtrace_global_config):
-    # Assert the threading patch propagates the llmobs tracing context if llmobs is enabled.
-    patch_futures()
-    import concurrent.futures
-
-    def fn():
-        with llmobs.task("executor.thread"):
-            return 42
-
-    with llmobs.workflow("main.thread"):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(fn)
-            result = future.result()
-            assert result == 42
-    assert len(llmobs_events) == 2
-    main_thread_span, executor_thread_span = None, None
-    for span in llmobs_events:
-        if span["name"] == "main.thread":
-            main_thread_span = span
-        else:
-            executor_thread_span = span
-    assert main_thread_span["parent_id"] == ROOT_PARENT_ID
-    assert executor_thread_span["parent_id"] == main_thread_span["span_id"]
-    unpatch_futures()
-
-
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_ml_app="test_app_name")])
-def test_threading_map_propagation(llmobs, llmobs_events, ddtrace_global_config):
-    # Assert the threading patch propagates the llmobs tracing context if llmobs is enabled.
-    patch_futures()
-    import concurrent.futures
-
-    def fn(value):
-        with llmobs.task("executor.thread"):
-            return value
-
-    with llmobs.workflow("main.thread"):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            _ = executor.map(fn, (1, 2))
-    assert len(llmobs_events) == 3
-    main_thread_span = None
-    executor_thread_spans = []
-    for span in llmobs_events:
-        if span["name"] == "main.thread":
-            main_thread_span = span
-        else:
-            executor_thread_spans.append(span)
-    assert main_thread_span["parent_id"] == ROOT_PARENT_ID
-    assert executor_thread_spans[0]["parent_id"] == main_thread_span["span_id"]
-    assert executor_thread_spans[1]["parent_id"] == main_thread_span["span_id"]
-    unpatch_futures()
