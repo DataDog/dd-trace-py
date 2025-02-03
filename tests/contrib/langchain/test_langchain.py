@@ -100,7 +100,7 @@ def test_ai21_llm_sync(langchain_community, request_vcr):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-@flaky(until=1735812000, reason="Problematic test that needs fixing")
+@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
@@ -108,7 +108,7 @@ def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, request_
         chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@flaky(until=1735812000, reason="Problematic test that needs fixing")
+@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_generate(langchain_openai, request_vcr):
@@ -130,7 +130,7 @@ def test_openai_chat_model_sync_generate(langchain_openai, request_vcr):
         )
 
 
-@flaky(until=1735812000, reason="Problematic test that needs fixing")
+@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
@@ -475,7 +475,7 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         pass
 
 
-@flaky(until=1735812000, reason="Problematic test that needs fixing")
+@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(
     ignores=IGNORE_FIELDS,
     token="tests.contrib.langchain.test_langchain.test_streamed_chain",
@@ -500,7 +500,7 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         pass
 
 
-@flaky(until=1735812000, reason="Problematic test that needs fixing")
+@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(
     ignores=IGNORE_FIELDS,
     token="tests.contrib.langchain.test_langchain.test_streamed_chat",
