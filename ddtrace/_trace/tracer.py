@@ -455,7 +455,7 @@ class Tracer(object):
         uds_path: Optional[str] = None,
         https: Optional[bool] = None,
         sampler: Optional[BaseSampler] = None,
-        context_provider: Optional[DefaultContextProvider] = None,
+        context_provider: Optional[BaseContextProvider] = None,
         wrap_executor: Optional[Callable] = None,
         priority_sampling: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
