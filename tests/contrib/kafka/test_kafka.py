@@ -22,7 +22,7 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
-from ddtrace.trace import Tracer
+from ddtrace.trace import tracer as ddtracer
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -106,16 +106,16 @@ def should_filter_empty_polls():
 @pytest.fixture
 def tracer(should_filter_empty_polls):
     patch()
-    t = Tracer()
     if should_filter_empty_polls:
-        t._configure(trace_processors=[KafkaConsumerPollFilter()])
+        ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    t._writer._send_payload_with_backoff = t._writer._send_payload
+    previous_backoff = ddtracer._writer._send_payload_with_backoff
+    ddtracer._writer._send_payload_with_backoff = ddtracer._writer._send_payload
     try:
-        yield t
+        yield ddtracer
     finally:
-        t.flush()
-        t.shutdown()
+        ddtracer.flush()
+        ddtracer._writer._send_payload_with_backoff = previous_backoff
         unpatch()
 
 
@@ -124,6 +124,8 @@ def dsm_processor(tracer):
     processor = tracer.data_streams_processor
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
+        # flush buckets for the next test run
+        processor.periodic()
 
 
 @pytest.fixture
@@ -325,6 +327,7 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
+@pytest.mark.skip(reason="FIXME: This test requires the initialization of a new tracer. This is not supported")
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()

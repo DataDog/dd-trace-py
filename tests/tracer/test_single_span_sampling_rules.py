@@ -10,7 +10,6 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.trace import Tracer
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
@@ -129,7 +128,7 @@ def test_env_rules_cause_matching_span_to_be_sampled():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = Tracer()
+        tracer = DummyTracer()
         tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span)
@@ -141,7 +140,7 @@ def test_env_rules_dont_cause_non_matching_span_to_be_sampled():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_ser"
         assert sampling_rules[0]._name_matcher.pattern == "test_na"
-        tracer = Tracer()
+        tracer = DummyTracer()
         tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer)
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
@@ -153,7 +152,7 @@ def test_single_span_rules_not_applied_when_span_sampled_by_trace_sampling():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = Tracer()
+        tracer = DummyTracer()
         tracer._configure(writer=DummyWriter())
         span = traced_function(sampling_rules[0], tracer=tracer, trace_sampling=True)
         assert sampling_rules[0].match(span) is True

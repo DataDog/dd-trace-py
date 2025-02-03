@@ -1,15 +1,12 @@
 """
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
-
-import gc
-from threading import Thread
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
 
 import pytest
 
-from ddtrace.trace import Tracer
+from tests.utils import DummyTracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -17,11 +14,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @pytest.fixture
-def tracer() -> Tracer:
-    return Tracer()
+def tracer() -> DummyTracer:
+    return DummyTracer()
 
 
-def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
+def trace(weakdict: WeakValueDictionary, tracer, *args, **kwargs):
     # type: (...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
@@ -34,7 +31,14 @@ def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
     return s
 
 
-def test_leak(tracer):
+@pytest.mark.subprocess
+def test_leak():
+    import gc
+    from weakref import WeakValueDictionary
+
+    from ddtrace.trace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     with trace(wd, tracer, "span1") as span:
         with trace(wd, tracer, "span2") as span2:
@@ -44,15 +48,23 @@ def test_leak(tracer):
     # The spans are still open and referenced so they should not be gc'd
     gc.collect()
     assert len(wd) == 2
+    tracer.flush()
     del span, span2
     gc.collect()
     assert len(wd) == 0
 
 
-def test_single_thread_single_trace(tracer):
+@pytest.mark.subprocess
+def test_single_thread_single_trace():
     """
     Ensure a simple trace doesn't leak span objects.
     """
+    import gc
+    from weakref import WeakValueDictionary
+
+    from ddtrace.trace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     with trace(wd, tracer, "span1"):
         with trace(wd, tracer, "span2"):
@@ -64,10 +76,17 @@ def test_single_thread_single_trace(tracer):
     assert len(wd) == 0
 
 
-def test_single_thread_multi_trace(tracer):
+@pytest.mark.subprocess
+def test_single_thread_multi_trace():
     """
     Ensure a trace in a thread is properly garbage collected.
     """
+    import gc
+    from weakref import WeakValueDictionary
+
+    from ddtrace.trace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     for _ in range(1000):
         with trace(wd, tracer, "span1"):
@@ -75,17 +94,25 @@ def test_single_thread_multi_trace(tracer):
                 pass
             with trace(wd, tracer, "span3"):
                 pass
-
+    tracer.flush()
     # Once these references are deleted then the spans should no longer be
     # referenced by anything and should be gc'd.
     gc.collect()
     assert len(wd) == 0
 
 
-def test_multithread_trace(tracer):
+@pytest.mark.subprocess
+def test_multithread_trace():
     """
     Ensure a trace that crosses thread boundaries is properly garbage collected.
     """
+    import gc
+    from threading import Thread
+    from weakref import WeakValueDictionary
+
+    from ddtrace.trace import tracer
+    from tests.tracer.test_memory_leak import trace
+
     wd = WeakValueDictionary()
     state = []
 
@@ -102,6 +129,7 @@ def test_multithread_trace(tracer):
         # Ensure thread finished successfully
         assert state == [1]
 
+    tracer.flush()
     del span
     gc.collect()
     assert len(wd) == 0
