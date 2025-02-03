@@ -16,8 +16,7 @@ from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 from tests.utils import override_http_config
@@ -802,42 +801,24 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
                     )
             else:
                 aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-                # Assert common behavior including aws gateway metadata
-                assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-                assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-                assert (
-                    aws_gateway_span.resource
-                    == dict(headers)["x-dd-proxy-httpmethod"] + " " + dict(headers)["x-dd-proxy-path"]
+
+                assert_web_and_inferred_aws_api_gateway_span_data(
+                    aws_gateway_span,
+                    web_span,
+                    web_span_name="asgi.request",
+                    web_span_component="asgi",
+                    web_span_service_name="tests.contrib.asgi",
+                    web_span_resource="GET /",
+                    api_gateway_service_name="local",
+                    api_gateway_resource="GET /",
+                    method="GET",
+                    route="/",
+                    status_code=app_type["status_code"],
+                    url="local/",
+                    start=1736973768,
+                    is_distributed=headers == distributed_headers,
+                    distributed_trace_id=1,
+                    distributed_parent_id=2,
+                    distributed_sampling_decision=True,
+                    distributed_sampling_priority=USER_KEEP,
                 )
-                # Assert test specific behavior for aws api gateway
-                assert aws_gateway_span.get_tag("http.url") == "local/"
-                assert aws_gateway_span.get_tag("http.method") == "GET"
-                assert aws_gateway_span.get_tag("http.status_code") == app_type["status_code"]
-                assert aws_gateway_span.get_tag("http.route") == "/"
-                # Assert test specific behavior for asgi
-                assert web_span.name == "asgi.request"
-                assert web_span.service == "tests.contrib.asgi"
-                assert web_span.resource == "GET /"
-                # Fixtures spin up with different "servers" so the http.url can be
-                # different values for the test outcomes
-                possible_servers = ["http://127.0.0.1/", "http://dev/", "http://dev:8000/", None]
-                assert web_span.get_tag("http.url") in possible_servers
-                assert web_span.get_tag("http.route") is None
-                assert web_span.get_tag("span.kind") == "server"
-                assert web_span.get_tag("component") == "asgi"
-                assert web_span.get_tag("_dd.inferred_span") is None
-                if headers == distributed_headers:
-                    # No SAMPLING_PRIORITY_KEY when the web span is a child
-                    web_span.assert_matches(
-                        name="asgi.request",
-                        trace_id=1,
-                        sampled=True,
-                    )
-                    aws_gateway_span.assert_matches(
-                        name="aws.apigateway",
-                        trace_id=1,
-                        metrics={
-                            _SAMPLING_PRIORITY_KEY: USER_KEEP,
-                        },
-                        sampled=True,
-                    )

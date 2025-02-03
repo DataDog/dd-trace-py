@@ -6,15 +6,13 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
@@ -715,30 +713,28 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
         if inferred_proxy_enabled:
             web_span = test_spans.find_span(name="fastapi.request")
             aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # Assert test specific behavior for aws api gateway
-            assert aws_gateway_span.get_tag("http.url") == "local/"
-            assert aws_gateway_span.get_tag("http.method") == "GET"
-            assert aws_gateway_span.get_tag("http.status_code") == test["status_code"]
-            assert aws_gateway_span.get_tag("http.route") == "/"
-            # Assert test specific behavior for fastapi
-            assert web_span.name == "fastapi.request"
-            assert web_span.service == "fastapi"
-            assert web_span.resource == "GET " + test["resource_suffix"]
-            assert web_span.get_tag("http.url") == "http://testserver" + test["endpoint"]
-            assert web_span.get_tag("http.route") == test["http.route"]
-            assert web_span.get_tag("span.kind") == "server"
-            assert web_span.get_tag("component") == "fastapi"
-            assert web_span.get_tag("_dd.inferred_span") is None
 
-            # Additional assertions if the headers are from distributed tracing
-            if test_headers["type"] == "distributed":
-                assert web_span.trace_id == 1
-                assert aws_gateway_span.trace_id == 1
-                assert web_span.get_metric(_SAMPLING_PRIORITY_KEY) is None
-                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="fastapi.request",
+                web_span_component="fastapi",
+                web_span_service_name="fastapi",
+                web_span_resource="GET " + test["resource_suffix"],
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                route="/",
+                status_code=test["status_code"],
+                url="local/",
+                start=1736973768,
+                is_distributed=test_headers["type"] == "distributed",
+                distributed_trace_id=1,
+                distributed_parent_id=2,
+                distributed_sampling_decision=True,
+                distributed_sampling_priority=USER_KEEP,
+            )
+
         else:
             web_span = test_spans.find_span(name="fastapi.request")
             assert web_span._parent is None

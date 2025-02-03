@@ -14,14 +14,13 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 
 # from ddtrace.constants import ERROR_STACK
-from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
@@ -300,56 +299,66 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # Assert test specific behavior for aws api gateway
-            assert aws_gateway_span.resource == web_span.resource
-            assert aws_gateway_span.get_tag("http.url") == "local/"
-            assert aws_gateway_span.get_tag("http.method") == "GET"
-            assert aws_gateway_span.get_tag("http.status_code") == "200"
-            assert aws_gateway_span.get_tag("http.route") == "/"
-            assert aws_gateway_span.start == 1736973768.0
-            # Assert endpoint specific behavior for flask
-            assert web_span.name == "flask.request"
-            assert web_span.service == "flask"
-            assert web_span.resource == "GET /"
-            assert web_span.get_tag("http.url") == "http://localhost/"
-            assert web_span.get_tag("http.route") == "/"
-            assert web_span.get_tag("span.kind") == "server"
-            assert web_span.get_tag("component") == "flask"
-            assert web_span.get_tag("_dd.inferred_span") is None
+
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="flask.request",
+                web_span_component="flask",
+                web_span_service_name="flask",
+                web_span_resource="GET /",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                route="/",
+                status_code="200",
+                url="local/",
+                start=1736973768,
+            )
 
             # When hitting an application error, we extract the status and errors
             self.reset()
             _ = self.client.get("/applicationerror", headers=test_headers)
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
-            # Assert test specific behavior for aws api gateway
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert aws_gateway_span.get_tag("http.status_code") == "500"
-            # Assert endpoint specific test behavior:
-            assert aws_gateway_span.resource == "GET /applicationerror"
-            assert aws_gateway_span.get_tag("http.route") == "/"
-            assert web_span.resource == "GET /applicationerror"
-            assert web_span.get_tag("http.route") == "/applicationerror"
-            assert (
-                web_span.get_tag(ERROR_TYPE) is None
-            )  # TODO: figure out why the flask span has no error tags in this test
+
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="flask.request",
+                web_span_component="flask",
+                web_span_service_name="flask",
+                web_span_resource="GET /applicationerror",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /applicationerror",
+                method="GET",
+                route="/",
+                status_code="500",
+                url="local/",
+                start=1736973768,
+            )
 
             # When hitting an endpoint with a custom status code, we report the code
             self.reset()
             _ = self.client.get("/returnerrorcode", headers=test_headers)
             web_span = self.find_span_by_name(self.get_spans(), "flask.request")
             aws_gateway_span = web_span._parent
-            # Assert endpoint specific test behavior:
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert aws_gateway_span.get_tag("http.status_code") == "599"
-            assert (
-                web_span.get_tag(ERROR_TYPE) is None
-            )  # TODO: figure out why the flask span has no error tags in this test
+
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="flask.request",
+                web_span_component="flask",
+                web_span_service_name="flask",
+                web_span_resource="GET /returnerrorcode",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /returnerrorcode",
+                method="GET",
+                route="/",
+                status_code="599",
+                url="local/",
+                start=1736973768,
+            )
 
     def test_inferred_spans_api_gateway_distributed_tracing(self):
         """
@@ -391,14 +400,25 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             aws_gateway_span = web_span._parent
 
             # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-
-            # Assert test specific behavior
-            assert web_span.trace_id == aws_gateway_span.trace_id
-            assert web_span.sampled is True
-            assert aws_gateway_span.parent_id == 2
-            assert aws_gateway_span.trace_id == 1
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="flask.request",
+                web_span_component="flask",
+                web_span_service_name="flask",
+                api_gateway_service_name="local",
+                resource="GET /returnerrorcode",
+                method="GET",
+                route="/",
+                status_code="599",
+                url="local/",
+                start=1736973768,
+                is_distributed=True,
+                distributed_trace_id=1,
+                distributed_parent_id=2,
+                distributed_sampling_decision=True,
+                distributed_sampling_priority=USER_KEEP,
+            )
 
     def test_request_query_string(self):
         """

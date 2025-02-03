@@ -37,8 +37,7 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
 from tests.utils import override_config
@@ -1792,24 +1791,23 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
         resp = client.get("/", **headers)
         web_span = test_spans.find_span(name="django.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-        # Assert common behavior including aws gateway metadata
-        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-        # Assert test specific behavior for aws api gateway
-        assert aws_gateway_span.get_tag("http.url") == "local/"
-        assert aws_gateway_span.get_tag("http.method") == "GET"
-        assert aws_gateway_span.get_tag("http.status_code") == "200"
-        assert aws_gateway_span.get_tag("http.route") == "/"
-        assert aws_gateway_span.start == 1736973768.0
-        # Assert test specific behavior for django
-        assert web_span.name == "django.request"
-        assert web_span.service == "django"
-        assert web_span.resource == "GET ^$"
-        assert web_span.get_tag("http.url") == "http://testserver/"
-        assert web_span.get_tag("http.route") == "^$"
-        assert web_span.get_tag("span.kind") == "server"
-        assert web_span.get_tag("component") == "django"
-        assert web_span.get_tag("_dd.inferred_span") is None
+
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+        )
 
         test_spans.reset()
         try:
@@ -1817,14 +1815,23 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
         except Exception:
             web_span = test_spans.find_span(name="django.request")
             aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # Assert endpoint specific test behavior:
-            assert (
-                web_span.get_tag(ERROR_TYPE) is None
-            )  # TODO: figure out why the django span has no error tags in this test
-            assert aws_gateway_span.get_tag("http.status_code") == "500"
+
+            # Assert common behavior including aws gateway metadata and web span metadata
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="django.request",
+                web_span_component="django",
+                web_span_service_name="django",
+                web_span_resource="GET ^$",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                route="/",
+                status_code="500",
+                url="local/",
+                start=1736973768.0,
+            )
 
 
 def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
@@ -1871,9 +1878,28 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         web_span = test_spans.find_span(name="django.request")
         aws_gateway_span = web_span._parent
 
-        # Assert common behavior including aws gateway metadata
-        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+            is_distributed=True,
+            distributed_trace_id=1,
+            distributed_parent_id=2,
+            distributed_sampling_decision=True,
+            distributed_sampling_priority=USER_KEEP,
+        )
+
         # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
         web_span.assert_matches(
             name="django.request",
@@ -1881,9 +1907,6 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
             sampled=True,
         )
         assert len(test_spans.spans) == 27
-        assert aws_gateway_span.trace_id == 1
-        assert aws_gateway_span.parent_id == 2
-        assert aws_gateway_span.sampled is True
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):

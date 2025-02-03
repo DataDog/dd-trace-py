@@ -12,8 +12,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import flaky
 from tests.utils import override_global_config
@@ -627,28 +626,24 @@ async def test_inferred_spans_api_gateway(app_tracer, aiohttp_client, test_app, 
             web_span = traces[0][1]
             assert len(traces[0]) == 2
             assert web_span.name == "aiohttp.request"
-            # Assert common behavior including aws gateway metadata
-            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-            # Assert test specific behavior for aws api gateway
-            assert aws_gateway_span.get_tag("http.url") == "local/"
-            assert aws_gateway_span.get_tag("http.method") == "GET"
-            assert aws_gateway_span.get_tag("http.status_code") == str(test_app["status_code"])
-            assert aws_gateway_span.get_tag("http.route") == "/"
-            # Assert test specific behavior for aiohttp
-            assert web_span.name == "aiohttp.request"
-            assert web_span.service == "aiohttp-web"
-            assert web_span.resource == test_app["http_method"] + " " + test_app["path"]
-            # The port in the http url changes dynamically in this test
-            assert "http://127.0.0.1" in web_span.get_tag("http.url")
-            assert web_span.get_tag("http.route") == test_app["path"]
-            assert web_span.get_tag("span.kind") == "server"
-            assert web_span.get_tag("component") == "aiohttp"
-            assert web_span.get_tag("_dd.inferred_span") is None
-
-            # Additional assertions if the headers are from distributed tracing
-            if test_headers["type"] == "distributed":
-                assert web_span.trace_id == 1
-                assert aws_gateway_span.trace_id == 1
-                assert web_span.get_metric(_SAMPLING_PRIORITY_KEY) is None
-                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+            # Assert common behavior including aws gateway metadata and web span metadata
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="aiohttp.request",
+                web_span_component="aiohttp",
+                web_span_service_name="aiohttp-web",
+                web_span_resource=test_app["http_method"] + " " + test_app["path"],
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                route="/",
+                status_code=str(test_app["status_code"]),
+                url="local/",
+                start=1736973768,
+                is_distributed=test_headers["type"] == "distributed",
+                distributed_trace_id=1,
+                distributed_parent_id=2,
+                distributed_sampling_decision=True,
+                distributed_sampling_priority=USER_KEEP,
+            )

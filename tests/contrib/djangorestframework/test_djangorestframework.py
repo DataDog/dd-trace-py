@@ -5,8 +5,7 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 
@@ -60,9 +59,22 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
         traces = test_spans.spans
         aws_gateway_span = traces[0]
         web_span = traces[1]
-        #  Assert common behavior including aws gateway metadata
-        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="tests.contrib.djangorestframework",
+            web_span_resource="GET /",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768,
+        )
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")

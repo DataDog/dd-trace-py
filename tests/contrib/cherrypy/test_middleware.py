@@ -19,8 +19,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.cherrypy.middleware import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
@@ -534,29 +533,28 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                         if setting_enabled:
                             aws_gateway_span = traces[0][0]
                             web_span = traces[0][1]
-                            assert web_span.name == "cherrypy.request"
-                            #  Assert common behavior including aws gateway metadata
-                            assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-                            assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-                            assert (
-                                aws_gateway_span.resource
-                                == dict(test_headers)["x-dd-proxy-httpmethod"]
-                                + " "
-                                + dict(test_headers)["x-dd-proxy-path"]
+
+                            assert_web_and_inferred_aws_api_gateway_span_data(
+                                aws_gateway_span,
+                                web_span,
+                                web_span_name="cherrypy.request",
+                                web_span_component="cherrypy",
+                                web_span_service_name="test.cherrypy.service",
+                                web_span_resource="GET " + dict(test_headers)["x-dd-proxy-path"],
+                                api_gateway_service_name="local",
+                                api_gateway_resource="GET /",
+                                method="GET",
+                                route="/",
+                                status_code=dict(test_headers)["status"],
+                                url="local/",
+                                start=1736973768,
+                                is_distributed=test_headers == distributed_headers,
+                                distributed_trace_id=1,
+                                distributed_parent_id=2,
+                                distributed_sampling_decision=True,
+                                distributed_sampling_priority=USER_KEEP,
                             )
-                            # Assert test specific behavior for cherrypy
-                            assert web_span.service == "test.cherrypy.service"
-                            assert web_span.resource == test_endpoint["resource_name"]
-                            assert web_span.get_tag("http.url") == "http://127.0.0.1:54583" + test_endpoint["endpoint"]
-                            assert web_span.get_tag("http.route") is None
-                            assert web_span.get_tag("span.kind") == "server"
-                            assert web_span.get_tag("component") == "cherrypy"
-                            assert web_span.get_tag("_dd.inferred_span") is None
-                            if test_headers == distributed_headers:
-                                assert web_span.sampled is True
-                                assert web_span.trace_id == 1
-                                assert aws_gateway_span.trace_id == 1
-                                assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
