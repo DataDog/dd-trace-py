@@ -6,6 +6,7 @@ from ddtrace import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
@@ -70,7 +71,7 @@ class EvaluatorRunner(PeriodicService):
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
         super(EvaluatorRunner, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__)
+        logger.debug("started %r", self.__class__.__name__)
 
     def _stop_service(self) -> None:
         """
@@ -88,6 +89,8 @@ class EvaluatorRunner(PeriodicService):
         )
 
     def enqueue(self, span_event: Dict, span: Span) -> None:
+        if self.status == ServiceStatus.STOPPED:
+            return
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
