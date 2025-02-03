@@ -14,11 +14,11 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings import _config as config
+from ddtrace.settings import _global_config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
-from ...constants import KEEP_SPANS_RATE_KEY
+from ...constants import _KEEP_SPANS_RATE_KEY
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -219,7 +219,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+            trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _reset_connection(self) -> None:
         with self._conn_lck:

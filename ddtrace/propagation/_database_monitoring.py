@@ -10,7 +10,7 @@ from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_co
 from ..internal import compat
 from ..internal.utils import get_argument_value
 from ..internal.utils import set_argument_value
-from ..settings import _config as dd_config
+from ..settings import _global_config as dd_config
 from ..settings._database_monitoring import dbm_config
 
 
