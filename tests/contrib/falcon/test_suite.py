@@ -326,7 +326,7 @@ class FalconTestCase(FalconTestMixin):
                         "status": 500,
                         "resource_name": "GET tests.contrib.falcon.app.resources.ResourceException",
                         "http.route": "/exception",
-                    }
+                    },
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
                         self.make_test_call(test_endpoint["endpoint"], headers=test_headers)
@@ -341,7 +341,7 @@ class FalconTestCase(FalconTestMixin):
                             assert (
                                 aws_gateway_span.resource
                                 == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
-                             )
+                            )
                             # Assert test specific behavior for falcon
                             assert web_span.service == "falcon"
                             assert web_span.resource == test_endpoint["resource_name"]

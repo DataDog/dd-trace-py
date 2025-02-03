@@ -34,8 +34,9 @@ def greet():
 def reply_404():
     raise molten.HTTPError(molten.HTTP_404, {"error": "Nope"})
 
+
 def unhandled_error_endpoint():
-    return 1/0
+    return 1 / 0
 
 
 def molten_app():
@@ -44,7 +45,7 @@ def molten_app():
             molten.Route("/hello/{name}/{age}", hello),
             molten.Route("/greet", greet),
             molten.Route("/404", reply_404),
-            molten.Route("/unhandlederror", unhandled_error_endpoint)
+            molten.Route("/unhandlederror", unhandled_error_endpoint),
         ]
     )
 
@@ -471,7 +472,7 @@ class TestMolten(TracerTestCase):
                         "status": 404,
                         "resource_name": "GET 404",
                         "http.route": "/404",
-                    }
+                    },
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
                         self.make_request(headers=test_headers, route=test_endpoint["endpoint"])

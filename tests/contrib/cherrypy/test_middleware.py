@@ -507,24 +507,24 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         ]
         for setting_enabled in [True, False]:
             for test_endpoint in [
-                    {
-                        "endpoint": "/",
-                        "status": 200,
-                        "resource_name": "GET /",
-                        "http.route": "/",
-                    },
-                    {
-                        "endpoint": "/fatal",
-                        "status": 500,
-                        "resource_name": "GET /fatal",
-                        "http.route": "/",
-                    },
-                    {
-                        "endpoint": "/error",
-                        "status": 500,
-                        "resource_name": "GET /error",
-                        "http.route": "/",
-                    }
+                {
+                    "endpoint": "/",
+                    "status": 200,
+                    "resource_name": "GET /",
+                    "http.route": "/",
+                },
+                {
+                    "endpoint": "/fatal",
+                    "status": 500,
+                    "resource_name": "GET /fatal",
+                    "http.route": "/",
+                },
+                {
+                    "endpoint": "/error",
+                    "status": 500,
+                    "resource_name": "GET /error",
+                    "http.route": "/",
+                },
             ]:
                 with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
                     for test_headers in [default_headers, distributed_headers]:
@@ -539,9 +539,11 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                             assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
                             assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
                             assert (
-                                    aws_gateway_span.resource
-                                    == dict(test_headers)["x-dd-proxy-httpmethod"] + " " + dict(test_headers)["x-dd-proxy-path"]
-                                )
+                                aws_gateway_span.resource
+                                == dict(test_headers)["x-dd-proxy-httpmethod"]
+                                + " "
+                                + dict(test_headers)["x-dd-proxy-path"]
+                            )
                             # Assert test specific behavior for cherrypy
                             assert web_span.service == "test.cherrypy.service"
                             assert web_span.resource == test_endpoint["resource_name"]
@@ -558,7 +560,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
-
 
 
 class TestCherrypySnapshot(helper.CPWebCase):
