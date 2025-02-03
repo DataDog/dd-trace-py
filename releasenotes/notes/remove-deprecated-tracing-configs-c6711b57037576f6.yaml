@@ -6,6 +6,5 @@ upgrade:
      - DD_TRACE_API_VERSION=v0.3, the default ``v0.5`` version is used instead.
      - DD_ANALYTICS_ENABLED, Datadog Analytics is no longer supported.
      - DD_TRACE_ANALYTICS_ENABLED, Datadog Analytics is no longer supported.
-     - DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED, this configuration can not be disabled.
      - DD_HTTP_CLIENT_TAG_QUERY_STRING, DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING should be used instead.
      - DD_TRACE_SPAN_AGGREGATOR_RLOCK, disabling the span aggregator rlock is no longer supported.

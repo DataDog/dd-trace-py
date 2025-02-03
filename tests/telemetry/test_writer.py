@@ -427,6 +427,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TESTING_RAISE", "origin": "env_var", "value": True},
         {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": None},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},

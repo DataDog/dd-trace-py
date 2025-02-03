@@ -489,8 +489,7 @@ class Config(object):
 
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
-        # Disabling DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is not supported. Remove this configuration in the future.
-        self._128_bit_trace_id_logging_enabled = True
+        self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
