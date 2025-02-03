@@ -12,6 +12,13 @@ from ddtrace.llmobs.decorators import workflow
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import _expected_span_link
+from tests.utils import override_global_config
+
+
+@pytest.fixture
+def auto_linking_enabled():
+    with override_global_config(dict(_llmobs_auto_span_linking_enabled=True)):
+        yield
 
 
 @pytest.fixture
@@ -831,7 +838,7 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
     )
 
 
-def test_decorator_records_span_links(llmobs, llmobs_events):
+def test_decorator_records_span_links(llmobs, llmobs_events, auto_linking_enabled):
     @workflow
     def one(inp):
         return 1
@@ -852,7 +859,7 @@ def test_decorator_records_span_links(llmobs, llmobs_events):
     assert two_span["span_links"][1] == _expected_span_link(one_span, "output", "output")
 
 
-def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_events):
+def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_events, auto_linking_enabled):
     @agent
     def some_agent(a, b):
         pass
@@ -879,7 +886,7 @@ def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_e
     assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
 
 
-def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events):
+def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events, auto_linking_enabled):
     @agent
     def some_agent(a=None, b=None):
         pass
