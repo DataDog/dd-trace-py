@@ -14,7 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings import _config as config
+from ddtrace.settings import _global_config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -43,7 +43,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
     from typing import Tuple  # noqa:F401
 
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
     from .agent import ConnectionType  # noqa:F401
 

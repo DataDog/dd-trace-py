@@ -9,12 +9,12 @@ from typing import Optional
 from typing import Sequence  # noqa F401
 
 import ddtrace
-from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
+from ddtrace.trace import Tracer
 
 from .exporter import Exporter
 from .recorder import EventsType

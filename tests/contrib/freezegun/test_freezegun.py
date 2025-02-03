@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from ddtrace import tracer as dd_tracer
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.trace import tracer as dd_tracer
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
@@ -88,7 +88,7 @@ class PytestFreezegunTestCase(PytestTestCaseBase):
 
             import freezegun
 
-            from ddtrace import tracer as dd_tracer
+            from ddtrace.trace import tracer as dd_tracer
 
             def test_pytest_patched_freezegun():
                 with freezegun.freeze_time("2020-01-01"):

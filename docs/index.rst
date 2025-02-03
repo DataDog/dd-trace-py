@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 3.7 and above.
+dd-trace-py works with Python 3.8 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -58,7 +58,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 3.0        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`asyncio`                                   | \*            | Yes [4]_       |
+| :ref:`asyncio`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asyncpg`                                   | >= 0.22.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -112,7 +112,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`kombu`                                     | >= 4.2        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`langchain`                                 | >= 0.0.192    | Yes            |
+| :ref:`langchain`                                 | >= 0.1        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`logbook`                                   | >= 1.0.0      | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -128,7 +128,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mysql-connector`                           | >= 8.0.5      | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`openai`                                    | >= 0.26.5     | Yes            |
+| :ref:`openai`                                    | >= 1.0        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`opensearch-py <elasticsearch>`             | >= 1.1        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -191,10 +191,7 @@ contacting support.
 
 .. [2] only the synchronous client
 
-.. [3] only in Python 3.7 and above.
-
-.. [4] Activating the legacy context provider is required in Python < 3.7. See
-       :ref:`asyncio` for more details.
+.. [3] only in Python 3.8 and above.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 

@@ -589,7 +589,7 @@ with tracer.trace("test") as span:
 assert span.get_tag("header_tag_420") is None
 assert span.get_tag("env_set_tag_name") == "helloworld"
 
-config.http._reset()
+config._http._reset()
 config._header_tag_name.invalidate()
 config._handle_remoteconfig(_base_rc_config({"tracing_header_tags":
     [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
@@ -601,7 +601,7 @@ with tracer.trace("test_rc_override") as span2:
 assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
 assert span2.get_tag("env_set_tag_name") is None
 
-config.http._reset()
+config._http._reset()
 config._header_tag_name.invalidate()
 config._handle_remoteconfig(_base_rc_config({}))
 
@@ -615,35 +615,3 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
         env=env,
     )
     assert status == 0, f"err={err.decode('utf-8')} out={out.decode('utf-8')}"
-
-
-def test_config_public_properties_and_methods():
-    # Regression test to prevent unexpected changes to public attributes in Config
-    # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings import Config
-
-    public_attrs = set()
-    c = Config()
-    # Check for public attributes in Config
-    for attr in dir(c):
-        if not attr.startswith("_") and not attr.startswith("__"):
-            public_attrs.add(attr)
-    # Check for public keys in Config._config
-    for key in c._config:
-        if not key.startswith("_"):
-            public_attrs.add(key)
-
-    assert public_attrs == {
-        "trace_headers",
-        "service",
-        "service_mapping",
-        "env",
-        "tags",
-        "version",
-        "http",
-        "http_server",
-        "header_is_traced",
-        "convert_rc_trace_sampling_rules",
-        "enable_remote_configuration",
-        "get_from",
-    }, public_attrs

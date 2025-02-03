@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace import Span
 
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context import _iast_start_request

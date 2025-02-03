@@ -1,15 +1,10 @@
 import os
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
-
+tracer._configure(trace_processors=[PingFilter()])
 
 ALLOWED_HOSTS = [
     "testserver",

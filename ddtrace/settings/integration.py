@@ -103,7 +103,7 @@ class IntegrationConfig(AttrDict):
     def trace_query_string(self):
         if self.http.trace_query_string is not None:
             return self.http.trace_query_string
-        return self.global_config.http.trace_query_string
+        return self.global_config._http.trace_query_string
 
     @property
     def is_header_tracing_configured(self):
@@ -113,7 +113,7 @@ class IntegrationConfig(AttrDict):
         Will return true if traced headers are configured for this integration
         or if they are configured globally.
         """
-        return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
+        return self.http.is_header_tracing_configured or self.global_config._http.is_header_tracing_configured
 
     def header_is_traced(self, header_name):
         # type: (str) -> bool

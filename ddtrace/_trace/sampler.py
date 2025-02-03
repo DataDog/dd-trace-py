@@ -22,7 +22,7 @@ from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
 from ..internal.sampling import _get_highest_precedence_rule_matching
 from ..internal.sampling import _set_sampling_tags
-from ..settings import _config as ddconfig
+from ..settings import _global_config as ddconfig
 from .sampling_rule import SamplingRule
 
 
@@ -261,7 +261,9 @@ class DatadogSampler(RateByServiceSampler):
                 if isinstance(rule, SamplingRule):
                     self.rules.append(rule)
                 elif config._raise:
-                    raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
+                    raise TypeError(
+                        "Rule {!r} must be a sub-class of type ddtrace._trace.sampler.SamplingRules".format(rule)
+                    )
 
         # DEV: sampling rule must come last
         if effective_sample_rate is not None:
