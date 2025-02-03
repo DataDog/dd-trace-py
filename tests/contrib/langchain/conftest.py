@@ -208,3 +208,244 @@ def async_streamed_response_responder():
 
     except ImportError:
         yield
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion(respx_mock):
+    from datetime import datetime
+
+    import httpx
+    from openai.types.completion import Completion
+    from openai.types.completion_choice import CompletionChoice
+    from openai.types.completion_usage import CompletionUsage
+
+    completion = Completion(
+        id="foo",
+        model="gpt-3.5-turbo-instruct",
+        object="text_completion",
+        choices=[
+            CompletionChoice(
+                text="I am a helpful assistant.",
+                index=0,
+                logprobs=None,
+                finish_reason="length",
+            )
+        ],
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    respx_mock.post("/v1/completions").mock(return_value=httpx.Response(200, json=completion.model_dump(mode="json")))
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion_multiple(respx_mock):
+    from datetime import datetime
+
+    import httpx
+    from openai.types.completion import Completion
+    from openai.types.completion_choice import CompletionChoice
+    from openai.types.completion_usage import CompletionUsage
+
+    completion = Completion(
+        id="foo",
+        model="gpt-3.5-turbo-instruct",
+        object="text_completion",
+        choices=[
+            CompletionChoice(
+                text="I am a helpful assistant.",
+                index=0,
+                logprobs=None,
+                finish_reason="length",
+            ),
+            CompletionChoice(
+                text="I am a helpful assistant too!",
+                index=1,
+                logprobs=None,
+                finish_reason="length",
+            ),
+        ],
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    respx_mock.post("/v1/completions").mock(return_value=httpx.Response(200, json=completion.model_dump(mode="json")))
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion_error(respx_mock):
+    import httpx
+
+    respx_mock.post("/v1/completions").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Invalid token in prompt: 123. Minimum value is 0, maximum value is 100257 (inclusive).",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None,
+                }
+            },
+        )
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion(respx_mock):
+    from datetime import datetime
+
+    import httpx
+    from openai.types.chat import ChatCompletionMessage
+    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.chat_completion import Choice
+    from openai.types.completion_usage import CompletionUsage
+
+    completion = ChatCompletion(
+        id="foo",
+        model="gpt-4",
+        object="chat.completion",
+        choices=[
+            Choice(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage(
+                    content="Hello world!",
+                    role="assistant",
+                ),
+            )
+        ],
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_multiple(respx_mock):
+    from datetime import datetime
+
+    import httpx
+    from openai.types.chat import ChatCompletionMessage
+    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.chat_completion import Choice
+    from openai.types.completion_usage import CompletionUsage
+
+    completion = ChatCompletion(
+        id="foo",
+        model="gpt-4",
+        object="chat.completion",
+        choices=[
+            Choice(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage(
+                    content="Hello world!",
+                    role="assistant",
+                ),
+            ),
+            Choice(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage(
+                    content="World hello!",
+                    role="assistant",
+                ),
+            ),
+        ],
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_tools(respx_mock):
+    from datetime import datetime
+
+    import httpx
+    from openai.types.chat import ChatCompletionMessage
+    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.chat_completion import Choice
+    from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
+    from openai.types.chat.chat_completion_message_tool_call import Function
+    from openai.types.completion_usage import CompletionUsage
+
+    completion = ChatCompletion(
+        id="foo",
+        model="gpt-4",
+        object="chat.completion",
+        choices=[
+            Choice(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage(
+                    content="Hello world!",
+                    role="assistant",
+                    tool_calls=[
+                        ChatCompletionMessageToolCall(
+                            function=Function(
+                                arguments='{"a":1,"b":2}',
+                                name="add",
+                            ),
+                            id="bar",
+                            type="function",
+                        ),
+                    ],
+                ),
+            )
+        ],
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_embedding(respx_mock):
+    import httpx
+    from openai.types.embedding import Embedding
+
+    embedding = Embedding(
+        embedding=[0.1, 0.2, 0.3],
+        index=0,
+        object="embedding",
+    )
+
+    respx_mock.post("/v1/embeddings").mock(return_value=httpx.Response(200, json=embedding.model_dump(mode="json")))

@@ -10,12 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67a102ed00000000",
-      "langchain.request.inputs.0.input": "how can langsmith help with testing?",
+      "_dd.p.tid": "67a107b300000000",
+      "langchain.request.inputs.0": "chickens",
       "langchain.request.type": "chain",
-      "langchain.response.outputs.0": "I am a helpful assistant.",
+      "langchain.response.outputs.0": "Hello world!",
       "language": "python",
-      "runtime-id": "78a3ac00072b4dbd85dcb18195090178"
+      "runtime-id": "173629df22ac413d8f83bdff36832495"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -26,15 +26,15 @@
       "langchain.tokens.prompt_tokens": 5,
       "langchain.tokens.total_cost": 1.7500000000000002e-05,
       "langchain.tokens.total_tokens": 10,
-      "process_id": 79446
+      "process_id": 29566
     },
-    "duration": 28199000,
-    "start": 1738605293192401000
+    "duration": 14374000,
+    "start": 1738606515901135000
   },
      {
        "name": "langchain.request",
        "service": "tests.contrib.langchain",
-       "resource": "langchain_openai.llms.base.OpenAI",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -42,20 +42,18 @@
        "error": 0,
        "meta": {
          "langchain.request.api_key": "...key>",
-         "langchain.request.model": "gpt-3.5-turbo-instruct",
-         "langchain.request.openai.parameters.frequency_penalty": "0",
-         "langchain.request.openai.parameters.max_tokens": "256",
-         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
+         "langchain.request.messages.0.0.content": "Tell me a short joke about chickens",
+         "langchain.request.messages.0.0.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
          "langchain.request.openai.parameters.n": "1",
-         "langchain.request.openai.parameters.presence_penalty": "0",
+         "langchain.request.openai.parameters.stream": "False",
          "langchain.request.openai.parameters.temperature": "0.7",
-         "langchain.request.openai.parameters.top_p": "1",
-         "langchain.request.prompts.0": "System: You are world class technical documentation writer.\\nHuman: how can langsmith help with testing?",
          "langchain.request.provider": "openai",
-         "langchain.request.type": "llm",
-         "langchain.response.completions.0.finish_reason": "length",
-         "langchain.response.completions.0.logprobs": "None",
-         "langchain.response.completions.0.text": "I am a helpful assistant."
+         "langchain.request.type": "chat_model",
+         "langchain.response.completions.0.0.content": "Hello world!",
+         "langchain.response.completions.0.0.message_type": "AIMessage"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -64,6 +62,6 @@
          "langchain.tokens.total_cost": 1.7500000000000002e-05,
          "langchain.tokens.total_tokens": 10
        },
-       "duration": 23218000,
-       "start": 1738605293197272000
+       "duration": 5480000,
+       "start": 1738606515909152000
      }]]

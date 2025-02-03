@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4500000000",
+      "_dd.p.tid": "67a1030300000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.content": "how can langsmith help with testing?",
       "langchain.request.model": "gpt-3.5-turbo",
@@ -25,15 +25,15 @@
       "langchain.response.content": "Python is\\n\\nthe best!",
       "langchain.response.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "92329b8f7db64bac85cd06279f8abe20"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 82010
+      "process_id": 80460
     },
-    "duration": 4712000,
-    "start": 1738263109587520000
+    "duration": 8072000,
+    "start": 1738605315649808000
   }]]
