@@ -277,7 +277,7 @@ class ExecutionContext(AbstractContextManager):
         if self._inner_span is None:
             log.warning("No span found in ExecutionContext %s", self.identifier)
             # failsafe
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
 
             self._inner_span = tracer.current_span() or tracer.trace("default")
         return self._inner_span
