@@ -5,6 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
+from weakref import WeakKeyDictionary
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -23,9 +24,11 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -54,8 +57,38 @@ ROLE_MAPPING = {
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
 
 
+def _extract_bound(instance):
+    if hasattr(instance, "bound"):
+        return instance.bound
+    return instance
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
+
+    _chain_steps = set()  # instance_id
+    _spans = {}  # instance_id --> span
+    _instances = WeakKeyDictionary()  # spans --> instances
+
+    def record_steps(self, instance, span):
+        if not self.llmobs_enabled:
+            return
+
+        steps = getattr(instance, "steps", [])
+        for step in steps:
+            step = _extract_bound(step)
+            self._chain_steps.add(id(step))
+
+        self.record_instance(instance, span)
+
+    def record_instance(self, instance, span):
+        if not self.llmobs_enabled:
+            return
+
+        instance = _extract_bound(instance)
+
+        self._instances[span] = instance
+        self._spans[id(instance)] = span
 
     def _llmobs_set_tags(
         self,
@@ -71,6 +104,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if operation not in SUPPORTED_OPERATIONS:
             log.warning("Unsupported operation : %s", operation)
             return
+
+        self._set_links(span)
 
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
@@ -108,6 +143,75 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+
+    def _set_links(self, span: Span):
+        instance = self._instances.get(span)  # TODO can maybe just pass instance as part of `kwargs`
+        if not instance:
+            return
+
+        instance = _extract_bound(instance)
+        is_step = id(instance) in self._chain_steps
+
+        invoker_span = _get_nearest_llmobs_ancestor(span)
+        invoker_link_attributes = {"from": "input", "to": "input"}
+
+        if invoker_span is None:
+            return
+
+        links = []
+
+        if is_step:
+            chain_instance = _extract_bound(self._instances.get(invoker_span))
+            steps = getattr(chain_instance, "steps", [])
+
+            idx = -1
+            for i, step in enumerate(steps):
+                step = _extract_bound(step)
+                if id(step) == id(instance):
+                    idx = i
+                    break
+
+            for i in range(idx - 1, -1, -1):
+                step = _extract_bound(steps[i])
+                if id(step) in self._spans:
+                    invoker_span = self._spans[id(step)]
+                    invoker_link_attributes = {"from": "output", "to": "input"}
+                    break
+
+        links.append(
+            {
+                "trace_id": "{:x}".format(span.trace_id),
+                "span_id": str(invoker_span.span_id),
+                "attributes": invoker_link_attributes,
+            }
+        )
+
+        existing_span_links = span._get_ctx_item(SPAN_LINKS) or []
+        span._set_ctx_item(SPAN_LINKS, existing_span_links + links)
+
+        invoker_links = invoker_span._get_ctx_item(SPAN_LINKS) or []
+        index = next(
+            (
+                i
+                for i, link in enumerate(invoker_links)
+                if link["attributes"]["from"] == "output" and link["attributes"]["to"] == "output"
+            ),
+            None,
+        )
+        if is_step and index is not None:
+            invoker_links.pop(index)
+
+        invoker_span._set_ctx_item(
+            SPAN_LINKS,
+            invoker_links
+            + [
+                {
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "span_id": str(span.span_id),
+                    "attributes": {"from": "output", "to": "output"},
+                }
+            ],
+        )
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -415,8 +519,8 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_input = ""
         if tool_inputs is not None:
             tool_input = tool_inputs.get("input")
-            if tool_inputs.get("config"):
-                metadata["tool_config"] = tool_inputs.get("config")
+            # if tool_inputs.get("config"):
+            #     metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
             formatted_input = format_langchain_io(tool_input)
