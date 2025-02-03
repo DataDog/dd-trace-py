@@ -54,8 +54,8 @@ async def trace_middleware(app, handler):
 
             # attach the context and the root span to the request; the Context
             # may be freely used by the application code
-            request[REQUEST_CONTEXT_KEY] = request_span.context
-            request[REQUEST_SPAN_KEY] = request_span
+            request[REQUEST_CONTEXT_KEY] = req_span.context
+            request[REQUEST_SPAN_KEY] = req_span
             request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
             try:
                 response = await handler(request)
@@ -64,7 +64,7 @@ async def trace_middleware(app, handler):
                         request.task.add_done_callback(lambda _: finish_request_span(request, response))
                 return response
             except Exception:
-                request_span.set_traceback()
+                req_span.set_traceback()
                 raise
 
     return attach_context
