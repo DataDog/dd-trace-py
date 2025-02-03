@@ -2,7 +2,6 @@ import os
 from typing import List  # noqa:F401
 
 from ddtrace.internal import agent
-from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
@@ -131,8 +130,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         if self.status == ServiceStatus.STOPPED:
             return
-
-        atexit.unregister(self.disable)
 
         self.stop(join=join)
 
