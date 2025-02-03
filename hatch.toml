@@ -175,7 +175,7 @@ extra-dependencies = [
 ]
 
 [[envs.integration_test.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [envs.integration_test.env-vars]
 _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
@@ -297,7 +297,7 @@ test = [
 ]
 
 [[envs.appsec_iast_native.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM appsec_iast_packages
 
@@ -525,7 +525,7 @@ test = [
 ]
 
 [[envs.ddtrace_unit_tests.matrix]]
-python = ["3.12", "3.10", "3.7"]
+python = ["3.12", "3.10"]
 
 # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
 # across all supported versions
@@ -544,7 +544,7 @@ test = [
 ]
 
 [[envs.dd_coverage.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [envs.pytest_plugin_v2]
 template = "pytest_plugin_v2"
@@ -566,11 +566,6 @@ test = [
     "echo $PYTEST_ADDOPTS",
     "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
 ]
-
-[[envs.pytest_plugin_v2.matrix]]
-python = ["3.7"]
-pytest = ["~=6.0", "~=7.0"]
-
 
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.9", "3.10", "3.12"]
@@ -604,7 +599,7 @@ test = [
 ]
 
 [[envs.freezegun.matrix]]
-python = ["3.7", "3.10", "3.12"]
+python = ["3.10", "3.12"]
 freezegun = ["~=1.3.0", "~=1.5.0"]
 
 [envs.selenium]
@@ -628,7 +623,7 @@ test = [
 ]
 
 [[envs.selenium.matrix]]
-python = ["3.7", "3.10", "3.12"]
+python = ["3.10", "3.12"]
 tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]

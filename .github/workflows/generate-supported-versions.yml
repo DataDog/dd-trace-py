@@ -17,11 +17,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Python 3.7
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
-        with:
-          python-version: "3.7"
-
       - name: Setup Python 3.8
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
@@ -46,7 +41,7 @@ jobs:
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: "3.12"
-    
+
       - name: Setup Python 3.13
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
@@ -70,18 +65,18 @@ jobs:
           pip install requests
           pip install riot==0.20.1
           pip install wrapt==1.16.0
-      
+
       - name: Install ddtrace
         run: |
           pip install -e .
 
       - run: python scripts/freshvenvs.py generate
-      
+
       - name: Generate table
         run: python scripts/generate_table.py
 
       - run: git diff
-      
+
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
@@ -96,7 +91,7 @@ jobs:
           body: |
             Generates / updates the supported versions table for integrations.
             This should be tied to releases, or triggered manually.
-            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)  
+            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)
 
             ## Checklist
             - [x] PR author has checked that all the criteria below are met
