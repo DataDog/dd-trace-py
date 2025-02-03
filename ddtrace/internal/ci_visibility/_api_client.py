@@ -101,6 +101,8 @@ class QuarantineSettings:
 @dataclasses.dataclass(frozen=True)
 class TestProperties:
     quarantined: bool = False
+    disabled: bool = False
+    attempt_to_fix: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -602,7 +604,11 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     for test_name, test_data in tests.items():
                         test_id = InternalTestId(suite_id, test_name)
                         properties = test_data.get("properties", {})
-                        test_properties[test_id] = TestProperties(quarantined=properties.get("quarantined", False))
+                        test_properties[test_id] = TestProperties(
+                            quarantined=properties.get("quarantined", False),
+                            disabled=properties.get("disabled", False),
+                            attempt_to_fix=properties.get("attempt_to_fix", False),
+                        )
 
         except Exception:  # noqa: E722
             log.debug("Failed to parse Test Management tests data", exc_info=True)
