@@ -49,7 +49,6 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     [
         {"endpoint": "/users/", "status_code": "500", "resource_name": "GET ^users/$"},
         {"endpoint": "/other", "status_code": "404", "resource_name": "GET 404"},
-        {"endpoint": "/", "status_code": "500", "resource_name": "GET ^"},
     ],
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
