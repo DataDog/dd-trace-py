@@ -7,14 +7,14 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
-    - ddtrace/contrib/pytest/*
-    - ddtrace/contrib/pytest_bdd/*
-    - ddtrace/contrib/pytest_benchmark/*
+    - ddtrace/contrib/_pytest.py
+    - ddtrace/contrib/_pytest_bdd.py
+    - ddtrace/contrib/_pytest_benchmark.py
   selenium:
-    - ddtrace/contrib/selenium/*
+    - ddtrace/contrib/_selenium.py
     - ddtrace/contrib/internal/selenium/*
   unittest:
-    - ddtrace/contrib/unittest/*
+    - ddtrace/contrib/_unittest.py
 suites:
   ci_visibility:
     parallelism: 4
