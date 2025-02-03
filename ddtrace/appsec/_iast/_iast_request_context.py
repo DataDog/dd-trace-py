@@ -118,7 +118,7 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("[IAST] Trying to set IAST reporter but no context is present")
 
 
-def is_iast_request_enabled():
+def is_iast_request_enabled() -> bool:
     env = _get_iast_context()
     if env:
         return env.request_enabled
