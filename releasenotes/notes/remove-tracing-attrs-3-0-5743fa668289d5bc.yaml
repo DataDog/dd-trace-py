@@ -12,6 +12,4 @@ upgrade:
   - |
     configurations: Drops support for configuring ``DD_TRACE_METHODS`` with the '[]' notation. Ensure DD_TRACE_METHODS use the ':' notation instead".
   - |
-    constants: Removes deprecated constants from ``ddtrace/constants.py``.
-  - |
     opentracing: Removes the deprecated ``ddtracer`` parameter from ``ddtrace.opentracer.tracer.Tracer()``.

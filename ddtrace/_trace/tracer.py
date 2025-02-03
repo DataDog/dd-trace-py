@@ -24,6 +24,7 @@ from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.sampler import BasePrioritySampler
 from ddtrace._trace.sampler import BaseSampler
@@ -419,7 +420,7 @@ class Tracer(object):
 
     def configure(
         self,
-        context_provider: Optional[DefaultContextProvider] = None,
+        context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
@@ -437,14 +438,13 @@ class Tracer(object):
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
-
         return self._configure(
-            context_provider,
-            trace_processors,
-            compute_stats_enabled,
-            appsec_enabled,
-            iast_enabled,
-            appsec_standalone_enabled,
+            context_provider=context_provider,
+            trace_processors=trace_processors,
+            compute_stats_enabled=compute_stats_enabled,
+            appsec_enabled=appsec_enabled,
+            iast_enabled=iast_enabled,
+            appsec_standalone_enabled=appsec_standalone_enabled,
         )
 
     def _configure(
