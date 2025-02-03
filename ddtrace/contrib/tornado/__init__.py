@@ -3,8 +3,6 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library.
 
-**Note:** This integration requires Python 3.7 and above for Tornado 5 and 6.
-
 The following is an example::
 
     # patch before importing tornado and concurrent.futures
@@ -99,7 +97,6 @@ The available settings are:
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
 """
-
 
 # Required to allow users to import from  `ddtrace.contrib.tornado.patch` directly
 import warnings as _w

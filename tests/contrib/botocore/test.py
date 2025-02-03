@@ -1680,7 +1680,7 @@ class BotocoreTest(TracerTestCase):
             lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
             lamb.create_function(
                 FunctionName="ironmaiden",
-                Runtime="python3.7",
+                Runtime="python3.8",
                 Role="test-iam-role",
                 Handler="lambda_function.lambda_handler",
                 Code={
@@ -1720,7 +1720,7 @@ class BotocoreTest(TracerTestCase):
         lamb = self.session.create_client("lambda", region_name="us-west-2", endpoint_url="http://localhost:4566")
         lamb.create_function(
             FunctionName="black-sabbath",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1760,7 +1760,7 @@ class BotocoreTest(TracerTestCase):
         Pin.get_from(lamb).clone(tracer=self.tracer).onto(lamb)
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1795,7 +1795,7 @@ class BotocoreTest(TracerTestCase):
 
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1826,7 +1826,7 @@ class BotocoreTest(TracerTestCase):
 
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1857,7 +1857,7 @@ class BotocoreTest(TracerTestCase):
 
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1888,7 +1888,7 @@ class BotocoreTest(TracerTestCase):
 
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
@@ -1919,7 +1919,7 @@ class BotocoreTest(TracerTestCase):
 
         lamb.create_function(
             FunctionName="guns-and-roses",
-            Runtime="python3.7",
+            Runtime="python3.8",
             Role="test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={

@@ -1,5 +1,4 @@
 import json
-import sys
 import traceback
 
 from flask import request
@@ -268,7 +267,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(sys.version_info < (3, 8), reason="some requests params fail in Python 3.7 or lower")
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
         @self.app.route("/sqli/<string:param_str>/<int:param_int>/", methods=["GET", "POST"])
         def sqli_5(param_str, param_int):
