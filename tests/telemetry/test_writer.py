@@ -15,8 +15,8 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings import _config as config
-from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from ddtrace.settings import _global_config as config
+from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
 
@@ -268,7 +268,9 @@ import ddtrace.settings.exception_replay
     env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
     env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
+    env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
     env["DD_SITE"] = "datadoghq.com"
+
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
     # This delay allows us to collect start up errors and dynamic configurations
@@ -352,9 +354,11 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
+        {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
+        {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
@@ -446,6 +450,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
+        {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
         {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT", "origin": "env_var", "value": "tracecontext"},

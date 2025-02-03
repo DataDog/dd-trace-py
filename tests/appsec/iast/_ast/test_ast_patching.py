@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import os
 import sys
 
 import astunparse
@@ -18,6 +19,15 @@ from tests.utils import override_env
 
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
+
+
+@pytest.fixture(autouse=True, scope="module")
+def clear_iast_env_vars():
+    if IAST.PATCH_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_PATCH_MODULES")
+    if IAST.DENY_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_DENY_MODULES")
+    yield
 
 
 @pytest.mark.parametrize(
@@ -148,15 +158,34 @@ def test_astpatch_source_unchanged(module_name):
     assert ("", None) == astpatch_module(__import__(module_name, fromlist=[None]))
 
 
-def test_module_should_iast_patch():
-    assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec._iast")
-    assert not _should_iast_patch("base64")
-    assert not _should_iast_patch("envier")
-    assert not _should_iast_patch("itertools")
-    assert not _should_iast_patch("http")
+def test_should_iast_patch_allow_first_party():
     assert _should_iast_patch("tests.appsec.iast.integration.main")
     assert _should_iast_patch("tests.appsec.iast.integration.print_str")
+
+
+def test_should_not_iast_patch_if_vendored():
+    assert not _should_iast_patch("foobar.vendor.requests")
+    assert not _should_iast_patch(("vendored.foobar.requests"))
+
+
+def test_should_iast_patch_deny_by_default_if_third_party():
+    # note that modules here must be in the ones returned by get_package_distributions()
+    # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
+    assert not _should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list")
+
+
+def test_should_not_iast_patch_if_in_denylist():
+    assert not _should_iast_patch("ddtrace.internal.module")
+    assert not _should_iast_patch("ddtrace.appsec._iast")
+    assert not _should_iast_patch("pip.foo.bar")
+
+
+def test_should_not_iast_patch_if_stdlib():
+    assert not _should_iast_patch("base64")
+    assert not _should_iast_patch("itertools")
+    assert not _should_iast_patch("http")
+    assert not _should_iast_patch("os.path")
+    assert not _should_iast_patch("sys.platform")
 
 
 @pytest.mark.parametrize(

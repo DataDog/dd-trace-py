@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    integrations: Ensures the implementation details of ddtrace integrations are internal to ddtrace library.
+    In ``ddtrace>=3.0.0`` integrations should only be enabled and configured via ``ddtrace.patch(..)``, ``import ddtrace.auto`` or the ``ddtrace-run`` command. 
+    Unpatching integrations or getting the version of an integration is no longer supported.

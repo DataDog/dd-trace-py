@@ -1,5 +1,5 @@
 from ddtrace._trace.tracer import Tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 from tests.utils import DummyWriter
 
 from .utils import TornadoTestCase
@@ -48,7 +48,7 @@ class TestTornadoSettings(TornadoTestCase):
         assert self.tracer.agent_trace_url == "http://dd-agent.service.consul:8126"
 
         writer = DummyWriter()
-        self.tracer.configure(enabled=True, writer=writer)
+        self.tracer._configure(enabled=True, writer=writer)
         with self.tracer.trace("keep"):
             pass
         spans = writer.pop()

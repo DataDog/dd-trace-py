@@ -196,7 +196,7 @@ def login_user(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 

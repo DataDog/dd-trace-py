@@ -88,7 +88,7 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer.configure(api_version="v0.4")
+        interface.tracer._configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -1379,7 +1379,7 @@ class Contrib_TestClass_For_Threats:
             assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {(c.__name__, f"{ns}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+            telemetry_calls = {(c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), root_span)
                 assert self.check_for_stack_trace(root_span)
@@ -1478,9 +1478,16 @@ class Contrib_TestClass_For_Threats:
                         assert get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
                     else:
                         assert get_tag("_dd.appsec.events.users.login.success.sdk") is None
+                    if mode == "identification":
+                        assert get_tag("_dd.appsec.usr.login") == user
+                    elif mode == "anonymization":
+                        assert get_tag("_dd.appsec.usr.login") == _hash_user_id(user)
                 else:
                     assert get_tag("appsec.events.users.login.success.track") == "true"
                     assert get_tag("usr.id") == user_id_hash
+                    assert get_tag("_dd.appsec.usr.id") == user_id_hash
+                    if mode == "identification":
+                        assert get_tag("_dd.appsec.usr.login") == user
                     # check for manual instrumentation tag in manual instrumented frameworks
                     if interface.name in ["flask", "fastapi"]:
                         assert get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
@@ -1552,7 +1559,7 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer
@@ -1560,8 +1567,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(ddtrace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.Pin.override(interface.framework, tracer=interface.tracer)
+    original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
+    ddtrace.trace.Pin.override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.Pin.override(interface.framework, tracer=original_tracer)
+        ddtrace.trace.Pin.override(interface.framework, tracer=original_tracer)

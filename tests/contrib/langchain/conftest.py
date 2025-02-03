@@ -3,9 +3,9 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -59,7 +59,7 @@ def mock_tracer(langchain, mock_logs, mock_metrics):
     pin = Pin.get_from(langchain)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(langchain, tracer=mock_tracer)
-    pin.tracer.configure()
+    pin.tracer._configure()
     yield mock_tracer
 
     mock_logs.reset_mock()

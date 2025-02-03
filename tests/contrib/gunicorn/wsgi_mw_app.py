@@ -17,11 +17,7 @@ import ddtrace.profiling.auto  # noqa:F401
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer._configure(trace_processors=[PingFilter()])
 
 SCHEDULER_SENTINEL = -1
 assert bootstrap.profiler._scheduler._last_export not in (None, SCHEDULER_SENTINEL)

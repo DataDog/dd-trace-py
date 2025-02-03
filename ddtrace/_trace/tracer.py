@@ -30,11 +30,10 @@ from ddtrace._trace.sampler import BaseSampler
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
@@ -103,7 +102,7 @@ def _start_appsec_processor() -> Optional[Any]:
 
 
 def _default_span_processors_factory(
-    trace_filters: List[TraceFilter],
+    trace_filters: List[TraceProcessor],
     trace_writer: TraceWriter,
     partial_flush_enabled: bool,
     partial_flush_min_spans: int,
@@ -195,6 +194,7 @@ class Tracer(object):
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
     def __init__(
         self,
@@ -210,7 +210,25 @@ class Tracer(object):
         :param dogstatsd_url: The DogStatsD URL.
         """
 
-        self._filters: List[TraceFilter] = []
+        # Do not set self._instance if this is a subclass of Tracer. Here we only want
+        # to reference the global instance.
+        if type(self) is Tracer:
+            if Tracer._instance is None:
+                Tracer._instance = self
+            else:
+                # ddtrace library does not support context propagation for multiple tracers.
+                # All instances of ddtrace ContextProviders share the same ContextVars. This means that
+                # if you create multiple instances of Tracer, spans will be shared between them creating a
+                # broken experience.
+                # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
+                deprecate(
+                    "Support for multiple Tracer instances is deprecated",
+                    ". Use ddtrace.tracer instead.",
+                    category=DDTraceDeprecationWarning,
+                    removal_version="3.0.0",
+                )
+
+        self._user_trace_processors: List[TraceProcessor] = []
 
         # globally set tags
         self._tags = config.tags.copy()
@@ -264,7 +282,7 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._filters,
+            self._user_trace_processors,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
@@ -421,7 +439,6 @@ class Tracer(object):
             "env": config.env or "",
         }
 
-    # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(
         self,
         enabled: Optional[bool] = None,
@@ -443,42 +460,135 @@ class Tracer(object):
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
         appsec_standalone_enabled: Optional[bool] = None,
+        trace_processors: Optional[List[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
-        :param str hostname: Hostname running the Trace Agent
-        :param int port: Port of the Trace Agent
-        :param str uds_path: The Unix Domain Socket path of the agent.
-        :param bool https: Whether to use HTTPS or HTTP.
-        :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
-            doesn't need to be changed from the default value
+            doesn't need to be changed from the default value.
+        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
+        :param bool iast_enabled: Enables IAST support for the tracer
+        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
+        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+           Trace processors are used to modify and filter traces based on certain criteria.
+
+        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
+            This parameter is deprecated and will be removed.
+        :param str hostname: Hostname running the Trace Agent. This parameter is deprecated and will be removed.
+        :param int port: Port of the Trace Agent. This parameter is deprecated and will be removed.
+        :param str uds_path: The Unix Domain Socket path of the agent. This parameter is deprecated and will be removed.
+        :param bool https: Whether to use HTTPS or HTTP. This parameter is deprecated and will be removed.
+        :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
+            This parameter is deprecated and will be removed.
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
-            from the default value
-        :param priority_sampling: This argument is deprecated and will be removed in a future version.
+            from the default value. This parameter is deprecated and will be removed.
+        :param priority_sampling: This parameter is deprecated and will be removed in a future version.
+        :param bool settings: This parameter is deprecated and will be removed.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
+            This parameter is deprecated and will be removed.
+        :param TraceWriter writer: This parameter is deprecated and will be removed.
+        :param bool partial_flush_enabled: This parameter is deprecated and will be removed.
+        :param bool partial_flush_min_spans: This parameter is deprecated and will be removed.
+        :param str api_version: This parameter is deprecated and will be removed.
+        :param bool compute_stats_enabled: This parameter is deprecated and will be removed.
         """
+        if settings is not None:
+            deprecate(
+                "Support for ``tracer.configure(...)`` with the settings parameter is deprecated",
+                message="Please use the trace_processors parameter instead of settings['FILTERS'].",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            trace_processors = (trace_processors or []) + (settings.get("FILTERS") or [])
+
+        return self._configure(
+            enabled,
+            hostname,
+            port,
+            uds_path,
+            https,
+            sampler,
+            context_provider,
+            wrap_executor,
+            priority_sampling,
+            trace_processors,
+            dogstatsd_url,
+            writer,
+            partial_flush_enabled,
+            partial_flush_min_spans,
+            api_version,
+            compute_stats_enabled,
+            appsec_enabled,
+            iast_enabled,
+            appsec_standalone_enabled,
+            True,
+        )
+
+    def _configure(
+        self,
+        enabled: Optional[bool] = None,
+        hostname: Optional[str] = None,
+        port: Optional[int] = None,
+        uds_path: Optional[str] = None,
+        https: Optional[bool] = None,
+        sampler: Optional[BaseSampler] = None,
+        context_provider: Optional[DefaultContextProvider] = None,
+        wrap_executor: Optional[Callable] = None,
+        priority_sampling: Optional[bool] = None,
+        trace_processors: Optional[List[TraceProcessor]] = None,
+        dogstatsd_url: Optional[str] = None,
+        writer: Optional[TraceWriter] = None,
+        partial_flush_enabled: Optional[bool] = None,
+        partial_flush_min_spans: Optional[int] = None,
+        api_version: Optional[str] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        iast_enabled: Optional[bool] = None,
+        appsec_standalone_enabled: Optional[bool] = None,
+        log_deprecations: bool = False,
+    ) -> None:
         if enabled is not None:
             self.enabled = enabled
+            if log_deprecations:
+                deprecate(
+                    "Enabling/Disabling tracing after application start is deprecated",
+                    message="Please use DD_TRACE_ENABLED instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
-        if priority_sampling is not None:
+        if priority_sampling is not None and log_deprecations:
             deprecate(
-                "Configuring priority sampling on tracing clients is deprecated",
+                "Disabling priority sampling is deprecated",
+                message="Calling `tracer.configure(priority_sampling=....) has no effect",
                 version="3.0.0",
                 category=DDTraceDeprecationWarning,
             )
 
-        if settings is not None:
-            self._filters = settings.get("FILTERS") or self._filters
+        if trace_processors is not None:
+            self._user_trace_processors = trace_processors
 
         if partial_flush_enabled is not None:
             self._partial_flush_enabled = partial_flush_enabled
+            if log_deprecations:
+                deprecate(
+                    "Configuring partial flushing after application start is deprecated",
+                    message="Please use DD_TRACE_PARTIAL_FLUSH_ENABLED to enable/disable the partial flushing instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
         if partial_flush_min_spans is not None:
             self._partial_flush_min_spans = partial_flush_min_spans
+            if log_deprecations:
+                deprecate(
+                    "Configuring partial flushing after application start is deprecated",
+                    message="Please use DD_TRACE_PARTIAL_FLUSH_MIN_SPANS to set the flushing threshold instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
@@ -510,10 +620,33 @@ class Tracer(object):
         if sampler is not None:
             self._sampler = sampler
             self._user_sampler = self._sampler
+            if log_deprecations:
+                deprecate(
+                    "Configuring custom samplers is deprecated",
+                    message="Please use DD_TRACE_SAMPLING_RULES to configure the sample rates instead",
+                    category=DDTraceDeprecationWarning,
+                    removal_version="3.0.0",
+                )
 
-        self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
+        if dogstatsd_url is not None:
+            if log_deprecations:
+                deprecate(
+                    "Configuring dogstatsd_url after application start is deprecated",
+                    message="Please use DD_DOGSTATSD_URL instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
+            self._dogstatsd_url = dogstatsd_url
 
         if any(x is not None for x in [hostname, port, uds_path, https]):
+            if log_deprecations:
+                deprecate(
+                    "Configuring tracer agent connection after application start is deprecated",
+                    message="Please use DD_TRACE_AGENT_URL instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
+
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
             prev_url_parsed = compat.parse.urlparse(self._agent_url)
@@ -537,6 +670,13 @@ class Tracer(object):
             new_url = None
 
         if compute_stats_enabled is not None:
+            if log_deprecations:
+                deprecate(
+                    "Configuring tracer stats computation after application start is deprecated",
+                    message="Please use DD_TRACE_STATS_COMPUTATION_ENABLED instead.",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
             self._compute_stats = compute_stats_enabled
 
         try:
@@ -544,6 +684,14 @@ class Tracer(object):
         except ServiceStatusError:
             # It's possible the writer never got started
             pass
+
+        if api_version is not None and log_deprecations:
+            deprecate(
+                "Configuring Tracer API version after application start is deprecated",
+                message="Please use DD_TRACE_API_VERSION instead.",
+                version="3.0.0",
+                category=DDTraceDeprecationWarning,
+            )
 
         if writer is not None:
             self._writer = writer
@@ -583,14 +731,14 @@ class Tracer(object):
                 uds_path,
                 api_version,
                 sampler,
-                settings.get("FILTERS") if settings is not None else None,
+                trace_processors,
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
             ]
         ):
             self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-                self._filters,
+                self._user_trace_processors,
                 self._writer,
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
@@ -606,6 +754,12 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
+            if log_deprecations:
+                deprecate(
+                    "Support for tracer.configure(...) with the wrap_executor parameter is deprecated",
+                    version="3.0.0",
+                    category=DDTraceDeprecationWarning,
+                )
 
         self._generate_diagnostic_logs()
 
@@ -653,7 +807,7 @@ class Tracer(object):
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._filters,
+            self._user_trace_processors,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
@@ -775,8 +929,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
-
-        if trace_id:
+        if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
@@ -813,7 +966,7 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())

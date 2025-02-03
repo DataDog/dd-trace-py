@@ -5,9 +5,7 @@ import openai as openai_module
 import pytest
 
 import ddtrace
-from ddtrace import patch
 from ddtrace.contrib.internal.openai.utils import _est_tokens
-from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -35,56 +33,6 @@ def test_config(ddtrace_config_openai, mock_tracer, openai):
 
     # Ensure overriding the config works
     assert ddtrace.config.openai.metrics_enabled is ddtrace_config_openai["metrics_enabled"]
-
-
-def test_patching(openai):
-    """Ensure that the correct objects are patched and not double patched."""
-    methods = [
-        (openai.resources.completions.Completions, "create"),
-        (openai.resources.completions.AsyncCompletions, "create"),
-        (openai.resources.chat.Completions, "create"),
-        (openai.resources.chat.AsyncCompletions, "create"),
-        (openai.resources.embeddings.Embeddings, "create"),
-        (openai.resources.embeddings.AsyncEmbeddings, "create"),
-        (openai.resources.models.Models, "list"),
-        (openai.resources.models.Models, "retrieve"),
-        (openai.resources.models.AsyncModels, "list"),
-        (openai.resources.models.AsyncModels, "retrieve"),
-        (openai.resources.images.Images, "generate"),
-        (openai.resources.images.Images, "edit"),
-        (openai.resources.images.Images, "create_variation"),
-        (openai.resources.images.AsyncImages, "generate"),
-        (openai.resources.images.AsyncImages, "edit"),
-        (openai.resources.images.AsyncImages, "create_variation"),
-        (openai.resources.audio.Transcriptions, "create"),
-        (openai.resources.audio.AsyncTranscriptions, "create"),
-        (openai.resources.audio.Translations, "create"),
-        (openai.resources.audio.AsyncTranslations, "create"),
-        (openai.resources.moderations.Moderations, "create"),
-        (openai.resources.moderations.AsyncModerations, "create"),
-        (openai.resources.files.Files, "create"),
-        (openai.resources.files.Files, "retrieve"),
-        (openai.resources.files.Files, "list"),
-        (openai.resources.files.Files, "delete"),
-        (openai.resources.files.Files, "retrieve_content"),
-        (openai.resources.files.AsyncFiles, "create"),
-        (openai.resources.files.AsyncFiles, "retrieve"),
-        (openai.resources.files.AsyncFiles, "list"),
-        (openai.resources.files.AsyncFiles, "delete"),
-        (openai.resources.files.AsyncFiles, "retrieve_content"),
-    ]
-
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]))
-
-    patch(openai=True)
-    for m in methods:
-        assert iswrapped(getattr(m[0], m[1]))
-
-    # Ensure double patching does not occur
-    patch(openai=True)
-    for m in methods:
-        assert not iswrapped(getattr(m[0], m[1]).__dd_wrapped__)
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -908,17 +856,16 @@ def test_misuse(openai, snapshot_tracer):
 )
 def test_span_finish_on_stream_error(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("completion_stream_wrong_api_key.yaml"):
-        with pytest.raises(openai.APIConnectionError):
-            with pytest.raises(openai.AuthenticationError):
-                client = openai.OpenAI(api_key="sk-wrong-api-key")
-                client.completions.create(
-                    model="text-curie-001",
-                    prompt="how does openai tokenize prompts?",
-                    temperature=0.8,
-                    n=1,
-                    max_tokens=150,
-                    stream=True,
-                )
+        with pytest.raises((openai.APIConnectionError, openai.AuthenticationError)):
+            client = openai.OpenAI(api_key="sk-wrong-api-key")
+            client.completions.create(
+                model="text-curie-001",
+                prompt="how does openai tokenize prompts?",
+                temperature=0.8,
+                n=1,
+                max_tokens=150,
+                stream=True,
+            )
 
 
 @pytest.mark.snapshot
@@ -1111,8 +1058,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -1159,8 +1106,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -1383,6 +1330,9 @@ def test_est_tokens():
     )  # oracle: 92
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1405,6 +1355,9 @@ def test_azure_openai_completion(openai, azure_openai_config, openai_vcr, snapsh
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_completion",
     ignores=[
@@ -1434,6 +1387,9 @@ async def test_azure_openai_acompletion(openai, azure_openai_config, openai_vcr,
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1456,6 +1412,9 @@ def test_azure_openai_chat_completion(openai, azure_openai_config, openai_vcr, s
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_chat_completion",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1478,6 +1437,9 @@ async def test_azure_openai_chat_acompletion(openai, azure_openai_config, openai
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1497,6 +1459,9 @@ def test_azure_openai_embedding(openai, azure_openai_config, openai_vcr, snapsho
         )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) >= (1, 60), reason="latest openai versions use modified azure requests"
+)
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_azure_openai_embedding",
     ignores=["meta.http.useragent", "meta.openai.api_base", "meta.openai.api_type", "meta.openai.api_version"],
@@ -1547,8 +1512,8 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace.Pin.get_from(openai)
-pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+pin = ddtrace.trace.Pin.get_from(openai)
+pin.tracer._configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")

@@ -5,7 +5,7 @@ from typing import Tuple
 
 import pytest
 
-from .test_integration import AGENT_VERSION
+from tests.integration.utils import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")

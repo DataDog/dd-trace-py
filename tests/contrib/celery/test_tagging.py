@@ -5,9 +5,9 @@ from celery import Celery
 from celery.contrib.testing.worker import start_worker
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 
 from .base import AMQP_BROKER_URL

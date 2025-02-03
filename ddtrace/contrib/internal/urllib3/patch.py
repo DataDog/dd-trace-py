@@ -22,9 +22,9 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 # Ports which, if set, will not be used in hostnames/service names

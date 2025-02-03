@@ -3,17 +3,14 @@ import os
 import mock
 import pytest
 
-from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.utils.http import Response
+from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer as Tracer
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import override_env
 
@@ -74,10 +71,18 @@ def test_civisibility_intake_with_apikey():
         CIVisibility.disable()
 
 
+@pytest.mark.subprocess()
 def test_civisibility_intake_payloads():
+    import mock
+
+    from ddtrace import tracer as t
+    from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+    from ddtrace.internal.ci_visibility.recorder import CIVisibilityWriter
+    from ddtrace.internal.utils.http import Response
+    from tests.utils import override_env
+
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        t = Tracer()
-        t.configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=True))
+        t._configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=True))
         t._writer._conn = mock.MagicMock()
         with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response

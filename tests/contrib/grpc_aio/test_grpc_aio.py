@@ -7,7 +7,6 @@ import grpc
 from grpc import aio
 import pytest
 
-from ddtrace import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -16,6 +15,7 @@ from ddtrace.contrib.internal.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
+from ddtrace.trace import Pin
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -340,7 +340,7 @@ async def test_invalid_target(server_info, tracer):
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_not_activated(server_info, tracer):
-    tracer.configure(enabled=False)
+    tracer._configure(enabled=False)
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))

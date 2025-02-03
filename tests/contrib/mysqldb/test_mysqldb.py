@@ -2,10 +2,10 @@ import mock
 import MySQLdb
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.mysqldb.patch import patch
 from ddtrace.contrib.internal.mysqldb.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

@@ -109,13 +109,19 @@ memalloc_init()
 }
 
 static void
-memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
+memalloc_assert_gil()
 {
     if (g_crash_on_no_gil && !PyGILState_Check()) {
         int* p = NULL;
         *p = 0;
         abort(); // should never reach here
     }
+}
+
+static void
+memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
+{
+    memalloc_assert_gil();
 
     uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
@@ -332,6 +338,8 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
+    memalloc_assert_gil();
+
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
     if (memlock_trylock(&g_memalloc_lock)) {
@@ -386,18 +394,28 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     }
 
     IterEventsState* iestate = (IterEventsState*)type->tp_alloc(type, 0);
-    if (!iestate)
+    if (!iestate) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate IterEventsState");
         return NULL;
+    }
 
-    /* reset the current traceback list */
-    if (memlock_trylock(&g_memalloc_lock)) {
-        iestate->alloc_tracker = global_alloc_tracker;
-        global_alloc_tracker = alloc_tracker_new();
-        memlock_unlock(&g_memalloc_lock);
-    } else {
+    memalloc_assert_gil();
+
+    /* Reset the current traceback list. Do this outside lock so we can track it,
+     * and avoid reentrancy/deadlock problems, if we start tracking the raw
+     * allocator domain */
+    alloc_tracker_t* tracker = alloc_tracker_new();
+    if (!tracker) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
         Py_TYPE(iestate)->tp_free(iestate);
         return NULL;
     }
+
+    memlock_lock(&g_memalloc_lock);
+    iestate->alloc_tracker = global_alloc_tracker;
+    global_alloc_tracker = tracker;
+    memlock_unlock(&g_memalloc_lock);
+
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);

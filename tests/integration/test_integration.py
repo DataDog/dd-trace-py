@@ -10,12 +10,8 @@ import pytest
 from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
-from ddtrace.internal.writer import AgentWriter
-from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import BadEncoder
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
-from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
 from tests.utils import call_program
 
@@ -23,12 +19,15 @@ from tests.utils import call_program
 FOUR_KB = 1 << 12
 
 
+@pytest.mark.subprocess()
 def test_configure_keeps_api_hostname_and_port():
-    tracer = Tracer()
+    from ddtrace import tracer
+    from tests.integration.utils import AGENT_VERSION
+
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
-    tracer.configure(hostname="127.0.0.1", port=8127)
+    tracer._configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(api_version="v0.5")
+    tracer._configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
@@ -100,7 +99,7 @@ def test_single_trace_uds():
     from ddtrace import tracer as t
 
     sockdir = "/tmp/ddagent/trace.sock"
-    t.configure(uds_path=sockdir)
+    t._configure(uds_path=sockdir)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
@@ -118,7 +117,7 @@ def test_uds_wrong_socket_path():
     from ddtrace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    t.configure(uds_path="/tmp/ddagent/nosockethere")
+    t._configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -292,7 +291,7 @@ def test_metrics_partial_flush_disabled():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    t.configure(
+    t._configure(
         partial_flush_enabled=False,
     )
 
@@ -392,7 +391,7 @@ def test_trace_generates_error_logs_when_hostname_invalid():
 
     from ddtrace import tracer as t
 
-    t.configure(hostname="bad", port=1111)
+    t._configure(hostname="bad", port=1111)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
@@ -506,8 +505,12 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@parametrize_with_all_encodings
 def test_trace_with_invalid_client_endpoint_generates_error_log():
-    t = Tracer()
+    import mock
+
+    from ddtrace import tracer as t
+
     for client in t._writer._clients:
         client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -526,7 +529,12 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
 
 
 @skip_if_testagent
+@pytest.mark.subprocess(err=None)
 def test_trace_with_invalid_payload_generates_error_log():
+    import mock
+
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
         [
@@ -541,11 +549,11 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
@@ -562,12 +570,12 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
     from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
@@ -590,7 +598,11 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
+@pytest.mark.subprocess(err=None)
 def test_trace_with_failing_encoder_generates_error_log():
+    from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
             raise Exception()
@@ -620,9 +632,12 @@ def test_api_version_downgrade_generates_no_warning_logs():
     log.error.assert_not_called()
 
 
+@pytest.mark.subprocess()
 def test_synchronous_writer_shutdown_raises_no_exception():
-    tracer = Tracer()
-    tracer.configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
+    from ddtrace import tracer
+    from ddtrace.internal.writer import AgentWriter
+
+    tracer._configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     tracer.shutdown()
 
 
@@ -746,7 +761,7 @@ def test_partial_flush_log():
     from ddtrace import tracer as t
 
     partial_flush_min_spans = 2
-    t.configure(
+    t._configure(
         partial_flush_min_spans=partial_flush_min_spans,
     )
 

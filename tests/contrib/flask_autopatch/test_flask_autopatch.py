@@ -2,9 +2,9 @@
 import flask
 import wrapt
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

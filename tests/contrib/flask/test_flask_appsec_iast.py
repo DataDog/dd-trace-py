@@ -1,5 +1,6 @@
 import json
 import sys
+import traceback
 
 from flask import request
 from importlib_metadata import version
@@ -15,6 +16,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -39,7 +41,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -48,7 +50,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer.configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
@@ -71,7 +73,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -123,7 +125,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post(
@@ -304,7 +306,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -337,7 +339,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         class MockSpan:
             _trace_id_64bits = 17577308072598193742
 
-        with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=0.0)):
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=0.0)
+        ):
             oce.reconfigure()
             _iast_start_request(MockSpan())
             resp = self.client.post("/sqli/hello/?select%20from%20table", data={"name": "test"})
@@ -367,7 +371,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -434,7 +438,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
@@ -495,7 +499,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.get("/sqli/parameter/?table=sqlite_master")
@@ -550,7 +554,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -608,7 +612,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -673,7 +677,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1078,7 +1082,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=True,
                 _asm_enabled=True,
                 _api_security_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1171,7 +1175,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1208,7 +1212,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1237,7 +1241,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
@@ -1266,7 +1270,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/insecure_cookie/", data={"name": "test"})
@@ -1304,7 +1308,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/insecure_cookie_empty/", data={"name": "test"})
@@ -1334,7 +1338,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_http_only_cookie/", data={"name": "test"})
@@ -1372,7 +1376,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1403,7 +1407,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_samesite_cookie/", data={"name": "test"})
@@ -1441,7 +1445,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
             )
         ):
             resp = self.client.post("/no_samesite_cookie_empty/", data={"name": "test"})
@@ -1469,7 +1473,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         with override_global_config(
             dict(
                 _iast_enabled=True,
-                _deduplication_enabled=False,
+                _iast_deduplication_enabled=False,
                 _iast_request_sampling=100.0,
             )
         ):
@@ -1481,6 +1485,105 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             loaded = root_span.get_tag(IAST.JSON)
             assert loaded is None
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_stacktrace_leak(self):
+        @self.app.route("/stacktrace_leak/")
+        def stacktrace_leak():
+            from flask import Response
+
+            return Response(
+                """Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/some_module.py", line 42, in process_data
+    result = complex_calculation(data)
+  File "/usr/local/lib/python3.9/site-packages/another_module.py", line 158, in complex_calculation
+    intermediate = perform_subtask(data_slice)
+  File "/usr/local/lib/python3.9/site-packages/subtask_module.py", line 27, in perform_subtask
+    processed = handle_special_case(data_slice)
+  File "/usr/local/lib/python3.9/site-packages/special_cases.py", line 84, in handle_special_case
+    return apply_algorithm(data_slice, params)
+  File "/usr/local/lib/python3.9/site-packages/algorithm_module.py", line 112, in apply_algorithm
+    step_result = execute_step(data, params)
+  File "/usr/local/lib/python3.9/site-packages/step_execution.py", line 55, in execute_step
+    temp = pre_process(data)
+  File "/usr/local/lib/python3.9/site-packages/pre_processing.py", line 33, in pre_process
+    validated_data = validate_input(data)
+  File "/usr/local/lib/python3.9/site-packages/validation.py", line 66, in validate_input
+    check_constraints(data)
+  File "/usr/local/lib/python3.9/site-packages/constraints.py", line 19, in check_constraints
+    raise ValueError("Constraint violation at step 9")
+ValueError: Constraint violation at step 9
+
+Lorem Ipsum Foobar
+"""
+            )
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.get("/stacktrace_leak/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": 'Module: ".usr.local.lib.python3.9.site-packages.constraints.py"\nException: ValueError'}
+                ]
+            }
+
+    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    def test_flask_stacktrace_leak_from_debug_page(self):
+        try:
+            from werkzeug.debug.tbtools import DebugTraceback
+        except ImportError:
+            return  # this version of werkzeug does not have the DebugTraceback
+
+        @self.app.route("/stacktrace_leak_debug/")
+        def stacktrace_leak():
+            from flask import Response
+
+            try:
+                raise ValueError()
+            except ValueError as exc:
+                dt = DebugTraceback(
+                    exc,
+                    traceback.TracebackException.from_exception(exc),
+                )
+
+                # Render the debugger HTML
+                html = dt.render_debugger_html(evalex=False, secret="test_secret", evalex_trusted=False)
+                return Response(html, mimetype="text/html")
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.get("/stacktrace_leak_debug/")
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == []
+            assert len(loaded["vulnerabilities"]) == 1
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+            assert "valueParts" in vulnerability["evidence"]
+            assert "tests.contrib.flask.test_flask_appsec_iast" in vulnerability["evidence"]["valueParts"][0]["value"]
+            assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
 
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
@@ -1496,7 +1599,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer.configure(api_version="v0.4")
+            self.tracer._configure(api_version="v0.4")
 
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):

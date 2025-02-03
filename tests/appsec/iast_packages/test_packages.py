@@ -216,24 +216,29 @@ PACKAGES = [
         import_module_to_validate="boto3.session",
     ),
     PackageForTesting("botocore", "1.34.110", "", "", "", test_e2e=False),
-    PackageForTesting(
-        "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
-    ),
-    PackageForTesting(
-        "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
-    ),
-    PackageForTesting(
-        "charset-normalizer",
-        "3.3.2",
-        "my-bytes-string",
-        "my-bytes-string",
-        "",
-        import_name="charset_normalizer",
-        import_module_to_validate="charset_normalizer.api",
-        test_propagation=True,
-        fixme_propagation_fails=True,
-    ),
-    PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "", import_module_to_validate="click.core"),
+    ## Skip due to cffi added to the denylist
+    # PackageForTesting(
+    #     "cffi", "1.16.0", "", 30, "", import_module_to_validate="cffi.model", extras=[("setuptools", "72.1.0")]
+    # ),
+    ## Skip due to certifi added to the denylist
+    # PackageForTesting(
+    #     "certifi", "2024.2.2", "", "The path to the CA bundle is", "", import_module_to_validate="certifi.core"
+    # ),
+    ## Skip due to charset-normalizer added to the denylist
+    # PackageForTesting(
+    #     "charset-normalizer",
+    #     "3.3.2",
+    #     "my-bytes-string",
+    #     "my-bytes-string",
+    #     "",
+    #     import_name="charset_normalizer",
+    #     import_module_to_validate="charset_normalizer.api",
+    #     test_propagation=True,
+    #     fixme_propagation_fails=True,
+    # ),
+    ## Skip due to click added to the denylist
+    # PackageForTesting("click", "8.1.7", "", "Hello World!\nHello World!\n", "",
+    # import_module_to_validate="click.core"),
     PackageForTesting(
         "cryptography",
         "42.0.7",
@@ -247,15 +252,16 @@ PACKAGES = [
     PackageForTesting(
         "distlib", "0.3.8", "", "Name: example-package\nVersion: 0.1", "", import_module_to_validate="distlib.util"
     ),
-    PackageForTesting(
-        "exceptiongroup",
-        "1.2.1",
-        "foobar",
-        "ValueError: First error with foobar\nTypeError: Second error with foobar",
-        "",
-        import_module_to_validate="exceptiongroup._formatting",
-        test_propagation=True,
-    ),
+    ## Skip due to docopt added to the denylist
+    # PackageForTesting(
+    #     "exceptiongroup",
+    #     "1.2.1",
+    #     "foobar",
+    #     "ValueError: First error with foobar\nTypeError: Second error with foobar",
+    #     "",
+    #     import_module_to_validate="exceptiongroup._formatting",
+    #     test_propagation=True,
+    # ),
     PackageForTesting(
         "filelock",
         "3.14.0",
@@ -327,14 +333,15 @@ PACKAGES = [
         "",
         import_module_to_validate="isodate.duration",
     ),
-    PackageForTesting(
-        "itsdangerous",
-        "2.2.0",
-        "foobar",
-        "Signed value: foobar.generated_signature\nUnsigned value: foobar",
-        "",
-        import_module_to_validate="itsdangerous.serializer",
-    ),
+    ## Skip due to itsdangerous added to the denylist
+    # PackageForTesting(
+    #     "itsdangerous",
+    #     "2.2.0",
+    #     "foobar",
+    #     "Signed value: foobar.generated_signature\nUnsigned value: foobar",
+    #     "",
+    #     import_module_to_validate="itsdangerous.serializer",
+    # ),
     PackageForTesting(
         "jinja2",
         "3.1.4",
@@ -424,13 +431,15 @@ PACKAGES = [
     PackageForTesting(
         "openpyxl", "3.1.2", "foobar", "Written value: foobar", "", import_module_to_validate="openpyxl.chart.axis"
     ),
-    PackageForTesting(
-        "packaging",
-        "24.0",
-        "",
-        {"is_version_valid": True, "requirement": "example-package>=1.0.0", "specifier": ">=1.0.0", "version": "1.2.3"},
-        "",
-    ),
+    ## Skip due to packaging added to the denylist
+    # PackageForTesting(
+    #     "packaging",
+    #     "24.0",
+    #     "",
+    #     {"is_version_valid": True, "requirement": "example-package>=1.0.0",
+    #     "specifier": ">=1.0.0", "version": "1.2.3"},
+    #     "",
+    # ),
     ## Skip due to pandas added to the denylist
     # Pandas dropped Python 3.8 support in pandas>2.0.3
     # PackageForTesting("pandas", "2.2.2", "foobar", "Written value: foobar", "", skip_python_version=[(3, 8)]),
@@ -443,14 +452,15 @@ PACKAGES = [
         import_module_to_validate="platformdirs.unix",
         test_propagation=True,
     ),
-    PackageForTesting(
-        "pluggy",
-        "1.5.0",
-        "foobar",
-        "Hook result: Plugin received: foobar",
-        "",
-        import_module_to_validate="pluggy._hooks",
-    ),
+    ## Skip due to pluggy added to the denylist
+    # PackageForTesting(
+    #     "pluggy",
+    #     "1.5.0",
+    #     "foobar",
+    #     "Hook result: Plugin received: foobar",
+    #     "",
+    #     import_module_to_validate="pluggy._hooks",
+    # ),
     PackageForTesting(
         "pyasn1",
         "0.6.0",
@@ -461,7 +471,8 @@ PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting("pycparser", "2.22", "", "", ""),
+    ## Skip due to pygments added to the denylist
+    # PackageForTesting("pycparser", "2.22", "", "", ""),
     PackageForTesting(
         "pydantic",
         "2.7.1",
@@ -619,15 +630,16 @@ PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting(
-        "werkzeug",
-        "3.0.3",
-        "your-password",
-        "Original password: your-password\nHashed password: replaced_hashed\nPassword match: True",
-        "",
-        import_module_to_validate="werkzeug.http",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
-    ),
+    ## Skip due to werkzeug added to the denylist
+    # PackageForTesting(
+    #     "werkzeug",
+    #     "3.0.3",
+    #     "your-password",
+    #     "Original password: your-password\nHashed password: replaced_hashed\nPassword match: True",
+    #     "",
+    #     import_module_to_validate="werkzeug.http",
+    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    # ),
     PackageForTesting(
         "yarl",
         "1.9.4",
@@ -640,24 +652,26 @@ PACKAGES = [
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
-    PackageForTesting(
-        "zipp",
-        "3.18.2",
-        "example.zip",
-        "Contents of example.zip: ['example.zip/example.txt']",
-        "",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
-    ),
-    PackageForTesting(
-        "typing-extensions",
-        "4.11.0",
-        "",
-        "",
-        "",
-        import_name="typing_extensions",
-        test_e2e=False,
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
-    ),
+    ## Skip due to zipp added to the denylist
+    # PackageForTesting(
+    #     "zipp",
+    #     "3.18.2",
+    #     "example.zip",
+    #     "Contents of example.zip: ['example.zip/example.txt']",
+    #     "",
+    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    # ),
+    ## Skip due to typing-extensions added to the denylist
+    # PackageForTesting(
+    #     "typing-extensions",
+    #     "4.11.0",
+    #     "",
+    #     "",
+    #     "",
+    #     import_name="typing_extensions",
+    #     test_e2e=False,
+    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    # ),
     PackageForTesting(
         "six",
         "1.16.0",
@@ -687,14 +701,15 @@ PACKAGES = [
         "",
         import_name="jwt",
     ),
-    PackageForTesting(
-        "wrapt",
-        "1.16.0",
-        "some-value",
-        "Function executed with param: some-value",
-        "",
-        test_propagation=True,
-    ),
+    ## Skip due to pyarrow added to the denylist
+    # PackageForTesting(
+    #     "wrapt",
+    #     "1.16.0",
+    #     "some-value",
+    #     "Function executed with param: some-value",
+    #     "",
+    #     test_propagation=True,
+    # ),
     PackageForTesting(
         "cachetools",
         "5.3.3",
@@ -804,16 +819,17 @@ PACKAGES = [
         "",
         import_name="OpenSSL.SSL",
     ),
-    PackageForTesting(
-        "moto[s3]",
-        "5.0.11",
-        "some_bucket",
-        "right_result",
-        "",
-        import_name="moto.s3.models",
-        test_e2e=True,
-        extras=[("boto3", "1.34.143")],
-    ),
+    ## Skip due to pyarrow added to the denylist
+    # PackageForTesting(
+    #     "moto[s3]",
+    #     "5.0.11",
+    #     "some_bucket",
+    #     "right_result",
+    #     "",
+    #     import_name="moto.s3.models",
+    #     test_e2e=True,
+    #     extras=[("boto3", "1.34.143")],
+    # ),
     PackageForTesting("decorator", "5.1.1", "World", "Decorated result: Hello, World!", ""),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
     PackageForTesting(

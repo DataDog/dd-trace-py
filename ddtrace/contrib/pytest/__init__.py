@@ -60,27 +60,4 @@ Global Configuration
 
    Default: ``"pytest.test"``
 """
-
-import os
-
-from ddtrace import config
-
-
-# pytest default settings
-config._add(
-    "pytest",
-    dict(
-        _default_service="pytest",
-        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
-    ),
-)
-
-
-def get_version():
-    # type: () -> str
-    import pytest
-
-    return pytest.__version__
-
-
-__all__ = ["get_version"]
+from ddtrace.contrib.internal.pytest.patch import get_version  # noqa: F401

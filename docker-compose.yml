@@ -142,6 +142,7 @@ services:
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
             - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+
     vertica:
         image: vertica/vertica-ce
         environment:
@@ -204,7 +205,7 @@ services:
             - DD_REMOTE_CONFIGURATION_ENABLED=true
             - DD_AGENT_PORT=8126
             - DD_TRACE_AGENT_URL=http://testagent:8126
-            - _DD_APPSEC_DEDUPLICATION_ENABLED=false
+            - DD_IAST_DEDUPLICATION_ENABLED=false
 
 volumes:
     ddagent:
