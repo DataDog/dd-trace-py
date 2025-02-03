@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [profile.release]
-lto = false
+lto = true
 strip = "debuginfo"
 opt-level = 3 # Optimize for performance
 
