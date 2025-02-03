@@ -561,43 +561,41 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     if override is False:
         return None
 
-    if not (override or (int_config and distributed_tracing_enabled(int_config))):
-        return None
+    if override or (int_config and distributed_tracing_enabled(int_config)):
+        context = HTTPPropagator.extract(request_headers)
 
-    context = HTTPPropagator.extract(request_headers)
+        # Only need to activate the new context if something was propagated
+        # The new context must have one of these values in order for it to be activated
+        if not context.trace_id and not context._baggage and not context._span_links:
+            return None
+        # Do not reactivate a context with the same trace id
+        # DEV: An example could be nested web frameworks, when one layer already
+        #      parsed request headers and activated them.
+        #
+        # Example::
+        #
+        #     app = Flask(__name__)  # Traced via Flask instrumentation
+        #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
+        current_context = tracer.current_trace_context()
 
-    # Only need to activate the new context if something was propagated
-    # The new context must have one of these values in order for it to be activated
-    if not context.trace_id and not context._baggage and not context._span_links:
-        return None
-    # Do not reactivate a context with the same trace id
-    # DEV: An example could be nested web frameworks, when one layer already
-    #      parsed request headers and activated them.
-    #
-    # Example::
-    #
-    #     app = Flask(__name__)  # Traced via Flask instrumentation
-    #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
-    current_context = tracer.current_trace_context()
+        # We accept incoming contexts with only baggage or only span_links, however if we
+        # already have a current_context then an incoming context not
+        # containing a trace_id or containing the same trace_id
+        # should not be activated.
+        if current_context and (
+            not context.trace_id or (context.trace_id and context.trace_id == current_context.trace_id)
+        ):
+            log.debug(
+                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+                context.trace_id,
+                context.span_id,
+            )
+            return None
 
-    # We accept incoming contexts with only baggage or only span_links, however if we
-    # already have a current_context then an incoming context not
-    # containing a trace_id or containing the same trace_id
-    # should not be activated.
-    if current_context and (
-        not context.trace_id or (context.trace_id and context.trace_id == current_context.trace_id)
-    ):
-        log.debug(
-            "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
-            context.trace_id,
-            context.span_id,
-        )
-        return None
-
-    # We have parsed a trace id from headers, and we do not already
-    # have a context with the same trace id active
-    tracer.context_provider.activate(context)
-    core.dispatch("http.activate_distributed_headers", (request_headers, context))
+        # We have parsed a trace id from headers, and we do not already
+        # have a context with the same trace id active
+        tracer.context_provider.activate(context)
+        core.dispatch("http.activate_distributed_headers", (request_headers, context))
 
 
 def _flatten(
