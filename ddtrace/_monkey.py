@@ -18,6 +18,7 @@ from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Union  # noqa:F401
