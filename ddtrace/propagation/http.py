@@ -510,7 +510,7 @@ class _B3MultiHeader:
 
 
 class _B3SingleHeader:
-    """Helper class to inject/extract B3 Single Header
+    """Helper class to inject/extract B3
 
     https://github.com/openzipkin/b3-propagation/blob/3e54cda11620a773d53c7f64d2ebb10d3a01794c/README.md#single-header
 
