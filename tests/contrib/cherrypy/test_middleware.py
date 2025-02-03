@@ -540,7 +540,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                                 web_span_name="cherrypy.request",
                                 web_span_component="cherrypy",
                                 web_span_service_name="test.cherrypy.service",
-                                web_span_resource="GET " + dict(test_headers)["x-dd-proxy-path"],
+                                web_span_resource="GET " + test_endpoint["endpoint"],
                                 api_gateway_service_name="local",
                                 api_gateway_resource="GET /",
                                 method="GET",

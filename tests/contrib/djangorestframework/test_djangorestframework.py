@@ -54,7 +54,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
             "HTTP_X_DD_PROXY_STAGE": "stage",
         }
 
-        client.get("/", **headers)
+        client.get("/users/", **headers)
 
         traces = test_spans.spans
         aws_gateway_span = traces[0]
@@ -66,12 +66,12 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
             web_span_name="django.request",
             web_span_component="django",
             web_span_service_name="django",
-            web_span_resource="GET ^",
+            web_span_resource="GET ^users/$",
             api_gateway_service_name="local",
             api_gateway_resource="GET /",
             method="GET",
             route="/",
-            status_code="200",
+            status_code="500",
             url="local/",
             start=1736973768,
         )
