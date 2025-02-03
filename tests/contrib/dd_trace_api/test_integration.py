@@ -70,6 +70,15 @@ class DDTraceAPITestCase(TracerTestCase):
                 self._assert_span_stub(root_from_nested)
         self._assert_real_spans(2)
 
+    def test_wrap(self):
+        @dd_trace_api.tracer.wrap()
+        def foo():
+            return 1 + 1
+
+        result = foo()
+        assert result == 2
+        self._assert_real_spans()
+
     def test_set_link(self):
         pass
 
