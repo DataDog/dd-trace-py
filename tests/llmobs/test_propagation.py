@@ -6,47 +6,43 @@ import pytest
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 
 
 def test_inject_llmobs_parent_id_no_llmobs_span(llmobs):
-    request_headers = {}
     with llmobs._instance.tracer.trace("Non-LLMObs span"):
-        with llmobs._instance.tracer.trace("Non-LLMObs span"):
-            llmobs._inject_llmobs_context(request_headers)
-    assert request_headers.get(PARENT_ID_KEY) == ROOT_PARENT_ID
+        with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
+            llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == ROOT_PARENT_ID
 
 
 def test_inject_llmobs_parent_id_simple(llmobs):
-    request_headers = {}
-    with llmobs.workflow("LLMObs span") as root_span:
-        llmobs._inject_llmobs_context(request_headers)
-    assert request_headers.get(PARENT_ID_KEY) == str(root_span.span_id)
+    with llmobs.workflow("LLMObs span") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
-    request_headers = {}
     with llmobs.workflow("LLMObs span") as root_span:
-        with llmobs._instance.tracer.trace("Non-LLMObs span"):
-            llmobs._inject_llmobs_context(request_headers)
-    assert request_headers.get(PARENT_ID_KEY) == str(root_span.span_id)
+        with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
+            llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(root_span.span_id)
 
 
 def test_inject_llmobs_parent_id_non_llmobs_root_span(llmobs):
-    request_headers = {}
     with llmobs._instance.tracer.trace("Non-LLMObs span"):
-        with llmobs.workflow("LLMObs span") as child_span:
-            llmobs._inject_llmobs_context(request_headers)
-    assert request_headers.get(PARENT_ID_KEY) == str(child_span.span_id)
+        with llmobs.workflow("LLMObs span") as span:
+            llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_spans(llmobs):
-    request_headers = {}
     with llmobs.workflow("LLMObs span"):
         with llmobs.workflow("LLMObs child span"):
             with llmobs.workflow("Last LLMObs child span") as last_llmobs_span:
-                llmobs._inject_llmobs_context(request_headers)
-    assert request_headers.get(PARENT_ID_KEY) == str(last_llmobs_span.span_id)
+                llmobs._inject_llmobs_context(last_llmobs_span.context, {})
+    assert last_llmobs_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(last_llmobs_span.span_id)
 
 
 def test_propagate_correct_llmobs_parent_id_simple(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -152,21 +148,21 @@ print(json.dumps(headers))
 def test_inject_distributed_headers_simple(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         request_headers = llmobs.inject_distributed_headers({}, span=root_span)
-    assert PARENT_ID_KEY in request_headers
+    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_non_llmobs(llmobs):
-    with llmobs.workflow("LLMObs span"):
+    with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert PARENT_ID_KEY in request_headers
+    assert "llmobs_parent_id:{}".format(root_span.span_id) in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_non_llmobs_root_span(llmobs):
     with llmobs._instance.tracer.trace("Non-LLMObs span"):
         with llmobs.workflow("LLMObs span") as child_span:
             request_headers = llmobs.inject_distributed_headers({}, span=child_span)
-    assert PARENT_ID_KEY in request_headers
+    assert "llmobs_parent_id:{}".format(child_span.span_id) in request_headers.get("tracestate")
 
 
 def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
@@ -174,7 +170,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
         with llmobs.workflow("LLMObs child span"):
             with llmobs.workflow("LLMObs grandchild span") as last_llmobs_span:
                 request_headers = llmobs.inject_distributed_headers({}, span=last_llmobs_span)
-    assert PARENT_ID_KEY in request_headers
+    assert "llmobs_parent_id:{}".format(last_llmobs_span.span_id) in request_headers.get("tracestate")
 
 
 def test_activate_distributed_headers_propagate_correct_llmobs_parent_id_simple(

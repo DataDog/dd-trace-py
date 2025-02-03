@@ -47,6 +47,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -286,6 +287,8 @@ class LLMObs(Service):
         # Remove listener hooks for span events
         core.reset_listeners("trace.span_start", self._on_span_start)
         core.reset_listeners("trace.span_finish", self._on_span_finish)
+        core.reset_listeners("http.span_inject", self._inject_llmobs_context)
+        core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
 
         forksafe.unregister(self._child_after_fork)
 
@@ -370,6 +373,8 @@ class LLMObs(Service):
         # Register hooks for span events
         core.on("trace.span_start", cls._instance._on_span_start)
         core.on("trace.span_finish", cls._instance._on_span_finish)
+        core.on("http.span_inject", cls._inject_llmobs_context)
+        core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -1181,14 +1186,15 @@ class LLMObs(Service):
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
     @classmethod
-    def _inject_llmobs_context(cls, request_headers: Dict[str, str]) -> Dict[str, str]:
-        active_ctx = cls._instance._current_trace_context()
-        if active_ctx is None:
+    def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
+        if cls.enabled is False:
+            return
+        active_context = cls._instance._current_trace_context()
+        if active_context is None:
             parent_id = ROOT_PARENT_ID
         else:
-            parent_id = str(active_ctx.span_id)
-        request_headers[PARENT_ID_KEY] = parent_id
-        return request_headers
+            parent_id = str(active_context.span_id)
+        span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
@@ -1203,29 +1209,31 @@ class LLMObs(Service):
             log.warning("request_headers must be a dictionary of string key-value pairs.")
             return request_headers
         if span is None:
-            span = cls._instance._current_span()
+            span = cls._instance.tracer.current_span()
         if span is None:
             log.warning("No span provided and no currently active span found.")
             return request_headers
         if not isinstance(span, Span):
             log.warning("span must be a valid Span object. Distributed context will not be injected.")
             return request_headers
-        cls._inject_llmobs_context(request_headers)
         HTTPPropagator.inject(span.context, request_headers)
         return request_headers
 
     @classmethod
-    def _activate_llmobs_distributed_headers(cls, request_headers: Dict[str, str], context: Context) -> None:
+    def _activate_llmobs_distributed_context(cls, request_headers: Dict[str, str], context: Context) -> None:
+        if cls.enabled is False:
+            return
         if not context.trace_id or not context.span_id:
             log.warning("Failed to extract trace/span ID from request headers.")
             return
-        _parent_id = request_headers.get(PARENT_ID_KEY)
+        _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         if _parent_id is None:
             log.warning("Failed to extract LLMObs parent ID from request headers.")
             return
         try:
             parent_id = int(_parent_id)
         except ValueError:
+            log.warning("Failed to parse LLMObs parent ID from request headers.")
             return
         llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
         cls._instance._llmobs_context_provider.activate(llmobs_context)
@@ -1245,7 +1253,7 @@ class LLMObs(Service):
             return
         context = HTTPPropagator.extract(request_headers)
         cls._instance.tracer.context_provider.activate(context)
-        cls._instance._activate_llmobs_distributed_headers(request_headers, context)
+        cls._instance._activate_llmobs_distributed_context(request_headers, context)
 
 
 # initialize the default llmobs instance

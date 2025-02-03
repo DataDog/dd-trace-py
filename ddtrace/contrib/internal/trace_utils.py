@@ -597,10 +597,7 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     # We have parsed a trace id from headers, and we do not already
     # have a context with the same trace id active
     tracer.context_provider.activate(context)
-    if config._llmobs_enabled:
-        from ddtrace.llmobs import LLMObs
-
-        LLMObs._activate_llmobs_distributed_headers(request_headers, context)
+    core.dispatch("http.activate_distributed_headers", (request_headers, context))
 
 
 def _flatten(

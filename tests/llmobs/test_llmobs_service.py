@@ -24,8 +24,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -61,7 +59,6 @@ def test_service_enable_proxy_default():
         assert llmobs_instance.tracer == dummy_tracer
         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
-
         llmobs_service.disable()
 
 
@@ -1247,7 +1244,7 @@ def test_inject_distributed_headers_span_calls_httppropagator_inject(llmobs, moc
     with mock.patch("ddtrace.propagation.http.HTTPPropagator.inject") as mock_inject:
         llmobs.inject_distributed_headers({}, span=span)
         assert mock_inject.call_count == 1
-        mock_inject.assert_called_once_with(span.context, {PARENT_ID_KEY: ROOT_PARENT_ID})
+        mock_inject.assert_called_once_with(span.context, {})
 
 
 def test_inject_distributed_headers_current_active_span_injected(llmobs, mock_llmobs_logs):
@@ -1255,7 +1252,7 @@ def test_inject_distributed_headers_current_active_span_injected(llmobs, mock_ll
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.inject") as mock_inject:
         llmobs.inject_distributed_headers({}, span=None)
         assert mock_inject.call_count == 1
-        mock_inject.assert_called_once_with(span.context, {PARENT_ID_KEY: str(span.span_id)})
+        mock_inject.assert_called_once_with(span.context, {})
 
 
 def test_activate_distributed_headers_llmobs_disabled_does_nothing(llmobs, mock_llmobs_logs):
