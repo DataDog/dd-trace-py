@@ -5,8 +5,6 @@ import pytest
 
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -1005,4 +1003,3 @@ def test_django_xss_secure(client, test_spans, tracer):
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
- 
