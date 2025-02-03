@@ -6,9 +6,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.internal import core
 from ddtrace.trace import Pin
 
 
@@ -109,7 +109,7 @@ class WrapperRouter(wrapt.ObjectProxy):
                 route.template,
             )
 
-            molten_span = core.get_item('req_span')
+            molten_span = core.get_item("req_span")
             molten_span.resource = resource
 
             # if no root route set make sure we record it based on this resolved
