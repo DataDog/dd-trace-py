@@ -5,8 +5,8 @@ from celery import registry
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery import constants as c
 from ddtrace.contrib.internal.celery.utils import attach_span
@@ -65,7 +65,7 @@ def trace_prerun(*args, **kwargs):
     if rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -139,7 +139,7 @@ def trace_before_publish(*args, **kwargs):
     if rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)

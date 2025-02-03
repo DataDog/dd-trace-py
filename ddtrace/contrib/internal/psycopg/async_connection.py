@@ -1,6 +1,6 @@
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
@@ -58,7 +58,7 @@ def patched_connect_async_factory(psycopg_module):
                 if span.get_tag(db.SYSTEM) is None:
                     span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
                 conn = await connect_func(*args, **kwargs)
 
         return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)

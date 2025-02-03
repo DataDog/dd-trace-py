@@ -228,13 +228,13 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
     from ddtrace import tracer
+    from ddtrace.constants import _SAMPLING_PRIORITY_KEY
     from ddtrace.constants import AUTO_KEEP
-    from ddtrace.constants import SAMPLING_PRIORITY_KEY
     from ddtrace.constants import USER_KEEP
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 

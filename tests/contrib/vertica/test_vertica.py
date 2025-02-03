@@ -9,7 +9,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.settings.config import _deepmerge
+from ddtrace.settings._config import _deepmerge
 from ddtrace.trace import Pin
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer

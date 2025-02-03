@@ -589,7 +589,7 @@ with tracer.trace("test") as span:
 assert span.get_tag("header_tag_420") is None
 assert span.get_tag("env_set_tag_name") == "helloworld"
 
-config.http._reset()
+config._http._reset()
 config._header_tag_name.invalidate()
 config._handle_remoteconfig(_base_rc_config({"tracing_header_tags":
     [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
@@ -601,7 +601,7 @@ with tracer.trace("test_rc_override") as span2:
 assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
 assert span2.get_tag("env_set_tag_name") is None
 
-config.http._reset()
+config._http._reset()
 config._header_tag_name.invalidate()
 config._handle_remoteconfig(_base_rc_config({}))
 
@@ -634,14 +634,13 @@ def test_config_public_properties_and_methods():
             public_attrs.add(key)
 
     assert public_attrs == {
-        "trace_headers",
         "service",
         "service_mapping",
         "env",
         "tags",
         "version",
-        "http",
-        "http_server",
+        # Attributes below are deprecated and will be removed in v3.0
+        "trace_headers",
         "header_is_traced",
         "convert_rc_trace_sampling_rules",
         "enable_remote_configuration",
