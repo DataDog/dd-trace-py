@@ -22,6 +22,7 @@ def get_parametrize(vuln_type, ignore_list=None):
             "$1 - Tainted range based redaction - multiple ranges",
             "Redacted source that needs to be truncated",
             "Query with single quoted string literal and null source",
+            "No redacted that needs to be truncated - whole text",
         ):
             continue
 
