@@ -4,7 +4,6 @@ import ast
 import codecs
 import os
 from sys import builtin_module_names
-from sys import version_info
 import textwrap
 from types import ModuleType
 from typing import Iterable
@@ -593,9 +592,8 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         log.debug("empty file: %s", module_path)
         return "", None
 
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
-        # does not work in 3.7 because it enters into infinite recursion
         source_text += _DIR_WRAPPER
 
     new_ast = visit_ast(
