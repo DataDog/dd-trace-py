@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "Circumference calculator",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679bca4500000000",
+      "langchain.request.config": "{\"unserializable\": \"[Unserializable object: <object object at 0x15b636020>]\"}",
+      "langchain.request.input": "2",
+      "langchain.request.tool.description": "Circumference calculator(radius: float) -> float - Use this tool when you need to calculate a circumference using the radius of a circle",
+      "langchain.request.tool.name": "Circumference calculator",
+      "langchain.request.type": "tool",
+      "langchain.response.output": "12.566370614359172",
+      "language": "python",
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 82010
+    },
+    "duration": 370000,
+    "start": 1738263109282464000
+  }]]

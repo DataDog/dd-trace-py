@@ -17,4 +17,5 @@ __all__ = [
     "Tracer",
     "Span",
     "tracer",
+    "BaseContextProvider",
 ]
