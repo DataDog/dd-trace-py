@@ -103,7 +103,6 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
-        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "true",
     },
     venvs=[
         Venv(
@@ -154,6 +153,8 @@ venv = Venv(
                 "simplejson": latest,
                 "SQLAlchemy": "==2.0.22",
                 "psycopg2-binary": "~=2.9.9",
+                "pymysql": latest,
+                "mysqlclient": "==2.1.1",
                 "googleapis-common-protos": latest,
                 "grpcio": latest,
             },
@@ -1604,7 +1605,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
             },
             venvs=[
                 Venv(
@@ -1634,12 +1634,12 @@ venv = Venv(
                             venvs=[
                                 Venv(
                                     env={
-                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                                     },
                                 ),
                                 Venv(
                                     env={
-                                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                                     },
                                 ),
                             ],
@@ -1662,12 +1662,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                "DD_PYTEST_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1734,12 +1734,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1755,12 +1755,12 @@ venv = Venv(
                     venvs=[
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
                             env={
-                                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                             },
                         ),
                     ],
@@ -1783,7 +1783,7 @@ venv = Venv(
                         ]
                     },
                     env={
-                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "0",
+                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
                     },
                 ),
                 Venv(
@@ -1793,7 +1793,7 @@ venv = Venv(
                         ]
                     },
                     env={
-                        "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
+                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                     },
                 ),
             ],
@@ -3072,8 +3072,6 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
-                # Enable pytest v2 plugin to handle pytest-cpp items in the test suite
-                "DD_PYTEST_USE_NEW_PLUGIN_BETA": "1",
                 "CPUCOUNT": "12",
             },
             pkgs={
