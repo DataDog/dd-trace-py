@@ -3,7 +3,6 @@ from molten.testing import TestClient
 import pytest
 
 from ddtrace import config
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION

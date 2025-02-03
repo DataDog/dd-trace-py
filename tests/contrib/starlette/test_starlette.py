@@ -615,7 +615,6 @@ def test_inferred_spans_api_gateway(client, test_spans):
         web_span = test_spans.find_span(name="starlette.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
 
-
         assert_web_and_inferred_aws_api_gateway_span_data(
             aws_gateway_span,
             web_span,
