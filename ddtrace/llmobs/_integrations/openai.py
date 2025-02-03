@@ -5,7 +5,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS

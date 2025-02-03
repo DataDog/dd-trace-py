@@ -10,7 +10,6 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
@@ -23,10 +22,7 @@ log = get_logger(__name__)
 config._add(
     "openai",
     {
-        "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
-        "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
