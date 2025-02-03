@@ -201,7 +201,7 @@ class Tracer(object):
         self,
         url: Optional[str] = None,
         dogstatsd_url: Optional[str] = None,
-        context_provider: Optional[DefaultContextProvider] = None,
+        context_provider: Optional[BaseContextProvider] = None,
     ) -> None:
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized

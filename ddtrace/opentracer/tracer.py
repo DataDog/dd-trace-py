@@ -108,7 +108,7 @@ class Tracer(opentracing.Tracer):
             trace_processors=trace_processors,
             priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
             uds_path=self._config.get(keys.UDS_PATH),
-            context_provider=dd_context_provider,  # type: ignore[arg-type]
+            context_provider=dd_context_provider,
         )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator,
