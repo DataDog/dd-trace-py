@@ -55,7 +55,7 @@ class EvaluatorRunner(PeriodicService):
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
         super(EvaluatorRunner, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__)
+        logger.debug("started %r", self.__class__.__name__)
         atexit.register(self.on_shutdown)
 
     def stop(self, *args, **kwargs):

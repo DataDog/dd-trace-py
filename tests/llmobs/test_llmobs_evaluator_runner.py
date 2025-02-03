@@ -19,9 +19,9 @@ DUMMY_SPAN = Span("dummy_span")
 
 
 @pytest.fixture
-def active_evaluator_runner(llmobs, mock_ragas_evaluator):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
-    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=llmobs))
+def active_evaluator_runner(LLMObs, mock_ragas_evaluator):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=LLMObs)
+    evaluator_runner.evaluators.append(mock_ragas_evaluator(llmobs_service=LLMObs))
     evaluator_runner.start()
     yield evaluator_runner
 
@@ -59,15 +59,15 @@ def test_evaluator_runner_periodic_enqueues_eval_metric(mock_llmobs_eval_metric_
     )
 
 
-def test_evaluator_runner_stopped_does_not_enqueue_metric(llmobs, mock_llmobs_eval_metric_writer):
-    evaluator_runner = EvaluatorRunner(interval=0.1, llmobs_service=llmobs)
+def test_evaluator_runner_stopped_does_not_enqueue_metric(LLMObs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.1, llmobs_service=LLMObs)
     evaluator_runner.start()
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     assert not evaluator_runner._buffer
     assert mock_llmobs_eval_metric_writer.enqueue.call_count == 0
 
 
-def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer, active_evaluator_runner):
+def test_evaluator_runner_timed_enqueues_eval_metric(LLMObs, mock_llmobs_eval_metric_writer, active_evaluator_runner):
     active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
 
     time.sleep(0.1)
