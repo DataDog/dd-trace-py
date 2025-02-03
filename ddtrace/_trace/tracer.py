@@ -1256,14 +1256,14 @@ class Tracer(object):
     ) -> None:
         """
         Records an exception as span event.
-        If the exception is unhandled, :obj:`escaped` should be set :obj:`True`. It
+        If the exception is uncaught, :obj:`escaped` should be set :obj:`True`. It
         will tag the span with an error tuple.
 
         :param Exception exception: the exception to record<
         :param dict attributes: optional attributes to add to the span event. It will override
             the base attributes if :obj:`attributes` contains existing keys.
         :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
-        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for an unhandled exception.
+        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for a uncaught exception.
         """
         current_span = self.current_span()
         if current_span is None:
