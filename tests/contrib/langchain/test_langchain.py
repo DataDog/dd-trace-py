@@ -192,8 +192,7 @@ async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
 def test_openai_embedding_query(langchain_openai, request_vcr):
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
-        with request_vcr.use_cassette("openai_embedding_query.yaml"):
-            embeddings.embed_query("this is a test query.")
+        embeddings.embed_query("this is a test query.")
 
 
 @pytest.mark.snapshot
@@ -425,12 +424,10 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
         pytest.skip("langchain-community not installed which is required for this test.")
     pytest.importorskip("faiss", reason="faiss required for this test.")
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-        with request_vcr.use_cassette("openai_embedding_query.yaml"):
-            faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
-                ["this is a test query."],
-                embedding=langchain_openai.OpenAIEmbeddings(),
-            )
-            retriever = faiss.as_retriever()
+        faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
+            ["this is a test query."], embedding=langchain_openai.OpenAIEmbeddings()
+        )
+        retriever = faiss.as_retriever()
         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
             retriever.invoke("What was the message of the last test query?")
 
