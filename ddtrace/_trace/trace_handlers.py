@@ -688,8 +688,8 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
-    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
-    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+    span.set_metric("bedrock.usage.prompt_tokens", input_token_count)
+    span.set_metric("bedrock.usage.completion_tokens", output_token_count)
 
 
 def _propagate_context(ctx, headers):
