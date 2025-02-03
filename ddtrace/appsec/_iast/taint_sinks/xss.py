@@ -54,8 +54,6 @@ def patch():
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
 
-    _set_metric_iast_instrumented_sink(VULN_XSS)
-
 
 def unpatch():
     try_unwrap("django.utils.safestring", "mark_safe")
