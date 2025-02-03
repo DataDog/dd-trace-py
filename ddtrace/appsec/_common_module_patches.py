@@ -46,6 +46,16 @@ def patch_common_modules():
     global _is_patched
     if _is_patched:
         return
+    # for testing purposes, we need to update is_iast_request_enabled
+    if asm_config._iast_enabled:
+        global is_iast_request_enabled
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+    else:
+        global is_iast_request_enabled
+
+        def is_iast_request_enabled() -> bool:
+            return False
+
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
