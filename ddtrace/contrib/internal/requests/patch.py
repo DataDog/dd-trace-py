@@ -14,6 +14,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
 from .connection import _wrap_send
+from .session import TracedSession
 
 
 # requests default settings
@@ -26,6 +27,10 @@ config._add(
         "_default_service": schematize_service_name("requests"),
     },
 )
+
+# always patch our `TracedSession` when imported
+_w(TracedSession, "send", _wrap_send)
+Pin(_config=config.requests).onto(TracedSession)
 
 
 def get_version():

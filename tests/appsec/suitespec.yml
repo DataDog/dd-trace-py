@@ -6,10 +6,10 @@ components:
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:
-    - ddtrace/contrib/urllib/*
+    - ddtrace/contrib/_urllib.py
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
-    - ddtrace/contrib/webbrowser/*
+    - ddtrace/contrib/_webbrowser.py
     - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
