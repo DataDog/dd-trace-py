@@ -297,6 +297,56 @@ class FalconTestCase(FalconTestMixin):
             "x-dd-proxy-domain-name": "local",
             "x-dd-proxy-stage": "stage",
         }
+        for setting_enabled in [False, True]:
+            for test_headers in [headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/200",
+                        "status": 200,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.Resource200",
+                        "http.route": "/200",
+                    },
+                    {
+                        "endpoint": "/exception",
+                        "status": 500,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.ResourceException",
+                        "http.route": "/exception",
+                    },
+                ]:
+                    with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                        self.make_test_call(test_endpoint["endpoint"], headers=test_headers)
+                        traces = self.tracer.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+
+                            assert_web_and_inferred_aws_api_gateway_span_data(
+                                aws_gateway_span,
+                                web_span,
+                                web_span_name="falcon.request",
+                                web_span_component="falcon",
+                                web_span_service_name="falcon",
+                                web_span_resource=test_endpoint["resource_name"],
+                                api_gateway_service_name="local",
+                                api_gateway_resource="GET /",
+                                method="GET",
+                                route="/",
+                                status_code=test_endpoint["status"],
+                                url="local/",
+                                start=1736973768.0,
+                                is_distributed=test_headers == distributed_headers,
+                                distributed_trace_id=1,
+                                distributed_parent_id=2,
+                                distributed_sampling_decision=True,
+                                distributed_sampling_priority=USER_KEEP,
+                            )
+
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None
+
+    def test_inferred_spans_api_gateway_distributed(self):
+        # test to split them out to see if this is still flaky
         distributed_headers = {
             "x-dd-proxy": "aws-apigateway",
             "x-dd-proxy-request-time-ms": "1736973768000",
@@ -311,7 +361,7 @@ class FalconTestCase(FalconTestMixin):
         }
 
         for setting_enabled in [False, True]:
-            for test_headers in [distributed_headers, headers]:
+            for test_headers in [distributed_headers]:
                 for test_endpoint in [
                     {
                         "endpoint": "/200",
