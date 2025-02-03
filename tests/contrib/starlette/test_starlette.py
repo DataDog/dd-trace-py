@@ -16,8 +16,7 @@ from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatc
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
@@ -615,6 +614,20 @@ def test_inferred_spans_api_gateway(client, test_spans):
         client.get("/200", headers=headers)
         web_span = test_spans.find_span(name="starlette.request")
         aws_gateway_span = test_spans.find_span(name="aws.apigateway")
-        #  Assert common behavior including aws gateway metadata
-        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
+
+
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="molten.request",
+            web_span_component="molten",
+            web_span_service_name="molten",
+            web_span_resource="GET /200",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768,
+        )

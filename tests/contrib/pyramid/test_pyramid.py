@@ -7,8 +7,7 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import flaky
 from tests.webclient import Client
@@ -333,22 +332,22 @@ class TestAPIGatewayTracing(PyramidBase):
                     if setting_enabled:
                         aws_gateway_span = spans[0]
                         web_span = spans[1]
-                        assert web_span.name == "pyramid.request"
-                        # Assert common behavior including aws gateway metadata
-                        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-                        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-                        assert (
-                            aws_gateway_span.resource
-                            == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+
+                        assert_web_and_inferred_aws_api_gateway_span_data(
+                            aws_gateway_span,
+                            web_span,
+                            web_span_name="pyramid.request",
+                            web_span_component="pyramid",
+                            web_span_service_name="pyramid",
+                            web_span_resource=test_endpoint["resource_name"],
+                            api_gateway_service_name="local",
+                            api_gateway_resource="GET /",
+                            method="GET",
+                            route="/",
+                            status_code=test_endpoint["status"],
+                            url="local/",
+                            start=1736973768,
                         )
-                        # Assert test specific behavior for pyramid
-                        assert web_span.service == "pyramid"
-                        assert web_span.resource == test_endpoint["resource_name"]
-                        assert test_endpoint["endpoint"] in web_span.get_tag("http.url")
-                        assert web_span.get_tag("http.route") == test_endpoint["http.route"]
-                        assert web_span.get_tag("span.kind") == "server"
-                        assert web_span.get_tag("component") == "pyramid"
-                        assert web_span.get_tag("_dd.inferred_span") is None
                     else:
                         web_span = spans[0]
                         assert web_span._parent is None

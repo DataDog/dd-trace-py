@@ -1823,7 +1823,7 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
                 web_span_name="django.request",
                 web_span_component="django",
                 web_span_service_name="django",
-                web_span_resource="GET ^$",
+                web_span_resource="GET ^error-500/$",
                 api_gateway_service_name="local",
                 api_gateway_resource="GET /",
                 method="GET",

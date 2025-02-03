@@ -344,7 +344,7 @@ class FalconTestCase(FalconTestMixin):
                                 api_gateway_resource="GET /",
                                 method="GET",
                                 route="/",
-                                status_code="200",
+                                status_code=test_endpoint["status"],
                                 url="local/",
                                 start=1736973768.0,
                                 is_distributed=test_headers == distributed_headers,

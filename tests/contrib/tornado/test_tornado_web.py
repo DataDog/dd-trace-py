@@ -9,8 +9,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
-from tests.tracer.utils_inferred_spans.test_helpers import assert_aws_api_gateway_span_behavior
-from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_common_metadata
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
@@ -725,29 +724,27 @@ class TestAPIGatewayTracing(TornadoTestCase):
                     if setting_enabled:
                         aws_gateway_span = traces[0][0]
                         web_span = traces[0][1]
-                        assert web_span.name == "tornado.request"
-                        # Assert common behavior including aws gateway metadata
-                        assert_aws_api_gateway_span_behavior(aws_gateway_span, "local")
-                        assert_web_and_inferred_aws_api_gateway_common_metadata(web_span, aws_gateway_span)
-                        assert 1 == len(traces)
-                        assert (
-                            aws_gateway_span.resource
-                            == test_headers["x-dd-proxy-httpmethod"] + " " + test_headers["x-dd-proxy-path"]
+
+                        assert_web_and_inferred_aws_api_gateway_span_data(
+                            aws_gateway_span,
+                            web_span,
+                            web_span_name="tornado.request",
+                            web_span_component="tornado",
+                            web_span_service_name="tornado-web",
+                            web_span_resource=test_endpoint["resource_name"],
+                            api_gateway_service_name="local",
+                            api_gateway_resource="GET /",
+                            method="GET",
+                            route="/",
+                            status_code=test_endpoint["status"],
+                            url="local/",
+                            start=1736973768,
+                            is_distributed=test_headers == distributed_headers,
+                            distributed_trace_id=1,
+                            distributed_parent_id=2,
+                            distributed_sampling_decision=True,
+                            distributed_sampling_priority=USER_KEEP,
                         )
-                        # Assert test specific behavior for tornado
-                        assert web_span.service == "tornado-web"
-                        assert web_span.resource == test_endpoint["resource_name"]
-                        # Ports change per test, ie: http://127.0.0.1:59345/success/, which affects the http.url
-                        assert test_endpoint["endpoint"] in web_span.get_tag("http.url")
-                        assert web_span.get_tag("http.route") == test_endpoint["http.route"]
-                        assert web_span.get_tag("span.kind") == "server"
-                        assert web_span.get_tag("component") == "tornado"
-                        assert web_span.get_tag("_dd.inferred_span") is None
-                        if test_headers == distributed_headers:
-                            assert web_span.sampled is True
-                            assert web_span.trace_id == 1
-                            assert aws_gateway_span.trace_id == 1
-                            assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
                     else:
                         web_span = traces[0][0]
                         assert web_span._parent is None
