@@ -91,24 +91,21 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     wrapper for _io.BytesIO and _io.StringIO read function
     """
     result = original_read_callable(*args, **kwargs)
-    if asm_config._iast_enabled:
-        if is_iast_request_enabled():
-            from ddtrace.appsec._iast._taint_tracking import OriginType
-            from ddtrace.appsec._iast._taint_tracking import Source
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import Source
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
-            ranges = get_tainted_ranges(instance)
-            if len(ranges) > 0:
-                source = (
-                    ranges[0].source if ranges[0].source else Source(name="_io", value=result, origin=OriginType.EMPTY)
-                )
-                result = taint_pyobject(
-                    pyobject=result,
-                    source_name=source.name,
-                    source_value=source.value,
-                    source_origin=source.origin,
-                )
+        ranges = get_tainted_ranges(instance)
+        if len(ranges) > 0:
+            source = ranges[0].source if ranges[0].source else Source(name="_io", value=result, origin=OriginType.EMPTY)
+            result = taint_pyobject(
+                pyobject=result,
+                source_name=source.name,
+                source_value=source.value,
+                source_origin=source.origin,
+            )
     return result
 
 
@@ -120,16 +117,15 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    if asm_config._iast_enabled:
-        if is_iast_request_enabled():
-            try:
-                from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        try:
+            from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 
-                check_and_report_path_traversal(*args, **kwargs)
-            except ImportError:
-                # open is used during module initialization
-                # and shouldn't be changed at that time
-                return original_open_callable(*args, **kwargs)
+            check_and_report_path_traversal(*args, **kwargs)
+        except ImportError:
+            # open is used during module initialization
+            # and shouldn't be changed at that time
+            return original_open_callable(*args, **kwargs)
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
@@ -212,11 +208,10 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled:
-        if is_iast_request_enabled():
-            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
-            _iast_report_ssrf(original_request_callable, *args, **kwargs)
+        _iast_report_ssrf(original_request_callable, *args, **kwargs)
 
     if (
         asm_config._asm_enabled
