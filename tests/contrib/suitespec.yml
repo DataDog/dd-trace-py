@@ -306,7 +306,7 @@ suites:
     runner: riot
     snapshot: true
   aredis:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -346,7 +346,7 @@ suites:
     runner: riot
     snapshot: true
   asynctest:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -604,7 +604,7 @@ suites:
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
-    parallelism: 14
+    parallelism: 11
     paths:
       - '@bootstrap'
       - '@core'

@@ -29,7 +29,7 @@ suites:
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 6
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -56,7 +56,7 @@ suites:
     runner: riot
     snapshot: true
   pytest_v2:
-    parallelism: 10
+    parallelism: 7
     paths:
       - '@bootstrap'
       - '@core'

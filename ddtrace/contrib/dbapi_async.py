@@ -10,11 +10,11 @@ from ddtrace.settings.asm import config as asm_config
 from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
-from .dbapi import TracedCursor
 from ..ext import SpanKind
 from ..ext import SpanTypes
 from ..trace import Pin
 from .dbapi import TracedConnection
+from .dbapi import TracedCursor
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import iswrapped
 

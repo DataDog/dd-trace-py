@@ -1821,7 +1821,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
-    # B3 single header
+    # B3
     (
         "valid_b3_single_header_simple",
         [PROPAGATION_STYLE_B3_SINGLE],
@@ -2639,7 +2639,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ),
     ),
     # The trace_id from Datadog context will not align with the tracecontext primary context
-    # therefore we get a span link. B3 single headers are invalid so we won't see a trace of them.
+    # therefore we get a span link. B3 is invalid so we won't see a trace of them.
     # The b3 multi headers are missing a span_id, so we will skip creating a span link for it.
     (
         "all_headers_all_styles_do_not_create_span_link_for_context_w_out_span_id",
@@ -2994,7 +2994,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
         },
     ),
-    # B3 Single Header
+    # B3
     (
         "valid_b3_single_style",
         [PROPAGATION_STYLE_B3_SINGLE],
