@@ -81,11 +81,11 @@ context::
     Span objects are owned by the execution in which they are created and must
     be finished in the same execution. The span context can be used to continue
     a trace in a different execution by passing it and activating it on the other
-    end. Note that in all instances of crossing into another 
-    execution, sampling should be run manually before entering the new execution 
+    end. Note that in all instances of crossing into another
+    execution, sampling should be run manually before entering the new execution
     to ensure that the sampling decision is the same across the trace.
     This can be done using `tracer.sample(tracer.current_root_span())`
-    
+
     See the sections below for how to propagate traces across task, thread or
     process boundaries.
 
@@ -201,7 +201,6 @@ desirable then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
-.. note:: For Python < 3.7 the asyncio integration must be used: :ref:`asyncio`
 
 Manual Management
 ^^^^^^^^^^^^^^^^^
@@ -467,7 +466,7 @@ structure like in the following example::
 Custom Error Codes
 ^^^^^^^^^^^^^^^^^^
 It is possible to have a custom mapping of which HTTP status codes are considered errors.
-By default, 500-599 status codes are considered errors. The default value can be overridden 
+By default, 500-599 status codes are considered errors. The default value can be overridden
 by setting the ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` environment variable.
 
 
@@ -743,8 +742,8 @@ The requirements for using this feature are:
 - must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
 - must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true`.
 
-It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
-is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
+It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This
+is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain
 configurations can conflict with other features. For instance, running the NSight Systems or NSight Compute profiler alongside the PyTorch profiler on the same machine at the same time will likely lead to
 errors as CUPTI generally does not support multiple concurrent readers.
 
@@ -757,7 +756,7 @@ This can be run through the command line (assuming that a Datadog agent is runni
     DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
 
 .. code-block:: python
-    
+
     import torch
     import torch.nn
     import torch.optim
