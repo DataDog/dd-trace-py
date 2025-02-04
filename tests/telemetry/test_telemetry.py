@@ -147,7 +147,7 @@ def test_app_started_error_handled_exception(test_agent_session, run_python_code
 import logging
 logging.basicConfig()
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.trace import TraceFilter
 
 class FailingFilture(TraceFilter):
@@ -325,7 +325,7 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
 
     code = """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 # We want to import the telemetry module even when telemetry is disabled.
 import sys

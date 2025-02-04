@@ -6,7 +6,6 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -25,6 +24,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 class OpenAIIntegration(BaseLLMIntegration):
