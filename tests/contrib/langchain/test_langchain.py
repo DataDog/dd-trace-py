@@ -1,3 +1,6 @@
+import os
+import sys
+
 import langchain
 import langchain.prompts  # noqa: F401
 import mock
@@ -5,9 +8,6 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
-
-
-# from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
@@ -69,25 +69,25 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
         llm.generate([12345, 123456])
 
 
-# @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
-# @pytest.mark.snapshot
-# def test_cohere_llm_sync(langchain_cohere, request_vcr):
-#     llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
-#     with request_vcr.use_cassette("cohere_completion_sync.yaml"):
-#         llm.invoke("What is the secret Krabby Patty recipe?")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.snapshot
+def test_cohere_llm_sync(langchain_cohere, request_vcr):
+    llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
+    with request_vcr.use_cassette("cohere_completion_sync.yaml"):
+        llm.invoke("What is the secret Krabby Patty recipe?")
 
 
-# @pytest.mark.skipif(
-#     LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
-#     reason="Requires separate cassette for langchain v0.1, Python 3.9",
-# )
-# @pytest.mark.snapshot
-# def test_ai21_llm_sync(langchain_community, request_vcr):
-#     if langchain_community is None:
-#         pytest.skip("langchain-community not installed which is required for this test.")
-#     llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
-#     with request_vcr.use_cassette("ai21_completion_sync.yaml"):
-#         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
+@pytest.mark.skipif(
+    LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
+    reason="Requires separate cassette for langchain v0.1, Python 3.9",
+)
+@pytest.mark.snapshot
+def test_ai21_llm_sync(langchain_community, request_vcr):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
+    llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
+    with request_vcr.use_cassette("ai21_completion_sync.yaml"):
+        llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -122,55 +122,54 @@ def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completio
     )
 
 
-# @flaky(until=1754218112, reason="Problematic test that needs fixing")
-# @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-# def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
-#     """
-#     Test that input messages with nested contents are still tagged without error
-#     Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
-#     """
-#     image_url = (
-#         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
-#         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
-#     )
-#     chat = langchain_openai.ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=256)
-#     with request_vcr.use_cassette("openai_chat_completion_image_input_sync_generate.yaml"):
-#         chat.generate(
-#             [
-#                 [
-#                     langchain.schema.HumanMessage(
-#                         content=[
-#                             {"type": "text", "text": "What’s in this image?"},
-#                             {
-#                                 "type": "image_url",
-#                                 "image_url": {"url": image_url},
-#                             },
-#                         ],
-#                     ),
-#                 ],
-#             ]
-#         )
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
+    """
+    Test that input messages with nested contents are still tagged without error
+    Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
+    """
+    image_url = (
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
+        ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    )
+    chat = langchain_openai.ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=256)
+    with request_vcr.use_cassette("openai_chat_completion_image_input_sync_generate.yaml"):
+        chat.generate(
+            [
+                [
+                    langchain.schema.HumanMessage(
+                        content=[
+                            {"type": "text", "text": "What’s in this image?"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": image_url},
+                            },
+                        ],
+                    ),
+                ],
+            ]
+        )
 
 
-# @pytest.mark.asyncio
-# @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-# async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
-#     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-#     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
-#         await chat.agenerate(
-#             [
-#                 [
-#                     langchain.schema.SystemMessage(content="Respond like a frat boy."),
-#                     langchain.schema.HumanMessage(
-#                         content="Where's the nearest equinox gym from Hudson Yards manhattan?"
-#                     ),
-#                 ],
-#                 [
-#                     langchain.schema.SystemMessage(content="Respond with a pirate accent."),
-#                     langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
-#                 ],
-#             ]
-#         )
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+    with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
+        await chat.agenerate(
+            [
+                [
+                    langchain.schema.SystemMessage(content="Respond like a frat boy."),
+                    langchain.schema.HumanMessage(
+                        content="Where's the nearest equinox gym from Hudson Yards manhattan?"
+                    ),
+                ],
+                [
+                    langchain.schema.SystemMessage(content="Respond with a pirate accent."),
+                    langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+                ],
+            ]
+        )
 
 
 @pytest.mark.snapshot
@@ -196,25 +195,25 @@ def test_fake_embedding_document(langchain_community):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-# @pytest.mark.snapshot
-# def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
-#     """
-#     Test that calling a similarity search on a Pinecone vectorstore with langchain will
-#     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
-#     """
-#     import langchain_pinecone
-#     import pinecone
+@pytest.mark.snapshot
+def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
+    """
+    Test that calling a similarity search on a Pinecone vectorstore with langchain will
+    result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
+    """
+    import langchain_pinecone
+    import pinecone
 
-#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-#         with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
-#             pc = pinecone.Pinecone(
-#                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-#                 environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-#             )
-#             embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-#             index = pc.Index("langchain-retrieval")
-#             vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-#             vectorstore.similarity_search("Who was Alan Turing?", 1)
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
+        with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
+            pc = pinecone.Pinecone(
+                api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+                environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
+            )
+            embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
+            index = pc.Index("langchain-retrieval")
+            vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
+            vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
