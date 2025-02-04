@@ -35,7 +35,7 @@ To configure the foo integration on an per-instance basis use the
 ``Pin`` API::
 
     import foo
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     myfoo = foo.Foo()
     Pin.override(myfoo, service="myfoo")

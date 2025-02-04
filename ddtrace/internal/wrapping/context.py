@@ -462,8 +462,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     def __exit__(self, *exc) -> None:
         if exc == (None, None, None):
-            # In Python 3.7 this gets called when the context manager is exited
-            # normally
             return
 
         for context in self._contexts[::-1]:

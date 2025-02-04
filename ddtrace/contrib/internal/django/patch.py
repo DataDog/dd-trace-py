@@ -832,6 +832,53 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     return result_user
 
 
+@trace_utils.with_traced_module
+def traced_process_request(django, pin, func, instance, args, kwargs):
+    tags = {COMPONENT: config.django.integration_name}
+    with core.context_with_data(
+        "django.func.wrapped",
+        span_name="django.middleware",
+        resource="django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx.span:
+        core.dispatch(
+            "django.func.wrapped",
+            (
+                args,
+                kwargs,
+                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                ctx,
+                None,
+            ),
+        )
+        func(*args, **kwargs)
+        mode = asm_config._user_event_mode
+        if mode == "disabled":
+            return
+        try:
+            request = get_argument_value(args, kwargs, 0, "request")
+            if request:
+                if hasattr(request, "user") and hasattr(request.user, "_setup"):
+                    request.user._setup()
+                    request_user = request.user._wrapped
+                else:
+                    request_user = request.user
+                core.dispatch(
+                    "django.process_request",
+                    (
+                        request_user,
+                        mode,
+                        kwargs,
+                        pin,
+                        _DjangoUserInfoRetriever(request_user, credentials=kwargs),
+                        config.django,
+                    ),
+                )
+        except Exception:
+            log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+
+
 def unwrap_views(func, instance, args, kwargs):
     """
     Django channels uses path() and re_path() to route asgi applications. This broke our initial
@@ -883,6 +930,10 @@ def _patch(django):
     def _(m):
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
+
+    @when_imported("django.contrib.auth.middleware")
+    def _(m):
+        trace_utils.wrap(m, "AuthenticationMiddleware.process_request", traced_process_request(django))
 
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing

@@ -10,7 +10,7 @@ If the Datadog Agent is on a separate host from your application, you can modify
 the default ``ddtrace.tracer`` object to utilize another hostname and port. Here
 is a small example showcasing this::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
@@ -18,7 +18,7 @@ By default, these will be set to ``localhost``, ``8126``, and ``False`` respecti
 
 You can also use a Unix Domain Socket to connect to the agent::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     tracer.configure(uds_path="/path/to/socket")
 
@@ -29,7 +29,7 @@ You can also use a Unix Domain Socket to connect to the agent::
 Context
 -------
 
-The :class:`ddtrace.context.Context` object is used to represent the state of
+The :class:`ddtrace.trace.Context` object is used to represent the state of
 a trace at a point in time. This state includes the trace id, active span id,
 distributed sampling decision and more. It is used to propagate the trace
 across execution boundaries like processes
@@ -46,7 +46,7 @@ Tracing Context Management
 --------------------------
 
 In ``ddtrace`` "context management" is the management of which
-:class:`ddtrace.Span` or :class:`ddtrace.context.Context` is active in an
+:class:`ddtrace.trace.Span` or :class:`ddtrace.trace.Context` is active in an
 execution (thread, task, etc). There can only be one active span or context
 per execution at a time.
 
@@ -81,11 +81,11 @@ context::
     Span objects are owned by the execution in which they are created and must
     be finished in the same execution. The span context can be used to continue
     a trace in a different execution by passing it and activating it on the other
-    end. Note that in all instances of crossing into another 
-    execution, sampling should be run manually before entering the new execution 
+    end. Note that in all instances of crossing into another
+    execution, sampling should be run manually before entering the new execution
     to ensure that the sampling decision is the same across the trace.
     This can be done using `tracer.sample(tracer.current_root_span())`
-    
+
     See the sections below for how to propagate traces across task, thread or
     process boundaries.
 
@@ -97,7 +97,7 @@ To continue a trace across threads the context needs to be passed between
 threads::
 
     import threading, time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     def _target(trace_ctx):
         tracer.context_provider.activate(trace_ctx)
@@ -116,7 +116,7 @@ When the :ref:`futures` integration is enabled, the context is automatically pro
 to :class:`~concurrent.futures.ThreadPoolExecutor` tasks::
 
     from concurrent.futures import ThreadPoolExecutor
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     @tracer.wrap()
     def eat(dessert):  # each task will get its own span, child of the eat_all_the_things span
@@ -140,7 +140,7 @@ span has to be propagated as a context::
 
     from multiprocessing import Process
     import time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     def _target(ctx):
         tracer.context_provider.activate(ctx)
@@ -159,8 +159,8 @@ span has to be propagated as a context::
 
 .. important::
 
-   A :class:`ddtrace.Span` should only be accessed or modified in the process
-   that it was created in. Using a :class:`ddtrace.Span` from within a child process
+   A :class:`ddtrace.trace.Span` should only be accessed or modified in the process
+   that it was created in. Using a :class:`ddtrace.trace.Span` from within a child process
    could result in a deadlock or unexpected behavior.
 
 
@@ -173,7 +173,7 @@ to contexts to avoid memory leaks.
 Here's an example of tracing some work done in a child process::
 
     import os, sys, time
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     span = tracer.trace("work")
 
@@ -201,14 +201,13 @@ desirable then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
-.. note:: For Python < 3.7 the asyncio integration must be used: :ref:`asyncio`
 
 Manual Management
 ^^^^^^^^^^^^^^^^^
 
 Parenting can be managed manually by using ``tracer.start_span()`` which by
 default does not activate spans when they are created. See the documentation
-for :meth:`ddtrace.Tracer.start_span`.
+for :meth:`ddtrace.trace.Tracer.start_span`.
 
 
 Context Providers
@@ -331,7 +330,7 @@ It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.trace import TraceFilter
 
     class FilterbyName(TraceFilter):
@@ -342,11 +341,7 @@ all traces of incoming requests to a specific url::
                     return None
             return trace
 
-    tracer.configure(settings={
-        'FILTERS': [
-            FilterbyName(),
-        ],
-    })
+    tracer.configure(trace_processors=[FilterbyName()])
 
 The filters in the filters list will be applied sequentially to each trace
 and the resulting trace will either be sent to the Agent or discarded.
@@ -354,11 +349,11 @@ and the resulting trace will either be sent to the Agent or discarded.
 **Writing a custom filter**
 
 Create a filter by implementing a class with a ``process_trace`` method and
-providing it to the filters parameter of :meth:`ddtrace.Tracer.configure()`.
+providing it to the filters parameter of :meth:`ddtrace.trace.Tracer.configure()`.
 ``process_trace`` should either return a trace to be fed to the next step of
 the pipeline or ``None`` if the trace should be discarded::
 
-    from ddtrace import Span, tracer
+    from ddtrace.trace import Span, tracer
     from ddtrace.trace import TraceFilter
 
     class FilterExample(TraceFilter):
@@ -367,7 +362,7 @@ the pipeline or ``None`` if the trace should be discarded::
             ...
 
     # And then configure it with
-    tracer.configure(settings={'FILTERS': [FilterExample()]})
+    tracer.configure(trace_processors=[FilterExample()])
 
 (see filters.py for other example implementations)
 
@@ -376,7 +371,7 @@ the pipeline or ``None`` if the trace should be discarded::
 Logs Injection
 --------------
 
-.. automodule:: ddtrace.contrib.logging
+.. automodule:: ddtrace.contrib._logging
 
 ..  _http-tagging:
 
@@ -471,7 +466,7 @@ structure like in the following example::
 Custom Error Codes
 ^^^^^^^^^^^^^^^^^^
 It is possible to have a custom mapping of which HTTP status codes are considered errors.
-By default, 500-599 status codes are considered errors. The default value can be overridden 
+By default, 500-599 status codes are considered errors. The default value can be overridden
 by setting the ``DD_TRACE_HTTP_SERVER_ERROR_STATUSES`` environment variable.
 
 
@@ -747,8 +742,8 @@ The requirements for using this feature are:
 - must be using the `torch.profiler` module which was introduced in PyTorch version `1.8.1`.
 - must set the environment variable `DD_PROFILING_PYTORCH_ENABLED=true`.
 
-It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This 
-is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain 
+It is important to note that we offer no different performance guarantees than the PyTorch profiler itself, which is not recommended to run in production continuously due to memory and CPU overhead. This
+is an experimental feature which should be run with caution as it can add significant overhead. Additionally, please note that running this feature in certain
 configurations can conflict with other features. For instance, running the NSight Systems or NSight Compute profiler alongside the PyTorch profiler on the same machine at the same time will likely lead to
 errors as CUPTI generally does not support multiple concurrent readers.
 
@@ -761,7 +756,7 @@ This can be run through the command line (assuming that a Datadog agent is runni
     DD_SERVICE=test-pytorch-service DD_PROFILING_PYTORCH_ENABLED=true DD_PROFILING_ENABLED=true ddtrace-run python cifar10.py
 
 .. code-block:: python
-    
+
     import torch
     import torch.nn
     import torch.optim

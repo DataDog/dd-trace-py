@@ -43,7 +43,7 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span
+    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)

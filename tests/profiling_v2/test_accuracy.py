@@ -1,11 +1,8 @@
 # -*- encoding: utf-8 -*-
-import sys
-
 import pytest
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack_v2.pprof"))
-@pytest.mark.skipif(sys.version_info[:2] == (3, 7), reason="stack_v2 is not supported on Python 3.7")
 def test_accuracy_stack_v2():
     import collections
     import os

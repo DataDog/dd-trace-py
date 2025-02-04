@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    LLM Observability: support for the deprecated environment variable ``DD_LLMOBS_APP_NAME`` has been removed.

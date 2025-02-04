@@ -639,10 +639,4 @@ def test_config_public_properties_and_methods():
         "env",
         "tags",
         "version",
-        # Attributes below are deprecated and will be removed in v3.0
-        "trace_headers",
-        "header_is_traced",
-        "convert_rc_trace_sampling_rules",
-        "enable_remote_configuration",
-        "get_from",
     }, public_attrs

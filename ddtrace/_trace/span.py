@@ -52,8 +52,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -278,29 +276,6 @@ class Span(object):
     @duration.setter
     def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
-
-    @property
-    def sampled(self) -> Optional[bool]:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled references the state of span.context.sampling_priority.
-            Please use span.context.sampling_priority instead to check if a span is sampled.""",
-            category=DDTraceDeprecationWarning,
-        )
-        if self.context.sampling_priority is None:
-            # this maintains original span.sampled behavior, where all spans would start
-            # with span.sampled = True until sampling runs
-            return True
-        return self.context.sampling_priority > 0
-
-    @sampled.setter
-    def sampled(self, value: bool) -> None:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled has a no-op setter.
-            Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",
-            category=DDTraceDeprecationWarning,
-        )
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
