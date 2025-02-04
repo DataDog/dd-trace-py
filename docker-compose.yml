@@ -198,7 +198,6 @@ services:
         ports:
             - "127.0.0.1:8321:8321"
         environment:
-            - DD_APPSEC_ENABLED=true
             - DD_IAST_ENABLED=true
             - DD_IAST_REQUEST_SAMPLING=100
             - DD_IAST_VULNERABILITIES_PER_REQUEST=100
