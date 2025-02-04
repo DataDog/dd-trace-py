@@ -2,7 +2,6 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -164,9 +163,6 @@ def trace_app(app, tracer, service="aiohttp-web"):
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }
-
-    # the tracer must work with asynchronous Context propagation
-    tracer._configure(context_provider=context_provider)
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one

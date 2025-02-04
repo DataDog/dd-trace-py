@@ -92,7 +92,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
 
     # Ignoring these two values due to variance in method name
-    # Python 3.7 - 3.9 -> send_with_options
+    # Python 3.8 - 3.9 -> send_with_options
     # Python 3.10+ -> Actor.send_with_options
     @snapshot(ignores=["meta.error.message", "meta.error.stack"], wait_for_num_traces=1)
     def test_send_exception(self):

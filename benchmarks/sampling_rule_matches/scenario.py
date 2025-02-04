@@ -4,8 +4,8 @@ import string
 
 import bm
 
+from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
-from ddtrace.sampling_rule import SamplingRule
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
