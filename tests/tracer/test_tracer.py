@@ -1994,10 +1994,13 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import pytest
+    import mock
 
     import ddtrace
 
     assert ddtrace.trace.tracer is not None
-    with pytest.raises(ValueError):
+    with mock.patch("ddtrace._trace.tracer.log") as log:
         ddtrace.trace.Tracer()
+    log.error.assert_called_once_with(
+        "Multiple Tracer instances can not be initialized. " "Use ``ddtrace.trace.tracer`` instead."
+    )

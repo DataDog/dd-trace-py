@@ -216,7 +216,7 @@ class Tracer(object):
             if Tracer._instance is None:
                 Tracer._instance = self
             else:
-                raise ValueError(
+                log.error(
                     "Multiple Tracer instances can not be initialized. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
