@@ -400,6 +400,45 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=3.0"]
 
 
+[envs.appsec_integrations_fastapi]
+template = "appsec_integrations_fastapi"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "jinja2",
+    "httpx<0.28.0",
+    "anyio{matrix:anyio:}",
+    "fastapi{matrix:fastapi}"
+]
+
+[envs.appsec_integrations_fastapi.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec_integrations_fastapi.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+]
+
+
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.86.0"]
+anyio = ["==3.7.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.94.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["~=0.114.2"]
+
 
 ## ASM FastAPI
 
@@ -466,7 +505,8 @@ _DD_IAST_PATCH_MODULES = "scripts.iast"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
 [[envs.iast_aggregated_leak_testing.matrix]]
