@@ -58,7 +58,7 @@ def del_lst_callback(name: str):
 
 
 def patch() -> List[str]:
-    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+    if not asm_config._load_modules:
         return []
     patched: List[str] = []
 

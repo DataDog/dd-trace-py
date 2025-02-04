@@ -248,7 +248,7 @@ class ASMConfig(Env):
     def _eval_asm_can_be_enabled(self):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
         self._load_modules: bool = bool(
-            self._iast_supported or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
+            self._iast_enabled or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         )
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
 
