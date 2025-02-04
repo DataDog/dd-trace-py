@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): In some applications, unique cookie names are used per request, leading to a large number 
+    of unique cookie vulnerabilities. This change ensures that ddtrace generates a maximum of one vulnerability 
+    of each type per service.

@@ -547,6 +547,12 @@ AppSec
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_COOKIE_FILTER_PATTERN:
+     type: String
+     default: "^(?!(csrftoken|session|sessionid)).{1,32}$"
+     description: Regexp to be applied to cookie name to determine if that cookie will be **ignored**.
+
+
 
 Test Visibility
 ---------------

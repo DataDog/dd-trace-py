@@ -139,6 +139,7 @@ class ASMConfig(Env):
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = Env.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_cookie_filter_pattern = Env.var(str, "DD_IAST_COOKIE_FILTER_PATTERN", default="")
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -195,6 +196,7 @@ class ASMConfig(Env):
         "_iast_redaction_value_pattern",
         "_iast_max_concurrent_requests",
         "_iast_max_vulnerabilities_per_requests",
+        "_iast_cookie_filter_pattern",
         "_iast_lazy_taint",
         "_iast_deduplication_enabled",
         "_ep_stack_trace_enabled",

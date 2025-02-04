@@ -1,37 +1,44 @@
+import re
 from typing import Dict
 from typing import Optional
 
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
+from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
+from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
 
-from ..._constants import IAST_SPAN_TAGS
-from .. import oce
-from .._iast_request_context import is_iast_request_enabled
-from .._metrics import _set_metric_iast_executed_sink
-from .._metrics import increment_iast_span_metric
-from .._taint_tracking._errors import iast_taint_log_error
-from ..constants import VULN_INSECURE_COOKIE
-from ..constants import VULN_NO_HTTPONLY_COOKIE
-from ..constants import VULN_NO_SAMESITE_COOKIE
-from ..taint_sinks._base import VulnerabilityBase
+
+COOKIE_NAME_PATTER = re.compile(r"^(?!(csrftoken|session|sessionid)).{1,32}$")
+
+
+def get_pattern():
+    pattern = asm_config._iast_cookie_filter_pattern
+    if pattern:
+        return re.compile(rf"{pattern}")
+
+    return COOKIE_NAME_PATTER
 
 
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    scrub_evidence = False
-    skip_location = True
 
 
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
-    skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
-    skip_location = True
 
 
 def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
@@ -43,6 +50,10 @@ def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
                 lvalue = cookie_value.lower().replace(" ", "")
                 # If lvalue starts with ";" means that the cookie is empty, like ';httponly;path=/;samesite=strict'
                 if lvalue == "" or lvalue.startswith(";") or lvalue.startswith('""'):
+                    continue
+
+                pattern_name = get_pattern()
+                if not pattern_name.match(cookie_key):
                     continue
 
                 if ";secure" not in lvalue:

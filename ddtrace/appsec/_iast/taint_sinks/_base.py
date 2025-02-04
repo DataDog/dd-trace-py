@@ -84,6 +84,12 @@ class VulnerabilityBase(Operation):
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 
+        skip_location = getattr(cls, "skip_location", False)
+
+        if skip_location:
+            file_name = None
+            line_number = None
+
         report = get_iast_reporter()
         span_id = 0
         if tracer and hasattr(tracer, "current_root_span"):
@@ -118,13 +124,8 @@ class VulnerabilityBase(Operation):
         if cls.acquire_quota():
             file_name = None
             line_number = None
-
-            skip_location = getattr(cls, "skip_location", False)
-            if not skip_location:
-                frame_info = get_info_frame(CWD)
-                if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
-                    return None
-
+            frame_info = get_info_frame(CWD)
+            if frame_info and frame_info[0] != "" and frame_info[0] == -1:
                 file_name, line_number = frame_info
 
                 # Remove CWD prefix
@@ -133,6 +134,10 @@ class VulnerabilityBase(Operation):
 
                 if not cls.is_not_reported(file_name, line_number):
                     return
+
+            # Otherwise, just filter out all cookie names for hashing, generating max 1 vuln of each type per service
+            elif not cls.is_not_reported(cls.vulnerability_type, 0):
+                return
             # Evidence is a string in weak cipher, weak hash and weak randomness
             if isinstance(evidence_value, (str, bytes, bytearray)):
                 evidence = Evidence(value=evidence_value, dialect=dialect)
