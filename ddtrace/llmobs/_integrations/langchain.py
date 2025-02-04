@@ -60,6 +60,11 @@ SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"
 
 
 def _extract_bound(instance):
+    """
+    Extracts the bound object from a RunnableBinding instance.
+    LangChain will sometimes stick things we trace (chat models) in these bindings,
+    and they will show up as steps in the chain instead of the model instance itself.
+    """
     if hasattr(instance, "bound"):
         return instance.bound
     return instance
@@ -68,9 +73,14 @@ def _extract_bound(instance):
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    _chain_steps: set = set()  # instance_id
-    _spans: dict = {}  # instance_id --> span
-    _instances: WeakKeyDictionary = WeakKeyDictionary()  # spans --> instances
+    _chain_steps: set = set()
+    """Set of instance ids that are steps in a chain."""
+
+    _spans: dict = {}
+    """Maps instance ids to spans."""
+
+    _instances: WeakKeyDictionary = WeakKeyDictionary()
+    """Maps spans to instances."""
 
     def record_steps(self, instance, span):
         if not self.llmobs_enabled:
@@ -148,7 +158,20 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
 
     def _set_links(self, span: Span):
-        instance = self._instances.get(span)  # TODO can maybe just pass instance as part of `kwargs`
+        """
+        Sets span links for the given LangChain span, by doing the following:
+        1. Determine the default invoker (parent llmobs span) and span linkage attributes (input-to-input)
+        2. If the instance associated with the span is a step in a chain, look for the last traced step in the chain
+            and establish an output-to-input relationship
+        3. Set the span link on the span from the invoker
+        4. Set the span link on the invoker from the span as an output-to-output relationship
+            a. If the span is a step in the chain, we overwrite the existing output-to-output relationship,
+                    until the last traced step is not overwritten
+                i. This assumes only one output-to-output link for an individual chain
+            b. If the span is not a step in the chain, we add the output-to-output relationship on top of
+                the existing links, even if there is another output-to-output link
+        """
+        instance = self._instances.get(span)
         if not instance:
             return
 
