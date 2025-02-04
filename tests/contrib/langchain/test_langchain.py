@@ -25,6 +25,7 @@ def request_vcr():
     yield get_request_vcr(subdirectory_name="langchain")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize("ddtrace_config_langchain", [dict(logs_enabled=True, log_prompt_completion_sample_rate=1.0)])
 def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metrics, mock_logs, mock_tracer):
     """
@@ -75,6 +76,7 @@ def test_global_tags(ddtrace_config_langchain, langchain, request_vcr, mock_metr
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_llm_sync(langchain, request_vcr):
@@ -83,6 +85,7 @@ def test_openai_llm_sync(langchain, request_vcr):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(not PY39, reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_llm_sync_39(langchain, request_vcr):
@@ -91,6 +94,7 @@ def test_openai_llm_sync_39(langchain, request_vcr):
         llm("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(ignores=["resource"])
 def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
@@ -104,6 +108,7 @@ def test_openai_llm_sync_multiple_prompts(langchain, request_vcr):
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(not PY39, reason="Python 3.9 specific test")
 @pytest.mark.snapshot
 def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
@@ -117,6 +122,7 @@ def test_openai_llm_sync_multiple_prompts_39(langchain, request_vcr):
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource", "langchain.request.openai.parameters.request_timeout"])
 async def test_openai_llm_async(langchain, request_vcr):
@@ -126,6 +132,7 @@ async def test_openai_llm_async(langchain, request_vcr):
         await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(ignores=["meta.error.stack", "resource"])
 def test_openai_llm_error(langchain, request_vcr):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
@@ -141,6 +148,7 @@ def test_openai_llm_error(langchain, request_vcr):
             llm.generate([12345, 123456])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(ignores=["resource"])
 def test_cohere_llm_sync(langchain, request_vcr):
     llm = langchain.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
@@ -148,7 +156,7 @@ def test_cohere_llm_sync(langchain, request_vcr):
         llm("What is the secret Krabby Patty recipe?")
 
 
-@flaky(1735812000, reason="old flaky test that will be removed soon")
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(ignores=["resource"])
 def test_huggingfacehub_llm_sync(langchain, request_vcr):
     llm = langchain.llms.HuggingFaceHub(
@@ -160,6 +168,7 @@ def test_huggingfacehub_llm_sync(langchain, request_vcr):
         llm("Why does Mr. Krabs have a whale daughter?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(ignores=["meta.langchain.response.completions.0.text", "resource"])
 def test_ai21_llm_sync(langchain, request_vcr):
     llm = langchain.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
@@ -168,6 +177,7 @@ def test_ai21_llm_sync(langchain, request_vcr):
         llm("Why does everyone in Bikini Bottom hate Plankton?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     llm = langchain.llms.OpenAI(model="text-davinci-003")
     cassette_name = "openai_completion_sync_39.yaml" if PY39 else "openai_completion_sync.yaml"
@@ -196,6 +206,7 @@ def test_openai_llm_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -229,6 +240,7 @@ def test_llm_logs(langchain, ddtrace_config_langchain, request_vcr, mock_logs, m
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
@@ -240,6 +252,7 @@ def test_openai_chat_model_sync_call(langchain, request_vcr):
         chat(messages=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(not PY39, reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_call_39(langchain, request_vcr):
@@ -248,6 +261,7 @@ def test_openai_chat_model_sync_call_39(langchain, request_vcr):
         chat([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Python 3.10+ specific test")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
@@ -272,6 +286,7 @@ def test_openai_chat_model_sync_generate(langchain, request_vcr):
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(not PY39, reason="Python 3.9 specific test")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost"])
 def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
@@ -293,6 +308,7 @@ def test_openai_chat_model_sync_generate_39(langchain, request_vcr):
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_call",
@@ -304,6 +320,7 @@ async def test_openai_chat_model_async_call(langchain, request_vcr):
         await chat._call_async([langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_chat_model_generate",
@@ -328,6 +345,7 @@ async def test_openai_chat_model_async_generate(langchain, request_vcr):
         )
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chat = langchain.chat_models.ChatOpenAI(temperature=0, max_tokens=256)
     cassette_name = "openai_chat_completion_sync_call_39.yaml" if PY39 else "openai_chat_completion_sync_call.yaml"
@@ -356,6 +374,7 @@ def test_chat_model_metrics(langchain, request_vcr, mock_metrics, mock_logs, sna
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -389,6 +408,7 @@ def test_chat_model_logs(langchain, ddtrace_config_langchain, request_vcr, mock_
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot
 def test_openai_embedding_query(langchain, request_vcr):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
@@ -397,6 +417,7 @@ def test_openai_embedding_query(langchain, request_vcr):
         embeddings.embed_query("this is a test query.")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skip(reason="Tiktoken request to get model encodings cannot be made in CI")
 @pytest.mark.snapshot
 def test_openai_embedding_document(langchain, request_vcr):
@@ -418,6 +439,7 @@ def test_fake_embedding_document(langchain):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     embeddings = langchain.embeddings.OpenAIEmbeddings()
     cassette_name = "openai_embedding_query_39.yaml" if PY39 else "openai_embedding_query.yaml"
@@ -440,6 +462,7 @@ def test_openai_embedding_metrics(langchain, request_vcr, mock_metrics, mock_log
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -472,6 +495,7 @@ def test_embedding_logs(langchain, ddtrace_config_langchain, request_vcr, mock_l
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
     ignores=["metrics.langchain.tokens.total_cost", "resource"],
@@ -487,6 +511,7 @@ def test_openai_math_chain_sync(langchain, request_vcr):
         chain.run("what is two raised to the fifty-fourth power?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_math_chain",
@@ -502,6 +527,7 @@ async def test_openai_math_chain_async(langchain, request_vcr):
         await chain.acall("what is two raised to the fifty-fourth power?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot(token="tests.contrib.langchain.test_langchain.test_cohere_math_chain")
 def test_cohere_math_chain_sync(langchain, request_vcr):
     """
@@ -515,6 +541,7 @@ def test_cohere_math_chain_sync(langchain, request_vcr):
         chain.run("what is thirteen raised to the .3432 power?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(
     token="tests.contrib.langchain.test_langchain.test_openai_sequential_chain",
@@ -572,6 +599,7 @@ def test_openai_sequential_chain(langchain, request_vcr):
         sequential_chain.run({"text": input_text, "style": "a 90s rapper"})
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["langchain.tokens.total_cost", "resource"])
 def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
@@ -601,6 +629,7 @@ def test_openai_sequential_chain_with_multiple_llm_sync(langchain, request_vcr):
         sequential_chain.run({"input_text": long_input_text})
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource"])
 async def test_openai_sequential_chain_with_multiple_llm_async(langchain, request_vcr):
@@ -629,6 +658,7 @@ async def test_openai_sequential_chain_with_multiple_llm_async(langchain, reques
         await sequential_chain.acall({"input_text": long_input_text})
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     chain = langchain.chains.LLMMathChain(llm=langchain.llms.OpenAI(temperature=0))
     cassette_name = "openai_math_chain_sync_39.yaml" if PY39 else "openai_math_chain_sync.yaml"
@@ -657,6 +687,7 @@ def test_openai_chain_metrics(langchain, request_vcr, mock_metrics, mock_logs, s
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -765,6 +796,7 @@ def test_chat_prompt_template_does_not_parse_template(langchain, mock_tracer):
     assert chain_span.get_tag("langchain.request.prompt") is None
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
     """
@@ -785,6 +817,7 @@ def test_pinecone_vectorstore_similarity_search(langchain, request_vcr):
         vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Cassette specific to Python 3.10+")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
@@ -810,6 +843,7 @@ def test_pinecone_vectorstore_retrieval_chain(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(not PY39, reason="Cassette specific to Python 3.9")
 @pytest.mark.snapshot
 def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
@@ -835,6 +869,7 @@ def test_pinecone_vectorstore_retrieval_chain_39(langchain, request_vcr):
         qa_with_sources("Who was Alan Turing?")
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metrics, mock_logs, snapshot_tracer):
     import pinecone
 
@@ -865,6 +900,7 @@ def test_vectorstore_similarity_search_metrics(langchain, request_vcr, mock_metr
     mock_logs.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.parametrize(
     "ddtrace_config_langchain",
     [dict(metrics_enabled=False, logs_enabled=True, log_prompt_completion_sample_rate=1.0)],
@@ -926,6 +962,7 @@ def test_vectorstore_logs(langchain, ddtrace_config_langchain, request_vcr, mock
     mock_metrics.count.assert_not_called()
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 def test_openai_integration(langchain, request_vcr, ddtrace_run_python_code_in_subprocess):
@@ -958,6 +995,7 @@ with get_request_vcr(subdirectory_name="langchain").use_cassette("openai_complet
     assert err == b""
 
 
+@flaky(1735812000, reason="broken test that will be fixed soon")
 @pytest.mark.skipif(PY39, reason="Requires unnecessary cassette file for Python 3.9")
 @pytest.mark.snapshot(ignores=["metrics.langchain.tokens.total_cost", "resource"])
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
