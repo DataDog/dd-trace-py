@@ -6,6 +6,7 @@ import pytest
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.trace import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
@@ -235,7 +236,7 @@ def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_log
             "PYTHONPATH": ":".join(pypath),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
             "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-            "_DD_LLMOBS_EVALUATORS": "ragas_faithfulness",
+            EvaluatorRunner.EVALUATORS_ENV_VAR: "ragas_faithfulness",
             "DD_TRACE_ENABLED": "0",
         }
     )
