@@ -17,6 +17,7 @@ from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
+from ddtrace.trace import Tracer as DatadogTracer
 
 from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
@@ -53,6 +54,7 @@ class Tracer(opentracing.Tracer):
         service_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         scope_manager: Optional[ScopeManager] = None,
+        _dd_tracer: Optional[DatadogTracer] = None,
     ) -> None:
         """Initialize a new Datadog opentracer.
 
@@ -94,7 +96,7 @@ class Tracer(opentracing.Tracer):
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
-        self._dd_tracer = ddtrace.tracer
+        self._dd_tracer = _dd_tracer or ddtrace.tracer
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         trace_processors = None
         if keys.SETTINGS in self._config:
