@@ -117,9 +117,10 @@ FetchContent_MakeAvailable(libdatadog)
 
 get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
 
+set(DD_LIB_NAME "datadog_profiling")
+
 if(WIN32)
     find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
-    set(DD_LIB_NAME "datadog_profiling")
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         # Prefer static linking over dynamic unless specified
@@ -137,7 +138,7 @@ if(WIN32)
             Datadog_LIBRARY
             # Windows artifacts publish the library as datadog_profiling_ffi in {build_type}/{link_type} directory
             NAMES ${DD_LIB_NAME} datadog_profiling_ffi
-            HINTS ${Datadog_ROOT}/lib ${Datadog_ROOT}/${BULID_TYPE}/${LINK_TYPE})
+            HINTS ${Datadog_ROOT}/lib ${Datadog_ROOT}/${BUILD_TYPE}/${LINK_TYPE})
 
         # It could be either datadog_profiling or datadog_profiling_ffi, set it to the one that is found
         get_filename_component(DD_LIB_NAME ${Datadog_LIBRARY} NAME_WE)
