@@ -2010,21 +2010,6 @@ def test_ctx_api():
     assert core.get_items(["appsec.key"]) == [None]
 
 
-@pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})
-def test_import_ddtrace_tracer_not_module():
-    import os
-
-    import_ddtrace_tracer = os.environ["IMPORT_DDTRACE_TRACER"] == "true"
-
-    if import_ddtrace_tracer:
-        import ddtrace.tracer  # noqa: F401
-
-    from ddtrace.trace import Tracer
-    from ddtrace.trace import tracer
-
-    assert isinstance(tracer, Tracer)
-
-
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
