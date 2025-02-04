@@ -1,0 +1,110 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "{ user(id: \"999\") }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "tests.contrib.graphene",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67a1663a00000000",
+      "component": "graphql",
+      "error.message": "User not found\n\nGraphQL request:1:3\n1 | { user(id: \"999\") }\n  |   ^",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py3130_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.13/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 37, in resolve_user\n    raise graphql.error.GraphQLError(\n    ...<7 lines>...\n    )\ngraphql.error.graphql_error.GraphQLError: User not found\n\nGraphQL request:1:3\n1 | { user(id: \"999\") }\n  |   ^\n",
+      "error.type": "graphql.error.graphql_error.GraphQLError",
+      "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738630714389656000, \"attributes\": {\"message\": \"User not found\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"1:3\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py3130_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.13/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 37, in resolve_user\\n    raise graphql.error.GraphQLError(\\n    ...<7 lines>...\\n    )\\ngraphql.error.graphql_error.GraphQLError: User not found\\n\\nGraphQL request:1:3\\n1 | { user(id: \\\"999\\\") }\\n  |   ^\\n\", \"path\": \"user\", \"code\": \"USER_NOT_FOUND\", \"extensions\": \"{'code': 'USER_NOT_FOUND', 'status': 404}\"}}]",
+      "language": "python",
+      "runtime-id": "eee5cdadb35249afb9f5d6e1c304be24"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 43930
+    },
+    "duration": 3813000,
+    "start": 1738630714385845000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "graphql.source": "{ user(id: \"999\") }"
+       },
+       "duration": 180000,
+       "start": 1738630714386234000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "graphql.source": "{ user(id: \"999\") }"
+       },
+       "duration": 888000,
+       "start": 1738630714386488000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "{ user(id: \"999\") }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "error.message": "User not found\n\nGraphQL request:1:3\n1 | { user(id: \"999\") }\n  |   ^",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py3130_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.13/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 37, in resolve_user\n    raise graphql.error.GraphQLError(\n    ...<7 lines>...\n    )\ngraphql.error.graphql_error.GraphQLError: User not found\n\nGraphQL request:1:3\n1 | { user(id: \"999\") }\n  |   ^\n",
+         "error.type": "graphql.error.graphql_error.GraphQLError",
+         "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738630714389350000, \"attributes\": {\"message\": \"User not found\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"1:3\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py3130_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.13/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 37, in resolve_user\\n    raise graphql.error.GraphQLError(\\n    ...<7 lines>...\\n    )\\ngraphql.error.graphql_error.GraphQLError: User not found\\n\\nGraphQL request:1:3\\n1 | { user(id: \\\"999\\\") }\\n  |   ^\\n\", \"path\": \"user\", \"code\": \"USER_NOT_FOUND\", \"extensions\": \"{'code': 'USER_NOT_FOUND', 'status': 404}\"}}]",
+         "graphql.operation.type": "query",
+         "graphql.source": "{ user(id: \"999\") }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 1921000,
+       "start": 1738630714387431000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "user",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "error": 1,
+          "meta": {
+            "_dd.base_service": "tests.contrib.graphene",
+            "component": "graphql",
+            "error.message": "User not found",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 37, in resolve_user\n    raise graphql.error.GraphQLError(\n    ...<7 lines>...\n    )\ngraphql.error.graphql_error.GraphQLError: User not found\n",
+            "error.type": "graphql.error.graphql_error.GraphQLError"
+          },
+          "duration": 1152000,
+          "start": 1738630714387593000
+        }]]

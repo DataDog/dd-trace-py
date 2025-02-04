@@ -32,7 +32,7 @@ class FailingQuery(graphene.ObjectType):
 class Query(graphene.ObjectType):
     user = graphene.String(id=graphene.ID())
 
-    def resolve_user(self, info, id):
+    def resolve_user(self, info, id): # noqa: A002
         if id != "123":
             raise graphql.error.GraphQLError(
                 "User not found",
@@ -114,7 +114,7 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.events", "meta.error.stack"])
 def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_resolvers):
     schema = graphene.Schema(query=Query)
     os.environ["DD_TRACE_GRAPHQL_ERROR_EXTENSIONS"] = "code, status"
