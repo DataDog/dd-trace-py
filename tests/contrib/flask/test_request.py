@@ -388,7 +388,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         web_span = self.find_span_by_name(self.get_spans(), "flask.request")
         aws_gateway_span = web_span._parent
         assert aws_gateway_span is None
-        assert web_span.sampled is True
         assert web_span.parent_id == 2
         assert web_span.trace_id == 1
 
@@ -417,7 +416,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 is_distributed=True,
                 distributed_trace_id=1,
                 distributed_parent_id=2,
-                distributed_sampling_decision=True,
                 distributed_sampling_priority=USER_KEEP,
             )
 

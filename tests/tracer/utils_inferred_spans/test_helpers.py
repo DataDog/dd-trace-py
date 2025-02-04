@@ -21,7 +21,6 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     is_distributed=False,
     distributed_trace_id=None,
     distributed_parent_id=None,
-    distributed_sampling_decision=None,
     distributed_sampling_priority=None,
 ):
     """
@@ -72,5 +71,4 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     if is_distributed:
         assert aws_gateway_span.trace_id == distributed_trace_id
         assert aws_gateway_span.parent_id == distributed_parent_id
-        assert aws_gateway_span.sampled == distributed_sampling_decision
         assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == distributed_sampling_priority

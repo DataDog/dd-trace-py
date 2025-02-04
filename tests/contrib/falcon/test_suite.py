@@ -340,7 +340,6 @@ class FalconTestCase(FalconTestMixin):
                                 is_distributed=False,
                                 distributed_trace_id=1,
                                 distributed_parent_id=2,
-                                distributed_sampling_decision=True,
                                 distributed_sampling_priority=USER_KEEP,
                             )
 
