@@ -233,6 +233,9 @@ class ASMConfig(Env):
             self._api_security_enabled = False
         if not self._iast_supported:
             self._iast_enabled = False
+        self._load_modules: bool = bool(
+            self._iast_supported or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
+        )
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
