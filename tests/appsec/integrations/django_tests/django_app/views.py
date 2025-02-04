@@ -8,6 +8,8 @@ from typing import Any
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils.safestring import mark_safe
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -66,6 +68,34 @@ def block_callable_view(request):
 def checkuser_view(request, user_id):
     block_request_if_user_blocked(tracer, user_id)
     return HttpResponse(status=200)
+
+
+def xss_http_request_parameter_mark_safe(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return render(request, "index.html", {"user_input": mark_safe(user_input)})
+
+
+def xss_secure(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return render(request, "index.html", {"user_input": user_input})
+
+
+def xss_http_request_parameter_template_safe(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_template_safe
+    return render(request, "index_safe.html", {"user_input": user_input})
+
+
+def xss_http_request_parameter_autoscape(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_autoscape
+    return render(request, "index_autoescape.html", {"user_input": user_input})
 
 
 def sqli_http_request_parameter(request):
