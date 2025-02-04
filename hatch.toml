@@ -397,8 +397,8 @@ flask = ["~=2.2"]
 
 [[envs.appsec_integrations_flask.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-flask = ["~=3.1"]
-
+flask = ["~=3.0"]
+werkzeug = ["~=3.1"]
 
 [envs.appsec_integrations_fastapi]
 template = "appsec_integrations_fastapi"
