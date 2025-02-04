@@ -88,7 +88,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         return "azure" in base_url.lower()
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage or not self.metrics_enabled:
+        if not usage:
             return
         for token_type in ("prompt", "completion", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
