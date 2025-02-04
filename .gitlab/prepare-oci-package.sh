@@ -1,11 +1,6 @@
 #!/bin/bash
 set -eo pipefail
 
-if [ "$OS" != "linux" ]; then
-  echo "Only linux packages are supported. Exiting"
-  exit 0
-fi
-
 if [ -n "$CI_COMMIT_TAG" ] && [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   PYTHON_PACKAGE_VERSION=${CI_COMMIT_TAG##v}
 fi
