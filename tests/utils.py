@@ -18,6 +18,7 @@ import wrapt
 
 import ddtrace
 from ddtrace import config as dd_config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
@@ -977,6 +978,76 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             root, _children = child
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
+
+
+class TestPin(Pin):
+    """Allows overriding the global tracer for a test case"""
+
+    def __init__(
+        self,
+        service=None,
+        tags=None,
+        tracer=None,
+        _config=None,
+    ):
+        super(TestPin, self).__init__(service=service, tags=tags, _config=_config)
+        if tracer is not None:
+            self.tracer = tracer
+
+    def __setattr__(self, name, value):
+        if name == "tracer":
+            # TestPin supports overriding the global tracer but ddtrace.trace.Pin does not.
+            super(Pin, self).__setattr__(name, value)
+        else:
+            super(TestPin, self).__setattr__(name, value)
+
+    @classmethod
+    def override(
+        cls,
+        obj,
+        service=None,
+        tags=None,
+        tracer=None,
+    ):
+        if not obj:
+            return
+
+        pin = cls.get_from(obj)
+        if pin is None:
+            TestPin(service=service, tags=tags, tracer=tracer).onto(obj)
+        elif isinstance(pin, TestPin):
+            pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
+        else:
+            # replace ddtrace.trace.Pin with tests.utils.TestPin. This will
+            # allow us to override the global tracer in tests.
+            pin.remove_from(obj)
+            TestPin(service=service, tags=tags, tracer=tracer).onto(obj)
+
+    def clone(
+        self,
+        service=None,
+        tags=None,
+        tracer=None,
+    ):
+        # type: (...) -> Pin
+        pin = super(TestPin, self).clone(service=service, tags=tags)
+        return TestPin(
+            service=pin.service,
+            tags=pin.tags,
+            tracer=tracer or self.tracer,
+            _config=pin._config,
+        )
+
+    @staticmethod
+    def get_from(obj):
+        pin = Pin.get_from(obj)
+        if isinstance(pin, Pin):
+            # replace ddtrace.trace.Pin with tests.utils.TestPin in tests
+            test_pin = TestPin(service=pin.service, tags=pin.tags, tracer=pin.tracer, _config=pin._config)
+            pin.remove_from(obj)
+            test_pin.onto(obj)
+            return test_pin
+        return pin
 
 
 def assert_dict_issuperset(a, b):

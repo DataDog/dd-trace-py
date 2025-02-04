@@ -8,11 +8,11 @@ from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
-
-# project
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
+
+# project
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

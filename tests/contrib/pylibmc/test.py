@@ -9,11 +9,11 @@ from ddtrace.contrib.internal.pylibmc.client import TracedClient
 from ddtrace.contrib.internal.pylibmc.patch import patch
 from ddtrace.contrib.internal.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
-
-# project
-from ddtrace.trace import Pin
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.opentracer.utils import init_tracer
+
+# project
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -297,6 +297,7 @@ class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
         raw_client.flush_all()
 
         client = TracedClient(raw_client, tracer=self.tracer, service=self.TEST_SERVICE)
+        Pin.override(client, tracer=self.tracer)
         return client, self.tracer
 
 

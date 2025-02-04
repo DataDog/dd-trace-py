@@ -6,7 +6,7 @@ from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 
 # project
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 
 from .test_client_mixin import TEST_HOST

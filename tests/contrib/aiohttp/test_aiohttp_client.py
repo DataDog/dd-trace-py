@@ -6,7 +6,7 @@ import pytest
 from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -101,7 +101,7 @@ async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subproces
 import asyncio
 import sys
 import aiohttp
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL
 
 async def test():

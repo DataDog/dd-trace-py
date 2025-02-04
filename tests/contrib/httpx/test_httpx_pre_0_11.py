@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.settings.http import HttpConfig
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 

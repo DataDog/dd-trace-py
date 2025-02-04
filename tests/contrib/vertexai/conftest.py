@@ -5,11 +5,11 @@ import pytest
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_global_config
 

@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
-from ddtrace.trace import Pin
 import ddtrace.vendor.packaging.version as packaging_version
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
@@ -28,6 +27,7 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServ
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import assert_is_measured
 
 

@@ -7,8 +7,8 @@ import pytest
 
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
-from ddtrace.trace import Pin
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 
 from .base import AMQP_BROKER_URL
 from .base import BACKEND_URL

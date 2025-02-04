@@ -724,7 +724,7 @@ class PytestTestCase(PytestTestCaseBase):
             """
             import pytest
             import ddtrace
-            from ddtrace.trace import Pin
+            from tests.utils import TestPin as Pin
 
             def test_service(ddtracer):
                 with ddtracer.trace("SPAN2") as span2:

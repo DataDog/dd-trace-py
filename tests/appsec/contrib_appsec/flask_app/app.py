@@ -9,6 +9,7 @@ from flask import request
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
 from ddtrace.trace import tracer
+from tests.utils import TestPin as Pin
 from tests.webclient import PingFilter
 
 
@@ -55,7 +56,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 

@@ -7,13 +7,13 @@ import pytest
 from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-
-# project
-from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.subprocesstest import run_in_subprocess
+
+# project
+from tests.utils import TestPin as Pin
 from tests.utils import assert_is_measured
 
 

@@ -1,11 +1,13 @@
 from importlib import reload as reload_module
 
+from tornado import template
 from tornado.testing import AsyncHTTPTestCase
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.contrib.internal.tornado.patch import patch
 from ddtrace.contrib.internal.tornado.patch import unpatch
+from tests.utils import TestPin
 from tests.utils import TracerTestCase
 
 from .web import app
@@ -31,6 +33,9 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         settings["datadog_trace"] = trace_settings
         trace_settings["tracer"] = self.tracer
         self.app = app.make_app(settings=settings)
+        # The toronado integration uses the global tracer by, we need to override it
+        # using the TestPin
+        TestPin.override(template, tracer=self.tracer)
         return self.app
 
     def get_settings(self):

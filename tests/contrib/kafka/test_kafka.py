@@ -20,12 +20,12 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer as ddtracer
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 
 
@@ -521,8 +521,8 @@ def _generate_in_subprocess(random_topic):
             "auto.offset.reset": "earliest",
         }
     )
-    ddtrace.trace.Pin.override(producer, tracer=ddtrace.tracer)
-    ddtrace.trace.Pin.override(consumer, tracer=ddtrace.tracer)
+    Pin.override(producer, tracer=ddtrace.tracer)
+    Pin.override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -802,7 +802,7 @@ import pytest
 import random
 import sys
 
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
@@ -1042,7 +1042,7 @@ import pytest
 import random
 import sys
 
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 

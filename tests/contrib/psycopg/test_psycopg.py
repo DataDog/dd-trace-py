@@ -12,9 +12,9 @@ from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import snapshot

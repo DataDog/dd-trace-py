@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_global_config
 

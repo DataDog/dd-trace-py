@@ -3,7 +3,7 @@ import mock
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 
 from . import BaseFlaskTestCase
 

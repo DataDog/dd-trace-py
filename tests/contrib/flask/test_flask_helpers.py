@@ -5,7 +5,7 @@ import flask
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
 from ddtrace.internal.compat import StringIO
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 
 from . import BaseFlaskTestCase
 

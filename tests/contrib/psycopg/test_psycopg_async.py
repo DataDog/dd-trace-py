@@ -7,10 +7,10 @@ from psycopg.sql import Literal
 
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
-from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
+from tests.utils import TestPin as Pin
 from tests.utils import assert_is_measured
 
 

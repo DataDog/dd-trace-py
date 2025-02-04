@@ -6,10 +6,10 @@ import pytest
 
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.contrib.internal.django.patch import patch
-from ddtrace.trace import Pin
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 

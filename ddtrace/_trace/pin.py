@@ -6,7 +6,6 @@ from typing import Optional  # noqa:F401
 import wrapt
 
 import ddtrace
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.logger import get_logger
 
@@ -38,19 +37,11 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
-        if tracer is not None and tracer is not ddtrace.tracer:
-            deprecate(
-                "Initializing ddtrace.trace.Pin with `tracer` argument is deprecated",
-                message="All Pin instances should use the global tracer instance",
-                removal_version="3.0.0",
-            )
-        tracer = tracer or ddtrace.tracer
         self.tags = tags
-        self.tracer = tracer
+        self.tracer = ddtrace.tracer
         self._target = None  # type: Optional[int]
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
@@ -127,7 +118,6 @@ class Pin(object):
         obj,  # type: Any
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,
     ):
         # type: (...) -> None
         """Override an object with the given attributes.
@@ -139,20 +129,14 @@ class Pin(object):
             >>> # Override a pin for a specific connection
             >>> Pin.override(conn, service='user-db')
         """
-        if tracer is not None:
-            deprecate(
-                "Calling ddtrace.trace.Pin.override(...) with the `tracer` argument is deprecated",
-                message="All Pin instances should use the global tracer instance",
-                removal_version="3.0.0",
-            )
         if not obj:
             return
 
         pin = cls.get_from(obj)
         if pin is None:
-            Pin(service=service, tags=tags, tracer=tracer).onto(obj)
+            Pin(service=service, tags=tags).onto(obj)
         else:
-            pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
+            pin.clone(service=service, tags=tags).onto(obj)
 
     def enabled(self):
         # type: () -> bool
@@ -198,20 +182,12 @@ class Pin(object):
         self,
         service=None,  # type: Optional[str]
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,
     ):
         # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
             tags = self.tags.copy()
-
-        if tracer is not None:
-            deprecate(
-                "Initializing ddtrace.trace.Pin with `tracer` argument is deprecated",
-                message="All Pin instances should use the global tracer instance",
-                removal_version="3.0.0",
-            )
 
         # we use a copy instead of a deepcopy because we expect configurations
         # to have only a root level dictionary without nested objects. Using
@@ -224,6 +200,5 @@ class Pin(object):
         return Pin(
             service=service or self.service,
             tags=tags,
-            tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,
         )

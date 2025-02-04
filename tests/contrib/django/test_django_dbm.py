@@ -1,9 +1,9 @@
 from django.db import connections
 import mock
 
-from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_dbm_config
 from tests.utils import override_env

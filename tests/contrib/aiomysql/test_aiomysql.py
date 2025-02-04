@@ -8,11 +8,11 @@ import pytest
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
+from tests.utils import TestPin as Pin
 
 
 AIOMYSQL_CONFIG = dict(MYSQL_CONFIG)

@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    pin: Removes the ``tracer`` parameter from ``ddtrace.trace.Pin`` methods. All Pin objects must use the global tracer instance.

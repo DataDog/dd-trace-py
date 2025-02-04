@@ -6,9 +6,9 @@ from ddtrace.contrib.internal.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.internal.rediscluster.patch import patch
 from ddtrace.contrib.internal.rediscluster.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import override_config

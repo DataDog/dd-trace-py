@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.mako.patch import unpatch
 from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

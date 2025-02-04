@@ -5,7 +5,7 @@ from grpc.framework.foundation import logging_pool
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 
 from .hello_pb2_grpc import add_HelloServicer_to_server

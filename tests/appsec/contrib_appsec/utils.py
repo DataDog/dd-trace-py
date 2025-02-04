@@ -17,6 +17,7 @@ from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
+from tests.utils import TestPin as Pin
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -1567,8 +1568,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin.override(interface.framework, tracer=interface.tracer)
+    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
+    Pin.override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin.override(interface.framework, tracer=original_tracer)
+        Pin.override(interface.framework, tracer=original_tracer)

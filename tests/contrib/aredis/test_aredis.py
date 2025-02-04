@@ -7,9 +7,9 @@ from wrapt import ObjectProxy
 
 from ddtrace.contrib.internal.aredis.patch import patch
 from ddtrace.contrib.internal.aredis.patch import unpatch
-from ddtrace.trace import Pin
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.utils import TestPin as Pin
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -152,7 +152,7 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
-from ddtrace.trace import Pin
+from tests.utils import TestPin as Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
 from tests.contrib.aredis.test_aredis import traced_aredis
