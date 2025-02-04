@@ -373,6 +373,7 @@ def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tr
                 if i >= 6:
                     raise GeneratorExit
                 i += 1
+    breakpoint()
     span = mock_tracer.pop_traces()[0][0]
     assert span is not None
     assert span.name == "bedrock-runtime.command"
