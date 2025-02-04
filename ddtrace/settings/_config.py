@@ -16,8 +16,6 @@ from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from .._trace.pin import Pin
 from ..internal import gitmetadata

@@ -2,8 +2,8 @@ import pytest
 
 
 def _global_sampling_rule():
-    from ddtrace.trace import tracer
     from ddtrace._trace.sampling_rule import SamplingRule
+    from ddtrace.trace import tracer
 
     assert hasattr(tracer._sampler, "rules")
 
