@@ -1192,7 +1192,7 @@ class Tracer(object):
             and self._user_sampler
         ):
             # if we get empty configs from rc for both sample rate and rules, we should revert to the user sampler
-            self.sampler = self._user_sampler
+            self._sampler = self._user_sampler
             return
 
         if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
