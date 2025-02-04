@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+    django: The following configurations are now disabled by default. To enable django middleware, 
+    templates, databases, and/or caches spans, set the following environment variables to `true`:
+     - DD_DJANGO_INSTRUMENT_MIDDLEWARE
+     - DD_DJANGO_INSTRUMENT_TEMPLATES
+     - DD_DJANGO_INSTRUMENT_DATABASES
+     - DD_DJANGO_INSTRUMENT_CACHES

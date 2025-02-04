@@ -742,6 +742,13 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                # With ddtrace>=3.0 django middleware, db, cache, and template instrumentation are opt-in
+                # Setting these environment variables to true in riot will allow us to roll out this change
+                # without updating very single test.
+                "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "true",
+                "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
+                "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+                "DD_DJANGO_INSTRUMENT_CACHES": "true",
             },
             venvs=[
                 Venv(
@@ -773,6 +780,17 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "setuptools": latest,
             },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
+                # With ddtrace>=3.0 django middleware, db, cache, and template instrumentation are opt-in
+                # Setting these environment variables to true in riot will allow us to roll out this change
+                # without updating very single test.
+                "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "true",
+                "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
+                "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+                "DD_DJANGO_INSTRUMENT_CACHES": "true",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8"),
@@ -797,6 +815,15 @@ venv = Venv(
                 "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
             },
+            # With ddtrace>=3.0 django middleware, db, cache, and template instrumentation are opt-in
+            # Setting these environment variables to true in riot will allow us to roll out this change
+            # without updating very single test.
+            env={
+                "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "true",
+                "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
+                "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+                "DD_DJANGO_INSTRUMENT_CACHES": "true",
+            }
             venvs=[
                 Venv(
                     # djangorestframework dropped support for Django 2.x in 3.14
@@ -836,6 +863,15 @@ venv = Venv(
                 "typing-extensions": latest,
                 "pytest-randomly": latest,
             },
+            # With ddtrace>=3.0 django middleware, db, cache, and template instrumentation are opt-in
+            # Setting these environment variables to true in riot will allow us to roll out this change
+            # without updating very single test.
+            env={
+                "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "true",
+                "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
+                "DD_DJANGO_INSTRUMENT_DATABASES": "true",
+                "DD_DJANGO_INSTRUMENT_CACHES": "true",
+            }
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),

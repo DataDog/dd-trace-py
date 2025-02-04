@@ -91,7 +91,7 @@ Configuration
 
    Can also be enabled with the ``DD_DJANGO_INSTRUMENT_MIDDLEWARE`` environment variable.
 
-   Default: ``True``
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django['instrument_templates']
 
@@ -99,7 +99,7 @@ Configuration
 
    Can also be enabled with the ``DD_DJANGO_INSTRUMENT_TEMPLATES`` environment variable.
 
-   Default: ``True``
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django['instrument_databases']
 
@@ -107,7 +107,7 @@ Configuration
 
    Can also be enabled with the ``DD_DJANGO_INSTRUMENT_DATABASES`` environment variable.
 
-   Default: ``True``
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django['instrument_caches']
 
@@ -115,7 +115,7 @@ Configuration
 
     Can also be enabled with the ``DD_DJANGO_INSTRUMENT_CACHES`` environment variable.
 
-   Default: ``True``
+   Default: ``False``
 
 .. py:data:: ddtrace.config.django.http['trace_query_string']
 
