@@ -79,12 +79,6 @@ class DDTraceAPITestCase(TracerTestCase):
         assert result == 2
         self._assert_real_spans()
 
-    def test_set_link(self):
-        pass
-
-    def test_link_span(self):
-        pass
-
     def test_set_traceback(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             try:
