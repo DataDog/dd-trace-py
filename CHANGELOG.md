@@ -4,6 +4,61 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.20.1
+
+
+### Deprecation Notes
+
+  - tracing: Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
+  - tracing: Deprecates the following constants in `ddtrace.constants` module:
+      - ANALYTICS\_SAMPLE\_RATE\_KEY
+      - SAMPLE\_RATE\_METRIC\_KEY
+      - SAMPLING\_PRIORITY\_KEY
+      - SAMPLING\_AGENT\_DECISION
+      - SAMPLING\_RULE\_DECISION
+      - SAMPLING\_LIMIT\_DECISION
+      - ORIGIN\_KEY
+      - USER\_ID\_KEY
+      - HOSTNAME\_KEY
+      - RUNTIME\_FAMILY
+      - BASE\_SERVICE\_KEY
+      - SPAN\_MEASURED\_KEY
+      - KEEP\_SPANS\_RATE\_KEY
+      - MULTIPLE\_IP\_HEADERS
+      - CONFIG\_ENDPOINT\_ENV
+      - CONFIG\_ENDPOINT\_RETRIES\_ENV
+      - CONFIG\_ENDPOINT\_TIMEOUT\_ENV
+  - tracing: Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
+      - http, use `DD_TRACE_HEADER_TAGS` environment variable instead.
+      - http\_server, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
+      - trace\_headers, this attribute is internal to the tracer.
+      - header\_is\_traced, this attribute is internal to the tracer.
+      - convert\_rc\_trace\_sampling\_rules, this attribute is internal to the tracer.
+      - enable\_remote\_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
+      - get\_from, use `ddtrace.trace.Pin` to set instance level configurations.
+
+### New Features
+
+  - openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13.
+
+### Bug Fixes
+
+  - CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+  - LLM Observability: Resolves an issue where explicitly only using `LLMObs.enable()` to configure LLM Observability without environment variables would not automatically propagate distributed tracing headers.
+  - LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+  - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - LLM Observability: This fix resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError.
+  - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+  - profiling: fix SystemError from the memory profiler returning NULL when collecting events
+
+### Other Changes
+
+  - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
+  - cassandra,cherrypy,flask\_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+
+---
+
 ## 2.19.2
 ### Bug Fixes
 
