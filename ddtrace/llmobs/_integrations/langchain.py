@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -10,6 +11,7 @@ from weakref import WeakKeyDictionary
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -105,7 +107,8 @@ class LangChainIntegration(BaseLLMIntegration):
             log.warning("Unsupported operation : %s", operation)
             return
 
-        self._set_links(span)
+        if asbool(os.getenv("_DD_TRACE_LANGCHAIN_LINKING_ENABLED")):
+            self._set_links(span)
 
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
