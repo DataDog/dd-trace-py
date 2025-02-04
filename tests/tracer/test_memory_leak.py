@@ -11,6 +11,7 @@ from tests.utils import DummyTracer
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 @pytest.fixture
@@ -18,7 +19,7 @@ def tracer() -> DummyTracer:
     return DummyTracer()
 
 
-def trace(weakdict: WeakValueDictionary, tracer, *args, **kwargs):
+def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs):
     # type: (...) -> Span
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
