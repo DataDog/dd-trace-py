@@ -320,6 +320,9 @@ class FalconTestCase(FalconTestMixin):
                             aws_gateway_span = traces[0][0]
                             web_span = traces[0][1]
 
+                            assert len(traces) == 1
+                            assert len(traces[0]) == 2
+
                             assert_web_and_inferred_aws_api_gateway_span_data(
                                 aws_gateway_span,
                                 web_span,
@@ -382,6 +385,9 @@ class FalconTestCase(FalconTestMixin):
                         if setting_enabled:
                             aws_gateway_span = traces[0][0]
                             web_span = traces[0][1]
+
+                            assert len(traces) == 1
+                            assert len(traces[0]) == 2
 
                             assert_web_and_inferred_aws_api_gateway_span_data(
                                 aws_gateway_span,
