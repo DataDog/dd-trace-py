@@ -349,7 +349,7 @@ the pipeline or ``None`` if the trace should be discarded::
 Logs Injection
 --------------
 
-.. automodule:: ddtrace.contrib.logging
+.. automodule:: ddtrace.contrib._logging
 
 ..  _http-tagging:
 

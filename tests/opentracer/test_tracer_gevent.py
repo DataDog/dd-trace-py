@@ -2,7 +2,6 @@ import gevent
 from opentracing.scope_managers.gevent import GeventScopeManager
 import pytest
 
-from ddtrace.contrib.gevent import context_provider
 from ddtrace.contrib.internal.gevent.patch import patch
 from ddtrace.contrib.internal.gevent.patch import unpatch
 
@@ -12,7 +11,7 @@ def ot_tracer(ot_tracer_factory):
     """Fixture providing an opentracer configured for gevent usage."""
     # patch gevent
     patch()
-    yield ot_tracer_factory("gevent_svc", {}, GeventScopeManager(), context_provider)
+    yield ot_tracer_factory("gevent_svc", {}, GeventScopeManager())
     # unpatch gevent
     unpatch()
 
