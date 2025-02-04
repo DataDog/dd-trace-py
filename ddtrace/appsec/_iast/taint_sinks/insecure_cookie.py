@@ -29,17 +29,20 @@ def get_pattern():
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
+    scrub_evidence = False
+    skip_location = True
 
 
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
+    skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
-
+    skip_location = True
 
 def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
