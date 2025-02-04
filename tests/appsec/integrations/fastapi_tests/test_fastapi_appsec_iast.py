@@ -36,7 +36,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
+TEST_FILE_PATH = "tests/appsec/integrations/fastapi_tests/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
 
