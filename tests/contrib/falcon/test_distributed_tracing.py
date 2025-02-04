@@ -131,3 +131,29 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
             distributed_sampling_decision=True,
             distributed_sampling_priority=USER_KEEP,
         )
+
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
+    def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
+        # When inferred proxy is disabled, there should be no inferred span
+        config.falcon["distributed_tracing"] = True
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+        out = self.make_test_call("/200", headers=distributed_headers, expected_status_code=200)
+        assert out.content.decode("utf-8") == "Success"
+
+        traces = self.tracer.pop_traces()
+
+        web_span = traces[0][0]
+        assert web_span._parent is None
+        assert web_span.trace_id == 1
