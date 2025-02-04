@@ -66,8 +66,8 @@ class BedrockIntegration(BaseLLMIntegration):
     def _llmobs_metrics(span: Span, response: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         metrics = {}
         if response and response.get("text"):
-            prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
-            completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
+            prompt_tokens = int(span.get_metric("bedrock.usage.prompt_tokens") or 0)
+            completion_tokens = int(span.get_metric("bedrock.usage.completion_tokens") or 0)
             metrics[INPUT_TOKENS_METRIC_KEY] = prompt_tokens
             metrics[OUTPUT_TOKENS_METRIC_KEY] = completion_tokens
             metrics[TOTAL_TOKENS_METRIC_KEY] = prompt_tokens + completion_tokens
