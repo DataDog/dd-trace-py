@@ -33,12 +33,11 @@ def test_generic_except():
         try:
             value += "<try>"
             raise ValueError("<error>")
-        except Exception:
+        except:  # noqa: E722
             value += "<except>"
 
     _inject_handled_exception_reporting(func, callback)
     func()
-
     assert value == "<try><error><except>"
 
 
@@ -56,7 +55,7 @@ def test_generic_finally():
         try:
             value += "<try>"
             raise ValueError("<error>")
-        except Exception:
+        except:  # noqa: E722
             value += "<except>"
         finally:
             value += "<finally>"
@@ -65,6 +64,29 @@ def test_generic_finally():
     func()
 
     assert value == "<try><error><except><finally>"
+
+
+@skipif_bytecode_injection_not_supported
+def test_matched_except_without_var_names():
+    value = ""
+
+    def callback(*args):
+        nonlocal value
+        _, e, _ = sys.exc_info()
+        value += str(e)
+
+    def func():
+        nonlocal value
+        try:
+            value += "<try>"
+            raise ValueError("<error>")
+        except ValueError:
+            value += "<except>"
+
+    _inject_handled_exception_reporting(func, callback)
+    func()
+
+    assert value == "<try><error><except>"
 
 
 @skipif_bytecode_injection_not_supported
@@ -105,7 +127,7 @@ def test_multiple_try_except_blocks():
         try:
             value += "<try1>"
             raise ValueError("<error1>")
-        except ValueError as _:
+        except ValueError:
             value += "<except1>"
         b = a + 1
         try:

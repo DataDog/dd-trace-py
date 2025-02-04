@@ -59,11 +59,7 @@ class ErrorReportingConfig(Env):
 
 
 _er_config = ErrorReportingConfig()
-if (
-    (not _er_config.user_env_scope) is False
-    or (not _er_config.third_party_env_scope) is False
-    or _er_config.enable_handled_exceptions_reporting is True
-):
+if (not _er_config._configured_modules) is False or _er_config.enable_handled_exceptions_reporting is True:
     _er_config._enabled = True
     _er_config._init_scope()
     _report_telemetry(_er_config)
