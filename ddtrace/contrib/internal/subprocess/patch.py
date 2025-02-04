@@ -66,7 +66,7 @@ def patch() -> List[str]:
     import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
-    should_patch_fork = not trace_utils.iswrapped(os.fork)
+    should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
     spawnvef = getattr(os, "_spawnvef", None)
     should_patch_spawnvef = spawnvef is not None and not trace_utils.iswrapped(spawnvef)
 
