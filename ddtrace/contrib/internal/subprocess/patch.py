@@ -316,10 +316,11 @@ def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
 
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
+    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+        try:
+            trace_utils.unwrap(obj, attr)
+        except AttributeError:
+            pass
 
     SubprocessCmdLine._clear_cache()
 
