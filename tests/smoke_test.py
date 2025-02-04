@@ -93,7 +93,6 @@ if __name__ == "__main__":
         or (platform.system() == "Darwin" and platform.machine() == "x86_64")
         # echion only works with 3.8+
         or sys.version_info < (3, 8, 0)
-
     ):
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
