@@ -7,7 +7,7 @@ from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevan
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
-from ddtrace.span import Span
+from ddtrace.trace import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
 from tests.llmobs._utils import _expected_ragas_context_precision_spans
