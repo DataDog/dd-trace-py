@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import traceback
 from typing import TYPE_CHECKING
 from typing import List
 
@@ -26,6 +27,7 @@ from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
@@ -302,6 +304,31 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.
     span.set_tag_str(ERROR_MSG, error_msgs)
+    for error in errors:
+        locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
+        attributes = {
+            "message": error.message,
+            "type": span.get_tag("error.type"),
+            "locations": locations,
+        }
+
+        if error.__traceback__:
+            stacktrace = "".join(
+                traceback.format_exception(
+                    type(error), error, error.__traceback__, limit=config._span_traceback_max_size
+                )
+            )
+            attributes["stacktrace"] = stacktrace
+            span.set_tag_str(ERROR_STACK, stacktrace)
+
+        if error.path is not None:
+            path = ",".join([str(path_obj) for path_obj in error.path])
+            attributes["path"] = path
+
+        span._add_event(
+            name="dd.graphql.query.error",
+            attributes=attributes,
+        )
 
 
 def _set_span_operation_tags(span, document):
