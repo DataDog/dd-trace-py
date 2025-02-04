@@ -14,7 +14,6 @@ from typing import Union
 import weakref
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -35,6 +34,7 @@ from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)

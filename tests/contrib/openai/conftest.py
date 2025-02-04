@@ -19,7 +19,7 @@ from tests.utils import override_global_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 def pytest_configure(config):

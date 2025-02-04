@@ -630,8 +630,8 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 
 def test_handle_response_future_like():
-    from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.grpc.client_interceptor import _handle_response
+    from ddtrace.trace import Span
 
     span = Span(None)
 

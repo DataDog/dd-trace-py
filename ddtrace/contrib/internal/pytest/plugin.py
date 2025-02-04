@@ -145,7 +145,7 @@ def pytest_addhooks(pluginmanager):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
+    """Return the :class:`ddtrace.trace.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
