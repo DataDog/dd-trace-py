@@ -13,9 +13,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
     from typing import Dict  # noqa:F401
     from typing import Iterable  # noqa:F401
+    from typing import List
     from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
-
 
 import graphql
 from graphql import MiddlewareManager
@@ -24,6 +24,7 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -34,6 +35,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value

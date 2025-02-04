@@ -32,7 +32,7 @@ class FailingQuery(graphene.ObjectType):
 class Query(graphene.ObjectType):
     user = graphene.String(id=graphene.ID())
 
-    def resolve_user(self, info, id): # noqa: A002
+    def resolve_user(self, info, id):  # noqa: A002
         if id != "123":
             raise graphql.error.GraphQLError(
                 "User not found",
