@@ -12,7 +12,7 @@ from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .settings import _config as config
+from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -176,9 +176,13 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
 
     def on_import(hook):
         # Import and patch module
-        path = "%s.%s" % (prefix, module)
         try:
-            imported_module = importlib.import_module(path)
+            try:
+                imported_module = importlib.import_module("%s.internal.%s.patch" % (prefix, module))
+            except ImportError:
+                # Some integrations do not have an internal patch module, so we use the public one
+                # FIXME: This is a temporary solution until we refactor the patching logic.
+                imported_module = importlib.import_module("%s.%s" % (prefix, module))
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -204,7 +208,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                     telemetry.telemetry_writer.add_integration(
                         name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
-            else:
+            elif hasattr(imported_module, "get_version"):
+                # TODO: Ensure every integration defines either get_version or get_versions in their patch.py module
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version

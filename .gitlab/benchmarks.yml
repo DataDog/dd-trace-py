@@ -25,7 +25,6 @@ variables:
     paths:
       - reports/
     expire_in: 3 months
-  allow_failure: true  # Allow failure, so partial results are uploaded
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -60,8 +59,7 @@ microbenchmarks:
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
-  stage: benchmarks
-  needs: [ "microbenchmarks" ]
+  stage: benchmarks-report
   when: always
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -78,12 +76,27 @@ benchmarks-pr-comment:
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
+check-big-regressions:
+  stage: benchmarks-report
+  when: always
+  tags: ["arch:amd64"]
+  image: $MICROBENCHMARKS_CI_IMAGE
+  script:
+    - export ARTIFACTS_DIR="$(pwd)/reports/"
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    - bp-runner bp-runner.fail-on-regression.yml --debug
+  variables:
+    # Gitlab and BP specific env vars. Do not modify.
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+
 benchmark-serverless:
   stage: benchmarks
   image: $SLS_CI_IMAGE
   tags: ["arch:amd64"]
   when: on_success
   needs: [ "benchmark-serverless-trigger" ]
+  allow_failure: true
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh

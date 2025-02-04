@@ -18,11 +18,11 @@ from ddtrace._trace.utils_botocore.span_tags import (
 )
 from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
-from ddtrace.contrib.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import db
 from ddtrace.ext import http
@@ -109,11 +109,14 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    tracer = (ctx.get_item("middleware") or ctx["pin"]).tracer
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
     distributed_headers_config = ctx.get_item("distributed_headers_config")
     if distributed_headers_config:
         trace_utils.activate_distributed_headers(
-            tracer, int_config=distributed_headers_config, request_headers=ctx["distributed_headers"]
+            tracer,
+            int_config=distributed_headers_config,
+            request_headers=ctx["distributed_headers"],
+            override=ctx.get_item("distributed_headers_config_override"),
         )
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
@@ -124,6 +127,42 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         span.set_tag_str(tk, tv)
     ctx.span = span
     return span
+
+
+def _set_web_frameworks_tags(ctx, span, int_config):
+    span.set_tag_str(COMPONENT, int_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span.set_tag(_SPAN_MEASURED_KEY)
+
+    analytics_enabled = ctx.get_item("analytics_enabled")
+    analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
+
+    # Configure trace search sample rate
+    if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
+        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+
+
+def _on_web_framework_start_request(ctx, int_config):
+    request_span = ctx.get_item("req_span")
+    _set_web_frameworks_tags(ctx, request_span, int_config)
+
+
+def _on_web_framework_finish_request(
+    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
+):
+    trace_utils.set_http_meta(
+        span=span,
+        integration_config=int_config,
+        method=method,
+        url=url,
+        status_code=status_code,
+        query=query,
+        request_headers=req_headers,
+        response_headers=res_headers,
+        route=route,
+    )
+    if finish:
+        span.finish()
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -334,7 +373,7 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     # set analytics sample rate with global config enabled
     sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:
@@ -366,7 +405,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx["pin"], ctx.span, request)
-    ctx.span._metrics[SPAN_MEASURED_KEY] = 1
+    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
@@ -761,6 +800,10 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
 
+    # web frameworks general handlers
+    core.on("web.request.start", _on_web_framework_start_request)
+    core.on("web.request.finish", _on_web_framework_finish_request)
+
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
     core.on("test_visibility.is_enabled", _on_test_visibility_is_enabled, "is_enabled")
@@ -769,6 +812,14 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
 
     for context_name in (
+        # web frameworks
+        "aiohttp.request",
+        "bottle.request",
+        "cherrypy.request",
+        "falcon.request",
+        "molten.request",
+        "pyramid.request",
+        "sanic.request",
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
@@ -779,6 +830,7 @@ def listen():
         "django.template.render",
         "django.process_exception",
         "django.func.wrapped",
+        # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
         "botocore.patched_kinesis_api_call",

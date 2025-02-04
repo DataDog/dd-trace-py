@@ -4,6 +4,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -11,7 +12,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import RAGAS_ML_APP_PREFIX
 
 
 logger = get_logger(__name__)
@@ -94,9 +94,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
         if isinstance(tag, str) and tag.startswith("ml_app:"):
             ml_app = tag.split(":")[1]
             break
-    if not ml_app:
-        return RAGAS_ML_APP_PREFIX
-    return "{}-{}".format(RAGAS_ML_APP_PREFIX, ml_app)
+    return ml_app or config._llmobs_ml_app or "unknown-ml-app"
 
 
 class BaseRagasEvaluator:

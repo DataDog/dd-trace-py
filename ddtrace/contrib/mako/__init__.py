@@ -1,11 +1,10 @@
 """
 The ``mako`` integration traces templates rendering.
-Auto instrumentation is available using the ``patch``. The following is an example::
+Auto instrumentation is available using ``import ddtrace.auto``. The following is an example::
 
-    from ddtrace import patch
+    import ddtrace.auto
+
     from mako.template import Template
-
-    patch(mako=True)
 
     t = Template(filename="index.html")
 
@@ -19,11 +18,3 @@ import warnings as _w
 with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
-
-# Expose public methods
-from ddtrace.contrib.internal.mako.patch import get_version
-from ddtrace.contrib.internal.mako.patch import patch
-from ddtrace.contrib.internal.mako.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]

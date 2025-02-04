@@ -2,9 +2,12 @@ import sys
 
 import pytest
 
+from ddtrace.internal.utils.inspection import functions_for_code
+
 
 @pytest.fixture
 def stuff():
+    functions_for_code.cache_clear()
     was_loaded = False
     if "tests.submod.stuff" in sys.modules:
         was_loaded = True

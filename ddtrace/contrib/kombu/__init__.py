@@ -32,7 +32,6 @@ without the whole trace being dropped.
     # Use a pin to specify metadata related to this client
     Pin.override(producer, service='kombu-consumer')
 """
-
 from ddtrace.internal.utils.importlib import require_modules
 
 
@@ -47,8 +46,5 @@ with require_modules(required_modules) as missing_modules:
             _w.simplefilter("ignore", DeprecationWarning)
             from . import patch as _  # noqa: F401, I001
 
-        # Expose public methods
-        from ddtrace.contrib.internal.kombu.patch import get_version
-        from ddtrace.contrib.internal.kombu.patch import patch
-
-        __all__ = ["patch", "get_version"]
+        from ddtrace.contrib.internal.kombu.patch import get_version  # noqa: F401
+        from ddtrace.contrib.internal.kombu.patch import patch  # noqa: F401

@@ -488,7 +488,7 @@ def expected_ragas_trace_tags():
         "env:",
         "service:tests.llmobs",
         "source:integration",
-        "ml_app:dd-ragas-unnamed-ml-app",
+        "ml_app:unnamed-ml-app",
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
         "error:0",

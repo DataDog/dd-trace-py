@@ -45,9 +45,6 @@ with _w.catch_warnings():
     _w.simplefilter("ignore", DeprecationWarning)
     from . import patch as _  # noqa: F401, I001
 
-from ddtrace.contrib.internal.aiomysql.patch import get_version
-from ddtrace.contrib.internal.aiomysql.patch import patch
-from ddtrace.contrib.internal.aiomysql.patch import unpatch
-
-
-__all__ = ["patch", "unpatch", "get_version"]
+from ddtrace.contrib.internal.aiomysql.patch import get_version  # noqa: F401
+from ddtrace.contrib.internal.aiomysql.patch import patch  # noqa: F401
+from ddtrace.contrib.internal.aiomysql.patch import unpatch  # noqa: F401

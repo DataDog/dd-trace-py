@@ -6,7 +6,7 @@ import yaaredis
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
-from ddtrace.contrib.redis_utils import _run_redis_command_async
+from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import CMD_MAX_LEN

@@ -73,12 +73,18 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
+  iast_aggregated_leak_testing:
+    parallelism: 3
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_aggregated_memcheck/*
+    runner: hatch
+    timeout: 50m
   appsec_iast_packages:
     parallelism: 4
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
-    retry: 2
     runner: hatch
     timeout: 50m
   appsec_integrations_pygoat:
@@ -107,7 +113,9 @@ suites:
       - tests/appsec/integrations/flask_tests/*
     retry: 2
     runner: hatch
-    timeout: 30m
+    services:
+      - testagent
+    timeout: 40m
   appsec_integrations_django:
     parallelism: 6
     paths:
@@ -120,6 +128,8 @@ suites:
       - tests/appsec/integrations/django_tests/*
     retry: 2
     runner: hatch
+    services:
+      - testagent
     timeout: 30m
   appsec_threats_django:
     parallelism: 12

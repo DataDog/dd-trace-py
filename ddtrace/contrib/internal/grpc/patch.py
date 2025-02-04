@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.grpc import utils
 from ddtrace.contrib.internal.grpc.client_interceptor import create_client_interceptor
 from ddtrace.contrib.internal.grpc.client_interceptor import intercept_channel
 from ddtrace.contrib.internal.grpc.server_interceptor import create_server_interceptor
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value

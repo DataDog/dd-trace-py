@@ -17,7 +17,7 @@ from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException

@@ -245,3 +245,30 @@ def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
     assert len(llmobs_events) == 2
     assert llmobs_events[1] == _expected_llmobs_llm_span_event(root_span, "llm")
     assert llmobs_events[0] == expected_grandchild_llmobs_span
+
+
+def test_utf_non_ascii_io(llmobs, llmobs_backend):
+    with llmobs.workflow() as workflow_span:
+        with llmobs.llm(model_name="gpt-3.5-turbo-0125") as llm_span:
+            llmobs.annotate(llm_span, input_data="안녕, 지금 몇 시야?")
+            llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert events[0]["spans"][1]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+
+
+def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
+    """Test that latin1 encoded inputs and outputs are correctly decoded."""
+    with llmobs.llm(model_name="gpt-3.5-turbo-0125") as span:
+        llmobs.annotate(
+            span,
+            input_data="The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967.",
+        )
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert (
+        events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"]
+        == "The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967."
+    )
