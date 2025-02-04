@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
 
@@ -246,10 +247,7 @@ def patch_all(**patch_modules):
         patch_iast()
         enable_iast_propagation()
 
-    if asm_config._load_modules:
-        from ddtrace.appsec import load_common_appsec_modules
-
-        load_common_appsec_modules()
+    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):

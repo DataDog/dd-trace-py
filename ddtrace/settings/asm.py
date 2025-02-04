@@ -224,8 +224,6 @@ class ASMConfig(Env):
 
     def __init__(self):
         super().__init__()
-        # Is one click available?
-        self._eval_asm_can_be_enabled()
         if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
@@ -233,9 +231,8 @@ class ASMConfig(Env):
             self._api_security_enabled = False
         if not self._iast_supported:
             self._iast_enabled = False
-        self._load_modules: bool = bool(
-            self._iast_supported or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
-        )
+        # Is one click available?
+        self._eval_asm_can_be_enabled()
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
@@ -243,6 +240,9 @@ class ASMConfig(Env):
 
     def _eval_asm_can_be_enabled(self):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._load_modules: bool = bool(
+            self._iast_supported or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
+        )
 
     @property
     def _api_security_feature_active(self) -> bool:
