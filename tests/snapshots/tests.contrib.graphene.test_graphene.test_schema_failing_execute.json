@@ -1,113 +1,110 @@
-[
-  [
-    {
-      "name": "graphql.request",
-      "service": "graphql",
-      "resource": "{ patron { id name age } }",
-      "trace_id": 0,
-      "span_id": 1,
-      "parent_id": 0,
-      "type": "graphql",
-      "error": 1,
-      "meta": {
-        "_dd.base_service": "tests.contrib.graphene",
-        "_dd.p.dm": "-0",
-        "_dd.p.tid": "679ba78900000000",
-        "component": "graphql",
-        "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
-        "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id\n",
-        "error.type": "graphql.error.graphql_error.GraphQLError",
-        "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738254217957740000, \"attributes\": {\"message\": \"exception was raised in a graphene query\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 26, in resolve_patron\\n    raise Exception(\\\"exception was raised in a graphene query\\\")\\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\\n\\nGraphQL request:3:7\\n2 |     {\\n3 |       patron {\\n  |       ^\\n4 |         id\\n\", \"path\": \"patron\"}}]",
-        "language": "python",
-        "runtime-id": "8203164c8f8a4840943bf798c4daea9a"
-      },
-      "metrics": {
-        "_dd.measured": 1,
-        "_dd.top_level": 1,
-        "_dd.tracer_kr": 1.0,
-        "_sampling_priority_v1": 1,
-        "process_id": 62451
-      },
-      "duration": 5396000,
-      "start": 1738254217952345000
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "{ patron { id name age } }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "tests.contrib.graphene",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679ba78900000000",
+      "component": "graphql",
+      "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id\n",
+      "error.type": "graphql.error.graphql_error.GraphQLError",
+      "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738254217957740000, \"attributes\": {\"message\": \"exception was raised in a graphene query\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 26, in resolve_patron\\n    raise Exception(\\\"exception was raised in a graphene query\\\")\\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\\n\\nGraphQL request:3:7\\n2 |     {\\n3 |       patron {\\n  |       ^\\n4 |         id\\n\", \"path\": \"patron\"}}]",
+      "language": "python",
+      "runtime-id": "8203164c8f8a4840943bf798c4daea9a"
     },
-    {
-      "name": "graphql.parse",
-      "service": "graphql",
-      "resource": "graphql.parse",
-      "trace_id": 0,
-      "span_id": 2,
-      "parent_id": 1,
-      "type": "graphql",
-      "error": 0,
-      "meta": {
-        "_dd.base_service": "tests.contrib.graphene",
-        "component": "graphql",
-        "graphql.source": "{ patron { id name age } }"
-      },
-      "duration": 828000,
-      "start": 1738254217952815000
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 62451
     },
-    {
-      "name": "graphql.validate",
-      "service": "graphql",
-      "resource": "graphql.validate",
-      "trace_id": 0,
-      "span_id": 3,
-      "parent_id": 1,
-      "type": "graphql",
-      "error": 0,
-      "meta": {
-        "_dd.base_service": "tests.contrib.graphene",
-        "component": "graphql",
-        "graphql.source": "{ patron { id name age } }"
-      },
-      "duration": 2534000,
-      "start": 1738254217954222000
-    },
-    {
-      "name": "graphql.execute",
-      "service": "graphql",
-      "resource": "{ patron { id name age } }",
-      "trace_id": 0,
-      "span_id": 4,
-      "parent_id": 1,
-      "type": "graphql",
-      "error": 1,
-      "meta": {
-        "_dd.base_service": "tests.contrib.graphene",
-        "component": "graphql",
-        "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
-        "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id\n",
-        "error.type": "graphql.error.graphql_error.GraphQLError",
-        "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738254217957645000, \"attributes\": {\"message\": \"exception was raised in a graphene query\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 26, in resolve_patron\\n    raise Exception(\\\"exception was raised in a graphene query\\\")\\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\\n\\nGraphQL request:3:7\\n2 |     {\\n3 |       patron {\\n  |       ^\\n4 |         id\\n\", \"path\": \"patron\"}}]",
-        "graphql.operation.type": "query",
-        "graphql.source": "{ patron { id name age } }"
-      },
-      "metrics": {
-        "_dd.measured": 1
-      },
-      "duration": 803000,
-      "start": 1738254217956843000
-    },
-    {
-      "name": "graphql.resolve",
-      "service": "graphql",
-      "resource": "patron",
-      "trace_id": 0,
-      "span_id": 5,
-      "parent_id": 4,
-      "type": "graphql",
-      "error": 1,
-      "meta": {
-        "_dd.base_service": "tests.contrib.graphene",
-        "component": "graphql",
-        "error.message": "exception was raised in a graphene query",
-        "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
-        "error.type": "builtins.Exception"
-      },
-      "duration": 430000,
-      "start": 1738254217956914000
-    }
-  ]
-]
+    "duration": 5396000,
+    "start": 1738254217952345000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 828000,
+       "start": 1738254217952815000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 2534000,
+       "start": 1738254217954222000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "{ patron { id name age } }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphene",
+         "component": "graphql",
+         "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 617, in resolve_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id\n",
+         "error.type": "graphql.error.graphql_error.GraphQLError",
+         "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738254217957645000, \"attributes\": {\"message\": \"exception was raised in a graphene query\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_graphene~300_pytest-asyncio0211_graphql-relay_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 617, in resolve_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 242, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\\\", line 26, in resolve_patron\\n    raise Exception(\\\"exception was raised in a graphene query\\\")\\ngraphql.error.graphql_error.GraphQLError: exception was raised in a graphene query\\n\\nGraphQL request:3:7\\n2 |     {\\n3 |       patron {\\n  |       ^\\n4 |         id\\n\", \"path\": \"patron\"}}]",
+         "graphql.operation.type": "query",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 803000,
+       "start": 1738254217956843000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "patron",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "error": 1,
+          "meta": {
+            "_dd.base_service": "tests.contrib.graphene",
+            "component": "graphql",
+            "error.message": "exception was raised in a graphene query",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 242, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
+            "error.type": "builtins.Exception"
+          },
+          "duration": 430000,
+          "start": 1738254217956914000
+        }]]
