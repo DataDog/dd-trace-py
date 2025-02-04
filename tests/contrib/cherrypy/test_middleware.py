@@ -15,6 +15,7 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent

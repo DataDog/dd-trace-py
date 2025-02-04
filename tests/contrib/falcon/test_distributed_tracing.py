@@ -132,7 +132,6 @@ class DistributedTracingTestCase(testing.TestCase, FalconTestMixin, TracerTestCa
             distributed_sampling_priority=USER_KEEP,
         )
 
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
     def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
         # When inferred proxy is disabled, there should be no inferred span
