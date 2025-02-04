@@ -515,6 +515,7 @@ class Tracer(object):
         if dogstatsd_url is not None:
             self._dogstatsd_url = dogstatsd_url
 
+        if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
             prev_url_parsed = compat.parse.urlparse(self._agent_url)
