@@ -162,7 +162,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_full_sqli_iast_enabled_http_request_header_get(self):
+    def test_flask_iast_enabled_http_request_header_get(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_2(param_str):
             import sqlite3
@@ -173,7 +173,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             con = sqlite3.connect(":memory:")
             cur = con.cursor()
-            # label test_flask_full_sqli_iast_enabled_http_request_header_get
+            # label test_flask_iast_enabled_http_request_header_get
             cur.execute(add_aspect("SELECT 1 FROM ", request.headers.get("User-Agent")))
 
             return "OK", 200
@@ -198,7 +198,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             ]
 
             line, hash_value = get_line_and_hash(
-                "test_flask_full_sqli_iast_enabled_http_request_header_get",
+                "test_flask_iast_enabled_http_request_header_get",
                 VULN_SQL_INJECTION,
                 filename=TEST_FILE_PATH,
             )
