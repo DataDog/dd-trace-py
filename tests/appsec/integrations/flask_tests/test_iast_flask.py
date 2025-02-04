@@ -1199,7 +1199,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_location(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
@@ -1228,7 +1228,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_access_control(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
