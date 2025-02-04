@@ -36,7 +36,6 @@ def re_matcher(pattern):
 @pytest.mark.subprocess()
 def test_standard_tags():
     from datetime import datetime
-    import sys
 
     import ddtrace
     from ddtrace.internal import debug
