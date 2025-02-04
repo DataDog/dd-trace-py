@@ -2018,8 +2018,7 @@ def test_django_use_handler_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config "
-                    "from ddtrace._monkey import _patch_all; _patch_all(); "
+                    "from ddtrace import config, patch_all; patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_resource_format; print('Test success')"
                 ),
@@ -2038,8 +2037,7 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config "
-                    "from ddtrace._monkey import _patch_all; _patch_all(); "
+                    "from ddtrace import config, patch_all; patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
@@ -2119,8 +2117,7 @@ def test_django_use_legacy_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config "
-                    "from ddtrace._monkey import _patch_all; _patch_all(); "
+                    "from ddtrace import config, patch_all; patch_all(); "
                     "import django; "
                     "assert config.django.use_legacy_resource_format; print('Test success')"
                 ),
