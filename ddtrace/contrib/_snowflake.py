@@ -9,7 +9,7 @@ Enabling
 The integration is not enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Use environment variable `DD_PATCH_MODULES:snowflake:true` to manually enable the integration::
+Use environment variable `DD_PATCH_MODULES:snowflake:true` to manually enable the integration.
 
 
 Global Configuration
