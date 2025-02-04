@@ -735,7 +735,7 @@ def _on_botocore_bedrock_process_response(
     integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
-            if k in ["usage.completion_tokens", "usage.prompt_tokens"]:
+            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
                 span.set_metric("bedrock.{}".format(k), int(v))
             else:
                 span.set_tag_str("bedrock.{}".format(k), str(v))
