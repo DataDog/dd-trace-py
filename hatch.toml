@@ -466,7 +466,8 @@ _DD_IAST_PATCH_MODULES = "scripts.iast"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
 [[envs.iast_aggregated_leak_testing.matrix]]
