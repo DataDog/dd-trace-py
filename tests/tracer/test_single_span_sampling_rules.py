@@ -11,7 +11,6 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
 from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 
 from ..utils import override_global_config
 
