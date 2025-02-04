@@ -25,29 +25,10 @@ def _generate_span_event(exc=None) -> tuple[Span, SpanEvent] | None:
 
     limit = int(config._span_traceback_max_size)
 
-    # The most complete
-    # tb = "Traceback (most recent call last):\n"
-    # tb += "".join(traceback.format_stack(limit=limit + 1)[:-2])
-
-    # Best compromise
-    # tb = "Traceback (most recent call last):\n"
-    # tb += "".join(traceback.format_tb(exc.__traceback__, limit=limit))
-    # tb += f"{exc.__class__.__name__}: {exc}"
-
-    # Test 3 -> unhandled error way
     buff = io.StringIO()
     exc_type, exc_val, exc_tb = type(exc), exc, exc.__traceback__
     traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
     tb = buff.getvalue()
-
-    # Test -> potential most performant
-    # tb = "Traceback (most recent call last):\n"
-    # for tb_frame in traceback.extract_tb(exc.__traceback__, limit=limit):
-    #     tb += f'\tFile "{tb_frame.filename}", line {tb_frame.lineno}, in {tb_frame.name}\n'
-    #     if tb_frame.line:
-    #         for line in tb_frame._dedented_lines.split("\n")[:-1]:
-    #             tb += f'\t\t{line}\n'
-    # tb += f"{exc.__class__.__name__}: {exc}"
 
     return span, SpanEvent(
         "handled exception",
