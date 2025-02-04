@@ -80,8 +80,8 @@ def mock_llmobs_span_writer():
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(span, n_output, message=False):
-        prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
-        completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
+        prompt_tokens = int(span.get_metric("bedrock.usage.prompt_tokens"))
+        completion_tokens = int(span.get_metric("bedrock.usage.completion_tokens"))
         expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
