@@ -823,7 +823,7 @@ venv = Venv(
                 "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
                 "DD_DJANGO_INSTRUMENT_DATABASES": "true",
                 "DD_DJANGO_INSTRUMENT_CACHES": "true",
-            }
+            },
             venvs=[
                 Venv(
                     # djangorestframework dropped support for Django 2.x in 3.14
@@ -871,7 +871,7 @@ venv = Venv(
                 "DD_DJANGO_INSTRUMENT_TEMPLATES": "true",
                 "DD_DJANGO_INSTRUMENT_DATABASES": "true",
                 "DD_DJANGO_INSTRUMENT_CACHES": "true",
-            }
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
