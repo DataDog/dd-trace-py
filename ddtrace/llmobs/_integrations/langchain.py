@@ -117,7 +117,7 @@ class LangChainIntegration(BaseLLMIntegration):
             log.warning("Unsupported operation : %s", operation)
             return
 
-        if asbool(os.getenv("_DD_TRACE_LANGCHAIN_LINKING_ENABLED")):
+        if asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED")):
             self._set_links(span)
 
         model_provider = span.get_tag(PROVIDER)

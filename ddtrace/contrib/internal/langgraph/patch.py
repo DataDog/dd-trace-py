@@ -204,6 +204,8 @@ def patch():
     if not should_patch or getattr(langgraph, "_datadog_patch", False):
         return
 
+    os.environ["_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED"] = "true"
+
     langgraph._datadog_patch = True
 
     Pin().onto(langgraph)
