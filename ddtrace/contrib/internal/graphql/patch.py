@@ -293,7 +293,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: GraphQLError, extensions: str | None, attributes: Dict) -> Tuple[Dict, Dict]:
+def _validate_error_extensions(error: GraphQLError, extensions: Optional[str], attributes: Dict) -> Tuple[Dict, Dict]:
     # Validate user-provided extensions
     if not extensions:
         return {}, attributes
