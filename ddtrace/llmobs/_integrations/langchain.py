@@ -68,9 +68,9 @@ def _extract_bound(instance):
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    _chain_steps = set()  # instance_id
-    _spans = {}  # instance_id --> span
-    _instances = WeakKeyDictionary()  # spans --> instances
+    _chain_steps: set = set()  # instance_id
+    _spans: dict = {}  # instance_id --> span
+    _instances: WeakKeyDictionary = WeakKeyDictionary()  # spans --> instances
 
     def record_steps(self, instance, span):
         if not self.llmobs_enabled:
@@ -158,10 +158,10 @@ class LangChainIntegration(BaseLLMIntegration):
         invoker_span = _get_nearest_llmobs_ancestor(span)
         invoker_link_attributes = {"from": "input", "to": "input"}
 
+        links = []
+
         if invoker_span is None:
             return
-
-        links = []
 
         if is_step:
             chain_instance = _extract_bound(self._instances.get(invoker_span))
@@ -180,6 +180,9 @@ class LangChainIntegration(BaseLLMIntegration):
                     invoker_span = self._spans[id(step)]
                     invoker_link_attributes = {"from": "output", "to": "input"}
                     break
+
+        if invoker_span is None:
+            return
 
         links.append(
             {
