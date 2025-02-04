@@ -119,17 +119,34 @@ get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
 
 if(WIN32)
     find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
+    set(DD_LIB_NAME "datadog_profiling")
 
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+        # Prefer static linking over dynamic unless specified
+        set(LINK_TYPE "static")
+        if(DEFINED VCRUNTIME_LINK_TYPE)
+            string(TOLOWER ${VCRUNTIME_LINK_TYPE} LINK_TYPE)
+        endif()
+
+        set(BUILD_TYPE "release")
+        if(DEFINED CMAKE_BUILD_TYPE)
+            string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
+        endif()
+
         find_library(
             Datadog_LIBRARY
-            NAMES datadog_profiling_ffi
-            HINTS ${Datadog_ROOT}/release/static)
+            # Windows artifacts publish the library as datadog_profiling_ffi in {build_type}/{link_type} directory
+            NAMES ${DD_LIB_NAME} datadog_profiling_ffi
+            HINTS ${Datadog_ROOT}/lib ${Datadog_ROOT}/${BULID_TYPE}/${LINK_TYPE})
+
+        # It could be either datadog_profiling or datadog_profiling_ffi, set it to the one that is found
+        get_filename_component(DD_LIB_NAME ${Datadog_LIBRARY} NAME_WE)
+        message(STATUS "Datadog library name: ${DD_LIB_NAME}")
     else()
         find_library(
             Datadog_LIBRARY
-            NAMES datadog_profiling_ffi
-            HINTS ${Datadog_ROOT}/debug/static)
+            NAMES ${DD_LIB_NAME}
+            HINTS ${Datadog_ROOT}/lib)
     endif()
 
     include(FindPackageHandleStandardArgs)
@@ -140,13 +157,13 @@ if(WIN32)
         set(Datadog_INCLUDE_DIRS ${Datadog_INCLUDE_DIR})
         set(Datadog_LIBRARIES ${Datadog_LIBRARY})
         mark_as_advanced(Datadog_ROOT Datadog_LIBRARY Datadog_INCLUDE_DIR)
-        add_library(datadog_profiling_ffi INTERFACE)
-        target_include_directories(datadog_profiling_ffi INTERFACE ${Datadog_INCLUDE_DIRS})
-        target_link_libraries(datadog_profiling_ffi INTERFACE ${Datadog_LIBRARIES})
-        target_compile_features(datadog_profiling_ffi INTERFACE c_std_11)
+        add_library(${DD_LIB_NAME} INTERFACE)
+        target_include_directories(${DD_LIB_NAME} INTERFACE ${Datadog_INCLUDE_DIRS})
+        target_link_libraries(${DD_LIB_NAME} INTERFACE ${Datadog_LIBRARIES})
+        target_compile_features(${DD_LIB_NAME} INTERFACE c_std_11)
 
         target_link_libraries(
-            datadog_profiling_ffi
+            ${DD_LIB_NAME}
             INTERFACE NtDll.lib
                       UserEnv.lib
                       Bcrypt.lib
@@ -158,7 +175,7 @@ if(WIN32)
                       Ncrypt.lib
                       PowrProf.lib)
 
-        add_library(Datadog::Profiling ALIAS datadog_profiling_ffi)
+        add_library(Datadog::Profiling ALIAS ${DD_LIB_NAME})
     else()
         set(Datadog_ROOT
             ""
