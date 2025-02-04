@@ -5,7 +5,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -88,54 +87,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             return False
         return "azure" in base_url.lower()
 
-    @classmethod
-    def _logs_tags(cls, span: Span) -> str:
-        tags = (
-            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s,"
-            "openai.user.api_key:%s"
-            % (  # noqa: E501
-                (config.env or ""),
-                (config.version or ""),
-                (span.get_tag("openai.request.endpoint") or ""),
-                (span.get_tag("openai.request.method") or ""),
-                (span.get_tag("openai.request.model") or ""),
-                (span.get_tag("openai.organization.name") or ""),
-                (span.get_tag("openai.user.api_key") or ""),
-            )
-        )
-        return tags
-
-    @classmethod
-    def _metrics_tags(cls, span: Span) -> List[str]:
-        model_name = span.get_tag("openai.request.model") or ""
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % model_name,
-            "model:%s" % model_name,
-            "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
-            "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
-            "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
-            "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
-            "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
-
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage or not self.metrics_enabled:
+        if not usage:
             return
-        tags = ["openai.estimated:false"]
         for token_type in ("prompt", "completion", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-            self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
     def _llmobs_set_tags(
         self,
