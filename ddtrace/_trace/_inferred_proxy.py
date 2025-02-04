@@ -2,8 +2,8 @@ import logging
 from typing import Dict
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
