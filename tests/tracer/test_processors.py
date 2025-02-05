@@ -271,7 +271,6 @@ def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
     tracer = DummyTracer()
-    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
@@ -285,7 +284,6 @@ def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
     tracer = DummyTracer()
-    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -299,7 +297,6 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = DummyTracer()
-    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         pass
@@ -633,7 +630,6 @@ def test_endpoint_call_counter_processor_disabled():
 def test_endpoint_call_counter_processor_real_tracer():
     tracer = DummyTracer()
     tracer._endpoint_call_counter_span_processor.enable()
-    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
         with tracer.trace("child", service="top_level_test_service2"):
@@ -656,7 +652,6 @@ def test_endpoint_call_counter_processor_real_tracer():
 
 def test_trace_tag_processor_adds_chunk_root_tags():
     tracer = DummyTracer()
-    tracer._configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:

@@ -2,5 +2,3 @@
 upgrade:
   - |
     tracing: Drops support for multiple Tracer instances in the same process. Use ``ddtrace.trace.tracer`` to access the global tracer instance.
-  - |
-    pin: Removes the ``tracer`` parameter from ``ddtrace.trace.Pin`` methods. All Pin objects now use the global tracer instance.

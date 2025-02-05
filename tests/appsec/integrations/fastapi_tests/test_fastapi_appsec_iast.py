@@ -27,6 +27,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -35,7 +36,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE_PATH = "tests/contrib/fastapi/test_fastapi_appsec_iast.py"
+TEST_FILE_PATH = "tests/appsec/integrations/fastapi_tests/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
 
@@ -987,3 +988,38 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+
+
+def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        from fastapi.responses import HTMLResponse
+        from jinja2 import Template
+
+        query_params = request.query_params.get("iast_queryparam")
+        template = Template("<p>{{ user_input|safe }}</p>")
+        html = template.render(user_input=query_params)
+        return HTMLResponse(html)
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        patch_iast({"xss": True})
+        from jinja2.filters import FILTERS
+        from jinja2.filters import do_mark_safe
+
+        FILTERS["safe"] = do_mark_safe
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html?iast_queryparam=test1234",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_XSS

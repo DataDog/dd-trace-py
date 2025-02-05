@@ -1,16 +1,13 @@
 """
 Variety of test cases ensuring that ddtrace does not leak memory.
 """
-from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
 
 import pytest
 
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from tests.utils import DummyTracer
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Span  # noqa:F401
 
 
 @pytest.fixture
@@ -18,8 +15,7 @@ def tracer() -> DummyTracer:
     return DummyTracer()
 
 
-def trace(weakdict: WeakValueDictionary, tracer, *args, **kwargs):
-    # type: (...) -> Span
+def trace(weakdict: WeakValueDictionary, tracer: Tracer, *args, **kwargs) -> Span:
     """Return a span created from ``tracer`` and add it to the given weak
     dictionary.
 

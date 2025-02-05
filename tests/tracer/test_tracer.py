@@ -1907,21 +1907,6 @@ def test_ctx_api(tracer):
     assert core.get_items(["appsec.key"]) == [None]
 
 
-@pytest.mark.subprocess(parametrize={"IMPORT_DDTRACE_TRACER": ["true", "false"]})
-def test_import_ddtrace_tracer_not_module():
-    import os
-
-    import_ddtrace_tracer = os.environ["IMPORT_DDTRACE_TRACER"] == "true"
-
-    if import_ddtrace_tracer:
-        import ddtrace.tracer  # noqa: F401
-
-    from ddtrace.trace import Tracer
-    from ddtrace.trace import tracer
-
-    assert isinstance(tracer, Tracer)
-
-
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
@@ -1994,10 +1979,13 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import pytest
+    import mock
 
     import ddtrace
 
     assert ddtrace.trace.tracer is not None
-    with pytest.raises(ValueError):
+    with mock.patch("ddtrace._trace.tracer.log") as log:
         ddtrace.trace.Tracer()
+    log.error.assert_called_once_with(
+        "Multiple Tracer instances can not be initialized. " "Use ``ddtrace.trace.tracer`` instead."
+    )

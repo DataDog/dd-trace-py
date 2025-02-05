@@ -82,6 +82,18 @@ def _on_flask_patch(flask_version):
             "Headers.items",
             functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
         )
+
+        try_wrap_function_wrapper(
+            "werkzeug.datastructures",
+            "EnvironHeaders.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        # Since werkzeug 3.1.0 get doesn't call to __getitem__
+        try_wrap_function_wrapper(
+            "werkzeug.datastructures",
+            "EnvironHeaders.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
         _set_metric_iast_instrumented_source(OriginType.HEADER)
 
@@ -91,13 +103,6 @@ def _on_flask_patch(flask_version):
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "EnvironHeaders.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
 
         if flask_version >= (2, 0, 0):
             # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
