@@ -27,7 +27,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "bedrock.response.embedding_length": 1024,
-      "bedrock.usage.prompt_tokens": 7,
+      "bedrock.response.usage.prompt_tokens": 7,
       "process_id": 61336
     },
     "duration": 630192000,

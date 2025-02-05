@@ -31,8 +31,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "bedrock.usage.completion_tokens": 4,
-      "bedrock.usage.prompt_tokens": 25,
+      "bedrock.response.usage.completion_tokens": 4,
+      "bedrock.response.usage.prompt_tokens": 25,
       "process_id": 13707
     },
     "duration": 624710000,
