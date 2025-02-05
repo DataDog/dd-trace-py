@@ -655,7 +655,6 @@ dependencies = [
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
-DD_APPSEC_RASP_ENABLED = "false"
 
 [envs.selenium.scripts]
 test = [
