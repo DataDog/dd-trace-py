@@ -10,7 +10,6 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
@@ -23,10 +22,7 @@ log = get_logger(__name__)
 config._add(
     "openai",
     {
-        "logs_enabled": asbool(os.getenv("DD_OPENAI_LOGS_ENABLED", False)),
-        "metrics_enabled": asbool(os.getenv("DD_OPENAI_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_OPENAI_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_OPENAI_SPAN_CHAR_LIMIT", 128)),
     },
 )
@@ -183,7 +179,6 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         # Record any error information
         if err is not None:
             span.set_exc_info(*sys.exc_info())
-            integration.metric(span, "incr", "request.error", 1)
 
         # Pass the response and the error to the hook
         try:
@@ -196,7 +191,6 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         # Streamed responses with error will need to be finished manually as well.
         if not kwargs.get("stream") or err is not None:
             span.finish()
-            integration.metric(span, "dist", "request.duration", span.duration_ns)
 
 
 def _patched_endpoint(openai, patch_hook):
@@ -256,7 +250,6 @@ def _patched_endpoint_async(openai, patch_hook):
 @with_traced_module
 def patched_convert(openai, pin, func, instance, args, kwargs):
     """Patch convert captures header information in the openai response"""
-    integration = openai._datadog_integration
     span = pin.tracer.current_span()
     if not span:
         return func(*args, **kwargs)
@@ -281,23 +274,19 @@ def patched_convert(openai, pin, func, instance, args, kwargs):
     if headers.get("x-ratelimit-limit-requests"):
         v = headers.get("x-ratelimit-limit-requests")
         if v is not None:
-            integration.metric(span, "gauge", "ratelimit.requests", int(v))
             span.set_metric("openai.organization.ratelimit.requests.limit", int(v))
     if headers.get("x-ratelimit-limit-tokens"):
         v = headers.get("x-ratelimit-limit-tokens")
         if v is not None:
-            integration.metric(span, "gauge", "ratelimit.tokens", int(v))
             span.set_metric("openai.organization.ratelimit.tokens.limit", int(v))
     # Gauge and set span info for remaining requests and tokens
     if headers.get("x-ratelimit-remaining-requests"):
         v = headers.get("x-ratelimit-remaining-requests")
         if v is not None:
-            integration.metric(span, "gauge", "ratelimit.remaining.requests", int(v))
             span.set_metric("openai.organization.ratelimit.requests.remaining", int(v))
     if headers.get("x-ratelimit-remaining-tokens"):
         v = headers.get("x-ratelimit-remaining-tokens")
         if v is not None:
-            integration.metric(span, "gauge", "ratelimit.remaining.tokens", int(v))
             span.set_metric("openai.organization.ratelimit.tokens.remaining", int(v))
 
     return func(*args, **kwargs)

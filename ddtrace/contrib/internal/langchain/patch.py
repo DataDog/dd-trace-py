@@ -56,7 +56,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
@@ -76,10 +75,7 @@ def get_version():
 config._add(
     "langchain",
     {
-        "logs_enabled": asbool(os.getenv("DD_LANGCHAIN_LOGS_ENABLED", False)),
-        "metrics_enabled": asbool(os.getenv("DD_LANGCHAIN_METRICS_ENABLED", True)),
         "span_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "log_prompt_completion_sample_rate": float(os.getenv("DD_LANGCHAIN_LOG_PROMPT_COMPLETION_SAMPLE_RATE", 0.1)),
         "span_char_limit": int(os.getenv("DD_LANGCHAIN_SPAN_CHAR_LIMIT", 128)),
     },
 )
@@ -221,7 +217,6 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         completions = func(*args, **kwargs)
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
-            integration.record_usage(span, completions.llm_output)
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
@@ -237,28 +232,10 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 )
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            if completions is None:
-                log_completions = []
-            else:
-                log_completions = [
-                    [{"text": completion.text} for completion in completions] for completions in completions.generations
-                ]
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "prompts": prompts,
-                    "choices": log_completions,
-                },
-            )
     return completions
 
 
@@ -292,7 +269,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         completions = await func(*args, **kwargs)
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
-            integration.record_usage(span, completions.llm_output)
 
         for idx, completion in enumerate(completions.generations):
             if integration.is_pc_sampled_span(span):
@@ -308,28 +284,10 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 )
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            if completions is None:
-                log_completions = []
-            else:
-                log_completions = [
-                    [{"text": completion.text} for completion in completions] for completions in completions.generations
-                ]
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "prompts": prompts,
-                    "choices": log_completions,
-                },
-            )
     return completions
 
 
@@ -376,7 +334,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         chat_completions = func(*args, **kwargs)
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
-            integration.record_usage(span, chat_completions.llm_output)
 
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
@@ -417,45 +374,10 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 )
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            if chat_completions is None:
-                log_chat_completions = []
-            else:
-                log_chat_completions = [
-                    [
-                        {"content": message.text, "message_type": message.message.__class__.__name__}
-                        for message in messages
-                    ]
-                    for messages in chat_completions.generations
-                ]
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "messages": [
-                        [
-                            {
-                                "content": (
-                                    message.get("content", "")
-                                    if isinstance(message, dict)
-                                    else str(getattr(message, "content", ""))
-                                ),
-                                "message_type": message.__class__.__name__,
-                            }
-                            for message in messages
-                        ]
-                        for messages in chat_messages
-                    ],
-                    "choices": log_chat_completions,
-                },
-            )
     return chat_completions
 
 
@@ -502,7 +424,6 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         chat_completions = await func(*args, **kwargs)
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
-            integration.record_usage(span, chat_completions.llm_output)
 
         for message_set_idx, message_set in enumerate(chat_completions.generations):
             for idx, chat_completion in enumerate(message_set):
@@ -542,45 +463,10 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 )
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            if chat_completions is None:
-                log_chat_completions = []
-            else:
-                log_chat_completions = [
-                    [
-                        {"content": message.text, "message_type": message.message.__class__.__name__}
-                        for message in messages
-                    ]
-                    for messages in chat_completions.generations
-                ]
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "messages": [
-                        [
-                            {
-                                "content": (
-                                    message.get("content", "")
-                                    if isinstance(message, dict)
-                                    else str(getattr(message, "content", ""))
-                                ),
-                                "message_type": message.__class__.__name__,
-                            }
-                            for message in messages
-                        ]
-                        for messages in chat_messages
-                    ],
-                    "choices": log_chat_completions,
-                },
-            )
     return chat_completions
 
 
@@ -627,19 +513,10 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
             span.set_metric("langchain.response.outputs.embedding_length", len(embeddings))
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=embeddings, operation="embedding")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={"inputs": [input_texts] if isinstance(input_texts, str) else input_texts},
-            )
     return embeddings
 
 
@@ -689,12 +566,10 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.response.outputs.%d" % idx, integration.trunc(str(output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
 
 
@@ -735,12 +610,10 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
                 span.set_tag_str("langchain.response.outputs.%d" % idx, integration.trunc(str(output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=[], kwargs=inputs, response=final_output, operation="chain")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
     return final_output
 
 
@@ -793,25 +666,10 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
                 )
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.metric(span, "incr", "request.error", 1)
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=documents, operation="retrieval")
         span.finish()
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
-        if integration.is_pc_sampled_log(span):
-            integration.log(
-                span,
-                "info" if span.error == 0 else "error",
-                "sampled %s.%s" % (instance.__module__, instance.__class__.__name__),
-                attrs={
-                    "query": query,
-                    "k": k or "",
-                    "documents": [
-                        {"page_content": document.page_content, "metadata": document.metadata} for document in documents
-                    ],
-                },
-            )
     return documents
 
 

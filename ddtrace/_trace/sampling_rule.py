@@ -8,8 +8,6 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -210,14 +208,12 @@ class SamplingRule(object):
         # We currently support the ability to pass in a function, a regular expression, or a string
         # If a string is passed in we create a GlobMatcher to handle the matching
         if callable(prop) or isinstance(prop, pattern_type):
-            # deprecated: passing a function or a regular expression'
-            deprecate(
-                "Using methods or regular expressions for SamplingRule matching is deprecated. ",
-                message="Please move to passing in a string for Glob matching.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
+            log.error(
+                "Using methods or regular expressions for SamplingRule matching is not supported: %s ."
+                "Please move to passing in a string for Glob matching.",
+                str(prop),
             )
-            return prop
+            return "None"
         # Name and Resource will never be None, but service can be, since we str()
         #  whatever we pass into the GlobMatcher, we can just use its matching
         elif prop is None:
