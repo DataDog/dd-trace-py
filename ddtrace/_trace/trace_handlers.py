@@ -785,6 +785,11 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
+    if rowcount is not None:
+        ctx.span.set_metric(db.ROWCOUNT, rowcount)
+
+
 def _on_test_visibility_enable(config) -> None:
     from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -894,6 +899,8 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("valkey.async_command.post", _on_valkey_command_post)
+    core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
 
@@ -941,6 +948,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
         "rq.worker.perform_job",

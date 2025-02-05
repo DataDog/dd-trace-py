@@ -92,34 +92,6 @@ class FilterOrg(TraceFilter):
         return trace
 
 
-@pytest.fixture(scope="session")
-def mock_metrics():
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
-    try:
-        DogStatsdMock = patcher.start()
-        m = mock.MagicMock()
-        DogStatsdMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
-@pytest.fixture(scope="session")
-def mock_logs():
-    """
-    Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
-    before it is instantiated.
-    """
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
-    try:
-        V2LogWriterMock = patcher.start()
-        m = mock.MagicMock()
-        V2LogWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
 @pytest.fixture()
 def mock_llmobs_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
@@ -163,18 +135,15 @@ def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, o
 
 
 @pytest.fixture
-def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
+def snapshot_tracer(openai, patch_openai):
     pin = Pin.get_from(openai)
     pin.tracer._configure(trace_processors=[FilterOrg()])
 
     yield pin.tracer
 
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_metrics):
+def mock_tracer(ddtrace_global_config, openai, patch_openai):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin.override(openai, tracer=mock_tracer)
@@ -187,6 +156,4 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
 
     yield mock_tracer
 
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
     LLMObs.disable()

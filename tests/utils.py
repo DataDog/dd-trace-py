@@ -127,6 +127,7 @@ def override_global_config(values):
         "_x_datadog_tags_max_length",
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
+        "_startup_logs_enabled",
         "_propagate_service",
         "env",
         "version",
@@ -650,8 +651,8 @@ class DummyTracer(Tracer):
         self._configure(*args, **kwargs)
 
     def _configure(self, *args, **kwargs):
-        assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriterMixin
+        assert isinstance(
+            kwargs.get("writer"), (DummyWriterMixin, type(None))
         ), "cannot configure writer of DummyTracer"
 
         if not kwargs.get("writer"):

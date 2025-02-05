@@ -9,10 +9,10 @@ import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
-from ddtrace.trace import Tracer
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
+from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
@@ -37,7 +37,7 @@ def test_configure_keeps_api_hostname_and_port():
 @mock.patch("signal.getsignal")
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_get_signal.return_value = None
-    tracer = Tracer()
+    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
