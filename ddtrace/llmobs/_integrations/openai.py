@@ -83,10 +83,20 @@ class OpenAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _is_azure_openai(span):
         """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
+        return OpenAIIntegration._is_provider(span, provider='azure')
+    
+    @staticmethod
+    def _is_deepseek(span):
+        """Check if the traced operation is an Deepseek operation using the request's base URL."""
+        return OpenAIIntegration._is_provider(span, provider='deepseek')
+    
+    @staticmethod
+    def _is_provider(span, provider='openai'):
+        """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
         base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
         if not base_url or not isinstance(base_url, str):
             return False
-        return "azure" in base_url.lower()
+        return provider.lower() in base_url.lower()
 
     @classmethod
     def _logs_tags(cls, span: Span) -> str:
@@ -148,7 +158,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
+
+        model_provider = "openai"
+        if self._is_azure_openai(span):
+            model_provider = "azure_openai"
+        elif self._is_deepseek(span):
+            model_provider = "deepseek"
+
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
