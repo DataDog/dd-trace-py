@@ -57,7 +57,7 @@ class TestMolten(TracerTestCase):
     def setUp(self):
         super(TestMolten, self).setUp()
         patch()
-        Pin.override(molten, tracer=self.tracer)
+        Pin._override(molten, tracer=self.tracer)
         self.app = molten_app()
         self.client = TestClient(self.app)
 
@@ -100,7 +100,7 @@ class TestMolten(TracerTestCase):
             self.assertEqual(len(spans), 16)
 
         # test override of service name
-        Pin.override(molten, service=self.TEST_SERVICE)
+        Pin._override(molten, service=self.TEST_SERVICE)
         response = self.make_request()
         spans = self.pop_spans()
         self.assertEqual(spans[0].service, "molten-patch")
@@ -284,7 +284,7 @@ class TestMolten(TracerTestCase):
 
         patch()
         # Need to override Pin here as we do in setUp
-        Pin.override(molten, tracer=self.tracer)
+        Pin._override(molten, tracer=self.tracer)
         self.assertTrue(Pin.get_from(molten) is not None)
         self.make_request()
         spans = self.pop_spans()

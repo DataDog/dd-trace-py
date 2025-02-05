@@ -1590,7 +1590,7 @@ def test_connection(client, test_spans):
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}"
+    assert span.service == "{}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
