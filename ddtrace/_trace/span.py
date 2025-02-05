@@ -62,7 +62,14 @@ class SpanEvent:
 
     def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None, time_unix_nano: Optional[int] = None):
         self.name: str = name
-        self.attributes: Dict[str, Any] = attributes or {}
+        if attributes is None:
+            self.attributes = {}
+        elif not isinstance(attributes, dict):
+            raise TypeError("attributes must be a dictionary")
+        elif not all(isinstance(k, str) for k in attributes.keys()):
+            raise TypeError("All attributes keys must be strings")
+        else:
+            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
@@ -76,7 +83,7 @@ class SpanEvent:
     def __str__(self):
         def format_value(value: Any) -> str:
             if isinstance(value, list):
-                return "[" + ", ".join(map(str, value)) + "]"  # Convert list to a string format
+                return f"[{', '.join(map(str, value))}]"
             return str(value)
 
         if not self.attributes:
