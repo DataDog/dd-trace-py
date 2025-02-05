@@ -53,6 +53,8 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_INPUT
+from ddtrace.llmobs._constants import EXPERIMENT_OUTPUT
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
@@ -194,8 +196,13 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = str(_get_llmobs_parent_id(span) or "undefined")
 
+        # Experiments related
         if span._get_ctx_item(EXPECTED_OUTPUT) is not None:
             meta["expected_output"] = span._get_ctx_item(EXPECTED_OUTPUT)
+        if span._get_ctx_item(EXPERIMENT_INPUT) is not None:
+            meta["input"] = span._get_ctx_item(EXPERIMENT_INPUT)
+        if span._get_ctx_item(EXPERIMENT_OUTPUT) is not None:
+            meta["output"] = span._get_ctx_item(EXPERIMENT_OUTPUT)
 
         llmobs_span_event = {
             "trace_id": "{:x}".format(span.trace_id),
@@ -805,6 +812,8 @@ class LLMObs(Service):
                 cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
             elif span_kind == "retrieval":
                 cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
+            elif span_kind == "experiment":
+                cls._tag_experiment_io(span, input_data=input_data, output_data=output_data)
             else:
                 cls._tag_text_io(span, input_value=input_data, output_value=output_data)
 
@@ -905,6 +914,16 @@ class LLMObs(Service):
             span._set_ctx_item(INPUT_VALUE, str(input_value))
         if output_value is not None:
             span._set_ctx_item(OUTPUT_VALUE, str(output_value))
+
+    @classmethod
+    def _tag_experiment_io(cls, span, input_data=None, output_data=None):
+        """Tags input/output values for experiment kind spans.
+        Will be mapped to span's `meta.{input,output}.values` fields.
+        """
+        if input_data is not None:
+            span._set_ctx_item(EXPERIMENT_INPUT, str(input_data))
+        if output_data is not None:
+            span._set_ctx_item(EXPERIMENT_OUTPUT, str(output_data))
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:

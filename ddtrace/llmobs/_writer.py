@@ -190,101 +190,38 @@ class LLMObsSpanEncoder(BufferedEncoder):
     def _init_buffer(self):
         with self._lock:
             self._buffer = []
-            self._experiment_buffer = [] 
             self.buffer_size = 0
 
     def put(self, events: List[LLMObsSpanEvent]):
-        # Split incoming events into normal vs experiment spans
-        norm_events = []
-        exp_events = []
-        for e in events:
-            if e.get("meta", {}).get("span.kind") == "experiment":
-                exp_events.append(e)
-            else:
-                norm_events.append(e)
-
-        # Add normal spans to main buffer
-        if norm_events:
-            with self._lock:
-                if len(self._buffer) + len(norm_events) > self._buffer_limit:
-                    logger.warning("Dropping normal spans: buffer limit reached")
-                    return
-                self._buffer.extend(norm_events)
-                self.buffer_size += len(safe_json(norm_events))
-
-        # Add experiment spans to separate buffer
-        if exp_events:
-            with self._lock:
-                if len(self._experiment_buffer) + len(exp_events) > self._buffer_limit:
-                    logger.warning("Dropping experiment spans: buffer limit reached")
-                    return
-                self._experiment_buffer.extend(exp_events)
-                self.buffer_size += len(safe_json(exp_events))
+        # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
+        with self._lock:
+            if len(self._buffer) >= self._buffer_limit:
+                logger.warning(
+                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
+                )
+                return
+            self._buffer.extend(events)
+            self.buffer_size += len(safe_json(events))
 
     def encode(self):
-        """Encode only the normal spans for standard flush"""
         with self._lock:
             if not self._buffer:
                 return None, 0
             events = self._buffer
-            
-            # Save experiment buffer before _init_buffer() clears it
-            experiment_spans = self._experiment_buffer
             self._init_buffer()
-
-        data = {
-            "_dd.stage": "raw",
-            "_dd.tracer_version": ddtrace.__version__,
-            "event_type": "span",
-            "spans": events
-        }
-
+        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
         if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
             data["_dd.scope"] = "experiments"
-
         try:
-            enc_data = safe_json(data)
-            if isinstance(enc_data, str):
-                enc_data = enc_data.encode('utf-8')
-            logger.debug("encode %d LLMObs span events", len(events))
+            enc_llm_events = safe_json(data)
+            if isinstance(enc_llm_events, str):
+                enc_llm_events = enc_llm_events.encode('utf-8')
+            logger.debug("encode %d LLMObs span events to be sent", len(events))
+            
         except TypeError:
-            logger.error("failed to encode LLMObs span events", exc_info=True)
+            logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
             return None, 0
-
-        # Restore experiment buffer
-        with self._lock:
-            self._experiment_buffer = experiment_spans
-
-        return enc_data, len(events)
-
-    def encode_experiment_spans(self):
-        """Encode only the experiment spans for separate request"""
-        with self._lock:
-            if not self._experiment_buffer:
-                return None, 0
-            exp_events = self._experiment_buffer
-            self._experiment_buffer = []
-
-        data = {
-            "_dd.stage": "raw",
-            "_dd.tracer_version": ddtrace.__version__,
-            "event_type": "experiment-span",
-            "experiment_spans": exp_events
-        }
-
-        if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
-            data["_dd.scope"] = "experiments"
-
-        try:
-            enc_data = safe_json(data)
-            if isinstance(enc_data, str):
-                enc_data = enc_data.encode('utf-8')
-            logger.debug("encode %d LLMObs experiment span events", len(exp_events))
-        except TypeError:
-            logger.error("failed to encode LLMObs experiment span events", exc_info=True)
-            return None, 0
-
-        return enc_data, len(exp_events)
+        return enc_llm_events, len(events)
 
 
 class LLMObsEventClient(WriterClientBase):
@@ -377,33 +314,6 @@ class LLMObsSpanWriter(HTTPWriter):
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
         )
-
-    def periodic(self) -> None:
-        # First flush normal spans using parent logic
-        super(LLMObsSpanWriter, self).periodic()
-
-        # Then flush experiment spans in a separate request
-        for client in self._clients:
-            if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
-                encoded, count = client.encoder.encode_experiment_spans()
-                if not encoded or not count:
-                    continue
-
-                try:
-                    self._send_payload_with_backoff(encoded, count, client)
-                except Exception:
-                    self._metrics_dist("http.errors", tags=["type:err"])
-                    self._metrics_dist("http.dropped.bytes", len(encoded))
-                    self._metrics_dist("http.dropped.traces", count)
-                    logger.error(
-                        "failed to send %d experiment spans to %s",
-                        count,
-                        self.intake_url,
-                        exc_info=True
-                    )
-                else:
-                    self._metrics_dist("http.sent.bytes", len(encoded))
-                    self._metrics_dist("http.sent.traces", count)
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
