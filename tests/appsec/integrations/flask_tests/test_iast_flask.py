@@ -167,6 +167,62 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+    def test_flask_iast_enabled_http_request_header_get(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def sqli_2(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            # label test_flask_iast_enabled_http_request_header_get
+            cur.execute(add_aspect("SELECT 1 FROM ", request.headers.get("User-Agent")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post(
+                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
+            )
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
+            ]
+
+            line, hash_value = get_line_and_hash(
+                "test_flask_iast_enabled_http_request_header_get",
+                VULN_SQL_INJECTION,
+                filename=TEST_FILE_PATH,
+            )
+            vulnerability = loaded["vulnerabilities"][0]
+
+            assert vulnerability["type"] == VULN_SQL_INJECTION
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["hash"] == hash_value
+
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_3(param_str):
