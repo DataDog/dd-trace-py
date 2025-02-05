@@ -105,6 +105,7 @@ PATCH_MODULES = {
     "unittest": True,
     "coverage": False,
     "selenium": True,
+    "valkey": True,
 }
 
 
