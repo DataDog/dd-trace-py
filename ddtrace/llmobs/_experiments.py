@@ -229,7 +229,6 @@ class Dataset:
         # Only show progress bar for large datasets
         show_progress = total_records > chunk_size
         if show_progress:
-            print(f"\nUploading {total_records} records in {total_chunks} chunks...")
             _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
 
         for i, chunk in enumerate(chunks):
@@ -602,7 +601,7 @@ class Experiment:
 
     def run(
         self,
-        _jobs: int = 10,
+        jobs: int = 10,
         raise_errors: bool = False,
     ) -> "ExperimentResults":
         """
@@ -626,55 +625,24 @@ class Experiment:
             self._datadog_experiment_id = experiment_id
 
         # 3) Now run the task and evaluations
-        self.run_task(_jobs=_jobs, raise_errors=raise_errors)
+        self.run_task(_jobs=jobs, raise_errors=raise_errors)
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
         return experiment_results
 
-    def run_task(
-        self,
-        _jobs: int = 10,
-        raise_errors: bool = False,
-    ) -> None:
+    def run_task(self, _jobs: int = 50, raise_errors: bool = False) -> None:
         """
-        Execute the task function on the dataset and store the outputs.
-        The caller (run()) ensures that self._datadog_experiment_id is set first.
+        Execute the task function on the dataset concurrently using ThreadPoolExecutor.map,
+        updating progress via _print_progress_bar and processing more rows in parallel.
         """
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
-        if not 1 <= _jobs <= 30:
-            raise ValueError("Number of jobs must be between 1 and 30")
-
-        def instrumented_task(
-            record_id: str, input_data: Any, expected_output: Any, config: Optional[Dict[str, Any]] = None
-        ):
-            with LLMObs._experiment(name="experiment-task") as span:
-                span.context.set_baggage_item("is_experiment_task", True)
-                output = self.task(input_data, config)
-                LLMObs.annotate(
-                    span,
-                    input_data=input_data,
-                    output_data=output,
-                    tags={
-                        "dataset_id": self.dataset._datadog_dataset_id,
-                        "dataset_record_id": record_id,
-                        "experiment_id": self._datadog_experiment_id,
-
-                    },
-                )
-                LLMObs._tag_expected_output(span, expected_output)
-                return (output, span)
-
-        self.outputs = []
         total_rows = len(self.dataset)
-        completed = 0
-        error_count = 0
 
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-
-            with LLMObs._experiment(name="experiment-task") as span:
-                span.context.set_baggage_item("is_experiment_task", True)
-                try:
+            try:
+                with LLMObs._experiment(name=self.task.__name__) as span:
+                    span.context.set_baggage_item("is_experiment_task", True)
                     input_data = row["input"]
                     expected_output = row["expected_output"]
 
@@ -684,7 +652,7 @@ class Experiment:
                         output = self.task(input_data)
 
                     # Periodic flush for concurrency
-                    if idx % 10 == 0:
+                    if idx % 30 == 0:
                         LLMObs.flush()
 
                     LLMObs.annotate(
@@ -699,6 +667,10 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
+                    span_context = LLMObs.export_span(span=span)
+                    span_id = span_context["span_id"]
+                    trace_id = span_context["trace_id"]
+
                     return {
                         "idx": idx,
                         "output": output,
@@ -709,92 +681,56 @@ class Experiment:
                             "project_name": self.project_name,
                             "experiment_name": self.name,
                             "dataset_name": self.dataset.name,
-                            "span_id": span.span_id,
-                            "trace_id": span.trace_id,
+                            "span_id": span_id,
+                            "trace_id": trace_id,
                         },
                         "error": {"message": None, "stack": None, "type": None},
                     }
-
-                except Exception as e:
-                    error_message = str(e)
-                    return {
-                        "idx": idx,
-                        "output": None,
-                        "metadata": {
-                            "timestamp": start_time,
-                            "duration": time.time() - start_time,
-                            "dataset_record_index": idx,
-                            "project_name": self.project_name,
-                            "experiment_name": self.name,
-                            "dataset_name": self.dataset.name,
-                            "span_id": span.span_id,
-                            "trace_id": span.trace_id,
-                        },
-                        "error": {
-                            "message": error_message,
-                            "stack": traceback.format_exc(),
-                            "type": type(e).__name__,
-                        }
-                    }
-
-        _print_progress_bar(0, total_rows, prefix='Processing:', suffix='Complete')
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
-            futures = {
-                executor.submit(process_row, (idx, row)): idx
-                for idx, row in enumerate(self.dataset)
-            }
-            outputs_buffer = [None] * total_rows
-
-            try:
-                for future in concurrent.futures.as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        output_data = future.result()
-                        outputs_buffer[idx] = output_data
-                        if raise_errors and output_data["error"]["message"]:
-                            error_message = output_data["error"]["message"]
-                            raise ExperimentTaskError(
-                                error_message, idx, output_data["error"]["type"]
-                            )
-
-                        elif output_data["error"]["message"]:
-                            error_count += 1
-
-                    except Exception as e:
-                        outputs_buffer[idx] = {
-                            "idx": idx,
-                            "output": None,
-                            "metadata": {
-                                "timestamp": time.time(),
-                                "duration": 0,
-                                "dataset_record_index": idx,
-                                "project_name": self.project_name,
-                                "experiment_name": self.name,
-                                "dataset_name": self.dataset.name,
-                                "span_id": span.span_id,
-                                "trace_id": span.trace_id,
-                            },
-                            "error": {
-                                "message": str(e),
-                                "stack": traceback.format_exc(),
-                                "type": type(e).__name__,
-                            },
-                        }
-                        if raise_errors:
-                            raise e
-                        else:
-                            error_count += 1
-
-                    completed += 1
-                    _print_progress_bar(completed, total_rows, prefix="Processing:", suffix="Complete")
-
             except Exception as e:
-                for future in futures:
-                    future.cancel()
-                executor.shutdown(wait=False)
-                raise e
+                error_message = str(e)
+                # In case of an exception, span_id and trace_id are set to None
+                return {
+                    "idx": idx,
+                    "output": None,
+                    "metadata": {
+                        "timestamp": start_time,
+                        "duration": time.time() - start_time,
+                        "dataset_record_index": idx,
+                        "project_name": self.project_name,
+                        "experiment_name": self.name,
+                        "dataset_name": self.dataset.name,
+                        "span_id": None,
+                        "trace_id": None,
+                    },
+                    "error": {
+                        "message": error_message,
+                        "stack": traceback.format_exc(),
+                        "type": type(e).__name__,
+                    }
+                }
 
+        outputs_buffer = []
+        completed = 0
+
+        # Using ThreadPoolExecutor.map to process rows concurrently
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
+            # executor.map returns results in order, so we iterate and update our progress
+            for result in executor.map(process_row, list(enumerate(self.dataset))):
+                outputs_buffer.append(result)
+                completed += 1
+                _print_progress_bar(completed, total_rows, prefix="Processing:", suffix="Complete")
+
+        # Check for errors and raise if required
+        error_count = 0
+        for idx, output_data in enumerate(outputs_buffer):
+            if output_data["error"]["message"]:
+                error_count += 1
+                if raise_errors:
+                    raise ExperimentTaskError(
+                        output_data["error"]["message"],
+                        idx,
+                        output_data["error"]["type"]
+                    )
         self.outputs = outputs_buffer
         self.has_run = True
 
@@ -1110,6 +1046,7 @@ class ExperimentResults:
                         metric_value = str(metric_payload_value["value"])
 
 
+                
                     metric = {
                         "span_id": str(span_id),
                         "trace_id": str(trace_id),
@@ -1118,28 +1055,25 @@ class ExperimentResults:
                         "label": metric_payload_name,
                         "score_value" if metric_type == "score" else "categorical_value": metric_value,
                         "error": metric_payload_value["error"],
-                        "join_on": {
-                            "span": {
-                                "trace_id": str(trace_id),
-                                "span_id": str(span_id),
-                            },
-                        }
+                        # "join_on": {
+                        #     "span": {
+                        #         "trace_id": str(trace_id),
+                        #         "span_id": str(span_id),
+                        #     },
+                        # }
                     }
 
                     metrics.append(metric)
                     
 
-            # Prepare and send chunk payload
             chunk_payload = {
                 "data": {
-                    "type": "evaluation_metric",
+                    "type": "experiments",
                     "attributes": {"scope": "experiments", "metrics": metrics, "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + experiment_id]}, 
                 }
             }
 
-            print("chunk_payload: ", chunk_payload)
-
-            url = f"/api/intake/llm-obs/v2/eval-metric"
+            url = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
             exp_http_request("POST", url, body=json.dumps(chunk_payload).encode("utf-8"))
 
             if show_progress:
