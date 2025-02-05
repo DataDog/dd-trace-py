@@ -60,9 +60,9 @@ _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, str]] = None, time_unix_nano: Optional[int] = None):
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None, time_unix_nano: Optional[int] = None):
         self.name: str = name
-        self.attributes: Dict[str, str] = attributes or {}
+        self.attributes: Dict[str, Any] = attributes or {}
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
@@ -74,7 +74,16 @@ class SpanEvent:
         return d
 
     def __str__(self):
-        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        def format_value(value: Any) -> str:
+            if isinstance(value, list):
+                return "[" + ", ".join(map(str, value)) + "]"  # Convert list to a string format
+            return str(value)
+
+        if not self.attributes:
+            attrs_str = "None"
+        else:
+            attrs_str = ", ".join(f"{k}: {format_value(v)}" for k, v in self.attributes.items())
+
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
 
@@ -473,7 +482,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, Any]] = None, timestamp: Optional[int] = None
     ) -> None:
         """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
