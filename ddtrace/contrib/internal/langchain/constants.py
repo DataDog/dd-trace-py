@@ -80,4 +80,3 @@ agent_output_parser_classes = {
 }
 
 API_KEY = "langchain.request.api_key"
-MODEL = "langchain.request.model"

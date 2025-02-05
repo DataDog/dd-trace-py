@@ -41,10 +41,6 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.langchain.constants import API_KEY
-from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
-from ddtrace.contrib.internal.langchain.constants import MODEL
-from ddtrace.contrib.internal.langchain.constants import PROMPT_TOKENS
-from ddtrace.contrib.internal.langchain.constants import TOTAL_COST
 from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
