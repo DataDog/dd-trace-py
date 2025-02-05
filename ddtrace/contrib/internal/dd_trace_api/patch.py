@@ -35,24 +35,16 @@ def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
 
 
 def _call_on_real_instance(
-    operand_stub: dd_trace_api._Stub,
-    method_name: str,
-    retval_from_api: Optional[Any],
-    state_shared_with_api: Dict,
-    *args: List,
-    **kwargs: Dict
+    operand_stub: dd_trace_api._Stub, method_name: str, retval_from_api: Optional[Any], *args: List, **kwargs: Dict
 ) -> None:
     """
     Call `method_name` on the real object corresponding to `operand_stub` with `args` and `kwargs` as arguments.
-    Pass the return value back to the API layer via the mutable `state_shared_with_api`.
 
     Store the value that will be returned from the API call we're in the middle of, for the purpose
     of mapping from those Stub objects to their real counterparts.
     """
     args, kwargs = _proxy_span_arguments(args, kwargs)
     retval_from_impl = getattr(_STUB_TO_REAL[operand_stub], method_name)(*args, **kwargs)
-    if "impl_return_value" in state_shared_with_api:
-        state_shared_with_api["impl_return_value"] = retval_from_impl
     if retval_from_api is not None:
         _STUB_TO_REAL[retval_from_api] = retval_from_impl
 
@@ -62,14 +54,10 @@ def _hook(name, hook_args):
     if not dd_trace_api.__datadog_patch or not name.startswith(_DD_HOOK_PREFIX):
         return
     args = hook_args[0][0]
-    state_shared_with_api = args[0]
+    stub_self = args[0]
+    api_return_value = args[1]
     _call_on_real_instance(
-        state_shared_with_api.get("stub_self"),
-        name.replace(_DD_HOOK_PREFIX, "").rsplit(".", 1)[-1],
-        state_shared_with_api.get("api_return_value"),
-        state_shared_with_api,
-        *args[1:],
-        **hook_args[0][1]
+        stub_self, name.replace(_DD_HOOK_PREFIX, "").rsplit(".", 1)[-1], api_return_value, *args[2:], **hook_args[0][1]
     )
 
 
