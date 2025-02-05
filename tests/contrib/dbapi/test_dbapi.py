@@ -211,7 +211,7 @@ class TestTracedCursor(TracerTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
-        pin = Pin(tags={"pin1": "value_pin1"})
+        pin = Pin(None, tags={"pin1": "value_pin1"})
         pin._tracer = tracer
         cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
         traced_cursor = TracedCursor(cursor, pin, cfg)

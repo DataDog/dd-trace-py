@@ -1588,7 +1588,7 @@ def test_connection(client, test_spans):
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}"
+    assert span.service == "{}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
@@ -1608,6 +1608,9 @@ if __name__ == "__main__":
         code,
         env=env,
     )
+    import pdb
+
+    pdb.set_trace()
     assert status == 0, (out, err)
 
 

@@ -246,7 +246,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
-        pin = Pin("my_service", tags={"pin1": "value_pin1"})
+        pin = Pin(None, tags={"pin1": "value_pin1"})
         pin._tracer = tracer
         cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
         traced_cursor = TracedAsyncCursor(cursor, pin, cfg)
@@ -263,7 +263,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
-        pin = Pin("my_service", tags={"pin1": "value_pin1"})
+        pin = Pin(None, tags={"pin1": "value_pin1"})
         pin._tracer = tracer
 
         traced_cursor = TracedAsyncCursor(cursor, pin, {})
@@ -280,7 +280,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
-        pin = Pin("my_service", tags={"pin1": "value_pin1"})
+        pin = Pin(None, tags={"pin1": "value_pin1"})
         pin._tracer = tracer
         cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
         traced_cursor = TracedAsyncCursor(cursor, pin, cfg)

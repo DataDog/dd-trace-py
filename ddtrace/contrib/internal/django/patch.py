@@ -148,8 +148,9 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
+        tracer = pin.tracer
         pin = Pin(service, tags=tags)
-        pin._tracer = pin.tracer
+        pin._tracer = tracer
 
         cursor = func(*args, **kwargs)
 
