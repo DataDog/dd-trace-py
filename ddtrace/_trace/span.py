@@ -83,13 +83,13 @@ class SpanEvent:
     def __str__(self):
         def format_value(value: Any) -> str:
             if isinstance(value, list):
-                return f"[{', '.join(map(str, value))}]"
+                return f"[{' '.join(map(str, value))}]"
             return str(value)
 
         if not self.attributes:
             attrs_str = "None"
         else:
-            attrs_str = ", ".join(f"{k}: {format_value(v)}" for k, v in self.attributes.items())
+            attrs_str = ",".join(f"{k}:{format_value(v)}" for k, v in self.attributes.items())
 
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
