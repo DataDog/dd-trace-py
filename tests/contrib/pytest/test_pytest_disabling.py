@@ -197,17 +197,17 @@ class PytestDisablingTestCase(PytestTestCaseBase):
     #     [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
 
     #     [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-    #     assert test_span_fail_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+    #     assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
     #     assert test_span_fail_quarantined.get_tag("test.status") == "skip"
 
     #     [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-    #     assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+    #     assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
     #     assert test_span_pass_quarantined.get_tag("test.status") == "skip"
 
     #     [test_span_fail_setup] = _get_spans_from_list(spans, "test", "test_fail_setup")
-    #     assert test_span_fail_setup.get_tag("test.quarantine.is_quarantined") == "true"
+    #     assert test_span_fail_setup.get_tag("test.management.is_quarantined") == "true"
     #     assert test_span_fail_setup.get_tag("test.status") == "skip"
 
     #     [test_span_fail_teardown] = _get_spans_from_list(spans, "test", "test_fail_teardown")
-    #     assert test_span_fail_teardown.get_tag("test.quarantine.is_quarantined") == "true"
+    #     assert test_span_fail_teardown.get_tag("test.management.is_quarantined") == "true"
     #     assert test_span_fail_teardown.get_tag("test.status") == "skip"
