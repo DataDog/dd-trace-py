@@ -215,7 +215,7 @@ class Pin(object):
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,
     ):
-        """Internal method that can create a clone the tracer on the current Pin"""
+        """Internal method that can clone the tracer from an existing Pin. This is used in tests"""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
             tags = self.tags.copy()
