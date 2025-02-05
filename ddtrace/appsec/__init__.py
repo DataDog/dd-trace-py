@@ -1,4 +1,4 @@
-# this module must not load any other appsec module
+# this module must not load any other unsafe appsec module directly
 
 from ddtrace.internal import core
 
