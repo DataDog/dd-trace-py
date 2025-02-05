@@ -3,10 +3,10 @@ import mysql
 
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured

@@ -10,10 +10,10 @@ from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings._config import _deepmerge
+from ddtrace.trace import Pin
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import flaky

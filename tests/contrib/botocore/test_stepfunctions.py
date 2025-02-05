@@ -3,7 +3,7 @@ import json
 from ddtrace.contrib.internal.botocore.services.stepfunctions import update_stepfunction_input
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 
 
 def test_update_stepfunction_input():

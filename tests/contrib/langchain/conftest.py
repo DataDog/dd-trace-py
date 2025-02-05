@@ -5,9 +5,9 @@ import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config

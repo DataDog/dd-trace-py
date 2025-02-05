@@ -51,7 +51,12 @@ class TracedClient(ObjectProxy):
         super(TracedClient, self).__init__(client)
 
         schematized_service = schematize_service_name(service)
-        pin = ddtrace.trace.Pin(service=schematized_service)
+        # Calling ddtrace.trace.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Remove this if statement when the `tracer` argument is removed
+        if tracer is ddtrace.tracer:
+            pin = ddtrace.trace.Pin(service=schematized_service)
+        else:
+            pin = ddtrace.trace.Pin(service=schematized_service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to

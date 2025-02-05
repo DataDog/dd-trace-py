@@ -6,9 +6,9 @@ import pytest
 
 from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import DummyTracer
-from tests.utils import TestPin as Pin
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
 from tests.utils import override_config

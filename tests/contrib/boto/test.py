@@ -18,10 +18,10 @@ from ddtrace.contrib.internal.boto.patch import patch
 from ddtrace.contrib.internal.boto.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 
 # project
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
+from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

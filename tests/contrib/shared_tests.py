@@ -1,4 +1,4 @@
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 
 
 # DBM Shared Tests

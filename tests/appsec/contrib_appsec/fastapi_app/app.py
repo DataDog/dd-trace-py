@@ -13,7 +13,6 @@ from pydantic import BaseModel
 
 import ddtrace.constants
 from ddtrace.trace import tracer
-from tests.utils import TestPin as Pin
 
 
 fake_secret_token = "DataDog"
@@ -105,7 +104,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        Pin.override(app, service=service_name, tracer=ddtrace.tracer)
+        ddtrace.trace.Pin.override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):

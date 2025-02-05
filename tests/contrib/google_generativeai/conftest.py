@@ -6,11 +6,11 @@ import pytest
 from ddtrace.contrib.internal.google_generativeai.patch import patch
 from ddtrace.contrib.internal.google_generativeai.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
 from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
 from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config

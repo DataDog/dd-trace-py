@@ -8,7 +8,7 @@ from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

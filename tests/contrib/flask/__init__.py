@@ -4,7 +4,7 @@ import wrapt
 
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 

@@ -7,9 +7,9 @@ from ddtrace.contrib.internal.mongoengine.patch import patch
 from ddtrace.contrib.internal.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

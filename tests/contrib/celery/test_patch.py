@@ -1,7 +1,7 @@
 import unittest
 
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.utils import TestPin as Pin
 
 
 class CeleryPatchTest(unittest.TestCase):

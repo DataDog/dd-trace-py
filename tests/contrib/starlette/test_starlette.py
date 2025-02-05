@@ -14,9 +14,9 @@ from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
+from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
 from tests.utils import DummyTracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerSpanContainer
 from tests.utils import override_http_config
 from tests.utils import snapshot

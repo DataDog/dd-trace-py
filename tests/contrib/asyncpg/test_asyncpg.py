@@ -8,11 +8,11 @@ import pytest
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.utils import TestPin as Pin
 from tests.utils import flaky
 
 

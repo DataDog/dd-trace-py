@@ -3,7 +3,7 @@ from async_generator import async_generator
 from async_generator import asynccontextmanager
 from async_generator import yield_
 
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 
 
 LOCALSTACK_ENDPOINT_URL = {

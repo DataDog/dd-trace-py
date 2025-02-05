@@ -7,7 +7,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.internal.compat import httplib
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from .test_httplib import SOCKET

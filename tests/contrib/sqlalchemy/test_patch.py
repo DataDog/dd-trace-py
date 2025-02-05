@@ -4,8 +4,8 @@ from sqlalchemy import text
 from ddtrace.contrib.internal.sqlalchemy.patch import get_version
 from ddtrace.contrib.internal.sqlalchemy.patch import patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

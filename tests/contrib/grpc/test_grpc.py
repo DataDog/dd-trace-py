@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import flaky
 from tests.utils import snapshot

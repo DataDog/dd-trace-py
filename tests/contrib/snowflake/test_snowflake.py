@@ -8,9 +8,9 @@ import snowflake.connector
 
 from ddtrace.contrib.internal.snowflake.patch import patch
 from ddtrace.contrib.internal.snowflake.patch import unpatch
+from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.opentracer.utils import init_tracer
-from tests.utils import TestPin as Pin
 from tests.utils import override_config
 from tests.utils import snapshot
 

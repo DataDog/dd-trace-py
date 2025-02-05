@@ -17,8 +17,8 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer

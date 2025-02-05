@@ -13,10 +13,10 @@ from ddtrace.contrib.internal.pymemcache.client import WrappedClient
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.utils import DummyTracer
 
 # project
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
+from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 

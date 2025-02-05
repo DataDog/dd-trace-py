@@ -7,10 +7,10 @@ from ddtrace.contrib.dbapi_async import TracedAsyncCursor
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
 from ddtrace.trace import Span  # noqa:F401
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
-from tests.utils import TestPin as Pin
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 

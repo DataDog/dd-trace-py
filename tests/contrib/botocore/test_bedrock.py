@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
@@ -13,7 +14,6 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import TestPin as Pin
 from tests.utils import override_global_config
 
 

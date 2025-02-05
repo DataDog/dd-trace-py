@@ -18,10 +18,10 @@ from ddtrace.contrib.internal.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
-from tests.utils import TestPin as Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

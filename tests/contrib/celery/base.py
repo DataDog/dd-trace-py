@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from ..config import RABBITMQ_CONFIG

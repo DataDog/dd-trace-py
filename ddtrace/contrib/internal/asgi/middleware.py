@@ -152,7 +152,10 @@ class TraceMiddleware:
 
         # Calling ddtrace.trace.Pin(...) with the `tracer` argument is deprecated
         # Remove this if statement when the `tracer` argument is removed
-        pin = ddtrace.trace.Pin(service="asgi")
+        if self.tracer is ddtrace.tracer:
+            pin = ddtrace.trace.Pin(service="asgi")
+        else:
+            pin = ddtrace.trace.Pin(service="asgi", tracer=self.tracer)
 
         with core.context_with_data(
             "asgi.__call__",

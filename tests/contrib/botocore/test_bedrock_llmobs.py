@@ -7,13 +7,13 @@ import pytest
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import TestPin as Pin
 from tests.utils import override_global_config
 
 

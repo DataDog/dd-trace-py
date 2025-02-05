@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from ddtrace import config
 from ddtrace.settings import IntegrationConfig
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 
 
 class InstanceConfigTestCase(TestCase):

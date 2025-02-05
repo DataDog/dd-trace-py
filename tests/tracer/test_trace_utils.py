@@ -26,9 +26,9 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Context
+from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
-from tests.utils import TestPin as Pin
 from tests.utils import override_global_config
 
 

@@ -1,7 +1,7 @@
 import celery
 
 from ddtrace.contrib.internal.celery.patch import unpatch_app
-from tests.utils import TestPin as Pin
+from ddtrace.trace import Pin
 
 from .base import CeleryBaseTestCase
 
