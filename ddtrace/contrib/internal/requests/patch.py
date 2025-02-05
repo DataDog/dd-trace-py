@@ -62,5 +62,13 @@ def unpatch():
         return
     requests.__datadog_patch = False
 
-    _u(requests.Session, "request")
-    _u(requests.Session, "send")
+    try:
+        _u(requests.Session, "request")
+    except AttributeError:
+        # It was not patched
+        pass
+    try:
+        _u(requests.Session, "send")
+    except AttributeError:
+        # It was not patched
+        pass
