@@ -93,9 +93,8 @@ class EarlyFlakeDetectionSettings:
 
 
 @dataclasses.dataclass(frozen=True)
-class QuarantineSettings:
+class TestManagementSettings:
     enabled: bool = False
-    skip_quarantined_tests: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -114,7 +113,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
-    quarantine: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
+    test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -394,11 +393,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
-            quarantine = QuarantineSettings(
-                enabled=attributes.get("quarantine", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")),
-                skip_quarantined_tests=attributes.get("quarantine", {}).get("skip_quarantined_tests", False)
-                or asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")),
+            test_management = TestManagementSettings(
+                enabled=attributes.get("test_management", {}).get("enabled", False)
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
             )
 
         except KeyError:
@@ -412,7 +409,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
             early_flake_detection=early_flake_detection,
-            quarantine=quarantine,
+            test_management=test_management,
         )
 
         record_settings_response(
@@ -422,7 +419,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
-            quarantine_enabled=api_settings.quarantine.enabled,
+            test_management_enabled=api_settings.test_management.enabled,
         )
 
         return api_settings

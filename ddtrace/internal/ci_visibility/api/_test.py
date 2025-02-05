@@ -250,12 +250,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         return self._is_new and (self._parameters is None)
 
     def is_quarantined(self):
-        return self._session_settings.quarantine_settings.enabled and (
+        return self._session_settings.test_management_settings.enabled and (
             self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
         )
 
     def is_disabled(self):
-        return self._session_settings.quarantine_settings.enabled and (
+        return self._session_settings.test_management_settings.enabled and (
             self._is_disabled or self.get_tag(TEST_IS_DISABLED)
         )
 

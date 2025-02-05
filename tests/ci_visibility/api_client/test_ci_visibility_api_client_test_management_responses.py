@@ -34,7 +34,7 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
                                 },
                                 "suite2.py": {
                                     "tests": {
-                                        "test1": {"properties": {"quarantined": False}},
+                                        "test1": {"properties": {"quarantined": False, "disabled": True}},
                                         "test5": {"properties": {"quarantined": True}},
                                     }
                                 },
@@ -45,6 +45,7 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
                                 "suite1.py": {
                                     "tests": {
                                         "test1": {"properties": {"quarantined": False}},
+                                        "test2": {"properties": {"disabled": False}},
                                     }
                                 }
                             }
@@ -56,13 +57,14 @@ class TestTestVisibilityAPIClientTestManagementResponses(TestTestVisibilityAPICl
         mock_response = Response(200, json.dumps(response_dict))
 
         expected_tests = {
-            _make_fqdn_internal_test_id("module1", "suite1.py", "test1"): TestProperties(quarantined=True),
-            _make_fqdn_internal_test_id("module1", "suite1.py", "test2"): TestProperties(quarantined=False),
-            _make_fqdn_internal_test_id("module1", "suite1.py", "test3"): TestProperties(quarantined=False),
-            _make_fqdn_internal_test_id("module1", "suite1.py", "test4"): TestProperties(quarantined=False),
-            _make_fqdn_internal_test_id("module1", "suite2.py", "test1"): TestProperties(quarantined=False),
-            _make_fqdn_internal_test_id("module1", "suite2.py", "test5"): TestProperties(quarantined=True),
-            _make_fqdn_internal_test_id("module2", "suite1.py", "test1"): TestProperties(quarantined=False),
+            _make_fqdn_internal_test_id("module1", "suite1.py", "test1"): TestProperties(quarantined=True, disabled=False),
+            _make_fqdn_internal_test_id("module1", "suite1.py", "test2"): TestProperties(quarantined=False, disabled=False),
+            _make_fqdn_internal_test_id("module1", "suite1.py", "test3"): TestProperties(quarantined=False, disabled=False),
+            _make_fqdn_internal_test_id("module1", "suite1.py", "test4"): TestProperties(quarantined=False, disabled=False),
+            _make_fqdn_internal_test_id("module1", "suite2.py", "test1"): TestProperties(quarantined=False, disabled=True),
+            _make_fqdn_internal_test_id("module1", "suite2.py", "test5"): TestProperties(quarantined=True, disabled=False),
+            _make_fqdn_internal_test_id("module2", "suite1.py", "test1"): TestProperties(quarantined=False, disabled=False),
+            _make_fqdn_internal_test_id("module2", "suite1.py", "test2"): TestProperties(quarantined=False, disabled=False),
         }
 
         client = self._get_test_client()

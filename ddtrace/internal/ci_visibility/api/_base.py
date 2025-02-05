@@ -25,7 +25,7 @@ from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
@@ -72,7 +72,7 @@ class TestVisibilitySessionSettings:
     coverage_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
-    quarantine_settings: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
+    test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -210,8 +210,8 @@ class TestVisibilityItemBase(abc.ABC):
             self._set_atr_tags()
 
         if (
-            self._session_settings.quarantine_settings is not None
-            and self._session_settings.quarantine_settings.enabled
+            self._session_settings.test_management_settings is not None
+            and self._session_settings.test_management_settings.enabled
         ):
             self._set_quarantine_tags()
 

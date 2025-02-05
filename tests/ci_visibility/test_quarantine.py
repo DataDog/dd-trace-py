@@ -3,7 +3,7 @@ from unittest import mock
 
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
@@ -32,7 +32,7 @@ class TestCIVisibilityTestQuarantine:
             workspace_path=Path().absolute(),
             efd_settings=EarlyFlakeDetectionSettings(enabled=False),
             atr_settings=AutoTestRetriesSettings(enabled=False),
-            quarantine_settings=QuarantineSettings(enabled=True),
+            test_management_settings=TestManagementSettings(enabled=True),
         )
 
     def test_quarantine_tags_set(self):

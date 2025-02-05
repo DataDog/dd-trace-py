@@ -118,20 +118,6 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def should_skip_quarantined_tests() -> bool:
-        log.debug("Checking if quarantined tests should be skipped")
-
-        should_skip = bool(
-            core.dispatch_with_results(
-                "test_visibility.session.should_skip_quarantined_tests"
-            ).should_skip_quarantined_tests.value
-        )
-        log.debug("Quarantined tests should be skipped: %s", should_skip)
-
-        return should_skip
-
-    @staticmethod
-    @_catch_and_log_exceptions
     def set_covered_lines_pct(coverage_pct: float):
         log.debug("Setting covered lines percentage for session to %s", coverage_pct)
 
