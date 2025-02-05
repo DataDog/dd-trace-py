@@ -1608,9 +1608,6 @@ if __name__ == "__main__":
         code,
         env=env,
     )
-    import pdb
-
-    pdb.set_trace()
     assert status == 0, (out, err)
 
 
