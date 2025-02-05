@@ -129,11 +129,18 @@ def _tag_openai_token_usage(
     total_cost = span.get_metric(TOTAL_COST) or 0
     if not propagate and get_openai_token_cost_for_model:
         try:
-            completion_cost = get_openai_token_cost_for_model(
-                span.get_tag(MODEL),
-                span.get_metric(COMPLETION_TOKENS),
-                is_completion=True,
-            )
+            if parse_version(langchain_community.__version__) >= (0, 3, 13):
+                completion_cost = get_openai_token_cost_for_model(
+                    span.get_tag(MODEL),
+                    span.get_metric(COMPLETION_TOKENS),
+                    token_type=2,
+                )
+            else:
+                completion_cost = get_openai_token_cost_for_model(
+                    span.get_tag(MODEL),
+                    span.get_metric(COMPLETION_TOKENS),
+                    is_completion=True,
+                )
             prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
             total_cost = completion_cost + prompt_cost
         except ValueError:
