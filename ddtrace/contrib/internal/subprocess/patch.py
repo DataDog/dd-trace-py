@@ -328,7 +328,7 @@ def unpatch() -> None:
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf or not asm_config._asm_enabled:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         if isinstance(args[0], str):
             for callback in _STR_CALLBACKS.values():
@@ -352,7 +352,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
-    if not asm_config._asm_enabled:
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
         return wrapped(*args, **kwargs)
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
@@ -369,7 +369,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
-    if not asm_config._asm_enabled:
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
         return wrapped(*args, **kwargs)
     try:
         mode, file, func_args, _, _ = args
@@ -400,7 +400,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf or not asm_config._asm_enabled:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         cmd_args = args[0] if len(args) else kwargs["args"]
         if isinstance(cmd_args, (list, tuple, str)):
@@ -434,7 +434,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf or not asm_config._asm_enabled:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         binary = core.get_item("subprocess_popen_binary")
 
