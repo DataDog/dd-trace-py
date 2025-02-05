@@ -189,9 +189,7 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
     @_catch_and_log_exceptions
     def is_disabled_test(item_id: InternalTestId) -> bool:
         log.debug("Checking if test %s is disabled", item_id)
-        is_disabled = bool(
-            core.dispatch_with_results("test_visibility.test.is_disabled", (item_id,)).is_disabled.value
-        )
+        is_disabled = bool(core.dispatch_with_results("test_visibility.test.is_disabled", (item_id,)).is_disabled.value)
         log.debug("Test %s is disabled: %s", item_id, is_disabled)
         return is_disabled
 

@@ -22,8 +22,8 @@ from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
-from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
+from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -133,9 +133,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
 
-    def _set_quarantine_tags(self) -> None:
+    def _set_test_management_tags(self) -> None:
         if self._is_quarantined:
             self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
+        if self._is_disabled:
+            self.set_tag(TEST_IS_DISABLED, self._is_disabled)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags

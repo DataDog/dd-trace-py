@@ -20,35 +20,34 @@ pytestmark = pytest.mark.skipif(
 
 
 _TEST_PROPERTIES = {
-    _make_fqdn_internal_test_id("", "test_disabling.py", "test_disabled"): TestProperties(
-        disabled=True
-    ),
-    _make_fqdn_internal_test_id("", "test_disabling.py", "test_quarantined"): TestProperties(
-        quarantined=True
-    ),
-    _make_fqdn_internal_test_id("", "test_disabling.py", "test_disabled_and_quarantined"): TestProperties(
+    _make_fqdn_internal_test_id("", "test_disabled.py", "test_disabled"): TestProperties(disabled=True),
+    _make_fqdn_internal_test_id("", "test_quarantined.py", "test_quarantined"): TestProperties(quarantined=True),
+    _make_fqdn_internal_test_id(
+        "", "test_disabled_and_quarantined.py", "test_disabled_and_quarantined"
+    ): TestProperties(
         quarantined=True,
         disabled=True,
     ),
 }
 
-_TESTS = """
-import pytest
-
+_TEST_DISABLED = """
 def test_disabled():
     assert False
+"""
 
+_TEST_QUARANTINED = """
 def test_quarantined():
     assert False
+"""
 
+_TEST_DISABLED_AND_QUARANTINED = """
 def test_disabled_and_quarantined():
     assert False
+"""
 
+_TEST_PASS = """
 def test_pass():
     assert True
-
-def test_fail():
-    assert False
 """
 
 
@@ -83,142 +82,49 @@ class PytestDisablingTestCase(PytestTestCaseBase):
         ):
             yield
 
-    def test_disabling(self):
-         self.testdir.makepyfile(test_disabling=_TESTS)
-         rec = self.inline_run("--ddtrace", "-v")
-         assert rec.ret == 1
-         assert_stats(rec, passed=1, failed=1, skipped=2, quarantined=1)
+    def test_disabled_no_ddtrace_does_not_disable(self):
+        self.testdir.makepyfile(test_disabled=_TEST_DISABLED)
+        self.testdir.makepyfile(test_pass=_TEST_PASS)
+        rec = self.inline_run()
+        assert rec.ret == 1
+        assert_stats(rec, passed=1, failed=1)
+        assert len(self.pop_spans()) == 0
 
+    def test_disabled_test(self):
+        self.testdir.makepyfile(test_disabled=_TEST_DISABLED)
+        self.testdir.makepyfile(test_pass=_TEST_PASS)
+        rec = self.inline_run("--ddtrace")
+        assert rec.ret == 0
+        assert_stats(rec, passed=1, skipped=1)
 
-    # def test_fail_quarantined_no_ddtrace_does_not_quarantine(self):
-    #     self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
-    #     self.testdir.makepyfile(test_pass_normal=_TEST_PASS_UNQUARANTINED)
-    #     self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_normal=_TEST_FAIL_UNQUARANTINED)
-    #     rec = self.inline_run("-q")
-    #     assert rec.ret == 1
-    #     assert_stats(rec, passed=2, failed=2)
-    #     assert len(self.pop_spans()) == 0  # ddtrace disabled, not collecting traces
+        spans = self.pop_spans()
+        [session_span] = _get_spans_from_list(spans, "session")
+        [module_span] = _get_spans_from_list(spans, "module")
+        [suite_span_disabled] = _get_spans_from_list(spans, "suite", "test_disabled.py")
+        [suite_span_pass] = _get_spans_from_list(spans, "suite", "test_pass.py")
 
-    # def test_fail_quarantined_with_ddtrace_does_not_fail_session(self):
-    #     self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
+        [test_span_disabled] = _get_spans_from_list(spans, "test", "test_disabled")
+        assert test_span_disabled.get_tag("test.management.is_quarantined") is None
+        assert test_span_disabled.get_tag("test.management.is_test_disabled") == "true"
+        assert test_span_disabled.get_tag("test.status") == "skip"
 
-    #     rec = self.inline_run("--ddtrace", "-q")
+        [test_span_pass] = _get_spans_from_list(spans, "test", "test_pass")
+        assert test_span_pass.get_tag("test.management.is_quarantined") is None
+        assert test_span_pass.get_tag("test.management.is_test_disabled") is None
+        assert test_span_pass.get_tag("test.status") == "pass"
 
-    #     assert rec.ret == 0
-    #     assert_stats(rec, quarantined=2)
+    def test_disabled_and_quarantined_test(self):
+        self.testdir.makepyfile(test_disabled_and_quarantined=_TEST_DISABLED_AND_QUARANTINED)
+        rec = self.inline_run("--ddtrace")
+        assert rec.ret == 0
+        assert_stats(rec, passed=0, skipped=1)
 
-    #     assert len(self.pop_spans()) > 0
+        spans = self.pop_spans()
+        [session_span] = _get_spans_from_list(spans, "session")
+        [module_span] = _get_spans_from_list(spans, "module")
+        [suite_span] = _get_spans_from_list(spans, "suite", "test_disabled_and_quarantined.py")
 
-    # def test_failing_and_passing_quarantined_and_unquarantined_tests(self):
-    #     self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
-    #     self.testdir.makepyfile(test_pass_normal=_TEST_PASS_UNQUARANTINED)
-    #     self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_normal=_TEST_FAIL_UNQUARANTINED)
-
-    #     rec = self.inline_run("--ddtrace", "-q")
-    #     assert rec.ret == 1
-    #     assert_stats(rec, quarantined=2, passed=1, failed=1)
-
-    #     assert len(self.pop_spans()) > 0
-
-    # def test_quarantine_outcomes_without_atr(self):
-    #     return self._test_quarantine_outcomes(atr_enabled=False)
-
-    # def test_quarantine_outcomes_with_atr(self):
-    #     return self._test_quarantine_outcomes(atr_enabled=True)
-
-    # def _test_quarantine_outcomes(self, atr_enabled):
-    #     # ATR should not retry tests skipped by quarantine.
-    #     self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
-
-    #     with mock.patch(
-    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    #         return_value=TestVisibilityAPISettings(
-    #             test_management=TestManagementSettings(enabled=True, skip_quarantined_tests=True),
-    #             flaky_test_retries_enabled=atr_enabled,
-    #         ),
-    #     ):
-    #         rec = self.inline_run("--ddtrace", "-q")
-
-    #     assert rec.ret == 0
-    #     assert_stats(rec, quarantined=1)
-
-    #     outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls("pytest_report_teststatus")]
-    #     assert outcomes == [
-    #         ("setup", "skipped"),
-    #         ("teardown", "passed"),
-    #     ]
-
-    #     assert len(rec.getcalls("pytest_pyfunc_call")) == 0  # test function is not called
-
-    # def test_quarantine_fail_setup(self):
-    #     self.testdir.makepyfile(test_fail_setup_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
-
-    #     rec = self.inline_run("--ddtrace", "-q")
-
-    #     assert rec.ret == 0
-    #     assert_stats(rec, quarantined=1)
-
-    #     assert len(self.pop_spans()) > 0
-
-    # def test_quarantine_fail_teardown(self):
-    #     self.testdir.makepyfile(test_fail_teardown_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
-
-    #     rec = self.inline_run("--ddtrace", "-q")
-
-    #     assert rec.ret == 0
-    #     assert_stats(rec, quarantined=1)
-
-    #     assert len(self.pop_spans()) > 0
-
-    # def test_quarantine_skipping_spans_atr_disabled(self):
-    #     return self._test_quarantine_skipping_spans(atr_enabled=False)
-
-    # def test_quarantine_skipping_spans_atr_enabled(self):
-    #     return self._test_quarantine_skipping_spans(atr_enabled=True)
-
-    # def _test_quarantine_skipping_spans(self, atr_enabled):
-    #     # ATR should not affect spans for skipped quarantined tests.
-    #     self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_setup_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
-    #     self.testdir.makepyfile(test_fail_teardown_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
-
-    #     with mock.patch(
-    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    #         return_value=TestVisibilityAPISettings(
-    #             test_management=TestManagementSettings(enabled=True, skip_quarantined_tests=True),
-    #             flaky_test_retries_enabled=atr_enabled,
-    #         ),
-    #     ):
-    #         rec = self.inline_run("--ddtrace", "-q")
-
-    #     assert rec.ret == 0
-    #     assert_stats(rec, quarantined=4)
-
-    #     spans = self.pop_spans()
-
-    #     [session_span] = _get_spans_from_list(spans, "session")
-    #     assert session_span.get_tag("test_session.quarantine.enabled") == "true"
-
-    #     [module_span] = _get_spans_from_list(spans, "module")
-    #     [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
-    #     [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
-
-    #     [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-    #     assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
-    #     assert test_span_fail_quarantined.get_tag("test.status") == "skip"
-
-    #     [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-    #     assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
-    #     assert test_span_pass_quarantined.get_tag("test.status") == "skip"
-
-    #     [test_span_fail_setup] = _get_spans_from_list(spans, "test", "test_fail_setup")
-    #     assert test_span_fail_setup.get_tag("test.management.is_quarantined") == "true"
-    #     assert test_span_fail_setup.get_tag("test.status") == "skip"
-
-    #     [test_span_fail_teardown] = _get_spans_from_list(spans, "test", "test_fail_teardown")
-    #     assert test_span_fail_teardown.get_tag("test.management.is_quarantined") == "true"
-    #     assert test_span_fail_teardown.get_tag("test.status") == "skip"
+        [test_span] = _get_spans_from_list(spans, "test", "test_disabled_and_quarantined")
+        assert test_span.get_tag("test.management.is_quarantined") == "true"
+        assert test_span.get_tag("test.management.is_test_disabled") == "true"
+        assert test_span.get_tag("test.status") == "skip"

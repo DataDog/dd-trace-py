@@ -213,7 +213,7 @@ class TestVisibilityItemBase(abc.ABC):
             self._session_settings.test_management_settings is not None
             and self._session_settings.test_management_settings.enabled
         ):
-            self._set_quarantine_tags()
+            self._set_test_management_tags()
 
         # Allow items to potentially overwrite default and hierarchy tags.
         self._set_item_tags()
@@ -280,7 +280,7 @@ class TestVisibilityItemBase(abc.ABC):
         """ATR tags are only set at the test level"""
         pass
 
-    def _set_quarantine_tags(self) -> None:
+    def _set_test_management_tags(self) -> None:
         """Quarantine tags are only set at the test or session level"""
         pass
 

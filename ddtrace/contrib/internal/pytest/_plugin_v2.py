@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import re
 import typing as t
@@ -59,6 +60,7 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -120,6 +122,10 @@ def _handle_test_management(item, test_id):
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     is_disabled = InternalTest.is_disabled_test(test_id)
+
+    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+        # For intenal use: treat quarantined tests as disabled.
+        is_disabled = True
 
     if is_disabled:
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
