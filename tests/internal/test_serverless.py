@@ -80,39 +80,45 @@ def test_not_azure_function_consumption_plan():
 
 
 standard_blocklist = [
-        "ddtrace.appsec._api_security.api_manager",
-        "ddtrace.appsec._iast._ast.ast_patching",
-        "ddtrace.internal.telemetry.telemetry_writer",
-        "email.mime.application",
-        "email.mime.multipart",
-        "logging.handlers",
-        "multiprocessing",
-        "importlib_metadata",
-
-        # These modules must not be imported because their source files are
-        # specifically removed from the serverless python layer.
-        # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
-        "ddtrace.appsec._iast._taint_tracking._native",
-        "ddtrace.appsec._iast._stacktrace",
-        "ddtrace.internal.datadog.profiling.libdd_wrapper",
-        "ddtrace.internal.datadog.profiling.ddup._ddup",
-        "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.appsec._api_security.api_manager",
+    "ddtrace.appsec._iast._ast.ast_patching",
+    "ddtrace.internal.telemetry.telemetry_writer",
+    "email.mime.application",
+    "email.mime.multipart",
+    "logging.handlers",
+    "multiprocessing",
+    "importlib_metadata",
+    # These modules must not be imported because their source files are
+    # specifically removed from the serverless python layer.
+    # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
+    "ddtrace.appsec._iast._taint_tracking._native",
+    "ddtrace.appsec._iast._stacktrace",
+    "ddtrace.internal.datadog.profiling.libdd_wrapper",
+    "ddtrace.internal.datadog.profiling.ddup._ddup",
+    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
 ]
 expanded_blocklist = standard_blocklist + [
-        "importlib.metadata",
+    "importlib.metadata",
 ]
 
-@pytest.mark.parametrize('package,blocklist', [
-    ('ddtrace', expanded_blocklist),
-    ('ddtrace.contrib.internal.aws_lambda', expanded_blocklist),
-    ('ddtrace.contrib.internal.psycopg', expanded_blocklist),
-    # requests imports urlib3 which imports importlib.metadata
-    pytest.param('ddtrace.contrib.requests', standard_blocklist,
+
+@pytest.mark.parametrize(
+    "package,blocklist",
+    [
+        ("ddtrace", expanded_blocklist),
+        ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
+        ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
+        # requests imports urlib3 which imports importlib.metadata
+        pytest.param(
+            "ddtrace.contrib.requests",
+            standard_blocklist,
             # Currently this package will import `ddtrace.appsec._iast._taint_tracking._native`
             # and so is expected to fail for now. Once that is fixed and this test
             # begins to XPASS, the xfail should be removed.
-            marks=pytest.mark.xfail(strict=True)),
-])
+            marks=pytest.mark.xfail(strict=True),
+        ),
+    ],
+)
 def test_slow_imports(package, blocklist):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
