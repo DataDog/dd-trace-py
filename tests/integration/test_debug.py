@@ -36,7 +36,6 @@ def re_matcher(pattern):
 @pytest.mark.subprocess()
 def test_standard_tags():
     from datetime import datetime
-    import sys
 
     import ddtrace
     from ddtrace.internal import debug
@@ -74,14 +73,6 @@ def test_standard_tags():
 
     in_venv = f.get("in_virtual_env")
     assert in_venv is True
-
-    lang_version = f.get("lang_version")
-    if sys.version_info == (3, 7, 0):
-        assert "3.7" in lang_version
-    elif sys.version_info == (3, 6, 0):
-        assert "3.6" in lang_version
-    elif sys.version_info == (2, 7, 0):
-        assert "2.7" in lang_version
 
     agent_url = f.get("agent_url")
     assert agent_url == "http://localhost:8126"
