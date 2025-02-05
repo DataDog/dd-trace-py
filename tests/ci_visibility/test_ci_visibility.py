@@ -28,6 +28,7 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
+from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.utils.http import Response
@@ -685,7 +686,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
-            "ddtrace.tracer", ddtrace.trace.Tracer()
+            "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), _dummy_noop_git_client(), mock.patch(
@@ -705,7 +706,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             )
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
-        ), mock.patch("ddtrace.tracer", ddtrace.trace.Tracer()), mock.patch(
+        ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
@@ -1119,7 +1120,7 @@ def test_civisibility_enable_respects_passed_in_tracer():
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
-        tracer = ddtrace.trace.Tracer()
+        tracer = CIVisibilityTracer()
         tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
         CIVisibility.enable(tracer=tracer)
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
