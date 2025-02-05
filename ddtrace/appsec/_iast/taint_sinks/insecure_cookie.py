@@ -48,6 +48,7 @@ class NoSameSite(VulnerabilityBase):
 def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
+
     if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             for cookie_key, cookie_value in cookies.items():

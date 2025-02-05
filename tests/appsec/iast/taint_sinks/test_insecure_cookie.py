@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -121,6 +122,7 @@ def test_nosamesite_cookies_strict_no_error(iast_context_defaults):
         ("csrftoken", True),
         ("session", True),
         ("sessionid", True),
+        ("session_id", True),
         ("a" * 31, False),
         ("b" * 32, False),
         ("c" * 33, True),
@@ -148,6 +150,7 @@ def test_insecure_cookies_exclusions(iast_context_defaults, cookie_name, exclude
     [
         ("session", False),
         ("sessionid", False),
+        ("session_id", False),
         ("I love Heavy Metal", False),
         ("Dovahkiin, Dovahkiin naal ok zin los vahriin!!", False),
         ("Classic Rock is the best", False),
@@ -192,6 +195,62 @@ def test_insecure_cookies_deduplication_defaults(iast_context_defaults):
 
             assert len(span_report.vulnerabilities) == num_vuln_expected
         _end_iast_context_and_oce()
+
+
+@pytest.mark.parametrize(
+    "regex",
+    [
+        ("INVALID"),
+        ("\n"),
+    ],
+)
+def test_insecure_cookies_exclusions_env_var_invalid_regex(iast_context_defaults, regex):
+    with override_global_config(
+        dict(
+            _iast_cookie_filter_pattern=regex,
+        )
+    ):
+        _start_iast_context_and_oce()
+        cookies = [
+            {"session_id": "bar"},
+            {"sessionid": "bar"},
+            {"valid": "bar"},
+        ]
+        for cookie in cookies:
+            asm_check_cookies(cookie)
+
+        span_report = _get_span_report()
+
+        assert span_report is None
+
+        _end_iast_context_and_oce()
+
+
+@pytest.mark.skip_iast_check_logs
+@pytest.mark.parametrize(
+    "regex",
+    [
+        ("|*"),
+        ("\|||\\\\\\\\\\"),
+    ],
+)
+def test_insecure_cookies_exclusions_env_var_invalid_regex_with_exception(iast_context_defaults, caplog, regex):
+    with override_global_config(
+        dict(
+            _iast_cookie_filter_pattern=regex,
+            _iast_debug=True
+        )
+    ), caplog.at_level(logging.DEBUG):
+        _start_iast_context_and_oce()
+        cookies = {"session_id": "bar"}
+        asm_check_cookies(cookies)
+
+        span_report = _get_span_report()
+
+        assert span_report is None
+
+        _end_iast_context_and_oce()
+        assert any("[IAST] Propagation error. [IAST] error in asm_check_cookies" in record.message for record in caplog.records)
 
 
 def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
