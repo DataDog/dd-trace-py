@@ -71,7 +71,7 @@ def _extract_bound(instance):
     return instance
 
 
-def _flatmap_chain_steps(steps: List[Any], nested: bool = True) -> List[Any]:
+def _flattened_chain_steps(steps: List[Any], nested: bool = True) -> List[Any]:
     """
     Flattens the contents of a chain into non-RunnableBindings and non-RunnableParallel steps.
     RunnableParrallel steps are extracted and can either be nested into sublists or flattened.
@@ -111,7 +111,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         steps = getattr(instance, "steps", [])
-        for step in _flatmap_chain_steps(steps, nested=False):
+        for step in _flattened_chain_steps(steps, nested=False):
             self._chain_steps.add(id(step))
 
         self.record_instance(instance, span)
@@ -237,7 +237,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         chain_instance = _extract_bound(self._instances.get(invoker_spans[0]))
         steps = getattr(chain_instance, "steps", [])
-        flatmap_chain_steps = _flatmap_chain_steps(steps)
+        flatmap_chain_steps = _flattened_chain_steps(steps)
         for i, step in enumerate(flatmap_chain_steps):
             if id(step) == id(instance) or (
                 isinstance(step, list) and any(id(sub_step) == id(instance) for sub_step in step)
@@ -322,7 +322,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return pop_indecies
         
         steps = getattr(parent_instance, "steps", [])
-        flatmap_chain_steps = _flatmap_chain_steps(steps)
+        flatmap_chain_steps = _flattened_chain_steps(steps)
         for i in range(step_idx - 1, -1, -1):
             step = flatmap_chain_steps[i]
             if id(step) in self._spans:
