@@ -52,12 +52,16 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
             otel_value,
         )
         otel_value = f"parentbased_{otel_value}"
+    rate = None
     if otel_value == "parentbased_always_on":
-        return "1.0"
+        rate = "1.0"
     elif otel_value == "parentbased_always_off":
-        return "0.0"
+        rate = "0.0"
     elif otel_value == "parentbased_traceidratio":
-        return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+        rate = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+
+    if rate is not None:
+        return f'[{{"sample_rate":{rate}}}]'
     return None
 
 
@@ -130,7 +134,7 @@ ENV_VAR_MAPPINGS: Dict[str, Tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_SERVICE_NAME": ("DD_SERVICE", _remap_default),
     "OTEL_LOG_LEVEL": ("DD_TRACE_DEBUG", _remap_otel_log_level),
     "OTEL_PROPAGATORS": ("DD_TRACE_PROPAGATION_STYLE", _remap_otel_propagators),
-    "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLE_RATE", _remap_traces_sampler),
+    "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLING_RULES", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
     "OTEL_LOGS_EXPORTER": ("", _validate_logs_exporter),  # Does not set a DDTRACE environment variable.
