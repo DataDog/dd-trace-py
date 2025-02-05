@@ -124,8 +124,8 @@ class VulnerabilityBase(Operation):
         if cls.acquire_quota():
             file_name = None
             line_number = None
+    
             frame_info = get_info_frame(CWD)
-            if frame_info and frame_info[0] != "" and frame_info[0] == -1:
             if frame_info and frame_info[0] != "" and frame_info[0] != -1:
                 file_name, line_number = frame_info
 
