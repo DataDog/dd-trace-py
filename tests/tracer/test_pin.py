@@ -78,7 +78,7 @@ class PinTestCase(TestCase):
     def test_copy(self):
         # ensure a Pin is copied when using the clone methods
         p1 = Pin(service="metrics", tags={"key": "value"})
-        p2 = p1.clone(service="intake")
+        p2 = p1._clone(service="intake")
         # values are the same
         assert p1.service == "metrics"
         assert p2.service == "intake"
@@ -104,7 +104,7 @@ class PinTestCase(TestCase):
 
         Pin(service="metrics").onto(A)
         a = A()
-        Pin.override(a)
+        Pin._override(a)
         assert Pin.get_from(a).service == "metrics"
 
         b = A()
@@ -117,7 +117,7 @@ class PinTestCase(TestCase):
 
         a = A()
         assert Pin.get_from(a) is None
-        Pin.override(a, service="metrics")
+        Pin._override(a, service="metrics")
         assert Pin.get_from(a).service == "metrics"
 
         b = A()
@@ -126,7 +126,7 @@ class PinTestCase(TestCase):
     def test_pin_config(self):
         # ensure `Pin` has a configuration object that can be modified
         obj = self.Obj()
-        Pin.override(obj, service="metrics")
+        Pin._override(obj, service="metrics")
         pin = Pin.get_from(obj)
         assert pin._config is not None
         pin._config["distributed_tracing"] = True
@@ -135,12 +135,12 @@ class PinTestCase(TestCase):
     def test_pin_config_is_a_copy(self):
         # ensure that when a `Pin` is cloned, the config is a copy
         obj = self.Obj()
-        Pin.override(obj, service="metrics")
+        Pin._override(obj, service="metrics")
         p1 = Pin.get_from(obj)
         assert p1._config is not None
         p1._config["distributed_tracing"] = True
 
-        Pin.override(obj, service="intake")
+        Pin._override(obj, service="intake")
         p2 = Pin.get_from(obj)
         assert p2._config is not None
         p2._config["distributed_tracing"] = False
@@ -154,7 +154,7 @@ class PinTestCase(TestCase):
         class A(object):
             pass
 
-        Pin.override(A, service="metrics")
+        Pin._override(A, service="metrics")
         global_pin = Pin.get_from(A)
         global_pin._config["distributed_tracing"] = True
 

@@ -32,7 +32,7 @@ def langgraph(monkeypatch, mock_tracer):
     import langgraph
 
     pin = Pin.get_from(langgraph)
-    pin.override(langgraph, tracer=mock_tracer)
+    pin._override(langgraph, tracer=mock_tracer)
     yield langgraph
     unpatch()
 

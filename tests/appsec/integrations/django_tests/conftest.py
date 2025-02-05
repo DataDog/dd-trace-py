@@ -38,7 +38,7 @@ def tracer():
     # Patch Django and override tracer to be our test tracer
     pin = Pin.get_from(django)
     original_tracer = pin.tracer
-    Pin.override(django, tracer=tracer)
+    Pin._override(django, tracer=tracer)
 
     # Yield to our test
     yield tracer
@@ -47,7 +47,7 @@ def tracer():
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test
     # unpatch()
-    Pin.override(django, tracer=original_tracer)
+    Pin._override(django, tracer=original_tracer)
 
 
 @pytest.fixture
