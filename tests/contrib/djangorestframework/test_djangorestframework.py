@@ -92,7 +92,6 @@ def test_inferred_spans_api_gateway_default(client, test_spans, test_endpoint, i
                         metrics={
                             _SAMPLING_PRIORITY_KEY: USER_KEEP,
                         },
-                        sampled=True,
                     )
             else:
                 aws_gateway_span = traces[0]

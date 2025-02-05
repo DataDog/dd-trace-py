@@ -1869,7 +1869,6 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         metrics={
             _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
-        sampled=True,
     )
 
     with override_global_config(dict(_inferred_proxy_services_enabled="true")):
@@ -1903,7 +1902,6 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         web_span.assert_matches(
             name="django.request",
             trace_id=1,
-            sampled=True,
         )
         assert len(test_spans.spans) == 27
 

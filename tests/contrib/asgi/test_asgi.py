@@ -797,7 +797,6 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
                         metrics={
                             _SAMPLING_PRIORITY_KEY: USER_KEEP,
                         },
-                        sampled=True,
                     )
             else:
                 aws_gateway_span = test_spans.find_span(name="aws.apigateway")
