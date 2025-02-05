@@ -36,7 +36,7 @@ class PsycopgCore(AsyncioTestCase):
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
-            pin.clone(service=service, tracer=self.tracer).onto(conn)
+            pin._clone(service=service, tracer=self.tracer).onto(conn)
 
         return conn
 
