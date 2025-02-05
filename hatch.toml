@@ -399,6 +399,13 @@ flask = ["~=2.2"]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=3.0"]
 
+[[envs.appsec_integrations_flask.matrix]]
+# werkzeug 3.1 drops support for py3.8
+python = ["3.11", "3.12", "3.13"]
+flask = ["~=3.1"]
+werkzeug = ["~=3.1"]
+
+## ASM appsec_integrations_fastapi
 
 [envs.appsec_integrations_fastapi]
 template = "appsec_integrations_fastapi"
