@@ -4,6 +4,7 @@ import os
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Set
 from typing import Optional
 from typing import Union
 from weakref import WeakKeyDictionary
@@ -70,13 +71,36 @@ def _extract_bound(instance):
     return instance
 
 
+def _flatmap_chain_steps(steps: List[Any], nested: bool = True) -> List[Any]:
+    """
+    Flattens the contents of a chain into non-RunnableBindings and non-RunnableParallel steps.
+    RunnableParrallel steps are extracted and can either be nested into sublists or flattened.
+    """
+    flattened_steps = []
+    for step in steps:
+        step = _extract_bound(step)
+        if hasattr(step, "steps__"):
+            parallel_steps = getattr(step, "steps__", {})
+            flattened_parallel_steps = []
+            for parallel_step in parallel_steps.values():
+                parallel_step = _extract_bound(parallel_step)
+                flattened_parallel_steps.append(parallel_step)
+            if nested:
+                flattened_steps.append(flattened_parallel_steps)
+            else:
+                flattened_steps.extend(flattened_parallel_steps)
+        else:
+            flattened_steps.append(step)
+    return flattened_steps
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    _chain_steps: set = set()
+    _chain_steps: Set[int] = set()
     """Set of instance ids that are steps in a chain."""
 
-    _spans: dict = {}
+    _spans: Dict[int, Span] = {}
     """Maps instance ids to spans."""
 
     _instances: WeakKeyDictionary = WeakKeyDictionary()
@@ -87,8 +111,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         steps = getattr(instance, "steps", [])
-        for step in steps:
-            step = _extract_bound(step)
+        for step in _flatmap_chain_steps(steps, nested=False):
             self._chain_steps.add(id(step))
 
         self.record_instance(instance, span)
@@ -176,63 +199,101 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         instance = _extract_bound(instance)
+        parent_span = _get_nearest_llmobs_ancestor(span)
+
+        step_idx = self._set_input_links(instance, span, parent_span)
+
+        self._set_output_links(span, parent_span, step_idx)
+
+    def _set_input_links(self, instance: Any, span: Span, parent_span: Union[Span, None]) -> int:
+        """
+        Sets input links (to: input) on the given span
+        1. If the instance associated with the span is not a step in a chain, link from its parent span (input->input)
+        2. If the instance associated with the span is a step in a chain, link from the last traced step in the chain
+            a. This could be multiple steps, if the last step was a RunnableParallel
+            b. In this case, it would be an output->input relationship
+        """
+        if parent_span is None:
+            return -1
+
         is_step = id(instance) in self._chain_steps
 
-        invoker_span = _get_nearest_llmobs_ancestor(span)
-        invoker_link_attributes = {"from": "input", "to": "input"}
+        # defaults
+        invoker_spans = [parent_span]
+        invoker_links_attributes = [{"from": "input", "to": "input"}]
+        has_parallel_steps = False
+        step_idx = -1
 
         links = []
 
-        if invoker_span is None:
-            return
-
-        if is_step:
-            chain_instance = _extract_bound(self._instances.get(invoker_span))
-            steps = getattr(chain_instance, "steps", [])
-
-            idx = -1
-            for i, step in enumerate(steps):
-                step = _extract_bound(step)
-                if id(step) == id(instance):
-                    idx = i
-                    break
-
-            for i in range(idx - 1, -1, -1):
-                step = _extract_bound(steps[i])
-                if id(step) in self._spans:
-                    invoker_span = self._spans[id(step)]
-                    invoker_link_attributes = {"from": "output", "to": "input"}
-                    break
-
-        if invoker_span is None:
-            return
-
-        links.append(
-            {
+        if not is_step:
+            self._set_span_links(span, [{
                 "trace_id": "{:x}".format(span.trace_id),
-                "span_id": str(invoker_span.span_id),
-                "attributes": invoker_link_attributes,
-            }
-        )
+                "span_id": str(invoker_spans[0].span_id),
+                "attributes": invoker_links_attributes[0],
+            }])
 
-        existing_span_links = span._get_ctx_item(SPAN_LINKS) or []
-        span._set_ctx_item(SPAN_LINKS, existing_span_links + links)
+            return step_idx
 
-        invoker_links = invoker_span._get_ctx_item(SPAN_LINKS) or []
-        index = next(
-            (
-                i
-                for i, link in enumerate(invoker_links)
-                if link["attributes"]["from"] == "output" and link["attributes"]["to"] == "output"
-            ),
-            None,
-        )
-        if is_step and index is not None:
-            invoker_links.pop(index)
+        chain_instance = _extract_bound(self._instances.get(invoker_spans[0]))
+        steps = getattr(chain_instance, "steps", [])
+        flatmap_chain_steps = _flatmap_chain_steps(steps)
+        for i, step in enumerate(flatmap_chain_steps):
+            if id(step) == id(instance) or (
+                isinstance(step, list) and any(id(sub_step) == id(instance) for sub_step in step)
+            ):
+                step_idx = i
+                break
+        for i in range(step_idx - 1, -1, -1):
+            step = flatmap_chain_steps[i]
+            if id(step) in self._spans:
+                invoker_span = self._spans[id(step)]
+                invoker_link_attributes = {"from": "output", "to": "input"}
+                break
+            if isinstance(step, list): # parallel steps in the list
+                for parallel_step in step:
+                    if id(parallel_step) in self._spans:
+                        if not has_parallel_steps:
+                            invoker_spans = []
+                            invoker_links_attributes = []
+                            has_parallel_steps = True
 
-        invoker_span._set_ctx_item(
+                        invoker_spans.append(self._spans[id(parallel_step)])
+                        invoker_links_attributes.append({"from": "output", "to": "input"})
+                break
+
+        for link_data in zip(invoker_spans, invoker_links_attributes):
+            invoker_span, invoker_link_attributes = link_data
+            if invoker_span is None:
+                continue
+            links.append(
+                {
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "span_id": str(invoker_span.span_id),
+                    "attributes": invoker_link_attributes,
+                }
+            )
+
+        self._set_span_links(span, links)
+
+        return step_idx
+    
+    def _set_output_links(self, span: Span, parent_span: Union[Span, None], step_idx: int) -> None:
+        """
+        Sets the output links for the parent span of the given span (to: output)
+        This is done by removing repeated span links from steps in a chain.
+        We add output->output span links at every step 
+        """
+        if parent_span is None:
+            return
+        
+        parent_links = parent_span._get_ctx_item(SPAN_LINKS) or []
+        pop_indecies = self._get_popped_span_link_indecies(parent_span, parent_links, step_idx)
+        parent_links = [link for i, link in enumerate(parent_links) if i not in pop_indecies]
+
+        parent_span._set_ctx_item(
             SPAN_LINKS,
-            invoker_links
+            parent_links
             + [
                 {
                     "trace_id": "{:x}".format(span.trace_id),
@@ -241,6 +302,59 @@ class LangChainIntegration(BaseLLMIntegration):
                 }
             ],
         )
+
+    def _get_popped_span_link_indecies(self, parent_span: Span, parent_links: List[Dict[str, Any]], step_idx: int) -> List[int]:
+        """
+        Returns a list of indecies to pop from the parent span links list
+        This is determined by if the parent span represents a chain, and if there are steps before the step
+        represented by the span that need to be removed.
+
+        This is a temporary stopgap until we trace virtually every step in the chain, and we know the last
+        step will be the last one traced.
+        """
+        pop_indecies = []
+        parent_instance = self._instances.get(parent_span)
+        if not parent_instance:
+            return pop_indecies
+        
+        parent_instance = _extract_bound(parent_instance)
+        if not hasattr(parent_instance, "steps"):  # chain instance
+            return pop_indecies
+        
+        steps = getattr(parent_instance, "steps", [])
+        flatmap_chain_steps = _flatmap_chain_steps(steps)
+        for i in range(step_idx - 1, -1, -1):
+            step = flatmap_chain_steps[i]
+            if id(step) in self._spans:
+                invoker_span_id = self._spans[id(step)].span_id
+                link_idx = next(
+                    (i for i, link in enumerate(parent_links) if link["span_id"] == str(invoker_span_id)), None
+                )
+                if link_idx is not None:
+                    pop_indecies.append(link_idx)
+                break
+            if isinstance(step, list):  # parallel steps in the list
+                for parallel_step in step:
+                    if id(parallel_step) in self._spans:
+                        invoker_span_id = self._spans[id(parallel_step)].span_id
+                        link_idx = next(
+                            (
+                                i
+                                for i, link in enumerate(parent_links)
+                                if link["span_id"] == str(invoker_span_id)
+                            ),
+                            None,
+                        )
+                        if link_idx is not None:
+                            pop_indecies.append(link_idx)
+                break
+
+        return pop_indecies
+    
+    def _set_span_links(self, span: Span, links: List[Dict[str, Any]]) -> None:
+        """Sets the span links on the given span along with the existing links."""
+        existing_links = span._get_ctx_item(SPAN_LINKS) or []
+        span._set_ctx_item(SPAN_LINKS, existing_links + links)
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
