@@ -676,6 +676,7 @@ def test_tracer_shutdown_timeout():
     mock_stop.assert_called_once_with(2)
 
 
+@pytest.mark.subprocess
 def test_tracer_shutdown():
     import mock
 
@@ -690,7 +691,7 @@ def test_tracer_shutdown():
 
     mock_write.assert_not_called()
 
-
+@pytest.mark.subprocess
 def test_tracer_shutdown_warning():
     import logging
 
