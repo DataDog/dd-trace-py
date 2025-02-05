@@ -70,23 +70,34 @@ def _get_application(key):
 
 
 def update_imported_dependencies(already_imported: Dict[str, str], new_modules: List[str]) -> List[Dict[str, str]]:
+
+    # JJJ
+    import logging; LOG=logging.getLogger(__name__)
     deps = []
+    JJJdebug = False
 
     for module_name in new_modules:
+        JJJdebug = (module_name == 'edx_rest_framework_extensions')
         dists = get_module_distribution_versions(module_name)
+        if JJJdebug: LOG.warning(f"JJJDEBUG in update imported dependencies module_name={module_name}, dists={dists}")
+
         if not dists:
             continue
 
         name, version = dists
+        if JJJdebug: LOG.warning(f"JJJDEBUG in update imported dependencies name={name}, version={version}")
         if name == "ddtrace":
             continue
 
         if name in already_imported:
+            if JJJdebug: LOG.warning("JJJDEBUG, skip. already imported which are: %s", already_imported)
             continue
 
         already_imported[name] = version
         deps.append({"name": name, "version": version})
+        if JJJdebug: LOG.warning(f"JJJDEBUG, deps={deps}")
 
+    if JJJdebug: LOG.warning(f"JJJDEBUG, RETURNING deps={deps}")
     return deps
 
 

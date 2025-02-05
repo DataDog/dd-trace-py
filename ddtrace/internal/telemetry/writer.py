@@ -412,6 +412,7 @@ class TelemetryWriter(PeriodicService):
 
     def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
         """Adds events to report imports done since the last periodic run"""
+        log.warning("JJJ dependencies loaded event")
 
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
             return
@@ -422,6 +423,7 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+            log.warning("JJJDEBUG SENDING DEPENDENCIES PAYLOAD: %s" % str(packages))
 
     def _app_product_change(self):
         # type: () -> None
@@ -616,8 +618,10 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
+        log.warning("JJJ periodic before dependencies loaded event")
         if _TelemetryConfig.DEPENDENCY_COLLECTION:
             newly_imported_deps = self._flush_new_imported_dependencies()
+            log.warning("JJJ periodic before dependencies loaded event, newly_imported_deps: %s", newly_imported_deps)
             if newly_imported_deps:
                 self._app_dependencies_loaded_event(newly_imported_deps)
 

@@ -63,6 +63,7 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
+    JJJdebug = (module_name == 'edx_rest_framework_extensions')
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
@@ -70,6 +71,8 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 
     names: t.List[str] = []
     pkgs = get_package_distributions()
+    if JJJdebug:
+        LOG.warning(f'JJJDEBUG: get_module_distribution_versions: pkgs={pkgs}')
     while names == []:
         try:
             return (
@@ -77,11 +80,15 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
                 importlib_metadata.distribution(module_name).version,
             )
         except Exception:  # nosec
+            if JJJdebug:
+                LOG.warning(f'JJJDEBUG: exception ccalling importlib_metadata.distribution({module_name})', exc_info=True)
             pass
         names = pkgs.get(module_name, [])
+        if JJJdebug: LOG.warning(f'JJJDEBUG: get_module_distribution_versions: names={names}')
         if not names:
             # try to resolve the parent package
             p = module_name.rfind(".")
+            if JJJdebug: LOG.warning(f'JJJDEBUG: get_module_distribution_versions: p={p}')
             if p > 0:
                 module_name = module_name[:p]
             else:
@@ -89,7 +96,9 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     if len(names) != 1:
         # either it was not resolved due to multiple packages with the same name
         # or it's a multipurpose package (like '__pycache__')
+        if JJJdebug: LOG.warning("JJJDEBUG: get_module_distribution_versions: len(names) != 1, return None")
         return None
+    if JJJdebug: LOG.warning(f'JJJDEBUG: get_module_distribution_versions: return ({names[0]}, {get_version_for_package(names[0])})')
     return (names[0], get_version_for_package(names[0]))
 
 
