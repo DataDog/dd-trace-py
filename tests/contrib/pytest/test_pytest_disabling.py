@@ -23,8 +23,12 @@ _TEST_PROPERTIES = {
     _make_fqdn_internal_test_id("", "test_disabling.py", "test_disabled"): TestProperties(
         disabled=True
     ),
-    _make_fqdn_internal_test_id("", "test_disabling.py", "test_enabled"): TestProperties(
-        disabled=False
+    _make_fqdn_internal_test_id("", "test_disabling.py", "test_quarantined"): TestProperties(
+        quarantined=True
+    ),
+    _make_fqdn_internal_test_id("", "test_disabling.py", "test_disabled_and_quarantined"): TestProperties(
+        quarantined=True,
+        disabled=True,
     ),
 }
 
@@ -32,6 +36,12 @@ _TESTS = """
 import pytest
 
 def test_disabled():
+    assert False
+
+def test_quarantined():
+    assert False
+
+def test_disabled_and_quarantined():
     assert False
 
 def test_pass():
@@ -76,7 +86,8 @@ class PytestDisablingTestCase(PytestTestCaseBase):
     def test_disabling(self):
          self.testdir.makepyfile(test_disabling=_TESTS)
          rec = self.inline_run("--ddtrace", "-v")
-         assert_stats(rec, passed=1, failed=1, skipped=1)
+         assert rec.ret == 1
+         assert_stats(rec, passed=1, failed=1, skipped=2, quarantined=1)
 
 
     # def test_fail_quarantined_no_ddtrace_does_not_quarantine(self):

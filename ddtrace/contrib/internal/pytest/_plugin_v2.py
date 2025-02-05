@@ -119,13 +119,15 @@ def _handle_test_management(item, test_id):
     skipping mode.
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
-    if is_quarantined:
+    is_disabled = InternalTest.is_disabled_test(test_id)
+
+    if is_disabled:
+        # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
+        # It should still have both disabled and quarantined event tags, though.
+        item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+    elif is_quarantined:
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
-
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    if is_disabled:
-        item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
 
 
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
