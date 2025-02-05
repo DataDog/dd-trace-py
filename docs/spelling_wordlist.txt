@@ -316,3 +316,5 @@ Wrapt
 wsgi
 xfail
 yaaredis
+csrftoken
+session
