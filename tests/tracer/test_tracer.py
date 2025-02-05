@@ -179,8 +179,8 @@ class TracerTestCases(TracerTestCase):
                 error=0,
             ),
         )
-        self.assert_span_event_count(1)
-        self.assert_span_event_attributes(
+        self.spans[0].assert_span_event_count(1)
+        self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
         )
 
@@ -198,17 +198,17 @@ class TracerTestCases(TracerTestCase):
                 self.tracer.record_exception(e)
 
         f()
-        self.assert_span_event_count(2)
         self.assert_structure(
             dict(
                 name="tests.tracer.test_tracer.f",
                 error=0,
             )
         )
-        self.assert_span_event_attributes(
+        self.spans[0].assert_span_event_count(2)
+        self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
         )
-        self.assert_span_event_attributes(
+        self.spans[0].assert_span_event_attributes(
             1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": "False"}
         )
 
@@ -234,8 +234,8 @@ class TracerTestCases(TracerTestCase):
                 },
             ),
         )
-        self.assert_span_event_count(1)
-        self.assert_span_event_attributes(
+        self.spans[0].assert_span_event_count(1)
+        self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "True"}
         )
 
