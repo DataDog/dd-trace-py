@@ -114,9 +114,7 @@ def _extract_api_key(instance: Any) -> str:
     return ""
 
 
-def _tag_openai_token_usage(
-    span: Span, llm_output: Dict[str, Any], propagated_cost: int = 0, propagate: bool = False
-) -> None:
+def _tag_openai_token_usage(span: Span, llm_output: Dict[str, Any]) -> None:
     """
     Extract token usage from llm_output, tag on span.
     Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that
@@ -126,30 +124,6 @@ def _tag_openai_token_usage(
         current_metric_value = span.get_metric("langchain.tokens.%s_tokens" % token_type) or 0
         metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
         span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
-    total_cost = span.get_metric(TOTAL_COST) or 0
-    if not propagate and get_openai_token_cost_for_model:
-        try:
-            if parse_version(langchain_community.__version__) >= (0, 3, 13):
-                completion_cost = get_openai_token_cost_for_model(
-                    span.get_tag(MODEL),
-                    span.get_metric(COMPLETION_TOKENS),
-                    token_type=2,
-                )
-            else:
-                completion_cost = get_openai_token_cost_for_model(
-                    span.get_tag(MODEL),
-                    span.get_metric(COMPLETION_TOKENS),
-                    is_completion=True,
-                )
-            prompt_cost = get_openai_token_cost_for_model(span.get_tag(MODEL), span.get_metric(PROMPT_TOKENS))
-            total_cost = completion_cost + prompt_cost
-        except ValueError:
-            # If not in langchain's openai model catalog, the above helpers will raise a ValueError.
-            log.debug("Cannot calculate token/cost as the model is not in LangChain's OpenAI model catalog.")
-    if get_openai_token_cost_for_model:
-        span.set_metric(TOTAL_COST, propagated_cost + total_cost)
-    if span._parent is not None:
-        _tag_openai_token_usage(span._parent, llm_output, propagated_cost=propagated_cost + total_cost, propagate=True)
 
 
 def _is_openai_llm_instance(instance):
