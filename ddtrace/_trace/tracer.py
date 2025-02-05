@@ -59,7 +59,6 @@ from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
@@ -69,7 +68,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
