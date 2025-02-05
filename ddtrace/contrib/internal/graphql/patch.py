@@ -294,7 +294,11 @@ def _get_source_str(obj):
 
 
 def _validate_error_extensions(error: GraphQLError, extensions: Optional[str], attributes: Dict) -> Tuple[Dict, Dict]:
-    # Validate user-provided extensions
+    """Validate user-provided extensions
+    All extensions values MUST be stringified, EXCEPT for numeric values and
+    boolean values, which remain in their original type.
+    """
+
     if not extensions:
         return {}, attributes
 
@@ -302,21 +306,10 @@ def _validate_error_extensions(error: GraphQLError, extensions: Optional[str], a
     error_extensions = {}
     for field in fields:
         if field in error.extensions:
-            # validate extensions formatting
-            # All extensions values MUST be stringified, EXCEPT for numeric values and
-            # boolean values, which remain in their original type.
             if isinstance(error.extensions[field], (int, float, bool)):
                 error_extensions[field] = error.extensions[field]
             else:
-                # q: could this be `None`?
                 error_extensions[field] = str(error.extensions[field])
-
-            # Additional validation for Apollo Server attributes
-            if field == "stacktrace":
-                attributes["type"] = error.extensions[field].split(":")[0]
-                attributes["stacktrace"] = "\n".join(error.extensions[field])
-            elif field == "code":
-                attributes["code"] = error.extensions[field]
 
     return error_extensions, attributes
 
