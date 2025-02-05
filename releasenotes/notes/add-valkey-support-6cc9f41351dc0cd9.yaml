@@ -1,0 +1,3 @@
+features:
+  - |
+    valkey: adds automatic instrumentation of the Valkey package. Thank you [AhmadMasry](https://github.com/AhmadMasry)!
