@@ -30,7 +30,9 @@ class WrappedConnect(wrapt.ObjectProxy):
         pin = ddtrace.trace.Pin.get_from(self)
         if pin:
             tracer = pin.tracer
-            ddtrace.trace.Pin(service=pin.service).onto(client)
-            pin._tracer = tracer
+            pp = ddtrace.trace.Pin(service=pin.service)
+            if tracer is not None:
+                pp._tracer = tracer
+            pp.onto(client)
 
         return client
