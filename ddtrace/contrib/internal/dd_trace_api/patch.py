@@ -11,7 +11,7 @@ import dd_trace_api
 import ddtrace
 
 
-_DD_HOOK_PREFIX = "dd.hooks."
+_DD_HOOK_NAME = "dd.hook"
 _TRACER_KEY = "Tracer"
 _STUB_TO_REAL = weakref.WeakKeyDictionary()
 _STUB_TO_REAL[dd_trace_api.tracer] = ddtrace.tracer
@@ -51,14 +51,11 @@ def _call_on_real_instance(
 
 def _hook(name, hook_args):
     """Called in response to `sys.audit` events"""
-    if not dd_trace_api.__datadog_patch or not name.startswith(_DD_HOOK_PREFIX):
+    if not dd_trace_api.__datadog_patch or name != _DD_HOOK_NAME:
         return
     args = hook_args[0][0]
-    stub_self = args[0]
-    api_return_value = args[1]
-    _call_on_real_instance(
-        stub_self, name.replace(_DD_HOOK_PREFIX, "").rsplit(".", 1)[-1], api_return_value, *args[2:], **hook_args[0][1]
-    )
+    api_return_value, stub_self, event_name = args[0:3]
+    _call_on_real_instance(stub_self, event_name, api_return_value, *args[3:], **hook_args[0][1])
 
 
 def get_version() -> str:
