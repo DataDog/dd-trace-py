@@ -231,16 +231,13 @@ def test_insecure_cookies_exclusions_env_var_invalid_regex(iast_context_defaults
     "regex",
     [
         ("|*"),
-        ("\|||\\\\\\\\\\"),
+        ("\\|||\\\\\\\\\\"),
     ],
 )
 def test_insecure_cookies_exclusions_env_var_invalid_regex_with_exception(iast_context_defaults, caplog, regex):
-    with override_global_config(
-        dict(
-            _iast_cookie_filter_pattern=regex,
-            _iast_debug=True
-        )
-    ), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_cookie_filter_pattern=regex, _iast_debug=True)), caplog.at_level(
+        logging.DEBUG
+    ):
         _start_iast_context_and_oce()
         cookies = {"session_id": "bar"}
         asm_check_cookies(cookies)
@@ -250,7 +247,9 @@ def test_insecure_cookies_exclusions_env_var_invalid_regex_with_exception(iast_c
         assert span_report is None
 
         _end_iast_context_and_oce()
-        assert any("[IAST] Propagation error. [IAST] error in asm_check_cookies" in record.message for record in caplog.records)
+        assert any(
+            "[IAST] Propagation error. [IAST] error in asm_check_cookies" in record.message for record in caplog.records
+        )
 
 
 def test_insecure_cookies_deduplication(iast_context_deduplication_enabled):
