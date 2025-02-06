@@ -107,7 +107,11 @@ class LangGraphIntegration(BaseLLMIntegration):
     def _link_task_to_parent(self, task_id, task, finished_task_names_to_ids):
         """Create the span links for a queued task from its triggering parent tasks."""
         task_config = getattr(task, "config", {})
-        task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
+        task_triggers = _normalize_triggers(
+            triggers=task_config.get("metadata", {}).get("langgraph_triggers", []),
+            finished_tasks=finished_task_names_to_ids,
+            next_task=task,
+        )
 
         trigger_node_names = [_extract_parent(trigger) for trigger in task_triggers]
         trigger_node_ids: List[str] = [
@@ -130,6 +134,23 @@ class LangGraphIntegration(BaseLLMIntegration):
             }
             span_links = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
+
+
+def _normalize_triggers(triggers, finished_tasks, next_task) -> List[str]:
+    """
+    Return the default triggers for a LangGraph node.
+
+    For nodes queued up with `langgraph.types.Send`, the triggers are an unhelpful ['__pregel_push'].
+    In this case (and in any case with 1 finished task and 1 trigger), we can infer the trigger from
+    the one finished task.
+    """
+    if len(finished_tasks) != 1 or len(triggers) != 1:
+        return []
+
+    finished_task_name = list(finished_tasks.keys())[0]
+    next_task_name = getattr(next_task, "name", "")
+
+    return [f"{finished_task_name}:{next_task_name}"]
 
 
 def _extract_parent(trigger: str) -> str:

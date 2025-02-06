@@ -4,8 +4,8 @@ import os
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Set
 from typing import Optional
+from typing import Set
 from typing import Union
 from weakref import WeakKeyDictionary
 
@@ -227,11 +227,16 @@ class LangChainIntegration(BaseLLMIntegration):
         links = []
 
         if not is_step:
-            self._set_span_links(span, [{
-                "trace_id": "{:x}".format(span.trace_id),
-                "span_id": str(invoker_spans[0].span_id),
-                "attributes": invoker_links_attributes[0],
-            }])
+            self._set_span_links(
+                span,
+                [
+                    {
+                        "trace_id": "{:x}".format(span.trace_id),
+                        "span_id": str(invoker_spans[0].span_id),
+                        "attributes": invoker_links_attributes[0],
+                    }
+                ],
+            )
 
             return step_idx
 
@@ -250,7 +255,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 invoker_span = self._spans[id(step)]
                 invoker_link_attributes = {"from": "output", "to": "input"}
                 break
-            if isinstance(step, list): # parallel steps in the list
+            if isinstance(step, list):  # parallel steps in the list
                 for parallel_step in step:
                     if id(parallel_step) in self._spans:
                         if not has_parallel_steps:
@@ -277,16 +282,16 @@ class LangChainIntegration(BaseLLMIntegration):
         self._set_span_links(span, links)
 
         return step_idx
-    
+
     def _set_output_links(self, span: Span, parent_span: Union[Span, None], step_idx: int) -> None:
         """
         Sets the output links for the parent span of the given span (to: output)
         This is done by removing repeated span links from steps in a chain.
-        We add output->output span links at every step 
+        We add output->output span links at every step
         """
         if parent_span is None:
             return
-        
+
         parent_links = parent_span._get_ctx_item(SPAN_LINKS) or []
         pop_indecies = self._get_popped_span_link_indecies(parent_span, parent_links, step_idx)
         parent_links = [link for i, link in enumerate(parent_links) if i not in pop_indecies]
@@ -303,7 +308,9 @@ class LangChainIntegration(BaseLLMIntegration):
             ],
         )
 
-    def _get_popped_span_link_indecies(self, parent_span: Span, parent_links: List[Dict[str, Any]], step_idx: int) -> List[int]:
+    def _get_popped_span_link_indecies(
+        self, parent_span: Span, parent_links: List[Dict[str, Any]], step_idx: int
+    ) -> List[int]:
         """
         Returns a list of indecies to pop from the parent span links list
         This is determined by if the parent span represents a chain, and if there are steps before the step
@@ -316,11 +323,11 @@ class LangChainIntegration(BaseLLMIntegration):
         parent_instance = self._instances.get(parent_span)
         if not parent_instance:
             return pop_indecies
-        
+
         parent_instance = _extract_bound(parent_instance)
         if not hasattr(parent_instance, "steps"):  # chain instance
             return pop_indecies
-        
+
         steps = getattr(parent_instance, "steps", [])
         flatmap_chain_steps = _flattened_chain_steps(steps)
         for i in range(step_idx - 1, -1, -1):
@@ -338,11 +345,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     if id(parallel_step) in self._spans:
                         invoker_span_id = self._spans[id(parallel_step)].span_id
                         link_idx = next(
-                            (
-                                i
-                                for i, link in enumerate(parent_links)
-                                if link["span_id"] == str(invoker_span_id)
-                            ),
+                            (i for i, link in enumerate(parent_links) if link["span_id"] == str(invoker_span_id)),
                             None,
                         )
                         if link_idx is not None:
@@ -350,7 +353,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 break
 
         return pop_indecies
-    
+
     def _set_span_links(self, span: Span, links: List[Dict[str, Any]]) -> None:
         """Sets the span links on the given span along with the existing links."""
         existing_links = span._get_ctx_item(SPAN_LINKS) or []
@@ -452,7 +455,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     content = (
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
-                    role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                    role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", None), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
         span._set_ctx_item(input_tag_key, input_messages)
 
