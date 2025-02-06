@@ -2,4 +2,4 @@
 features:
   - |
     Add preview support to create inferred AWS API Gateway spans when certain AWS Gateway headers are passed into the request. 
-    Requires ``DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED=true`` to enable. For instructions, contact support.
+    Requires ``DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED=true`` to enable. For enablement instructions, contact support.
