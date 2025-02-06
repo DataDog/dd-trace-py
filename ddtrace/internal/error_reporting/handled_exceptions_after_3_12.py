@@ -37,7 +37,7 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
         conditions.append("file_name in INSTRUMENTED_FILE_PATHS")
 
     # Combine all conditions into a single expression
-    logic = "'frozen' not in file_name and " + " or ".join(conditions)
+    logic = "'frozen' not in file_name and (" + " or ".join(conditions) + ")"
     # Dynamically define the function using `exec`
     namespace = {}
     exec(f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace)
@@ -108,7 +108,6 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
         if module_name in self._instrumented_modules:
             return
         self._instrumented_modules.add(module_name)
-
         self.conditionally_instrument_module(self._configured_modules, module_name, module)
 
     def after_install(self):

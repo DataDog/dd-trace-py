@@ -216,7 +216,7 @@ class Span(object):
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
-        self._exception_events: dict[int, SpanEvent] = {}
+        self._exception_events: dict[Exception, SpanEvent] = {}
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
@@ -490,8 +490,8 @@ class Span(object):
     ) -> None:
         self._events.append(SpanEvent(name, attributes, timestamp))
 
-    def _add_exception_event(self, event_hash: int, event: SpanEvent) -> None:
-        self._exception_events[event_hash] = event
+    def _add_exception_event(self, exception: Exception, event: SpanEvent) -> None:
+        self._exception_events[exception] = event
 
     def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None]):
         """Add a callback to the on_finish_callbacks list"""

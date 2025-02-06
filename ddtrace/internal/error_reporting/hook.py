@@ -13,7 +13,7 @@ from ddtrace.settings.error_reporting import _er_config
 _internal_debug_logger = None
 
 
-def _generate_span_event(exc=None) -> tuple[Span, SpanEvent] | None:
+def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
     span = ddtrace.tracer.current_span()
     if not span:
         return None
@@ -30,13 +30,17 @@ def _generate_span_event(exc=None) -> tuple[Span, SpanEvent] | None:
     traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
     tb = buff.getvalue()
 
-    return span, SpanEvent(
-        "handled exception",
-        {
-            "exception.message": str(exc),
-            "exception.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
-            "exception.stacktrace": tb,
-        },
+    return (
+        exc,
+        span,
+        SpanEvent(
+            "exception",
+            {
+                "exception.message": str(exc),
+                "exception.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
+                "exception.stacktrace": tb,
+            },
+        ),
     )
 
 
@@ -62,12 +66,6 @@ if sys.version_info >= (3, 12):
                 span._events.append(event)
         del span._meta["EXCEPTION_CB"]
 
-    def _add_exception_event(exc: Exception | None, span: Span, span_event: SpanEvent):
-        span._add_exception_event(hash(exc), span_event)
-
-    def _add_span_event(exc: Exception | None, span: Span, span_event: SpanEvent):
-        _add_exception_event(exc, span, span_event)
-
 else:
 
     def _add_span_events(span: Span) -> None:
@@ -81,18 +79,16 @@ else:
                 span._events.append(event)
         del span._meta["EXCEPTION_CB"]
 
-    def _add_span_event(_: Exception | None, span: Span, span_event: SpanEvent):
-        span._events.append(span_event)
 
-    def _add_exception_event(_: Exception | None, span: Span, span_event: SpanEvent):
-        span._add_exception_event(hash(span_event), span_event)
+def _add_exception_event(exc, span: Span, span_event: SpanEvent):
+    span._add_exception_event(exc, span_event)
 
 
 def _default_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
-        span, span_event = generated
-        _add_span_event(exc, span, span_event)
+        exc, span, span_event = generated
+        _add_exception_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_add_span_events)
 
     if _er_config._internal_logger:
@@ -105,7 +101,7 @@ def _default_datadog_exc_callback(*args, exc=None):
 def _unhandled_exc_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
-        span, span_event = generated
+        exc, span, span_event = generated
         _add_exception_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_conditionally_pop_span_events)
 
