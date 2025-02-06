@@ -194,7 +194,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 def test_ossystem(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
