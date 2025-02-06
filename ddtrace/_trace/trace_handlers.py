@@ -126,12 +126,13 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
-    # dispatch event for checking headers and possibly making an inferred proxy span
-    core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
-    # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
-    span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
+    if config._inferred_proxy_services_enabled:
+        # dispatch event for checking headers and possibly making an inferred proxy span
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+        # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
+        span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
+    
     span_kwargs.update(kwargs)
-
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
 
     for tk, tv in ctx.get_item("tags", dict()).items():
@@ -200,9 +201,6 @@ def _set_inferred_proxy_tags(span, status_code):
 
 
 def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
-    if not config._inferred_proxy_services_enabled:
-        return
-
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
