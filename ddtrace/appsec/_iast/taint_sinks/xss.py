@@ -52,6 +52,18 @@ def patch():
         _iast_django_xss,
     )
 
+    try_wrap_function_wrapper(
+        "jinja2.filters",
+        "do_mark_safe",
+        _iast_jinja2_xss,
+    )
+    try_wrap_function_wrapper(
+        "flask",
+        "render_template_string",
+        _iast_jinja2_xss,
+    )
+
+    _set_metric_iast_instrumented_sink(VULN_XSS)
     _set_metric_iast_instrumented_sink(VULN_XSS)
 
 
@@ -65,6 +77,12 @@ def unpatch():
 
 
 def _iast_django_xss(wrapped, instance, args, kwargs):
+    if args and len(args) >= 1:
+        _iast_report_xss(args[0])
+    return wrapped(*args, **kwargs)
+
+
+def _iast_jinja2_xss(wrapped, instance, args, kwargs):
     if args and len(args) >= 1:
         _iast_report_xss(args[0])
     return wrapped(*args, **kwargs)

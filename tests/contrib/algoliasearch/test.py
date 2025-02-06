@@ -52,7 +52,7 @@ class AlgoliasearchTest(TracerTestCase):
 
     def patch_algoliasearch(self):
         patch()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
 
     def tearDown(self):
         super(AlgoliasearchTest, self).tearDown()
@@ -157,7 +157,7 @@ class AlgoliasearchTest(TracerTestCase):
 
     def test_patch_all_auto_enable(self):
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
 
         spans = self.get_spans()
@@ -179,7 +179,7 @@ class AlgoliasearchTest(TracerTestCase):
             The algoliasearch integration shouldn't use it as the service name
         """
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
         spans = self.get_spans()
         self.reset()
@@ -195,7 +195,7 @@ class AlgoliasearchTest(TracerTestCase):
             The algoliasearch integration shouldn't use it as the service name
         """
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
         spans = self.get_spans()
         self.reset()
@@ -211,7 +211,7 @@ class AlgoliasearchTest(TracerTestCase):
             so make sure that is used and not the v0 schema 'algoliasearch'
         """
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
         spans = self.get_spans()
         self.reset()
@@ -223,7 +223,7 @@ class AlgoliasearchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
         spans = self.get_spans()
         self.reset()
@@ -235,7 +235,7 @@ class AlgoliasearchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_v1_schema(self):
         patch_all()
-        Pin.override(self.index, tracer=self.tracer)
+        Pin._override(self.index, tracer=self.tracer)
         self.perform_search("test search")
         spans = self.get_spans()
         self.reset()
