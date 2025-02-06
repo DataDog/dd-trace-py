@@ -13,7 +13,6 @@ MODEL_PROVIDER = "_ml_obs.meta.model_provider"
 INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
 INPUT_VALUE = "_ml_obs.meta.input.value"
-INPUT_PARAMETERS = "_ml_obs.meta.input.parameters"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
 OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"

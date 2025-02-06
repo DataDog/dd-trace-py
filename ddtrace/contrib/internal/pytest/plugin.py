@@ -18,10 +18,10 @@ import pytest
 
 from ddtrace import config
 from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _extract_span
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
+from ddtrace.settings.asm import config as asm_config
 
 
 # pytest default settings
@@ -93,7 +93,7 @@ def pytest_addoption(parser):
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast import _iast_pytest_activation
 
         _iast_pytest_activation()
@@ -145,7 +145,7 @@ def pytest_addhooks(pluginmanager):
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    """Return the :class:`ddtrace._trace.span.Span` instance associated with the
+    """Return the :class:`ddtrace.trace.Span` instance associated with the
     current test when Datadog CI Visibility is enabled.
     """
     from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility

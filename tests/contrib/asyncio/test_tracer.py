@@ -4,7 +4,7 @@ import asyncio
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.asyncio.compat import asyncio_current_task
+from ddtrace.contrib.internal.asyncio.compat import asyncio_current_task
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
 

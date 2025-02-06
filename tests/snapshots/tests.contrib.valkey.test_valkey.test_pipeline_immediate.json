@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "valkey.command",
+    "service": "valkey",
+    "resource": "SET",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "valkey",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.valkey",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "valkey",
+      "db.system": "valkey",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "server.address": "localhost",
+      "span.kind": "client",
+      "valkey.raw_command": "SET a 1"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.valkey_db": 0,
+      "process_id": 19999,
+      "valkey.args_length": 3
+    },
+    "duration": 343500,
+    "start": 1692651821823333917
+  }],
+[
+  {
+    "name": "valkey.command",
+    "service": "valkey",
+    "resource": "SET",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "valkey",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.valkey",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "valkey",
+      "db.system": "valkey",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "server.address": "localhost",
+      "span.kind": "client",
+      "valkey.raw_command": "SET a 1"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.valkey_db": 0,
+      "process_id": 19999,
+      "valkey.pipeline_length": 1
+    },
+    "duration": 158750,
+    "start": 1692651821823756750
+  }]]

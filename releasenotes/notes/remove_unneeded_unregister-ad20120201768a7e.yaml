@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    logging: Resolves an an unneeded info log being logged on process exit
+    due to a forksafe hook being unregistered that was never registered to begin with.

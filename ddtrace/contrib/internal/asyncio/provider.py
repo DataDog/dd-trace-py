@@ -2,7 +2,7 @@ import asyncio
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DatadogContextMixin
-from ddtrace._trace.span import Span
+from ddtrace.trace import Span
 from ddtrace.vendor.debtcollector import deprecate
 
 

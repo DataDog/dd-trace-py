@@ -90,11 +90,9 @@ class APPSEC(metaclass=Constant_Class):
     AUTO_LOGIN_EVENTS_FAILURE_MODE: Literal[
         "_dd.appsec.events.users.login.failure.auto.mode"
     ] = "_dd.appsec.events.users.login.failure.auto.mode"
+    AUTO_LOGIN_EVENTS_COLLECTION_MODE: Literal["_dd.appsec.user.collection_mode"] = "_dd.appsec.user.collection_mode"
     BLOCKED: Literal["appsec.blocked"] = "appsec.blocked"
     EVENT: Literal["appsec.event"] = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING: Literal[
-        "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
-    ] = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
     AUTO_USER_INSTRUMENTATION_MODE: Literal[
         "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
     ] = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"

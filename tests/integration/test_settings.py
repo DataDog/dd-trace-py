@@ -20,7 +20,7 @@ def test_setting_origin_environment(test_agent_session, run_python_code_in_subpr
     env = os.environ.copy()
     env.update(
         {
-            "DD_TRACE_SAMPLE_RATE": "0.1",
+            "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1}]',
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
@@ -39,11 +39,11 @@ with tracer.trace("test") as span:
     assert status == 0, err
 
     events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLE_RATE")
+    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLING_RULES")
 
     assert {
-        "name": "DD_TRACE_SAMPLE_RATE",
-        "value": 0.1,
+        "name": "DD_TRACE_SAMPLING_RULES",
+        "value": '[{"sample_rate":0.1}]',
         "origin": "env_var",
     } in events_trace_sample_rate
 
@@ -69,7 +69,6 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update(
         {
-            "DD_TRACE_SAMPLE_RATE": "0.1",
             "DD_LOGS_INJECTION": "true",
             "DD_TRACE_HEADER_TAGS": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
             "DD_TAGS": "team:apm,component:web",
@@ -81,7 +80,6 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 
-config._trace_sample_rate = 0.2
 config._logs_injection = False
 config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
@@ -96,12 +94,6 @@ telemetry_writer._app_started()
     assert status == 0, err
 
     events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLE_RATE")
-    assert {
-        "name": "DD_TRACE_SAMPLE_RATE",
-        "value": 0.2,
-        "origin": "code",
-    } in events_trace_sample_rate
 
     events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
     assert {
@@ -174,8 +166,8 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
     assert status == 0, err
 
     events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLE_RATE")
-    assert {"name": "DD_TRACE_SAMPLE_RATE", "value": 1.0, "origin": "default"} in events_trace_sample_rate
+    events_trace_sample_rate = _get_telemetry_config_items(events, "trace_sample_rate")
+    assert {"name": "trace_sample_rate", "value": 1.0, "origin": "default"} in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -191,7 +183,22 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
 
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.5}))
+config._handle_remoteconfig(
+    _base_rc_config(
+        {
+            "tracing_sampling_rules": [
+                {
+                    "sample_rate": "0.5",
+                    "service": "*",
+                    "name": "*",
+                    "resource": "*",
+                    "tags": {},
+                    "provenance": "customer",
+                }
+            ]
+        }
+    )
+)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
@@ -201,8 +208,13 @@ assert span.get_metric("_dd.rule_psr") == 0.5
     assert status == 0, err
 
     events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLE_RATE")
-    assert {"name": "DD_TRACE_SAMPLE_RATE", "value": 0.5, "origin": "remote_config"} in events_trace_sample_rate
+    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLING_RULES")
+    assert {
+        "name": "DD_TRACE_SAMPLING_RULES",
+        "origin": "remote_config",
+        "value": '[{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", '
+        '"tags": {}, "provenance": "customer"}]',
+    } in events_trace_sample_rate
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -226,9 +238,11 @@ config._handle_remoteconfig(_base_rc_config({
         {"header": "used-with-default", "tag_name":""}]
 }))
 with tracer.trace("test") as span:
-    trace_utils.set_http_meta(span,
-                              config.falcon,  # randomly chosen http integration config
-                              request_headers={"used": "foobarbanana", "used-with-default": "defaultname"})
+    trace_utils.set_http_meta(
+        span,
+        config.falcon,  # randomly chosen http integration config
+        request_headers={"used": "foobarbanana", "used-with-default": "defaultname"},
+    )
 assert span.get_tag("header_tag_69") == "foobarbanana"
 assert span.get_tag("header_tag_70") is None
 assert span.get_tag("http.request.headers.used-with-default") == "defaultname"

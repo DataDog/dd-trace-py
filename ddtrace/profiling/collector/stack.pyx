@@ -10,7 +10,7 @@ import typing
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
-from ddtrace._trace.tracer import Tracer
+from ddtrace.trace import Tracer
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -194,19 +194,7 @@ ELIF UNAME_SYSNAME != "Windows":
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
 
-    IF PY_VERSION_HEX < 0x03080000:
-        # Python 3.7
-        cdef extern from "<internal/pystate.h>":
-
-            cdef struct pyinterpreters:
-                PyThread_type_lock mutex
-
-            ctypedef struct _PyRuntimeState:
-                pyinterpreters interpreters
-
-            cdef extern _PyRuntimeState _PyRuntime
-
-    ELIF PY_VERSION_HEX >= 0x03080000:
+    IF PY_VERSION_HEX >= 0x03080000:
         # Python 3.8
         cdef extern from "<internal/pycore_pystate.h>":
 

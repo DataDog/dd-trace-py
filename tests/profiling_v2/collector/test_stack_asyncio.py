@@ -1,9 +1,6 @@
-import sys
-
 import pytest
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="stack v2 is available only on 3.8+ as echion does")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
@@ -16,9 +13,9 @@ def test_asyncio():
     import uuid
 
     from ddtrace import ext
-    from ddtrace import tracer
     from ddtrace.internal.datadog.profiling import stack_v2
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
     from tests.profiling.collector import _asyncio_compat
     from tests.profiling.collector import pprof_utils
 

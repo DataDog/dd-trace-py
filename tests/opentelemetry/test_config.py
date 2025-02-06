@@ -1,6 +1,24 @@
 import pytest
 
 
+def _global_sampling_rule():
+    from ddtrace._trace.sampling_rule import SamplingRule
+    from ddtrace.trace import tracer
+
+    assert hasattr(tracer._sampler, "rules")
+
+    for rule in tracer._sampler.rules:
+        if (
+            rule.service == SamplingRule.NO_RULE
+            and rule.name == SamplingRule.NO_RULE
+            and rule.resource == SamplingRule.NO_RULE
+            and rule.tags == SamplingRule.NO_RULE
+            and rule.provenance == "default"
+        ):
+            return rule
+    assert False, "Rule not found"
+
+
 @pytest.mark.subprocess(
     env={
         "OTEL_SERVICE_NAME": "Test",
@@ -10,7 +28,7 @@ import pytest
         "OTEL_PROPAGATORS": "jaegar, tracecontext, b3",
         "DD_TRACE_PROPAGATION_STYLE": "b3",
         "OTEL_TRACES_SAMPLER": "always_off",
-        "DD_TRACE_SAMPLE_RATE": "1.0",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1}]',
         "OTEL_TRACES_EXPORTER": "True",
         "DD_TRACE_ENABLED": "True",
         "OTEL_METRICS_EXPORTER": "none",
@@ -26,11 +44,12 @@ import pytest
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
     assert config.service == "DD_service_test", config.service
     assert config._debug_mode is False, config._debug_mode
     assert config._propagation_style_extract == ["b3"], config._propagation_style_extract
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.1
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
     assert config._otel_enabled is True, config._otel_enabled
@@ -45,7 +64,7 @@ def test_dd_otel_mixed_env_configuration():
         "OTEL_LOG_LEVEL": "debug",
         "OTEL_PROPAGATORS": "jaegar, tracecontext, b3",
         "OTEL_TRACES_SAMPLER": "always_off",
-        "DD_TRACE_SAMPLE_RATE": "1.0",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9}]',
         "OTEL_TRACES_EXPORTER": "OTLP",
         "OTEL_METRICS_EXPORTER": "none",
         "OTEL_LOGS_EXPORTER": "warning",
@@ -59,13 +78,14 @@ def test_dd_otel_mixed_env_configuration():
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
     assert config.service == "Test", config.service
     assert config.version == "1.0"
     assert config._otel_enabled is True, config._otel_enabled
     assert config._debug_mode is True, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.9
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config.tags == {
@@ -133,8 +153,9 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
 )
 def test_otel_traces_sampler_configuration_alwayson():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 1.0, config._trace_sample_rate
 
 
 @pytest.mark.subprocess(
@@ -143,8 +164,9 @@ def test_otel_traces_sampler_configuration_alwayson():
 )
 def test_otel_traces_sampler_configuration_ignore_parent():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 1.0, config._trace_sample_rate
 
 
 @pytest.mark.subprocess(
@@ -153,8 +175,9 @@ def test_otel_traces_sampler_configuration_ignore_parent():
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 0.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.0, config._trace_sample_rate
 
 
 @pytest.mark.subprocess(
@@ -167,8 +190,9 @@ def test_otel_traces_sampler_configuration_alwaysoff():
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 0.5, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.5, config._trace_sample_rate
 
 
 @pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "none"})

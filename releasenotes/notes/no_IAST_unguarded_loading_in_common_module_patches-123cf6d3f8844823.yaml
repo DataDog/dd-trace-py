@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled, 
+         which could create an ImportError exception on Windows.

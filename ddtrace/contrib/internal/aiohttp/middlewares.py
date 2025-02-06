@@ -2,7 +2,6 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace.contrib.asyncio import context_provider
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -60,8 +59,14 @@ async def trace_middleware(app, handler):
             request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
             try:
                 response = await handler(request)
+<<<<<<< HEAD
                 if isinstance(response, web.StreamResponse):
                     request.task.add_done_callback(lambda _: finish_request_span(request, response))
+=======
+                if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
+                    if isinstance(response, web.StreamResponse):
+                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
+>>>>>>> 3.x-staging
                 return response
             except Exception:
                 req_span.set_traceback()
@@ -135,9 +140,13 @@ async def on_prepare(request, response):
     the trace middleware execution.
     """
     # NB isinstance is not appropriate here because StreamResponse is a parent of the other
-    # aiohttp response types
-    if type(response) is web.StreamResponse and not response.task.done():
-        return
+    # aiohttp response types. However in some cases this can also lead to missing the closing of
+    # spans, leading to a memory leak, which is why we have this flag.
+    # todo: this is a temporary fix for a memory leak in aiohttp. We should find a way to
+    # consistently close spans with the correct timing.
+    if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
+        if type(response) is web.StreamResponse and not response.task.done():
+            return
     finish_request_span(request, response)
 
 
@@ -164,9 +173,6 @@ def trace_app(app, tracer, service="aiohttp-web"):
         "analytics_enabled": None,
         "analytics_sample_rate": 1.0,
     }
-
-    # the tracer must work with asynchronous Context propagation
-    tracer._configure(context_provider=context_provider)
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one
