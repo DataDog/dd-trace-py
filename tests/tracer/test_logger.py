@@ -4,8 +4,8 @@ import mock
 import pytest
 
 import ddtrace.internal.logger
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.logger import LoggingBucket
+from ddtrace.internal.logger import get_logger
 from tests.utils import BaseTestCase
 
 
