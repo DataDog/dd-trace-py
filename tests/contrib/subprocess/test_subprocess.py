@@ -194,7 +194,7 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 def test_ossystem(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -215,7 +215,7 @@ def test_ossystem(tracer):
 def test_fork(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             pid = os.fork()
             if pid == 0:
@@ -241,7 +241,7 @@ def test_fork(tracer):
 def test_unpatch(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -283,7 +283,7 @@ def test_ossystem_noappsec(tracer):
 def test_ospopen(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("os.popen"):
             pipe = os.popen("dir -li /")
             content = pipe.read()
@@ -330,7 +330,7 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 def test_osspawn_variants(tracer, function, mode, arguments):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
         if "_" in function.__name__:
             # wrapt changes function names when debugging
@@ -369,7 +369,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
 def test_subprocess_init_shell_true(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=True)
             subp.wait()
@@ -389,7 +389,7 @@ def test_subprocess_init_shell_true(tracer):
 def test_subprocess_init_shell_false(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=False)
             subp.wait()
@@ -406,7 +406,7 @@ def test_subprocess_wait_shell_false(tracer):
     args = ["dir", "-li", "/"]
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
@@ -419,7 +419,7 @@ def test_subprocess_wait_shell_false(tracer):
 def test_subprocess_wait_shell_true(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
@@ -430,7 +430,7 @@ def test_subprocess_wait_shell_true(tracer):
 def test_subprocess_run(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             result = subprocess.run(["dir", "-l", "/"], shell=True)
             assert result.returncode == 0
@@ -451,7 +451,7 @@ def test_subprocess_run(tracer):
 def test_subprocess_communicate(tracer):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess).clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.communicate()

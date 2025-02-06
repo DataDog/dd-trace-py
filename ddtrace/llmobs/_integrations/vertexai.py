@@ -15,7 +15,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
@@ -65,7 +65,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 INPUT_MESSAGES: input_messages,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags_google("vertexai", span),
+                METRICS: get_llmobs_metrics_tags("vertexai", span),
             }
         )
 
