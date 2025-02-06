@@ -24,21 +24,25 @@ MODULE_IAST_ONLY = [
 @pytest.mark.parametrize("aws_lambda", ["any", None])
 def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     flask_app = pathlib.Path(__file__).parent / "mini.py"
-    env = {}
+    env = os.environ.copy()
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
+    else:
+        env.pop("DD_APPSEC_ENABLED", None)
     if iast_enabled:
         env["DD_IAST_ENABLED"] = iast_enabled
+    else:
+        env.pop("DD_IAST_ENABLED", None)
     if aws_lambda:
         env["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
-
-    all_env = os.environ | env
+    else:
+        env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
 
     process = subprocess.Popen(
         ["python", str(flask_app)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env=all_env,
+        env=env,
     )
     for i in range(16):
         time.sleep(1)
