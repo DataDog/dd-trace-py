@@ -9,8 +9,6 @@ from ddtrace.contrib.internal.graphql.patch import _graphql_version as graphql_v
 from ddtrace.contrib.internal.graphql.patch import patch
 from ddtrace.contrib.internal.graphql.patch import unpatch
 from ddtrace.trace import tracer
-from graphql import build_schema
-from graphql import graphql_sync
 from tests.utils import override_config
 from tests.utils import snapshot
 

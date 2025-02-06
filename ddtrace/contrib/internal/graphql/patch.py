@@ -2,20 +2,13 @@ import os
 import re
 import sys
 import traceback
-from typing import TYPE_CHECKING
-from typing import List
-
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Span
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import Iterable  # noqa:F401
-    from typing import List
-    from typing import Tuple  # noqa:F401
-    from typing import Union  # noqa:F401
+from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 import graphql
 from graphql import MiddlewareManager
@@ -24,7 +17,6 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -44,6 +36,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 _graphql_version_str = graphql.__version__
