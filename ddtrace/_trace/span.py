@@ -552,6 +552,51 @@ class Span(object):
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 
+    def record_exception(
+        self,
+        exception: Exception,
+        attributes: Optional[Dict[str, str]] = None,
+        timestamp: Optional[int] = None,
+        escaped=False,
+    ) -> None:
+        """
+        Records an exception as span event.
+        If the exception is uncaught, :obj:`escaped` should be set :obj:`True`. It
+        will tag the span with an error tuple.
+
+        :param Exception exception: the exception to record<
+        :param dict attributes: optional attributes to add to the span event. It will override
+            the base attributes if :obj:`attributes` contains existing keys.
+        :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
+        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for a uncaught exception.
+        """
+        if timestamp is None:
+            timestamp = time_ns()
+
+        exc_type, exc_val, exc_tb = type(exception), exception, exception.__traceback__
+
+        if escaped:
+            self.set_exc_info(exc_type, exc_val, exc_tb)
+
+        # get the traceback
+        buff = StringIO()
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
+        tb = buff.getvalue()
+
+        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
+        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
+        attrs = {
+            "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
+            "exception.message": str(exception),
+            "exception.escaped": str(escaped),
+            "exception.stacktrace": tb,
+        }
+        if attributes:
+            # User provided attributes must take precedence over attrs
+            attrs.update(attributes)
+
+        self._add_event(name="recorded exception", attributes=attrs, timestamp=timestamp)
+
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
         data = [

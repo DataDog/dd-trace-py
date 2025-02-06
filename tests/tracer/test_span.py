@@ -533,6 +533,61 @@ class SpanTestCase(TracerTestCase):
             },
         ]
 
+    def test_span_record_exception(self):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(e)
+        span.finish()
+
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
+        )
+
+    def test_span_record_multiple_exceptions(self):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(e)
+
+        try:
+            raise RuntimeError("bam")
+        except RuntimeError as e:
+            span.record_exception(e)
+        span.finish()
+
+        span.assert_span_event_count(2)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
+        )
+        span.assert_span_event_attributes(
+            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": "False"}
+        )
+
+    def test_span_record_escaped_exception(self):
+        exc = RuntimeError("bim")
+        span = self.start_span("span")
+        try:
+            raise exc
+        except RuntimeError as e:
+            span.record_exception(e, escaped=True)
+        span.finish()
+
+        span.assert_matches(
+            error=1,
+            meta={
+                "error.message": str(exc),
+                "error.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
+            },
+        )
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "True"}
+        )
+
 
 @pytest.mark.parametrize(
     "value,assertion",
