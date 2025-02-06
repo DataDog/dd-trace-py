@@ -27,7 +27,7 @@ jobs:
   build_wheels:
     uses: ./.github/workflows/build_python_3.yml
     with:
-      cibw_build: 'cp37* cp38* cp39* cp310* cp311* cp312* cp313*'
+      cibw_build: 'cp38* cp39* cp310* cp311* cp312* cp313*'
 
   build_sdist:
     name: Build source distribution

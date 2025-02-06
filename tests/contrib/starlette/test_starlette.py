@@ -38,7 +38,7 @@ def engine():
 def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    Pin.override(engine, tracer=tracer)
+    Pin._override(engine, tracer=tracer)
     ddtrace.tracer = tracer
     starlette_patch()
     yield tracer

@@ -47,6 +47,7 @@ from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
 from tests.contrib.fastapi.conftest import tracer  # noqa:F401
 
+from ..utils import flaky
 from ..utils import override_env
 from ..utils import override_global_config
 
@@ -836,6 +837,7 @@ def test_extract_128bit_trace_ids_tracecontext():
                 assert child_span.trace_id == trace_id
 
 
+@flaky(1735812000, reason="FIXME: Failing due to the global tracer being used in all tests")
 def test_last_dd_span_id():
     non_dd_remote_context = HTTPPropagator.extract(
         {

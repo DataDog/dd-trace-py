@@ -869,19 +869,3 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.3"})
-def test_v03_trace_api_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-        from ddtrace.trace import tracer
-
-        assert tracer._writer._api_version == "v0.4"
-        assert len(warns) == 1, warns
-        assert (
-            warns[0].message.args[0] == "DD_TRACE_API_VERSION=v0.3 is deprecated and will be "
-            "removed in version '3.0.0': Traces will be submitted to the v0.4/traces agent endpoint instead."
-        ), warns[0].message

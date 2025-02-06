@@ -59,7 +59,6 @@ from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
@@ -69,7 +68,6 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -217,16 +215,8 @@ class Tracer(object):
             if Tracer._instance is None:
                 Tracer._instance = self
             else:
-                # ddtrace library does not support context propagation for multiple tracers.
-                # All instances of ddtrace ContextProviders share the same ContextVars. This means that
-                # if you create multiple instances of Tracer, spans will be shared between them creating a
-                # broken experience.
-                # TODO(mabdinur): Convert this warning to an ValueError in 3.0.0
-                deprecate(
-                    "Support for multiple Tracer instances is deprecated",
-                    ". Use ddtrace.tracer instead.",
-                    category=DDTraceDeprecationWarning,
-                    removal_version="3.0.0",
+                log.error(
+                    "Multiple Tracer instances can not be initialized. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
         self._user_trace_processors: List[TraceProcessor] = []

@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    langchain: Removes the `langchain.tokens.total_cost` span metric for OpenAI calls. 
+     For continued cost estimation of OpenAI calls, enable `LLM Observability <https://docs.datadoghq.com/llm_observability/>`_.

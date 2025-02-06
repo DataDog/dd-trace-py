@@ -42,11 +42,11 @@ async def aiobotocore_client(service, tracer):
         client, aiobotocore.session.ClientCreatorContext
     ):
         async with client as client:
-            Pin.override(client, tracer=tracer)
+            Pin._override(client, tracer=tracer)
             await yield_(client)
 
     else:
-        Pin.override(client, tracer=tracer)
+        Pin._override(client, tracer=tracer)
         try:
             await yield_(client)
         finally:
