@@ -40,7 +40,6 @@
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 271,
       "langchain.tokens.prompt_tokens": 23,
-      "langchain.tokens.total_cost": 0.0005765000000000001,
       "langchain.tokens.total_tokens": 294,
       "process_id": 82010
     },
