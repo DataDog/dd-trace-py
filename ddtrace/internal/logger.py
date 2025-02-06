@@ -72,9 +72,8 @@ def log_filter(record: logging.LogRecord) -> bool:
         _buckets[key] = LoggingBucket(current_bucket, 0)
         # Actually log this record
         return False
-    else:
-        # Increment the count of records we have skipped
-        # DEV: `buckets[key]` is a tuple which is immutable so recreate instead
-        _buckets[key] = LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
-        # Skip this log message
+    # Increment the count of records we have skipped
+    # DEV: `buckets[key]` is a tuple which is immutable so recreate instead
+    _buckets[key] = LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
+    # Skip this log message
     return True
