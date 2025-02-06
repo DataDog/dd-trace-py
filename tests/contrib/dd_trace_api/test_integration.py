@@ -3,7 +3,7 @@ from typing import Any
 
 import dd_trace_api
 
-from ddtrace import Span as dd_span_class
+from ddtrace._trace.span import Span as dd_span_class
 from ddtrace.contrib.internal.dd_trace_api.patch import patch
 from ddtrace.contrib.internal.dd_trace_api.patch import unpatch
 from tests.utils import TracerTestCase
