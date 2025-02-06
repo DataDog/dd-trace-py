@@ -64,10 +64,6 @@ class SpanEvent:
         self.name: str = name
         if attributes is None:
             self.attributes = {}
-        elif not isinstance(attributes, dict):
-            raise TypeError("attributes must be a dictionary")
-        elif not all(isinstance(k, str) for k in attributes.keys()):
-            raise TypeError("All attributes keys must be strings")
         else:
             self.attributes = attributes
         if time_unix_nano is None:
@@ -81,6 +77,11 @@ class SpanEvent:
         return d
 
     def __str__(self):
+        """
+        Stringify and return value.
+        Attribute value can be either str, bool, int/float, list.
+        """
+
         def format_value(value: Any) -> str:
             if isinstance(value, list):
                 return f"[{' '.join(map(str, value))}]"
