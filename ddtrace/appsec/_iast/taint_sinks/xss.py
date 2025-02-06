@@ -64,7 +64,15 @@ def patch():
     )
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
-    _set_metric_iast_instrumented_sink(VULN_XSS)
+    # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch
+    # function executes. Therefore, we update the in-memory object with the newly patched version.
+    try:
+        from jinja2.filters import FILTERS
+        from jinja2.filters import do_mark_safe
+
+        FILTERS["safe"] = do_mark_safe
+    except (ImportError, KeyError):
+        pass
 
 
 def unpatch():
