@@ -121,6 +121,7 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -139,6 +140,9 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 break
             except Exception:
                 span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                )
                 span.finish()
                 raise
 
@@ -160,6 +164,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -178,6 +183,9 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 break
             except Exception:
                 span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                )
                 span.finish()
                 raise
 
