@@ -59,14 +59,9 @@ async def trace_middleware(app, handler):
             request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
             try:
                 response = await handler(request)
-<<<<<<< HEAD
-                if isinstance(response, web.StreamResponse):
-                    request.task.add_done_callback(lambda _: finish_request_span(request, response))
-=======
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
                         request.task.add_done_callback(lambda _: finish_request_span(request, response))
->>>>>>> main
                 return response
             except Exception:
                 req_span.set_traceback()
