@@ -263,7 +263,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session_span.get_tag("test.test_management.enabled") == "true"
 
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
@@ -296,7 +296,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session_span.get_tag("test.test_management.enabled") == "true"
 
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")

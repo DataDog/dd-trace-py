@@ -464,14 +464,6 @@ class CIVisibility(Service):
         )
 
     @classmethod
-    def should_skip_quarantined_tests(cls):
-        if cls._instance is None:
-            return False
-        return cls._instance._api_settings.quarantine.skip_quarantined_tests and asbool(
-            os.getenv("DD_TEST_MANAGEMENT_ENABLED", default=True)
-        )
-
-    @classmethod
     def should_collect_coverage(cls):
         return cls._instance._api_settings.coverage_enabled or asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)

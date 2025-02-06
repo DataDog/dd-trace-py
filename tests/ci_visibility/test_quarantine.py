@@ -53,4 +53,4 @@ class TestCIVisibilityTestQuarantine:
             session.finish()
 
         assert test._span.get_tag("test.management.is_quarantined") == "true"
-        assert session._span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session._span.get_tag("test.test_management.enabled") == "true"
