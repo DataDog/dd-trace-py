@@ -17,9 +17,14 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 class ErrorReportingConfig(Env):
     __prefix__ = "dd_trace"
     enable_handled_exceptions_reporting = Env.var(bool, "experimental_reported_handled_exceptions", default=False)
-    user_env_scope = Env.var(list, "experimental_reported_handled_exceptions_user", parser=parse_modules, default=[])
-    third_party_env_scope = Env.var(
-        list, "experimental_reported_handled_exceptions_third_party", parser=parse_modules, default=[]
+    _enable_handled_exceptions_reporting_user_code = Env.var(
+        bool, "experimental_reported_handled_exceptions_user", default=False
+    )
+    _enable_handled_exceptions_reporting_third_party = Env.var(
+        bool, "experimental_reported_handled_exceptions_third_party", default=False
+    )
+    _modules_to_report = Env.var(
+        list, "experimental_reported_handled_exceptions_modules", parser=parse_modules, default=[]
     )
     _internal_logger = Env.var(str, "experimental_reported_handled_exceptions_logger", default="")
     _report_after_unhandled = Env.var(bool, "experimental_reported_handled_exceptions_after_unhandled", default=False)
@@ -47,19 +52,18 @@ class ErrorReportingConfig(Env):
             self._instrument_user_code = True
             self._instrument_third_party_code = True
         else:
-            if self.user_env_scope == ["all"]:
-                self._instrument_user_code = True
-            else:
-                self._configured_modules.extend(self.user_env_scope)
-
-            if self.third_party_env_scope == ["all"]:
-                self._instrument_third_party_code = True
-            else:
-                self._configured_modules.extend(self.third_party_env_scope)
+            self._configured_modules = self._modules_to_report
+            self._instrument_user_code = self._enable_handled_exceptions_reporting_user_code
+            self._instrument_third_party_code = self._enable_handled_exceptions_reporting_third_party
 
 
 _er_config = ErrorReportingConfig()
-if (not _er_config._configured_modules) is False or _er_config.enable_handled_exceptions_reporting is True:
+if (
+    (not _er_config._modules_to_report) is False
+    or _er_config.enable_handled_exceptions_reporting
+    or _er_config._enable_handled_exceptions_reporting_user_code
+    or _er_config._enable_handled_exceptions_reporting_third_party
+):
     _er_config._enabled = True
     _er_config._init_scope()
     _report_telemetry(_er_config)
