@@ -77,7 +77,6 @@ components:
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
   dd_trace_api:
-    - ddtrace/contrib/dd_trace_api/*
     - ddtrace/contrib/internal/dd_trace_api/*
   django:
     - ddtrace/contrib/_django.py
