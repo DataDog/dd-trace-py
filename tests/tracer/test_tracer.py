@@ -676,7 +676,9 @@ def test_tracer_shutdown_timeout():
     mock_stop.assert_called_once_with(2)
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(
+    err=b"Spans started after the tracer has been shut down will not be sent to the Datadog Agent.\n",
+)
 def test_tracer_shutdown():
     import mock
 
@@ -690,26 +692,6 @@ def test_tracer_shutdown():
             pass
 
     mock_write.assert_not_called()
-
-@pytest.mark.subprocess
-def test_tracer_shutdown_warning():
-    import logging
-
-    import mock
-
-    from ddtrace.trace import tracer as t
-
-    t.shutdown()
-
-    with mock.patch.object(logging.Logger, "warning") as mock_logger:
-        with t.trace("something"):
-            pass
-
-    mock_logger.assert_has_calls(
-        [
-            mock.call("Spans started after the tracer has been shut down will not be sent to the Datadog Agent."),
-        ]
-    )
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
