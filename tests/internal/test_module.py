@@ -529,24 +529,23 @@ def test_module_import_side_effect():
 
 
 def test_public_modules_in_ddtrace_contrib():
-    # Ensures that public modules are not accidentally added to the integration API
+    # Ensures that public modules are not accidentally added to ddtrace.contrib
     contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
         relative_dir = Path(directory).relative_to(contrib_dir)
-        if "internal" in relative_dir.parts or any([x.startswith("_") for x in relative_dir.parts]):
+        if "internal" in relative_dir.parts:
+            # ignore modules in ddtrace/contrib/internal
             continue
 
-        # Open files in ddtrace/contrib/ and check if the content matches the template
         for file_name in file_names:
-            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
-            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
-                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
-                relative_dir_with_file = relative_dir / file_name[:-3]  # Remove the .py extension
-                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
-                sub_modules = ".".join(relative_dir_with_file.parts)
-                public_modules.add(f"ddtrace.contrib.{sub_modules}")
+            # Ignore private modules (python files prefixed with "_")
+            if file_name.endswith(".py") and not file_name.startswith("_"):
+                # Covert filename to a module name (ex: dd-trace-py/ddtrace/contrib/flask.py -> ddtrace.contrib.flask)
+                relative_dir_with_file = relative_dir / file_name[:-3]
+                module_name = "ddtrace.contrib." + ".".join(relative_dir_with_file.parts)
+                public_modules.add(module_name)
 
     # The following modules contain attributes that are exposed to ddtrace users. All other modules in ddtrace.contrib
     # are internal.
