@@ -9,16 +9,19 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.propagation.http import _extract_header_value
+from ddtrace.propagation.http import _possible_header
 
 
 log = logging.getLogger(__name__)
 
-PROXY_HEADER_SYSTEM = "x-dd-proxy"
-PROXY_HEADER_START_TIME_MS = "x-dd-proxy-request-time-ms"
-PROXY_HEADER_PATH = "x-dd-proxy-path"
-PROXY_HEADER_HTTPMETHOD = "x-dd-proxy-httpmethod"
-PROXY_HEADER_DOMAIN = "x-dd-proxy-domain-name"
-PROXY_HEADER_STAGE = "x-dd-proxy-stage"
+# Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's logic to extract http headers
+POSSIBLE_PROXY_HEADER_SYSTEM = _possible_header("x-dd-proxy")
+POSSIBLE_PROXY_HEADER_START_TIME_MS = _possible_header("x-dd-proxy-request-time-ms")
+POSSIBLE_PROXY_HEADER_PATH = _possible_header("x-dd-proxy-path")
+POSSIBLE_PROXY_HEADER_HTTPMETHOD = _possible_header("x-dd-proxy-httpmethod")
+POSSIBLE_PROXY_HEADER_DOMAIN = _possible_header("x-dd-proxy-domain-name")
+POSSIBLE_PROXY_HEADER_STAGE = _possible_header("x-dd-proxy-stage")
 
 supported_proxies: Dict[str, Dict[str, str]] = {
     "aws-apigateway": {"span_name": "aws.apigateway", "component": "aws-apigateway"}
@@ -74,22 +77,37 @@ def set_inferred_proxy_span_tags(span, proxy_context) -> Span:
 
 
 def extract_inferred_proxy_context(headers) -> Union[None, Dict[str, str]]:
-    if PROXY_HEADER_START_TIME_MS not in headers:
+    proxy_header_system = str(_extract_header_value(POSSIBLE_PROXY_HEADER_SYSTEM, headers))
+    proxy_header_start_time_ms = str(_extract_header_value(POSSIBLE_PROXY_HEADER_START_TIME_MS, headers))
+    proxy_header_path = str(_extract_header_value(POSSIBLE_PROXY_HEADER_PATH, headers))
+    proxy_header_httpmethod = str(_extract_header_value(POSSIBLE_PROXY_HEADER_HTTPMETHOD, headers))
+    proxy_header_domain = str(_extract_header_value(POSSIBLE_PROXY_HEADER_DOMAIN, headers))
+    proxy_header_stage = str(_extract_header_value(POSSIBLE_PROXY_HEADER_STAGE, headers))
+
+    # Exit if any of the required headers are not present
+    if (
+        not proxy_header_system
+        or not proxy_header_start_time_ms
+        or not proxy_header_path
+        or not proxy_header_httpmethod
+        or not proxy_header_domain
+        or not proxy_header_stage
+    ):
         return None
 
-    if not (PROXY_HEADER_SYSTEM in headers and headers[PROXY_HEADER_SYSTEM] in supported_proxies):
+    if not (proxy_header_system and proxy_header_system in supported_proxies):
         log.debug(
             "Received headers to create inferred proxy span but headers include an unsupported proxy type", headers
         )
         return None
 
     return {
-        "request_time": headers[PROXY_HEADER_START_TIME_MS] if headers[PROXY_HEADER_START_TIME_MS] else "0",
-        "method": headers[PROXY_HEADER_HTTPMETHOD],
-        "path": headers[PROXY_HEADER_PATH],
-        "stage": headers[PROXY_HEADER_STAGE],
-        "domain_name": headers[PROXY_HEADER_DOMAIN],
-        "proxy_system_name": headers[PROXY_HEADER_SYSTEM],
+        "request_time": proxy_header_start_time_ms,
+        "method": proxy_header_httpmethod,
+        "path": proxy_header_path,
+        "stage": proxy_header_stage,
+        "domain_name": proxy_header_domain,
+        "proxy_system_name": proxy_header_system,
     }
 
 

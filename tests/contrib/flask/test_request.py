@@ -12,7 +12,6 @@ from flask import make_response
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
