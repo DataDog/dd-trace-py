@@ -75,7 +75,7 @@ Homepage = "https://github.com/DataDog/dd-trace-py"
 "Source Code" = "https://github.com/DataDog/dd-trace-py/"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
+version_scheme = "guess-next-dev"  # Must be "release-branch-semver" for now in main, see https://github.com/DataDog/dd-trace-py/issues/8801
 write_to = "ddtrace/_version.py"
 
 [tool.cython-lint]
