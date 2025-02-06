@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -12,7 +11,6 @@ from weakref import WeakKeyDictionary
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -107,7 +105,7 @@ class LangChainIntegration(BaseLLMIntegration):
     """Maps spans to instances."""
 
     def record_steps(self, instance, span):
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not self.span_linking_enabled:
             return
 
         steps = getattr(instance, "steps", [])
@@ -117,7 +115,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self.record_instance(instance, span)
 
     def record_instance(self, instance, span):
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not self.span_linking_enabled:
             return
 
         instance = _extract_bound(instance)
@@ -140,7 +138,7 @@ class LangChainIntegration(BaseLLMIntegration):
             log.warning("Unsupported operation : %s", operation)
             return
 
-        if asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED")):
+        if self.span_linking_enabled:
             self._set_links(span)
 
         model_provider = span.get_tag(PROVIDER)
