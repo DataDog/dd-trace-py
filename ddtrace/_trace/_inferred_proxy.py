@@ -29,13 +29,6 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
     if not headers:
         return None
 
-    if not config._inferred_proxy_services_enabled:
-        return None
-
-    # If the application has overridden the setting to false, respect it
-    if str(config._inferred_proxy_services_enabled).lower() == "false":
-        return None
-
     normalized_headers = normalize_headers(headers)
 
     proxy_context = extract_inferred_proxy_context(normalized_headers)
@@ -44,9 +37,6 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
         return None
 
     proxy_span_info = supported_proxies[proxy_context["proxy_system_name"]]
-
-    # this log line is breaking cherrypy with: TypeError: not all arguments converted during string formatting
-    # log.debug("Successfully extracted inferred span info for proxy: ", str(proxy_context["proxy_system_name"]))
 
     span = tracer.start_span(
         proxy_span_info["span_name"],
@@ -57,8 +47,6 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
         child_of=child_of,
     )
     span.start_ns = int(proxy_context["request_time"]) * 1000000
-
-    log.debug("Successfully created inferred proxy span.")
 
     set_inferred_proxy_span_tags(span, proxy_context)
 
