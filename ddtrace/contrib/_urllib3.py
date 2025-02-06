@@ -7,7 +7,7 @@ Enabling
 ~~~~~~~~
 
 The ``urllib3`` integration is not enabled by default. Use either ``ddtrace-run``
-or ``import ddtrace.auto`` with ``DD_PATCH_MODULES`` to enable it.
+or ``import ddtrace.auto`` with ``DD_PATCH_MODULES`` or ``DD_TRACE_URLLIB3_ENABLED`` to enable it.
 ``DD_PATCH_MODULES=urllib3 ddtrace-run python app.py`` or
 ``DD_PATCH_MODULES=urllib3:true python app.py``::
 
