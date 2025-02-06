@@ -31,7 +31,7 @@ _rate_limit = int(os.getenv("DD_TRACE_LOGGING_RATE", default=60))
 
 def log_filter(record: logging.LogRecord) -> bool:
     """
-    Function used to determine if a log record should be outputted or not.
+    Function used to determine if a log record should be outputted or not (True = output, False = skip).
 
     This function will:
       - Log all records with a level of ERROR or higher with telemetry
@@ -50,7 +50,7 @@ def log_filter(record: logging.LogRecord) -> bool:
     # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
     # If the logger is set to debug, then do not apply any limits to any log
     if not _rate_limit or logger.getEffectiveLevel() == logging.DEBUG:
-        return False
+        return True
         # Allow 1 log record by name/level/pathname/lineno every X seconds
     # DEV: current unix time / rate (e.g. 300 seconds) = time bucket
     #      int(1546615098.8404942 / 300) = 515538
@@ -72,9 +72,9 @@ def log_filter(record: logging.LogRecord) -> bool:
             # Reset our bucket
         _buckets[key] = LoggingBucket(current_bucket, 0)
         # Actually log this record
-        return False
+        return True
     # Increment the count of records we have skipped
     # DEV: `buckets[key]` is a tuple which is immutable so recreate instead
     _buckets[key] = LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
     # Skip this log message
-    return True
+    return False
