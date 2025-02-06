@@ -45,10 +45,11 @@ def log_filter(record: logging.LogRecord) -> bool:
         full_file_name = os.path.join(record.pathname, record.filename)
         telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
 
+    logger = logging.getLogger(record.name)
+
     # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
-    # If the record is debug, then do not apply any limits to any log
-    #   DEV: we rely on the logging level of the handler/logger to filter out debug logs
-    if not _rate_limit or record.levelno == logging.DEBUG:
+    # If the logger is set to debug, then do not apply any limits to any log
+    if not _rate_limit or logger.getEffectiveLevel() == logging.DEBUG:
         return False
         # Allow 1 log record by name/level/pathname/lineno every X seconds
     # DEV: current unix time / rate (e.g. 300 seconds) = time bucket
