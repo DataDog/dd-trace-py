@@ -22,8 +22,8 @@ class TestConsulPatch(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin._override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
-        Pin._override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):
@@ -168,8 +168,8 @@ class TestSchematization(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin._override(consul.Consul, tracer=self.tracer)
-        Pin._override(consul.Consul.KV, tracer=self.tracer)
+        Pin.override(consul.Consul, tracer=self.tracer)
+        Pin.override(consul.Consul.KV, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):

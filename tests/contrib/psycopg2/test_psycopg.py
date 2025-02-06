@@ -49,7 +49,7 @@ class PsycopgCore(TracerTestCase):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
-            pin._clone(service=service, tracer=self.tracer).onto(conn)
+            pin.clone(service=service, tracer=self.tracer).onto(conn)
 
         return conn
 
@@ -146,7 +146,7 @@ class PsycopgCore(TracerTestCase):
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg2.connect(" ".join(configs_arr))
 
-        Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
+        Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
 
     def test_opentracing_propagation(self):

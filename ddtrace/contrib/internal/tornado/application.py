@@ -54,6 +54,10 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    pin = ddtrace.trace.Pin(service=service)
-    pin._tracer = tracer
-    pin.onto(template)
+    # configure the PIN object for template rendering
+    # Required for backwards compatibility. Remove the else clause when
+    # the `ddtrace.trace.Pin` object no longer accepts the Pin argument.
+    if tracer is ddtrace.tracer:
+        ddtrace.trace.Pin(service=service).onto(template)
+    else:
+        ddtrace.trace.Pin(service=service, tracer=tracer).onto(template)

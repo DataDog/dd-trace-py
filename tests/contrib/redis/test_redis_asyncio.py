@@ -130,7 +130,7 @@ async def test_override_service_name(redis_client):
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pin(redis_client):
-    Pin._override(redis_client, service="my-redis")
+    Pin.override(redis_client, service="my-redis")
     val = await redis_client.get("cheese")
     assert val is None
 

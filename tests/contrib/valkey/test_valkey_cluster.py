@@ -24,7 +24,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
+        Pin.override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -101,7 +101,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -121,7 +121,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -140,7 +140,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.get_spans()
@@ -160,7 +160,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.get_spans()

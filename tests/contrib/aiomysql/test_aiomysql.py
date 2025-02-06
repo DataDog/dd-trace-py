@@ -62,7 +62,7 @@ async def test_queries(snapshot_conn):
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_pin_override(patched_conn, tracer):
-    Pin._override(patched_conn, service="db")
+    Pin.override(patched_conn, service="db")
     cursor = await patched_conn.cursor()
     await cursor.execute("SELECT 1")
     rows = await cursor.fetchall()
@@ -78,7 +78,7 @@ async def test_patch_unpatch(tracer, test_spans):
     service = "fo"
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -100,7 +100,7 @@ async def test_patch_unpatch(tracer, test_spans):
     patch()
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -237,7 +237,7 @@ class AioMySQLTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
+            pin.clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
 
             return self.conn, self.tracer
 

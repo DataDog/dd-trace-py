@@ -35,7 +35,7 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
 
 async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_client, snapshot_context):
     app, _ = untraced_app_tracer_jinja
-    Pin._override(aiohttp_jinja2, tracer=tracer)
+    Pin.override(aiohttp_jinja2, tracer=tracer)
     with snapshot_context():
         client = await aiohttp_client(app)
         # it should trace a template rendering
@@ -51,7 +51,7 @@ async def test_template_rendering_snapshot_patched_server(
     use_global_tracer,
 ):
     app, _ = patched_app_tracer_jinja
-    Pin._override(aiohttp_jinja2, tracer=tracer)
+    Pin.override(aiohttp_jinja2, tracer=tracer)
     # Ignore meta.http.url tag as the port is not fixed on the server
     with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"]):
         client = await aiohttp_client(app)

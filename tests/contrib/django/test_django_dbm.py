@@ -21,7 +21,7 @@ def get_cursor(tracer, service=None, propagation_mode="service", tags={}):
     pin = Pin.get_from(cursor)
     assert pin is not None
 
-    pin._clone(tracer=tracer, tags={**pin.tags, **tags}).onto(cursor)
+    pin.clone(tracer=tracer, tags={**pin.tags, **tags}).onto(cursor)
 
     return cursor
 

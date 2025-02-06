@@ -35,7 +35,7 @@ def mock_tracer(ddtrace_global_config, genai):
     try:
         pin = Pin.get_from(genai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin._override(genai, tracer=mock_tracer)
+        pin.override(genai, tracer=mock_tracer)
         pin.tracer._configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.

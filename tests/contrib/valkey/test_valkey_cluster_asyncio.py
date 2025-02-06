@@ -28,7 +28,7 @@ async def traced_valkey_cluster(tracer, test_spans):
     startup_nodes = [valkey.asyncio.cluster.ClusterNode(TEST_HOST, int(port)) for port in TEST_PORTS.split(",")]
     valkey_cluster = valkey.asyncio.cluster.ValkeyCluster(startup_nodes=startup_nodes)
     await valkey_cluster.flushall()
-    Pin._override(valkey_cluster, tracer=tracer)
+    Pin.override(valkey_cluster, tracer=tracer)
     try:
         yield valkey_cluster, test_spans
     finally:
@@ -119,7 +119,7 @@ async def test_patch_unpatch(valkey_cluster):
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
+    Pin.override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
@@ -139,7 +139,7 @@ async def test_patch_unpatch(valkey_cluster):
     patch()
 
     r = valkey_cluster
-    Pin._override(r, tracer=tracer)
+    Pin.override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
@@ -175,7 +175,7 @@ def test_default_service_name_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -223,7 +223,7 @@ def test_user_specified_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -271,7 +271,7 @@ def test_user_specified_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -311,7 +311,7 @@ def test_env_user_specified_valkeycluster_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -351,7 +351,7 @@ def test_env_user_specified_valkeycluster_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -399,7 +399,7 @@ def test_service_precedence_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -443,7 +443,7 @@ def test_service_precedence_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 

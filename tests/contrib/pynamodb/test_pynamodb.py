@@ -22,7 +22,7 @@ class PynamodbTest(TracerTestCase):
         self.conn.session.set_credentials("aws-access-key", "aws-secret-access-key", "session-token")
 
         super(PynamodbTest, self).setUp()
-        Pin._override(self.conn, tracer=self.tracer)
+        Pin.override(self.conn, tracer=self.tracer)
 
     def tearDown(self):
         super(PynamodbTest, self).tearDown()
@@ -268,7 +268,7 @@ class PynamodbTest(TracerTestCase):
 
         # Manual override
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        Pin._override(self.conn, service="mypynamodb", tracer=self.tracer)
+        Pin.override(self.conn, service="mypynamodb", tracer=self.tracer)
         list_result = self.conn.list_tables()
         span = self.get_spans()[0]
         assert span.service == "mypynamodb", span.service
@@ -289,7 +289,7 @@ class PynamodbTest(TracerTestCase):
 
         # Manual override
         dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
-        Pin._override(self.conn, service="override-pynamodb", tracer=self.tracer)
+        Pin.override(self.conn, service="override-pynamodb", tracer=self.tracer)
         list_result = self.conn.list_tables()
         span = self.get_spans()[0]
         assert span.service == "override-pynamodb", span.service

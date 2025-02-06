@@ -49,7 +49,7 @@ def test_basic_schema_serialize(avro, tracer, test_spans):
 
     pin = Pin.get_from(writer)
     assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
+    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
 
     with tracer.trace("basic_avro_schema.serialization") as span:
         span.context.sampling_priority = AUTO_KEEP
@@ -82,7 +82,7 @@ def test_advanced_schema_serialize(avro, tracer, test_spans):
 
     pin = Pin.get_from(writer)
     assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
+    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(writer)
 
     with tracer.trace("advanced_avro_schema.serialization") as span:
         span.context.sampling_priority = AUTO_KEEP
@@ -128,7 +128,7 @@ def test_basic_schema_deserialize(avro, tracer, test_spans):
 
     pin = Pin.get_from(reader)
     assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
+    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
 
     with tracer.trace("basic_avro_schema.deserialization") as span:
         span.context.sampling_priority = AUTO_KEEP
@@ -160,7 +160,7 @@ def test_advanced_schema_deserialize(avro, tracer, test_spans):
 
     pin = Pin.get_from(reader)
     assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
+    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(reader)
 
     with tracer.trace("advanced_avro_schema.deserialization") as span:
         span.context.sampling_priority = AUTO_KEEP

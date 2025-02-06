@@ -85,7 +85,7 @@ class TestMoltenDI(TracerTestCase):
     def setUp(self):
         super(TestMoltenDI, self).setUp()
         patch()
-        Pin._override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
+        Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):
         unpatch()

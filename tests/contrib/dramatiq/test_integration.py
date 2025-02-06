@@ -35,9 +35,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         unpatch()
 
         tracer = DummyTracer()
-        pin = Pin()
-        pin._tracer = tracer
-        pin.onto(dramatiq)
+        Pin(tracer=tracer).onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():
@@ -53,9 +51,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         # the body of the function is not instrumented so calling it
         # directly doesn't create a trace
         tracer = DummyTracer()
-        pin = Pin()
-        pin._tracer = tracer
-        pin.onto(dramatiq)
+        Pin(tracer=tracer).onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():

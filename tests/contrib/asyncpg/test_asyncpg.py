@@ -158,7 +158,7 @@ async def test_cursor_manual(patched_conn):
 @pytest.mark.snapshot
 @pytest.mark.xfail
 async def test_service_override_pin(patched_conn):
-    Pin._override(patched_conn, service="custom-svc")
+    Pin.override(patched_conn, service="custom-svc")
     await patched_conn.execute("SELECT 1")
 
 
@@ -351,7 +351,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -468,7 +468,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        Pin._override(conn, service="pin-service-name-override", tracer=tracer)
+        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs

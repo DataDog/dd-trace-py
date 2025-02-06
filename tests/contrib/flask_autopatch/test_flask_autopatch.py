@@ -17,7 +17,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
         super(FlaskAutopatchTestCase, self).setUp()
         self.app = flask.Flask(__name__)
-        Pin._override(self.app, service="test-flask", tracer=self.tracer)
+        Pin.override(self.app, service="test-flask", tracer=self.tracer)
         self.client = self.app.test_client()
 
     def test_patched(self):

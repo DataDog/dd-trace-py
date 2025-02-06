@@ -146,7 +146,7 @@ def snapshot_tracer(openai, patch_openai):
 def mock_tracer(ddtrace_global_config, openai, patch_openai):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(openai, tracer=mock_tracer)
+    pin.override(openai, tracer=mock_tracer)
     pin.tracer._configure(trace_processors=[FilterOrg()])
 
     if ddtrace_global_config.get("_llmobs_enabled", False):

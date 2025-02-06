@@ -1568,7 +1568,7 @@ def test_tracer():
 @contextmanager
 def post_tracer(interface):
     original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin._override(interface.framework, tracer=interface.tracer)
+    ddtrace.trace.Pin.override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin._override(interface.framework, tracer=original_tracer)
+        ddtrace.trace.Pin.override(interface.framework, tracer=original_tracer)

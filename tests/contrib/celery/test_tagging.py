@@ -61,14 +61,14 @@ def dummy_tracer():
 @pytest.fixture(autouse=False)
 def traced_redis_celery_app(instrument_celery, dummy_tracer):
     Pin.get_from(redis_celery_app)
-    Pin._override(redis_celery_app, tracer=dummy_tracer)
+    Pin.override(redis_celery_app, tracer=dummy_tracer)
     yield redis_celery_app
 
 
 @pytest.fixture(autouse=False)
 def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     Pin.get_from(amqp_celery_app)
-    Pin._override(amqp_celery_app, tracer=dummy_tracer)
+    Pin.override(amqp_celery_app, tracer=dummy_tracer)
     yield amqp_celery_app
 
 

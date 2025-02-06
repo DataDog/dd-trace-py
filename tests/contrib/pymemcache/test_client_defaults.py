@@ -18,7 +18,7 @@ from .utils import MockSocket
 def client(tracer):
     try:
         patch()
-        Pin._override(pymemcache, tracer=tracer)
+        Pin.override(pymemcache, tracer=tracer)
         with override_config("pymemcache", dict(command_enabled=False)):
             client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT))
             yield client

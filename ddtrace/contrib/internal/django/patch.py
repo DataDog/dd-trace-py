@@ -17,6 +17,7 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
+import ddtrace
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
@@ -148,9 +149,12 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        tracer = pin.tracer
-        pin = Pin(service, tags=tags)
-        pin._tracer = tracer
+        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
+        # Remove this if statement when the `tracer` argument is removed
+        if pin.tracer is ddtrace.tracer:
+            pin = Pin(service, tags=tags)
+        else:
+            pin = Pin(service, tags=tags, tracer=pin.tracer)
 
         cursor = func(*args, **kwargs)
 

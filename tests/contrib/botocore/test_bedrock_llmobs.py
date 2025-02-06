@@ -107,7 +107,7 @@ class TestLLMObsBedrock:
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin._override(bedrock_client, tracer=mock_tracer)
+        pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -148,7 +148,7 @@ class TestLLMObsBedrock:
     ):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin._override(bedrock_client, tracer=mock_tracer)
+        pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -249,7 +249,7 @@ class TestLLMObsBedrock:
 
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin._override(bedrock_client, tracer=mock_tracer)
+        pin.override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched

@@ -130,7 +130,7 @@ async def test_override_service_name(valkey_client):
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pin(valkey_client):
-    Pin._override(valkey_client, service="my-valkey")
+    Pin.override(valkey_client, service="my-valkey")
     val = await valkey_client.get("cheese")
     assert val is None
 

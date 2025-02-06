@@ -122,7 +122,7 @@ async def test_meta_override(tracer, test_spans):
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(r)
+    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(r)
 
     await r.get("cheese")
     test_spans.assert_trace_count(1)
@@ -162,7 +162,7 @@ async def test(tracer, test_spans):
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin is not None
-    pin._clone(tags={{"cheese": "camembert"}}, tracer=tracer).onto(r)
+    pin.clone(tags={{"cheese": "camembert"}}, tracer=tracer).onto(r)
 
     await r.get("cheese")
     test_spans.assert_trace_count(1)

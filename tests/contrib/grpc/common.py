@@ -20,8 +20,8 @@ class GrpcBaseTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcBaseTestCase, self).setUp()
         patch()
-        Pin._override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
-        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
         self._start_server()
 
     def tearDown(self):

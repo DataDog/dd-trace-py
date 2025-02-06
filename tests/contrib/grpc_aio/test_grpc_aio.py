@@ -179,8 +179,8 @@ def patch_grpc_aio():
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, tracer=tracer)
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
+    Pin.override(GRPC_AIO_PIN_MODULE_CLIENT, tracer=tracer)
+    Pin.override(GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
     yield tracer
     tracer.pop()
 
@@ -354,13 +354,13 @@ async def test_pin_not_activated(server_info, tracer):
     [_CoroHelloServicer(), _SyncHelloServicer()],
 )
 async def test_pin_tags_put_in_span(servicer, tracer):
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, service="server1")
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
+    Pin.override(GRPC_AIO_PIN_MODULE_SERVER, service="server1")
+    Pin.override(GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
     target = f"localhost:{_GRPC_PORT}"
     _server = _create_server(servicer, target)
     await _server.start()
 
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
+    Pin.override(GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
@@ -383,10 +383,10 @@ async def test_pin_tags_put_in_span(servicer, tracer):
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_can_be_defined_per_channel(server_info, tracer):
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
+    Pin.override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
     channel1 = aio.insecure_channel(server_info.target)
 
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc2")
+    Pin.override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc2")
     channel2 = aio.insecure_channel(server_info.target)
 
     stub1 = HelloStub(channel1)

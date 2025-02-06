@@ -41,7 +41,7 @@ class HTTPLibBaseMixin(object):
         super(HTTPLibBaseMixin, self).setUp()
 
         patch()
-        Pin._override(httplib, tracer=self.tracer)
+        Pin.override(httplib, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
@@ -59,12 +59,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def get_http_connection(self, *args, **kwargs):
         conn = httplib.HTTPConnection(*args, **kwargs)
-        Pin._override(conn, tracer=self.tracer)
+        Pin.override(conn, tracer=self.tracer)
         return conn
 
     def get_https_connection(self, *args, **kwargs):
         conn = httplib.HTTPSConnection(*args, **kwargs)
-        Pin._override(conn, tracer=self.tracer)
+        Pin.override(conn, tracer=self.tracer)
         return conn
 
     def test_patch(self):

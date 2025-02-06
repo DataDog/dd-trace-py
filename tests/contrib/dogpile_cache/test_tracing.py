@@ -31,7 +31,7 @@ def region(tracer):
     # The backend is trivial so we can use memory to simplify test setup.
     test_region = dogpile.cache.make_region(name="TestRegion", key_mangler=lambda x: x)
     test_region.configure("dogpile.cache.memory")
-    Pin._override(dogpile.cache, tracer=tracer)
+    Pin.override(dogpile.cache, tracer=tracer)
     return test_region
 
 
