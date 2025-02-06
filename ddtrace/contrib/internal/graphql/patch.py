@@ -305,7 +305,6 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     # could be misleading and might obfuscate errors.
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
-        # locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
         locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
         attributes = {
             "message": error.message,
@@ -314,7 +313,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
         }
 
         if error.__traceback__:
-            stacktrace = "".join(
+            stacktrace = "\n".join(
                 traceback.format_exception(
                     type(error), error, error.__traceback__, limit=config._span_traceback_max_size
                 )
