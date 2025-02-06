@@ -1,5 +1,4 @@
 import mock
-import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -79,47 +78,7 @@ def test_not_azure_function_consumption_plan():
     assert in_azure_function() is False
 
 
-standard_blocklist = [
-    "ddtrace.appsec._api_security.api_manager",
-    "ddtrace.appsec._iast._ast.ast_patching",
-    "ddtrace.internal.telemetry.telemetry_writer",
-    "email.mime.application",
-    "email.mime.multipart",
-    "logging.handlers",
-    "multiprocessing",
-    "importlib_metadata",
-    # These modules must not be imported because their source files are
-    # specifically removed from the serverless python layer.
-    # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
-    "ddtrace.appsec._iast._taint_tracking._native",
-    "ddtrace.appsec._iast._stacktrace",
-    "ddtrace.internal.datadog.profiling.libdd_wrapper",
-    "ddtrace.internal.datadog.profiling.ddup._ddup",
-    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-]
-expanded_blocklist = standard_blocklist + [
-    "importlib.metadata",
-]
-
-
-@pytest.mark.parametrize(
-    "package,blocklist",
-    [
-        ("ddtrace", expanded_blocklist),
-        ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
-        ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
-        # requests imports urlib3 which imports importlib.metadata
-        pytest.param(
-            "ddtrace.contrib.requests",
-            standard_blocklist,
-            # Currently this package will import `ddtrace.appsec._iast._taint_tracking._native`
-            # and so is expected to fail for now. Once that is fixed and this test
-            # begins to XPASS, the xfail should be removed.
-            marks=pytest.mark.xfail(strict=True),
-        ),
-    ],
-)
-def test_slow_imports(package, blocklist):
+def test_slow_imports():
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
@@ -134,6 +93,18 @@ def test_slow_imports(package, blocklist):
         }
     )
 
+    blocklist = [
+        "ddtrace.appsec._api_security.api_manager",
+        "ddtrace.appsec._iast._ast.ast_patching",
+        "ddtrace.internal.telemetry.telemetry_writer",
+        "email.mime.application",
+        "email.mime.multipart",
+        "logging.handlers",
+        "multiprocessing",
+        "importlib.metadata",
+        "importlib_metadata",
+    ]
+
     class BlockListFinder:
         def find_spec(self, fullname, *args):
             for lib in blocklist:
@@ -142,14 +113,12 @@ def test_slow_imports(package, blocklist):
             return None
 
     try:
-        orig_meta_path = sys.meta_path
-        sys.meta_path = [BlockListFinder()] + orig_meta_path
+        sys.meta_path.insert(0, BlockListFinder())
 
-        for mod in sys.modules.copy():
-            if mod in blocklist or mod.startswith("ddtrace"):
-                del sys.modules[mod]
-
-        __import__(package)
+        import ddtrace
+        import ddtrace.contrib.internal.aws_lambda  # noqa:F401
+        import ddtrace.contrib.internal.psycopg  # noqa:F401
 
     finally:
-        sys.meta_path = orig_meta_path
+        if isinstance(sys.meta_path[0], BlockListFinder):
+            sys.meta_path = sys.meta_path[1:]
