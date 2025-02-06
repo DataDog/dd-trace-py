@@ -9,9 +9,6 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
 
 class RateLimiter(object):
     """
@@ -57,26 +54,18 @@ class RateLimiter(object):
 
         self._lock = threading.Lock()
 
-    def is_allowed(self, timestamp_ns: Optional[int] = None) -> bool:
+    def is_allowed(self) -> bool:
         """
         Check whether the current request is allowed or not
 
         This method will also reduce the number of available tokens by 1
 
-        :param int timestamp_ns: timestamp in nanoseconds for the current request.
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-        if timestamp_ns is not None:
-            deprecate(
-                "The `timestamp_ns` parameter is deprecated and will be removed in a future version."
-                "Ratelimiter will use the current time.",
-                category=DDTraceDeprecationWarning,
-            )
-
         # rate limits are tested and mocked in pytest so we need to compute the timestamp here
         # (or move the unit tests to rust)
-        timestamp_ns = timestamp_ns or time.monotonic_ns()
+        timestamp_ns = time.monotonic_ns()
         allowed = self._is_allowed(timestamp_ns)
         # Update counts used to determine effective rate
         self._update_rate_counts(allowed, timestamp_ns)

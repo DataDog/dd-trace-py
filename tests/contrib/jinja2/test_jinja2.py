@@ -26,7 +26,7 @@ class Jinja2Test(TracerTestCase):
             jinja2.environment._spontaneous_environments.clear()
         except AttributeError:
             jinja2.utils.clear_caches()
-        Pin.override(jinja2.environment.Environment, tracer=self.tracer)
+        Pin._override(jinja2.environment.Environment, tracer=self.tracer)
 
     def tearDown(self):
         super(Jinja2Test, self).tearDown()

@@ -3,7 +3,6 @@ import os
 
 import msgpack
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
@@ -11,6 +10,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.trace import Span
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 

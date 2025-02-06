@@ -3,11 +3,7 @@
 from sys import version_info
 
 
-if version_info < (3, 7, 0):
-    from .module_names_py36 import STDLIB_MODULE_NAMES
-elif version_info < (3, 8, 0):
-    from .module_names_py37 import STDLIB_MODULE_NAMES
-elif version_info < (3, 9, 0):
+if version_info < (3, 9, 0):
     from .module_names_py38 import STDLIB_MODULE_NAMES
 elif version_info < (3, 10, 0):
     from .module_names_py39 import STDLIB_MODULE_NAMES

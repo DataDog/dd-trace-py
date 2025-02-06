@@ -5,20 +5,18 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -77,7 +75,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: self._get_llmobs_metrics_tags(span),
+                METRICS: get_llmobs_metrics_tags("anthropic", span),
             }
         )
 
@@ -188,18 +186,3 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
-
-    @staticmethod
-    def _get_llmobs_metrics_tags(span):
-        usage = {}
-        input_tokens = span.get_metric("anthropic.response.usage.input_tokens")
-        output_tokens = span.get_metric("anthropic.response.usage.output_tokens")
-        total_tokens = span.get_metric("anthropic.response.usage.total_tokens")
-
-        if input_tokens is not None:
-            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens is not None:
-            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-        return usage

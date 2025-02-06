@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ddtrace import tracer
 import ddtrace.constants
+from ddtrace.trace import tracer
 
 
 fake_secret_token = "DataDog"
@@ -104,7 +104,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        ddtrace.trace.Pin.override(app, service=service_name, tracer=ddtrace.tracer)
+        ddtrace.trace.Pin._override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
