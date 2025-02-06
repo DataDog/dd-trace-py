@@ -254,7 +254,7 @@ def test_unpatch(tracer):
 
     unpatch()
     with override_global_config(dict(_ep_enabled=False)):
-        Pin.get_from(os).clone(tracer=tracer).onto(os)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
             assert ret == 0
