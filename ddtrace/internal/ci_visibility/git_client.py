@@ -11,7 +11,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from urllib.parse import urljoin
 
-from ddtrace import Tracer  # noqa: F401
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
@@ -29,6 +28,7 @@ from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.trace import Tracer  # noqa: F401
 
 from .. import compat
 from .. import telemetry

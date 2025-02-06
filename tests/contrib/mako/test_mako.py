@@ -23,7 +23,7 @@ class MakoTest(TracerTestCase):
     def setUp(self):
         super(MakoTest, self).setUp()
         patch()
-        Pin.override(Template, tracer=self.tracer)
+        Pin._override(Template, tracer=self.tracer)
 
     def tearDown(self):
         super(MakoTest, self).tearDown()

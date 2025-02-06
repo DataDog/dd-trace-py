@@ -43,7 +43,7 @@ coverage,0
 cryptography,<39
 daphne,0
 databases,0
-datadog-lambda,>=4.66.0
+datadog-lambda,>=6.105.0
 django,>=2.2
 django-pylibmc,>=0.6
 django-q,0
@@ -184,6 +184,7 @@ typing-extensions,0
 typing_extensions,0
 urllib3,~=1.0
 uwsgi,0
+valkey,~=6.0.0
 vcrpy,==4.2.1
 vertexai,0
 vertica-python,>=0.6.0

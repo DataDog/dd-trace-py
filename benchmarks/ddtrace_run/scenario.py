@@ -32,7 +32,7 @@ class DDtraceRun(bm.Scenario):
             env["DD_TRACE_API_VERSION"] = "v0.4"
             code += """
 import httpretty
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace.internal.telemetry import telemetry_writer
 
 httpretty.enable(allow_net_connect=False)
