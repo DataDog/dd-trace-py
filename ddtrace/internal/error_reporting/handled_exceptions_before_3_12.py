@@ -9,8 +9,8 @@ from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inj
 from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
 from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
-from ddtrace.internal.packages import _third_party_packages
-from ddtrace.internal.packages import is_stdlib
+from ddtrace.internal.packages import is_third_party
+from ddtrace.internal.packages import is_user_code
 from ddtrace.settings.error_reporting import _er_config
 
 
@@ -26,6 +26,7 @@ def _install_bytecode_injection_reporting():
 class HandledExceptionReportingInjector:
     _configured_modules: list[str] = list()
     _instrumented_modules: set[str] = set()
+    _instrumented_obj: set[int] = set()
     _callback: CallbackType
 
     def __init__(self, configured_modules: list[str], callback: CallbackType | None = None):
@@ -37,29 +38,18 @@ class HandledExceptionReportingInjector:
         for module_name in existing_modules:
             self.instrument_module_conditionally(module_name)
 
-    def _is_user_code(self, module_name: str) -> bool:
-        return self._has_file(module_name) and (
-            not (self._is_std_lib(module_name) or self._is_third_party(module_name))
-        )
-
     @cached(maxsize=256)
-    def _has_file(self, module_name) -> bool:
-        return hasattr(sys.modules[module_name], "__file__") and sys.modules[module_name].__file__ is not None
-
-    @cached(maxsize=256)
-    def _is_std_lib(self, module_name) -> bool:
-        return module_name in sys.stdlib_module_names or (
-            self._has_file(module_name) and is_stdlib(Path(sys.modules[module_name].__file__).resolve())  # type: ignore
-        )
-
-    @cached(maxsize=256)
-    def _is_third_party(self, module_name: str) -> bool:
-        return module_name.split(".")[0] in _third_party_packages()
+    def _has_file(self, module) -> bool:
+        return hasattr(module, "__file__") and module.__file__ is not None
 
     def instrument_module_conditionally(self, module_name: str):
-        if _er_config._instrument_user_code and self._is_user_code(module_name):
+        module = sys.modules[module_name]
+        if self._has_file(module) is False:
+            return
+        module_path = Path(module.__file__).resolve()  # type: ignore
+        if _er_config._instrument_user_code and is_user_code(module_path):
             self._instrument_module(module_name)
-        elif _er_config._instrument_third_party_code and self._is_third_party(module_name):
+        elif _er_config._instrument_third_party_code and is_third_party(module_path):
             self._instrument_module(module_name)
         else:
             for enabled_module in self._configured_modules:
@@ -78,43 +68,59 @@ class HandledExceptionReportingInjector:
         for name in names:
             if name in mod.__dict__:
                 obj = mod.__dict__[name]
-                if type(obj) in INSTRUMENTABLE_TYPES and obj.__module__ == module_name and not name.startswith("__"):
+                if (
+                    type(obj) in INSTRUMENTABLE_TYPES
+                    and (module_name == "__main__" or obj.__module__ == module_name)
+                    and not name.startswith("__")
+                ):
                     self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
+        self._instrumented_obj.add(hash(obj))
         if (
             type(obj) in (types.FunctionType, types.MethodType, staticmethod)
             and hasattr(obj, "__name__")
             and not self._is_reserved(obj.__name__)
         ):
-            # functions/methods
             _inject_handled_exception_reporting(obj, callback=self._callback)
         elif type(obj) is type:
             # classes
             for candidate in obj.__dict__.keys():
-                if type(obj) in INSTRUMENTABLE_TYPES and not self._is_reserved(candidate):
+                if (
+                    type(obj.__dict__[candidate]) in INSTRUMENTABLE_TYPES
+                    and not self._is_reserved(candidate)
+                    and hash(obj.__dict__[candidate]) not in self._instrumented_obj
+                ):
                     self._instrument_obj(obj.__dict__[candidate])
 
     def _is_reserved(self, name: str) -> bool:
         return name.startswith("__") and name != "__call__"
 
 
-class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
-    _injector: HandledExceptionReportingInjector
+_injector: HandledExceptionReportingInjector | None = None
 
+
+def instrument_main() -> None:
+    if _injector is not None:
+        _injector.instrument_module_conditionally("__main__")
+
+
+class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_import(self, module: ModuleType):
-        self._injector.instrument_module_conditionally(module.__name__)
+        _injector.instrument_module_conditionally(module.__name__)  # type: ignore
 
     def after_install(self):
+        global _injector
         if _er_config._report_after_unhandled is False:
-            self._injector = HandledExceptionReportingInjector(_er_config._configured_modules)
+            _injector = HandledExceptionReportingInjector(_er_config._configured_modules)
         else:
-            self._injector = HandledExceptionReportingInjector(
+            _injector = HandledExceptionReportingInjector(
                 _er_config._configured_modules, _unhandled_exc_datadog_exc_callback
             )
 
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.
         existing_modules = set(sys.modules.keys())
+        existing_modules.remove("__main__")
         for module_name in existing_modules:
-            self._injector.instrument_module_conditionally(module_name)
+            _injector.instrument_module_conditionally(module_name)
