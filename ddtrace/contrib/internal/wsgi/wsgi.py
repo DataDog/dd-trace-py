@@ -104,11 +104,12 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
             span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
             middleware_config=self._config,
-            distributed_headers_config=self._config,
+            integration_config=self._config,
             distributed_headers=environ,
             environ=environ,
             middleware=self,
             span_key="req_span",
+            activate_distributed_headers=True,
         ) as ctx:
             ctx.set_item("wsgi.construct_url", construct_url)
 
