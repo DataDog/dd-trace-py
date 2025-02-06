@@ -319,7 +319,7 @@ class LangChainIntegration(BaseLLMIntegration):
         This is a temporary stopgap until we trace virtually every step in the chain, and we know the last
         step will be the last one traced.
         """
-        pop_indecies = []
+        pop_indecies: List[int] = []
         parent_instance = self._instances.get(parent_span)
         if not parent_instance:
             return pop_indecies
@@ -455,7 +455,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     content = (
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
-                    role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", None), ""))
+                    role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
         span._set_ctx_item(input_tag_key, input_messages)
 
