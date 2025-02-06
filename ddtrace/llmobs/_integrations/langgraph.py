@@ -145,7 +145,7 @@ def _normalize_triggers(triggers, finished_tasks, next_task) -> List[str]:
     the one finished task.
     """
     if len(finished_tasks) != 1 or len(triggers) != 1:
-        return []
+        return triggers
 
     finished_task_name = list(finished_tasks.keys())[0]
     next_task_name = getattr(next_task, "name", "")
