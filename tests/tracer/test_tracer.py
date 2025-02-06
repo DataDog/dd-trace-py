@@ -1888,20 +1888,20 @@ def test_ctx_api(tracer):
 
     assert core.get_item("key") is None
 
-    with tracer.trace("root") as span:
+    with tracer.trace("root"):
         v = core.get_item("my.val")
         assert v is None
 
-        core.set_item("appsec.key", "val", span=span)
-        core.set_items({"appsec.key2": "val2", "appsec.key3": "val3"}, span=span)
-        assert core.get_item("appsec.key", span=span) == "val"
-        assert core.get_item("appsec.key2", span=span) == "val2"
-        assert core.get_item("appsec.key3", span=span) == "val3"
-        assert core.get_items(["appsec.key"], span=span) == ["val"]
-        assert core.get_items(["appsec.key", "appsec.key2", "appsec.key3"], span=span) == ["val", "val2", "val3"]
+        core.set_item("appsec.key", "val")
+        core.set_items({"appsec.key2": "val2", "appsec.key3": "val3"})
+        assert core.get_item("appsec.key") == "val"
+        assert core.get_item("appsec.key2") == "val2"
+        assert core.get_item("appsec.key3") == "val3"
+        assert core.get_items(["appsec.key"]) == ["val"]
+        assert core.get_items(["appsec.key", "appsec.key2", "appsec.key3"]) == ["val", "val2", "val3"]
 
-        with tracer.trace("child") as childspan:
-            assert core.get_item("appsec.key", span=childspan) == "val"
+        with tracer.trace("child"):
+            assert core.get_item("appsec.key") == "val"
 
     assert core.get_item("appsec.key") is None
     assert core.get_items(["appsec.key"]) == [None]

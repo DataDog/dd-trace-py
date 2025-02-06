@@ -470,15 +470,15 @@ def test_set_http_meta(
 
     if appsec_enabled and span.span_type == SpanTypes.WEB:
         if uri is not None:
-            assert core.get_item("http.request.uri", span=span) == uri
+            assert core.get_item("http.request.uri") == uri
         if method is not None:
-            assert core.get_item("http.request.method", span=span) == method
+            assert core.get_item("http.request.method") == method
         if request_headers is not None:
-            assert core.get_item("http.request.headers", span=span) == request_headers
+            assert core.get_item("http.request.headers") == request_headers
         if response_headers is not None:
-            assert core.get_item("http.response.headers", span=span) == response_headers
+            assert core.get_item("http.response.headers") == response_headers
         if path_params is not None:
-            assert core.get_item("http.request.path_params", span=span) == path_params
+            assert core.get_item("http.request.path_params") == path_params
 
 
 @mock.patch("ddtrace.settings._config.log")
