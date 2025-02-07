@@ -16,15 +16,17 @@ class LoggerTestCase(BaseTestCase):
     def setUp(self):
         super(LoggerTestCase, self).setUp()
 
-        self.root = logging.root
-        self.manager = self.root.manager
+        self.manager = logging.root.manager
+
+        # Reset to default values
+        ddtrace.internal.logger._buckets.clear()
+        ddtrace.internal.logger._rate_limit = 60
 
     def tearDown(self):
         # Weeee, forget all existing loggers
         logging.Logger.manager.loggerDict.clear()
         self.assertEqual(logging.Logger.manager.loggerDict, dict())
 
-        self.root = None
         self.manager = None
 
         # Reset to default values
@@ -122,9 +124,13 @@ class LoggerTestCase(BaseTestCase):
             When effective level is DEBUG
                 Always calls the base `Logger.handle`
         """
+        # Our buckets are empty
+        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.DEBUG)
+        assert log.getEffectiveLevel() == logging.DEBUG
         assert ddtrace.internal.logger._rate_limit > 0
 
         # Log a bunch of times very quickly (this is fast)
