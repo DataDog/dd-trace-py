@@ -5,6 +5,11 @@ import warnings
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
+# Configuration for the whole tracer from file. Do it before anything else happens.
+from ddtrace.internal.native import _apply_configuration_from_disk
+
+_apply_configuration_from_disk()
+
 from ddtrace.internal.module import ModuleWatchdog
 
 
