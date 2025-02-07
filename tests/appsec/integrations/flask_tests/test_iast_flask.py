@@ -51,10 +51,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_xss_injection()
             patch_json()
-            from jinja2.filters import FILTERS
-            from jinja2.filters import do_mark_safe
-
-            FILTERS["safe"] = do_mark_safe
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
