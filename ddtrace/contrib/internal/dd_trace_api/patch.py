@@ -1,3 +1,4 @@
+import inspect
 from sys import addaudithook
 from typing import Any
 from typing import Dict
@@ -25,10 +26,16 @@ T = TypeVar("T")
 
 class DDTraceAPIWrappingContextBase(WrappingContext):
     def _handle_return(self) -> None:
-        method_name = self.__frame__.f_code.co_name
-        stub_self = self.get_local("self")
-        api_return_value = self.get_local("retval")
-        _call_on_real_instance(stub_self, method_name, api_return_value, self.get_local("name"))
+        _call_on_real_instance(
+            self.get_local("self"),
+            self.__frame__.f_code.co_name,
+            self.get_local("retval"),
+            **{
+                param: self.get_local(param)
+                for param in inspect.signature(self.__wrapped__).parameters.keys()
+                if param != "self"
+            }
+        )
 
     def _handle_enter(self) -> None:
         pass
@@ -101,6 +108,16 @@ def patch(tracer=None):
     @when_imported("dd_trace_api")
     def _(m):
         DDTraceAPIWrappingContextBase(m.Tracer.start_span).wrap()
+        DDTraceAPIWrappingContextBase(m.Tracer.trace).wrap()
+        DDTraceAPIWrappingContextBase(m.Tracer.current_span).wrap()
+        DDTraceAPIWrappingContextBase(m.Tracer.current_root_span).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.finish).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.set_exc_info).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.finish_with_ancestors).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.set_tags).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.set_traceback).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.__enter__).wrap()
+        DDTraceAPIWrappingContextBase(m.Span.__exit__).wrap()
 
     dd_trace_api.__datadog_patch = True
 
@@ -110,3 +127,17 @@ def unpatch():
         return
     dd_trace_api.__datadog_patch = False
     # NB sys.addaudithook's cannot be removed
+
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.start_span).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.trace).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.current_span).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.current_root_span).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.finish).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.set_exc_info).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.finish_with_ancestors).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.set_tags).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.set_traceback).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.__enter__).unwrap()
+    DDTraceAPIWrappingContextBase.extract(dd_trace_api.Span.__exit__).unwrap()
+
+    dd_trace_api.__datadog_patch = False
