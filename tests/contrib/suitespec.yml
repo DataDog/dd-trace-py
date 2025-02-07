@@ -202,8 +202,6 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/aredis/*
     - ddtrace/contrib/internal/aredis/*
-    - ddtrace/contrib/yaaredis/*
-    - ddtrace/contrib/internal/yaaredis/*
     - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/redis_utils.py
     - ddtrace/contrib/trace_utils_redis.py
@@ -1163,17 +1161,19 @@ suites:
       - tests/snapshots/tests.contrib.wsgi.*
     runner: riot
     snapshot: true
-  yaaredis:
+  valkey:
+    parallelism: 5
     paths:
-      - '@core'
       - '@bootstrap'
+      - '@core'
       - '@contrib'
       - '@tracing'
-      - '@redis'
-      - tests/contrib/yaaredis/*
-      - tests/snapshots/tests.contrib.yaaredis.*
-    pattern: yaaredis$
+      - '@valkey'
+      - tests/contrib/valkey/*
+      - tests/snapshots/tests.contrib.valkey.*
+    pattern: ^valkey*
     runner: riot
     services:
-      - redis
+      - valkeycluster
+      - valkey
     snapshot: true
