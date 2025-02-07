@@ -277,29 +277,29 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         parent_links = parent_span._get_ctx_item(SPAN_LINKS) or []
-        pop_indecies = self._get_popped_span_link_indecies(parent_span, parent_links, prev_traced_step_idx)
+        pop_indices = self._get_popped_span_link_indices(parent_span, parent_links, prev_traced_step_idx)
 
-        self._set_span_links(parent_span, [span], "output", "output", popped_span_link_indecies=pop_indecies)
+        self._set_span_links(parent_span, [span], "output", "output", popped_span_link_indices=pop_indices)
 
-    def _get_popped_span_link_indecies(
+    def _get_popped_span_link_indices(
         self, parent_span: Span, parent_links: List[Dict[str, Any]], prev_traced_step_idx: int
     ) -> List[int]:
         """
-        Returns a list of indecies to pop from the parent span links list
+        Returns a list of indices to pop from the parent span links list
         This is determined by if the parent span represents a chain, and if there are steps before the step
         represented by the span that need to be removed.
 
         This is a temporary stopgap until we trace virtually every step in the chain, and we know the last
         step will be the last one traced.
         """
-        pop_indecies: List[int] = []
+        pop_indices: List[int] = []
         parent_instance = self._instances.get(parent_span)
         if not parent_instance or prev_traced_step_idx == -1:
-            return pop_indecies
+            return pop_indices
 
         parent_instance = _extract_bound(parent_instance)
         if not hasattr(parent_instance, "steps"):  # chain instance
-            return pop_indecies
+            return pop_indices
 
         steps = getattr(parent_instance, "steps", [])
         flatmap_chain_steps = _flattened_chain_steps(steps)
@@ -313,14 +313,14 @@ class LangChainIntegration(BaseLLMIntegration):
                         (i for i, link in enumerate(parent_links) if link["span_id"] == str(invoker_span_id)), None
                     )
                     if link_idx is not None:
-                        pop_indecies.append(link_idx)
+                        pop_indices.append(link_idx)
         else:
             invoker_span_id = self._spans[id(prev_traced_step)].span_id
             link_idx = next((i for i, link in enumerate(parent_links) if link["span_id"] == str(invoker_span_id)), None)
             if link_idx is not None:
-                pop_indecies.append(link_idx)
+                pop_indices.append(link_idx)
 
-        return pop_indecies
+        return pop_indices
 
     def _set_span_links(
         self,
@@ -328,13 +328,13 @@ class LangChainIntegration(BaseLLMIntegration):
         from_spans: List[Span],
         link_from: str,
         link_to: str,
-        popped_span_link_indecies: Optional[List[int]] = None,
+        popped_span_link_indices: Optional[List[int]] = None,
     ) -> None:
         """Sets the span links on the given span along with the existing links."""
         existing_links = span._get_ctx_item(SPAN_LINKS) or []
 
-        if popped_span_link_indecies:
-            existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indecies]
+        if popped_span_link_indices:
+            existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indices]
 
         links = [
             {
