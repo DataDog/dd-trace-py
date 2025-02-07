@@ -51,11 +51,11 @@ def _call_on_real_instance(
 
 def _hook(name, hook_args):
     """Called in response to `sys.audit` events"""
-    if not dd_trace_api.__datadog_patch or name != _DD_HOOK_NAME:
+    if name != _DD_HOOK_NAME or not dd_trace_api.__datadog_patch:
         return
     args = hook_args[0][0]
-    api_return_value, stub_self, event_name = args[0:3]
-    _call_on_real_instance(stub_self, event_name, api_return_value, *args[3:], **hook_args[0][1])
+    api_return_value, stub_self, method_name = args[0:3]
+    _call_on_real_instance(stub_self, method_name, api_return_value, *args[3:], **hook_args[0][1])
 
 
 def get_version() -> str:
