@@ -139,8 +139,10 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         span.set_tag_str(tk, tv)
 
     ctx.span = span
-    # dispatch event for inferred proxy finish
-    core.dispatch("inferred_proxy.finish", (ctx,))
+
+    if config._inferred_proxy_services_enabled:
+        # dispatch event for inferred proxy finish
+        core.dispatch("inferred_proxy.finish", (ctx,))
 
     return span
 
