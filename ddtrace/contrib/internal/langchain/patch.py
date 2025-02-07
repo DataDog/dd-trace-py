@@ -1090,29 +1090,6 @@ def unpatch():
     delattr(langchain, "_datadog_integration")
 
 
-def taint_outputs(instance, inputs, outputs):
-    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    try:
-        ranges = None
-        for key in filter(lambda x: x in inputs, instance.input_keys):
-            input_val = inputs.get(key)
-            if input_val:
-                ranges = get_tainted_ranges(input_val)
-                if ranges:
-                    break
-
-        if ranges:
-            source = ranges[0].source
-            for key in filter(lambda x: x in outputs, instance.output_keys):
-                output_value = outputs[key]
-                outputs[key] = taint_pyobject(output_value, source.name, source.value, source.origin)
-    except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
-
-
 def taint_parser_output(func, instance, args, kwargs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
     from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
