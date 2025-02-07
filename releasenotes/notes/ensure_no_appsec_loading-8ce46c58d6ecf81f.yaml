@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable.
+    SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
