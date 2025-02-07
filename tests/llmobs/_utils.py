@@ -168,7 +168,13 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None
+    span,
+    span_kind,
+    tags=None,
+    session_id=None,
+    error=None,
+    error_message=None,
+    error_stack=None,
 ):
     span_event = {
         "trace_id": "{:x}".format(span.trace_id),
@@ -763,3 +769,11 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "tags": expected_ragas_trace_tags(),
         },
     ]
+
+
+def _expected_span_link(span_event, link_from, link_to):
+    return {
+        "trace_id": span_event["trace_id"],
+        "span_id": span_event["span_id"],
+        "attributes": {"from": link_from, "to": link_to},
+    }
