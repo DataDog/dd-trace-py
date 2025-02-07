@@ -44,6 +44,10 @@ _RASP_POPEN = "rasp_Popen"
 
 def patch_common_modules():
     global _is_patched
+    # ensure that the subprocess patch is applied even after one click activation
+    subprocess_patch.patch()
+    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
     if _is_patched:
         return
     # for testing purposes, we need to update is_iast_request_enabled
@@ -60,10 +64,6 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
     try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
-    # ensure that the subprocess patch is applied even after one click activation
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
