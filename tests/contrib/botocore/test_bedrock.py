@@ -42,7 +42,7 @@ def aws_credentials():
 def mock_tracer(ddtrace_global_config, bedrock_client):
     pin = Pin.get_from(bedrock_client)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(bedrock_client, tracer=mock_tracer)
+    pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
 
 
@@ -102,7 +102,7 @@ class TestBedrockConfig(SubprocessTestCase):
         self.bedrock_client = self.session.client("bedrock-runtime")
         self.mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(self.bedrock_client)
-        pin.override(self.bedrock_client, tracer=self.mock_tracer)
+        pin._override(self.bedrock_client, tracer=self.mock_tracer)
 
         super(TestBedrockConfig, self).setUp()
 

@@ -25,7 +25,7 @@ class TestValkeyPatch(TracerTestCase):
         patch()
         r = valkey.Valkey(port=self.TEST_PORT)
         r.flushall()
-        Pin.override(r, tracer=self.tracer)
+        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -194,7 +194,7 @@ class TestValkeyPatch(TracerTestCase):
         r = self.r
         pin = Pin.get_from(r)
         if pin:
-            pin.clone(tags={"cheese": "camembert"}).onto(r)
+            pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
         spans = self.get_spans()
@@ -211,7 +211,7 @@ class TestValkeyPatch(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -231,7 +231,7 @@ class TestValkeyPatch(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -429,7 +429,7 @@ class TestValkeyPatch(TracerTestCase):
         self.reset()
 
         # Manual override
-        Pin.override(self.r, service="mysvc", tracer=self.tracer)
+        Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "mysvc", span.service
@@ -447,7 +447,7 @@ class TestValkeyPatch(TracerTestCase):
         self.reset()
 
         # Do a manual override
-        Pin.override(self.r, service="override-valkey", tracer=self.tracer)
+        Pin._override(self.r, service="override-valkey", tracer=self.tracer)
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "override-valkey", span.service
@@ -501,7 +501,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         r = self.r
         pin = Pin.get_from(r)
         if pin:
-            pin.clone(tags={"cheese": "camembert"}).onto(r)
+            pin._clone(tags={"cheese": "camembert"}).onto(r)
 
         r.get("cheese")
 
@@ -513,7 +513,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -533,7 +533,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         patch()
 
         r = valkey.Valkey(port=VALKEY_CONFIG["port"])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = tracer.pop()
@@ -572,7 +572,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.reset()
 
         # Manual override
-        Pin.override(self.r, service="mysvc", tracer=self.tracer)
+        Pin._override(self.r, service="mysvc", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_VALKEY_SERVICE="env-valkey"))
@@ -583,7 +583,7 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         self.reset()
 
         # Do a manual override
-        Pin.override(self.r, service="override-valkey", tracer=self.tracer)
+        Pin._override(self.r, service="override-valkey", tracer=self.tracer)
         self.r.get("cheese")
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_VALKEY_CMD_MAX_LENGTH="10"))
