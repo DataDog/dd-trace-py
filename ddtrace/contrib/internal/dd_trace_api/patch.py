@@ -19,19 +19,11 @@ _STUB_TO_REAL[dd_trace_api.tracer] = ddtrace.tracer
 
 def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
     """Convert all dd_trace_api.Span objects in the args/kwargs collections to their held ddtrace.Span objects"""
-    proxied_args = []
-    for arg in args:
-        if isinstance(arg, dd_trace_api.Span):
-            proxied_args.append(_STUB_TO_REAL[arg])
-        else:
-            proxied_args.append(arg)
-    proxied_kwargs = {}
-    for name, kwarg in kwargs.items():
-        if isinstance(kwarg, dd_trace_api.Span):
-            proxied_kwargs[name] = _STUB_TO_REAL[kwarg]
-        else:
-            proxied_kwargs[name] = kwarg
-    return proxied_args, proxied_kwargs
+
+    def convert(arg):
+        return _STUB_TO_REAL[arg] if isinstance(arg, dd_trace_api.Span) else arg
+
+    return [convert(arg) for arg in args], {name: convert(kwarg) for name, kwarg in kwargs.items()}
 
 
 def _call_on_real_instance(
