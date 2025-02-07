@@ -4101,7 +4101,8 @@ class BotocoreTest(TracerTestCase):
     @mock_dynamodb
     def test_dynamodb_payload_tagging(self):
         with self.override_config(
-            "botocore", dict(payload_tagging_request="all", payload_tagging_response="all", payload_tagging_services="s3,dynamodb")
+            "botocore",
+            dict(payload_tagging_request="all", payload_tagging_response="all", payload_tagging_services="s3,dynamodb"),
         ):
             ddb = self.session.create_client("dynamodb", region_name="us-west-2")
             pin = Pin(service=self.TEST_SERVICE)
