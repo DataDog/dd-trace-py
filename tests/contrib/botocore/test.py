@@ -64,6 +64,7 @@ snapshot_ignores = [
     "meta.aws.response.body.HTTPHeaders.content-length",
     "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
     "meta.error.stack",
+    "meta.aws.response.body.HTTPHeaders.x-amz-crc32",
 ]
 
 
