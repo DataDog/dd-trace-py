@@ -15,7 +15,8 @@ from ddtrace.propagation.http import _possible_header
 
 log = logging.getLogger(__name__)
 
-# Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's logic to extract http headers
+# Checking lower case and upper case versions per WSGI spec following ddtrace/propagation/http.py's
+# logic to extract http headers
 POSSIBLE_PROXY_HEADER_SYSTEM = _possible_header("x-dd-proxy")
 POSSIBLE_PROXY_HEADER_START_TIME_MS = _possible_header("x-dd-proxy-request-time-ms")
 POSSIBLE_PROXY_HEADER_PATH = _possible_header("x-dd-proxy-path")
