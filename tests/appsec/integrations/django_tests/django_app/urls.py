@@ -47,6 +47,11 @@ urlpatterns = [
         name="sqli_http_request_parameter_name_post",
     ),
     handler(
+        "appsec/sqli_query_no_redacted/$",
+        views.sqli_query_no_redacted,
+        name="sqli_query_no_redacted",
+    ),
+    handler(
         "appsec/sqli_http_request_header_name/$",
         views.sqli_http_request_header_name,
         name="sqli_http_request_header_name",
