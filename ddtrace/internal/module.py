@@ -1,7 +1,7 @@
 import abc
 from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
-from importlib.abc import Loader
+from importlib._abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
