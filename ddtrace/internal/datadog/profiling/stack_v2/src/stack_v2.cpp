@@ -21,8 +21,10 @@ _stack_v2_start(PyObject* self, PyObject* args, PyObject* kwargs)
     }
 
     Sampler::get().set_interval(min_interval_s);
-    Sampler::get().start();
-    Py_RETURN_NONE;
+    if (Sampler::get().start()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
