@@ -17,10 +17,8 @@ import pytest
 import wrapt
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as dd_config
-from ddtrace._trace.span import Span
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
@@ -40,6 +38,8 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -55,18 +55,18 @@ FILE_PATH = Path(__file__).resolve().parent
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert SPAN_MEASURED_KEY in span.get_metrics()
-    assert SPAN_MEASURED_KEY not in span.get_tags()
-    assert span.get_metric(SPAN_MEASURED_KEY) == 1
+    assert _SPAN_MEASURED_KEY in span.get_metrics()
+    assert _SPAN_MEASURED_KEY not in span.get_tags()
+    assert span.get_metric(_SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert SPAN_MEASURED_KEY not in span.get_tags()
-    if SPAN_MEASURED_KEY in span.get_metrics():
-        assert span.get_metric(SPAN_MEASURED_KEY) == 0
+    assert _SPAN_MEASURED_KEY not in span.get_tags()
+    if _SPAN_MEASURED_KEY in span.get_metrics():
+        assert span.get_metric(_SPAN_MEASURED_KEY) == 0
     else:
-        assert SPAN_MEASURED_KEY not in span.get_metrics()
+        assert _SPAN_MEASURED_KEY not in span.get_metrics()
 
 
 def assert_span_http_status_code(span, code):
@@ -127,6 +127,7 @@ def override_global_config(values):
         "_x_datadog_tags_max_length",
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
+        "_startup_logs_enabled",
         "_propagate_service",
         "env",
         "version",
@@ -170,7 +171,7 @@ def override_global_config(values):
     ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
+    asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -179,9 +180,9 @@ def override_global_config(values):
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
-    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
+    asm_config._eval_asm_can_be_enabled()
     try:
         core.dispatch("test.config.override")
         yield
@@ -190,9 +191,9 @@ def override_global_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
 
-        ddtrace.settings.asm.config.reset()
+        asm_config.reset()
         for key, value in asm_originals.items():
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
 
         ddtrace.config._reset()
         ddtrace.config._subscriptions = subscriptions
@@ -373,7 +374,7 @@ class TestSpanContainer(object):
         """
         internal helper to ensure the list of spans are all :class:`tests.utils.span.TestSpan`
 
-        :param spans: List of :class:`ddtrace._trace.span.Span` or :class:`tests.utils.span.TestSpan`
+        :param spans: List of :class:`ddtrace.trace.Span` or :class:`tests.utils.span.TestSpan`
         :type spans: list
         :returns: A list og :class:`tests.utils.span.TestSpan`
         :rtype: list
@@ -614,7 +615,7 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self.configure(*args, **kwargs)
+        self._configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -646,8 +647,11 @@ class DummyTracer(Tracer):
         return traces
 
     def configure(self, *args, **kwargs):
-        assert "writer" not in kwargs or isinstance(
-            kwargs["writer"], DummyWriterMixin
+        self._configure(*args, **kwargs)
+
+    def _configure(self, *args, **kwargs):
+        assert isinstance(
+            kwargs.get("writer"), (DummyWriterMixin, type(None))
         ), "cannot configure writer of DummyTracer"
 
         if not kwargs.get("writer"):
@@ -656,12 +660,12 @@ class DummyTracer(Tracer):
             kwargs["writer"] = DummyWriter(
                 trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
             )
-        super(DummyTracer, self).configure(*args, **kwargs)
+        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
     """
-    Test wrapper for a :class:`ddtrace._trace.span.Span` that provides additional functions and assertions
+    Test wrapper for a :class:`ddtrace.trace.Span` that provides additional functions and assertions
 
     Example::
 
@@ -679,8 +683,8 @@ class TestSpan(Span):
         """
         Constructor for TestSpan
 
-        :param span: The :class:`ddtrace._trace.span.Span` to wrap
-        :type span: :class:`ddtrace._trace.span.Span`
+        :param span: The :class:`ddtrace.trace.Span` to wrap
+        :type span: :class:`ddtrace.trace.Span`
         """
         if isinstance(span, TestSpan):
             span = span._span
@@ -690,7 +694,7 @@ class TestSpan(Span):
 
     def __getattr__(self, key):
         """
-        First look for property on the base :class:`ddtrace._trace.span.Span` otherwise return this object's attribute
+        First look for property on the base :class:`ddtrace.trace.Span` otherwise return this object's attribute
         """
         if hasattr(self._span, key):
             return getattr(self._span, key)
@@ -698,12 +702,12 @@ class TestSpan(Span):
         return self.__getattribute__(key)
 
     def __setattr__(self, key, value):
-        """Pass through all assignment to the base :class:`ddtrace._trace.span.Span`"""
+        """Pass through all assignment to the base :class:`ddtrace.trace.Span`"""
         return setattr(self._span, key, value)
 
     def __eq__(self, other):
         """
-        Custom equality code to ensure we are using the base :class:`ddtrace._trace.span.Span.__eq__`
+        Custom equality code to ensure we are using the base :class:`ddtrace.trace.Span.__eq__`
 
         :param other: The object to check equality with
         :type other: object
@@ -879,7 +883,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     """
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
 
-    Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace._trace.span.Span`
+    Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace.trace.Span`
     along with any children who have that span as it's parent.
 
     This class can be used to assert on the parent/child relationships between spans.
@@ -999,7 +1003,7 @@ class SnapshotFailed(Exception):
 @dataclasses.dataclass
 class SnapshotTest:
     token: str
-    tracer: ddtrace.Tracer = ddtrace.tracer
+    tracer: ddtrace.trace.Tracer = ddtrace.tracer
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""

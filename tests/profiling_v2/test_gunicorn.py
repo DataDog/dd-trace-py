@@ -13,7 +13,7 @@ from tests.profiling.collector import pprof_utils
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
 # future debugging
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 
 
 def debug_print(*args):
@@ -37,6 +37,8 @@ def _run_gunicorn(*args):
             "127.0.0.1:7644",
             "--worker-tmp-dir",
             "/dev/shm",
+            "-c",
+            os.path.dirname(__file__) + "/gunicorn.conf.py",
             "--chdir",
             os.path.dirname(__file__),
         ]
@@ -50,9 +52,6 @@ def _run_gunicorn(*args):
 def gunicorn(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    # This was needed for the gunicorn process to start and print worker startup
-    # messages. Without this, the test can't find the worker PIDs.
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1")
 
     yield _run_gunicorn
 

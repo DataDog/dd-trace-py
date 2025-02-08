@@ -13,10 +13,9 @@ from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-
-from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
@@ -52,29 +51,27 @@ def _iast_coi(wrapped, instance, args, kwargs):
     if asm_config._iast_enabled and len(args) >= 1:
         _iast_report_code_injection(args[0])
 
-    return wrapped(*args, **kwargs)
-
-
-def _iast_coi_exec(wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled and len(args) >= 1:
-        _iast_report_code_injection(args[0])
-
-    caller_frame = inspect.currentframe().f_back.f_back
-    if caller_frame is None:
-        return wrapped(*args, **kwargs)
-
-    caller_globals = caller_frame.f_globals
-    caller_locals = caller_frame.f_locals
-
-    original_globals = {}
+    caller_frame = None
     if len(args) > 1:
-        original_globals = args[1]
+        func_globals = args[1]
+    elif kwargs.get("globals"):
+        func_globals = kwargs.get("globals")
+    else:
+        frames = inspect.currentframe()
+        caller_frame = frames.f_back
+        func_globals = caller_frame.f_globals
 
-    original_locals = {}
     if len(args) > 2:
-        original_locals = args[2]
+        func_locals = args[2]
+    elif kwargs.get("locals"):
+        func_locals = kwargs.get("locals")
+    else:
+        if caller_frame is None:
+            frames = inspect.currentframe()
+            caller_frame = frames.f_back
+        func_locals = caller_frame.f_locals
 
-    return wrapped(args[0], {**caller_globals, **original_globals}, {**caller_locals, **original_locals})
+    return wrapped(args[0], func_globals, func_locals)
 
 
 @oce.register

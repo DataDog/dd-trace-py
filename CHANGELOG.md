@@ -4,6 +4,96 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.2
+### Bug Fixes
+
+- Tracing
+  - celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+  - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - openai: Ensures the OpenAI integration is compatible with Python versions 3.12 and 3.13.
+  - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+- LLM Observability
+  - This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+- Lib-Injection
+  - Fixes incorrect telemetry data payload format.
+
+---
+
+## 2.19.1
+### Bug Fixes
+
+- Profiling
+  - Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+  - Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - `django`: Fixes issue where django cache is represented as a django service rather than the third party service.
+  - `botocore`: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+
+
+---
+
+## 2.19.0
+### New Features
+- ASM
+  - Introduces "Standalone SCA billing", opting out for APM billing and applying to only SCA. Enable this by setting these two environment variables: `DD_APPSEC_SCA_ENABLED` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED`
+
+- Code Security
+  - Introduces stack trace reports for Code Security.
+
+- Profiling
+  - Adds an experimental integration with the PyTorch profiler which can be enabled by setting `DD_PROFILING_PYTORCH_ENABLED=true`. This feature instruments the PyTorch profiler API (<https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>) so that GPU profiling data can be sent to Datadog for visualization. This feature supports torch version \>= 1.8.1.
+
+- Tracing
+  - `azure_functions`: Introduces support for Azure Functions.
+
+### Upgrade Notes
+- Makes the library compatible with Python 3.13
+
+### Bug Fixes
+- ASM
+  - Resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- Lib-Injection
+  - Fixes missing lib-injection telemetry for common abort scenarios.
+
+- LLM Observability
+  - Resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically  
+  the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+
+- Telemetry
+  - library: Resolves deadlocks that could occur when sending instrumentation telemetry data after an unhandled exception is raised.
+
+- Tracing
+  - `ASGI`: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+  - `asyncio`: Resolves an issue where asyncio event loops fail to register when `ddtrace-run`/`import ddtrace.auto` is used and gevent is installed.
+  - `datastreams`: Logs at warning level for Kinesis errors that break the Data Streams Monitoring map.
+
+
+---
+
+## 2.18.2
+
+
+### Bug Fixes
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- Profiling
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - `ASGI`: Resolves an issue parsing response cookies in FastAPI and awsgi
+  - Integrations: Improves error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.
+
+
+---
+
 ## 2.18.1
 
 
@@ -116,6 +206,39 @@ Tracing:
 ### Other Changes
 - Tracing
   - Removed x-forwarded from headers used for client IP resolution (but not from collected headers). We lack evidence of actual usage, and whether this should follow RFC 7239 or regular XFF list format.
+
+---
+## 2.17.5
+
+### Bug Fixes
+
+- Tracing
+  - `celery`: Fixes an issue where `celery.apply` spans from Celery pre-run got closed too soon leading to span tags being missing.
+
+
+---
+
+## 2.17.4
+
+### Bug Fixes
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- ASM
+  - Resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+  - Resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+- LLM Observability
+  - Resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+  - `langchain`: Resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+- Tracing
+  - `ASGI`: Resolves an issue parsing response cookies in FastAPI and awsgi
+
 
 ---
 

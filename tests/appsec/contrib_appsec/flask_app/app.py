@@ -6,18 +6,13 @@ from typing import Optional
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
-
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer._configure(trace_processors=[PingFilter()])
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -60,7 +55,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 

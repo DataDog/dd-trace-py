@@ -10,16 +10,16 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.span import Span
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SERVICE_VERSION_KEY
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -552,7 +552,7 @@ class SpanTestCase(TracerTestCase):
 )
 def test_set_tag_measured(value, assertion):
     s = Span(name="test.span")
-    s.set_tag(SPAN_MEASURED_KEY, value)
+    s.set_tag(_SPAN_MEASURED_KEY, value)
     assertion(s)
 
 
@@ -564,19 +564,19 @@ def test_set_tag_measured_not_set():
 
 def test_set_tag_measured_no_value():
     s = Span(name="test.span")
-    s.set_tag(SPAN_MEASURED_KEY)
+    s.set_tag(_SPAN_MEASURED_KEY)
     assert_is_measured(s)
 
 
 def test_set_tag_measured_change_value():
     s = Span(name="test.span")
-    s.set_tag(SPAN_MEASURED_KEY, True)
+    s.set_tag(_SPAN_MEASURED_KEY, True)
     assert_is_measured(s)
 
-    s.set_tag(SPAN_MEASURED_KEY, False)
+    s.set_tag(_SPAN_MEASURED_KEY, False)
     assert_is_not_measured(s)
 
-    s.set_tag(SPAN_MEASURED_KEY)
+    s.set_tag(_SPAN_MEASURED_KEY)
     assert_is_measured(s)
 
 

@@ -4,7 +4,7 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
 
 from .constants import RECORD_ATTR_ENV
@@ -80,7 +80,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
     span_from_log = getattr(record, _LOG_SPAN_KEY, None)
-    if isinstance(span_from_log, ddtrace.Span):
+    if isinstance(span_from_log, ddtrace.trace.Span):
         span = span_from_log
 
     if tracer:

@@ -25,7 +25,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         patch()
         dsn = "postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s" % POSTGRES_CONFIG
         self.engine = sqlalchemy.create_engine(dsn)
-        Pin.override(self.engine, tracer=self.tracer)
+        Pin._override(self.engine, tracer=self.tracer)
 
         # prepare a connection
         self.conn = self.engine.connect()
@@ -57,7 +57,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
 
     def test_engine_pin_service(self):
         # ensures that the engine service is updated with the PIN object
-        Pin.override(self.engine, service="replica-db")
+        Pin._override(self.engine, service="replica-db")
         rows = self.conn.execute(text("SELECT 1")).fetchall()
         assert len(rows) == 1
 

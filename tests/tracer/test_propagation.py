@@ -4,13 +4,10 @@ import logging
 import os
 import pickle
 
-import mock
 import pytest
 
 import ddtrace
-from ddtrace import tracer as ddtracer
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_REJECT
@@ -43,6 +40,8 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import Context
+from ddtrace.trace import tracer as ddtracer
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
@@ -87,10 +86,10 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -117,8 +116,8 @@ def test_inject_128bit_trace_id_datadog():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
 def test_inject_128bit_trace_id_b3multi():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -139,8 +138,8 @@ def test_inject_128bit_trace_id_b3multi():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
 def test_inject_128bit_trace_id_b3_single_header():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -161,8 +160,8 @@ def test_inject_128bit_trace_id_b3_single_header():
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -334,7 +333,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
 
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             headers = {
                 "x-datadog-trace-id": "1234",
@@ -377,7 +376,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -392,7 +391,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
 
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -422,11 +421,11 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    tracer._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -456,7 +455,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         # Ensure span is user keep
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
     finally:
-        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -470,7 +469,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -515,13 +514,13 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
     tracer,  # noqa: F811
 ):
-    tracer.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    tracer._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     try:
         with tracer.trace("local_root_span0"):
             # First span should be kept, as we keep 1 per min
@@ -563,7 +562,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
-        tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+        tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -578,7 +577,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -632,7 +631,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -647,7 +646,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
 
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
+        tracer._configure(appsec_enabled=appsec_enabled, appsec_standalone_enabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
                 # First span should be kept, as we keep 1 per min
@@ -701,7 +700,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, appsec_standalone_enabled=False)
+                tracer._configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
@@ -1822,7 +1821,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
-    # B3 single header
+    # B3
     (
         "valid_b3_single_header_simple",
         [PROPAGATION_STYLE_B3_SINGLE],
@@ -1935,15 +1934,6 @@ EXTRACT_FIXTURES = [
         None,
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
-    ),
-    (
-        "baggage_case_insensitive",
-        None,
-        None,
-        {"BAgGage": "key1=val1,key2=val2"},
-        {
-            "baggage": {"key1": "val1", "key2": "val2"},
-        },
     ),
     # All valid headers
     (
@@ -2137,20 +2127,6 @@ EXTRACT_FIXTURES = [
             "span_id": None,
             "sampling_priority": None,
             "dd_origin": None,
-        },
-    ),
-    (
-        # name, styles, headers, expected_context,
-        "none_and_other_prop_style_still_extracts",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
-        None,
-        ALL_HEADERS,
-        {
-            "trace_id": 13088165645273925489,
-            "span_id": 5678,
-            "sampling_priority": 1,
-            "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
         },
     ),
     # Testing that order matters
@@ -2413,6 +2389,15 @@ EXTRACT_FIXTURES = [
             ],
         },
     ),
+    (
+        "baggage_case_insensitive",
+        None,
+        None,
+        {"BAgGage": "key1=val1,key2=val2"},
+        {
+            "baggage": {"key1": "val1", "key2": "val2"},
+        },
+    ),
 ]
 
 # Only add fixtures here if they can't pass both test_propagation_extract_env
@@ -2452,6 +2437,19 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             },
         },
     ),
+    (
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        None,
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
+        },
+    ),
     # Only works for env since config is modified at startup to set
     # propagation_style_extract to [None] if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore
     (
@@ -2460,6 +2458,20 @@ EXTRACT_FIXTURES_ENV_ONLY = [
         _PROPAGATION_BEHAVIOR_IGNORE,
         DATADOG_HEADERS_VALID,
         CONTEXT_EMPTY,
+    ),
+    (
+        # name, styles, headers, expected_context,
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        None,
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+            "meta": {"_dd.p.dm": "-3"},
+        },
     ),
 ]
 
@@ -2474,7 +2486,7 @@ def test_propagation_extract_env(
     code = """
 import json
 import pickle
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = HTTPPropagator.extract({!r})
@@ -2627,7 +2639,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ),
     ),
     # The trace_id from Datadog context will not align with the tracecontext primary context
-    # therefore we get a span link. B3 single headers are invalid so we won't see a trace of them.
+    # therefore we get a span link. B3 is invalid so we won't see a trace of them.
     # The b3 multi headers are missing a span_id, so we will skip creating a span link for it.
     (
         "all_headers_all_styles_do_not_create_span_link_for_context_w_out_span_id",
@@ -2982,7 +2994,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
         },
     ),
-    # B3 Single Header
+    # B3
     (
         "valid_b3_single_style",
         [PROPAGATION_STYLE_B3_SINGLE],
@@ -3282,7 +3294,7 @@ def test_propagation_inject(name, styles, context, expected_headers, run_python_
     code = """
 import json
 
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -3349,7 +3361,7 @@ def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
     code = """
 import json
 
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -3372,29 +3384,6 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
-
-
-def test_llmobs_enabled_injects_llmobs_parent_id():
-    with override_global_config(dict(_llmobs_enabled=True)):
-        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
-            mock_llmobs_inject.assert_called_once_with(context)
-
-
-def test_llmobs_disabled_does_not_inject_parent_id():
-    with override_global_config(dict(_llmobs_enabled=False)):
-        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
-            mock_llmobs_inject.assert_not_called()
-
-
-def test_llmobs_parent_id_not_injected_by_default():
-    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-        context = Context(trace_id=1, span_id=2)
-        HTTPPropagator.inject(context, {})
-        mock_llmobs_inject.assert_not_called()
 
 
 @pytest.mark.parametrize(

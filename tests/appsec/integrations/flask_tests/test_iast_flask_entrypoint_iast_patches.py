@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 13, 0), reason="Test not compatible with Python 3.13")
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_patch():
     import dis
     import io
@@ -37,7 +37,7 @@ def test_ddtrace_iast_flask_patch():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 13, 0), reason="Test compatible with Python 3.13")
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_patch_py313():
     import dis
     import io
@@ -64,7 +64,7 @@ def test_ddtrace_iast_flask_patch_py313():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_patch_iast_disabled():
     import dis
     import io
@@ -91,7 +91,7 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app_main_patched"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_no_patch():
     import dis
     import io
@@ -122,7 +122,7 @@ def test_ddtrace_iast_flask_no_patch():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.app"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
     import dis
     import io
@@ -154,7 +154,7 @@ def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_patch_all():
     import dis
     import io
@@ -184,7 +184,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
     import dis
     import io
@@ -215,7 +215,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
         del sys.modules["tests.appsec.iast.fixtures.entrypoint.views"]
 
 
-@pytest.mark.subprocess(check_logs=False)
+@pytest.mark.subprocess(err=None)
 def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_disabled():
     import dis
     import io

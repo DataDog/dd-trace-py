@@ -8,7 +8,7 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
@@ -722,9 +722,7 @@ def test_debugger_function_probe_duration(duration):
             assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
-def test_debugger_condition_eval_then_rate_limit():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_condition_eval_then_rate_limit(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -739,7 +737,7 @@ def test_debugger_condition_eval_then_rate_limit():
         # before 42 won't use any of the probe quota. However, all the calls
         # after 42 won't be snapshotted because of the rate limiter.
         for i in range(100):
-            Stuff().instancestuff(i)
+            stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
@@ -752,9 +750,7 @@ def test_debugger_condition_eval_then_rate_limit():
         ), snapshot
 
 
-def test_debugger_condition_eval_error_get_reported_once():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_condition_eval_error_get_reported_once(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -767,7 +763,7 @@ def test_debugger_condition_eval_error_get_reported_once():
 
         # all condition eval would fail
         for i in range(100):
-            Stuff().instancestuff(i)
+            stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
@@ -781,9 +777,7 @@ def test_debugger_condition_eval_error_get_reported_once():
         assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
 
 
-def test_debugger_function_probe_eval_on_entry():
-    from tests.submod.stuff import mutator
-
+def test_debugger_function_probe_eval_on_entry(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -797,7 +791,7 @@ def test_debugger_function_probe_eval_on_entry():
             )
         )
 
-        mutator(arg=[])
+        stuff.mutator(arg=[])
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
@@ -820,9 +814,7 @@ def test_debugger_run_module():
     assert status == 0
 
 
-def test_debugger_function_probe_eval_on_exit():
-    from tests.submod.stuff import mutator
-
+def test_debugger_function_probe_eval_on_exit(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -834,7 +826,7 @@ def test_debugger_function_probe_eval_on_exit():
             )
         )
 
-        mutator(arg=[])
+        stuff.mutator(arg=[])
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
@@ -842,9 +834,7 @@ def test_debugger_function_probe_eval_on_exit():
             assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
-def test_debugger_lambda_fuction_access_locals():
-    from tests.submod.stuff import age_checker
-
+def test_debugger_lambda_fuction_access_locals(stuff):
     class Person(object):
         def __init__(self, age, name):
             self.age = age
@@ -866,10 +856,10 @@ def test_debugger_lambda_fuction_access_locals():
         )
 
         # should capture as alice is in people list
-        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
+        stuff.age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
 
         # should skip as david is not in people list
-        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
+        stuff.age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
         assert d.signal_state_counter[SignalState.SKIP_COND] == 1
         assert d.signal_state_counter[SignalState.DONE] == 1
@@ -878,9 +868,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-def test_debugger_log_line_probe_generate_messages():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_log_line_probe_generate_messages(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
@@ -898,8 +886,8 @@ def test_debugger_log_line_probe_generate_messages():
             ),
         )
 
-        Stuff().instancestuff(123)
-        Stuff().instancestuff(456)
+        stuff.Stuff().instancestuff(123)
+        stuff.Stuff().instancestuff(456)
 
         msg1, msg2 = d.uploader.wait_for_payloads(2)
         assert "hello world ERROR 123!" == msg1["message"], msg1
@@ -941,7 +929,7 @@ class SpanProbeTestCase(TracerTestCase):
             tags = span.get_tags()
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
-            assert tags[ORIGIN_KEY] == "di"
+            assert tags[_ORIGIN_KEY] == "di"
 
     def test_debugger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
@@ -1064,9 +1052,7 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.get_tag("test.tag") == "test.value"
 
 
-def test_debugger_modified_probe():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_modified_probe(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
@@ -1078,7 +1064,7 @@ def test_debugger_modified_probe():
             )
         )
 
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         (msg,) = d.uploader.wait_for_payloads()
         assert "hello world" == msg["message"], msg
@@ -1094,7 +1080,7 @@ def test_debugger_modified_probe():
             )
         )
 
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         _, msg = d.uploader.wait_for_payloads(2)
         assert "hello brave new world" == msg["message"], msg

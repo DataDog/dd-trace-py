@@ -2,16 +2,17 @@ from concurrent import futures
 import os
 from typing import Dict
 
-from ddtrace import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -31,6 +32,8 @@ class EvaluatorRunner(PeriodicService):
     2. triggers evaluator runs over buffered finished spans on each `periodic` call
     """
 
+    EVALUATORS_ENV_VAR = "DD_LLMOBS_EVALUATORS"
+
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
@@ -45,7 +48,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 
@@ -94,6 +97,8 @@ class EvaluatorRunner(PeriodicService):
         )
 
     def enqueue(self, span_event: Dict, span: Span) -> None:
+        if self.status == ServiceStatus.STOPPED:
+            return
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
@@ -115,20 +120,12 @@ class EvaluatorRunner(PeriodicService):
             self._buffer = []
 
         try:
-            if not _wait_sync:
-                for evaluator in self.evaluators:
-                    self.executor.map(
-                        lambda span_event: evaluator.run_and_submit_evaluation(span_event),
-                        [
-                            span_event
-                            for span_event, span in span_events_and_spans
-                            if self.sampler.sample(evaluator.LABEL, span)
-                        ],
-                    )
-            else:
-                for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
+            for evaluator in self.evaluators:
+                for span_event, span in span_events_and_spans:
+                    if self.sampler.sample(evaluator.LABEL, span):
+                        if not _wait_sync:
+                            self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
+                        else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)

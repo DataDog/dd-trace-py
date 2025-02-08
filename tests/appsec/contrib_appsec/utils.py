@@ -88,7 +88,7 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer.configure(api_version="v0.4")
+        interface.tracer._configure(api_version="v0.4")
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -1559,7 +1559,7 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer.configure(api_version="v0.4")
+    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer
@@ -1568,7 +1568,7 @@ def test_tracer():
 @contextmanager
 def post_tracer(interface):
     original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin.override(interface.framework, tracer=interface.tracer)
+    ddtrace.trace.Pin._override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin.override(interface.framework, tracer=original_tracer)
+        ddtrace.trace.Pin._override(interface.framework, tracer=original_tracer)

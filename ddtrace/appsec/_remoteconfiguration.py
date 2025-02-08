@@ -5,10 +5,8 @@ from typing import Dict
 from typing import Mapping
 from typing import Optional
 
-from ddtrace import Tracer
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
@@ -18,6 +16,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -72,7 +71,6 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
         load_common_appsec_modules()
 
-    forksafe.register(_forksafe_appsec_rc)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
 
 
@@ -111,7 +109,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
     if test_tracer is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
     else:
         tracer = test_tracer
 
@@ -200,7 +198,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
         # Tracer is a parameter for testing propose
         # Import tracer here to avoid a circular import
         if test_tracer is None:
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
         else:
             tracer = test_tracer
 
@@ -221,12 +219,12 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
 
             if rc_asm_enabled:
                 if not asm_config._asm_enabled:
-                    tracer.configure(appsec_enabled=True)
+                    tracer._configure(appsec_enabled=True)
                 else:
                     asm_config._asm_enabled = True
             else:
                 if asm_config._asm_enabled:
-                    tracer.configure(appsec_enabled=False)
+                    tracer._configure(appsec_enabled=False)
                 else:
                     asm_config._asm_enabled = False
 

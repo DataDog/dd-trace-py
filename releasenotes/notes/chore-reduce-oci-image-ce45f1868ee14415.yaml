@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    lib-injection: Reduce size of OCI image size to improve k8s lib-injection pull and startup times.

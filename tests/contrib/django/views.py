@@ -15,8 +15,8 @@ from django.views.generic import ListView
 from django.views.generic import TemplateView
 from django.views.generic import View
 
-from ddtrace import tracer
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
+from ddtrace.trace import tracer
 
 
 class UserList(ListView):
