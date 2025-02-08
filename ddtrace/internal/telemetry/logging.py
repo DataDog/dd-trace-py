@@ -5,7 +5,7 @@ import traceback
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
-class DDTelemetryLogHandler(logging.StreamHandler):
+class DDTelemetryLogHandler(logging.Handler):
     CWD = os.getcwd()
 
     def __init__(self, telemetry_writer):
