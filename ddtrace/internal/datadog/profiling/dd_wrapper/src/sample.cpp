@@ -77,8 +77,11 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
           .name = to_slice(name),
+          .name_id = ddog_prof_ManagedStringId{ .value = 0 },
           .system_name = {}, // No support for system_name in Python
+          .system_name_id = ddog_prof_ManagedStringId{ .value = 0 },
           .filename = to_slice(filename),
+          .filename_id = ddog_prof_ManagedStringId{ .value = 0 },
           .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,
