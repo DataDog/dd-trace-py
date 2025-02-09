@@ -20,6 +20,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
+          ref: 'taegyunkim/crashtracker-signo'
 
       - name: Build agent
         run: ./build.sh -i agent
