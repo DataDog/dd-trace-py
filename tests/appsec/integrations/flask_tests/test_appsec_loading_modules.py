@@ -24,7 +24,7 @@ MODULE_IAST_ONLY = [
 
 @pytest.mark.parametrize("appsec_enabled", ["true", "false"])
 @pytest.mark.parametrize("iast_enabled", ["true", None])
-@pytest.mark.parametrize("aws_lambda", ["any", None])
+@pytest.mark.parametrize("aws_lambda", [None, "any"])
 def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     flask_app = pathlib.Path(__file__).parent / "mini.py"
     env = os.environ.copy()
@@ -54,7 +54,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         stderr=subprocess.PIPE,
         env=env,
         text=True,
-        shell="win" in sys.platform,
+        shell=sys.platform.startswith("win"),
     )
 
     print("process started", flush=True)
@@ -67,11 +67,11 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                 payload = response.read().decode()
                 data = json.loads(payload)
                 print("got data", flush=True)
-                if appsec_enabled == "true" and not aws_lambda:
-                    for k, v in data["env"].items():
-                        print(f"ENV {k}={v}", flush=True)
-                    for k, v in data["asm_config"].items():
-                        print(f"CONFIG {k}->{v}", flush=True)
+                # if appsec_enabled == "true" and not aws_lambda:
+                #     for k, v in data["env"].items():
+                #         print(f"ENV {k}={v}", flush=True)
+                #     for k, v in data["asm_config"].items():
+                #         print(f"CONFIG {k}->{v}", flush=True)
 
                 assert "appsec" in data
                 # appsec is always enabled
@@ -89,14 +89,14 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                         assert m not in data["appsec"], f"{m} in {data['appsec']}"
             print(f"Test passed {i}", flush=True)
             process.terminate()
-            if "win" not in sys.platform:
+            if not sys.platform.startswith("win"):
                 _, _ = process.communicate()
             process.wait()
             return
         except HTTPError as e:
             print(f"HTTP error {i}", flush=True)
             process.terminate()
-            if "win" not in sys.platform:
+            if not sys.platform.startswith("win"):
                 out, err = process.communicate()
             else:
                 out, err = process.stdout.read(), process.stderr.read()
@@ -108,7 +108,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         except BaseException:
             print(f"Test failed {i}", flush=True)
             process.terminate()
-            if "win" not in sys.platform:
+            if not sys.platform.startswith("win"):
                 out, err = process.communicate()
             else:
                 out, err = process.stdout.read(), process.stderr.read()
@@ -117,7 +117,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
             print(f"\nSTDOUT {out}", flush=True)
             raise
     process.terminate()
-    if "win" not in sys.platform:
+    if not sys.platform.startswith("win"):
         out, err = process.communicate()
     else:
         out, err = process.stdout.read(), process.stderr.read()
