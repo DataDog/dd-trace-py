@@ -56,6 +56,8 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
 - cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+
 ---
 
 ## 2.19.2
