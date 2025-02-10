@@ -35,7 +35,7 @@ class BaseUrllib3TestCase(TracerTestCase):
 
         patch()
         self.http = urllib3.PoolManager()
-        Pin.override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
+        Pin._override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseUrllib3TestCase, self).tearDown()

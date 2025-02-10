@@ -131,7 +131,7 @@ def _switch_coverage_context(
 
 
 def _report_coverage_to_span(
-    coverage_data: Coverage, span: ddtrace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
+    coverage_data: Coverage, span: ddtrace.trace.Span, root_dir: str, framework: Optional[TEST_FRAMEWORKS] = None
 ):
     # Experimental feature to use internal coverage collection
     if USE_DD_COVERAGE:

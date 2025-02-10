@@ -3,10 +3,8 @@ import sys
 from typing import Dict
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
@@ -14,10 +12,12 @@ from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -46,6 +46,7 @@ class IASTEnvironment:
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: Dict[str, int] = {}
         self.iast_stack_trace_id: int = 0
+        self.iast_stack_trace_reported: bool = False
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
@@ -57,7 +58,7 @@ def in_iast_context() -> bool:
 
 
 def start_iast_context():
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         create_propagation_context()
         core.set_item(_IAST_CONTEXT, IASTEnvironment())
 
@@ -88,6 +89,19 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     return None
 
 
+def get_iast_stacktrace_reported() -> bool:
+    env = _get_iast_context()
+    if env:
+        return env.iast_stack_trace_reported
+    return False
+
+
+def set_iast_stacktrace_reported(reported: bool) -> None:
+    env = _get_iast_context()
+    if env:
+        env.iast_stack_trace_reported = reported
+
+
 def get_iast_stacktrace_id() -> int:
     env = _get_iast_context()
     if env:
@@ -104,7 +118,7 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("[IAST] Trying to set IAST reporter but no context is present")
 
 
-def is_iast_request_enabled():
+def is_iast_request_enabled() -> bool:
     env = _get_iast_context()
     if env:
         return env.request_enabled
@@ -133,8 +147,8 @@ def _create_and_attach_iast_report_to_span(req_span: Span, existing_data: Option
     set_iast_request_enabled(False)
     end_iast_context(req_span)
 
-    if req_span.get_tag(ORIGIN_KEY) is None:
-        req_span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+    if req_span.get_tag(_ORIGIN_KEY) is None:
+        req_span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
     oce.release_request()
 
@@ -150,7 +164,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             else:
                 req_span = ctx.get_item("req_span")
 
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             existing_data = req_span.get_tag(IAST.JSON)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
@@ -173,7 +187,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
 
 def _iast_start_request(span=None, *args, **kwargs):
     try:
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             start_iast_context()
             request_iast_enabled = False
             if oce.acquire_request(span):

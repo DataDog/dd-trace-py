@@ -8,13 +8,15 @@ from typing import Any
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils.safestring import mark_safe
 
-from ddtrace import tracer
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+from ddtrace.trace import tracer
 
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
@@ -68,6 +70,34 @@ def checkuser_view(request, user_id):
     return HttpResponse(status=200)
 
 
+def xss_http_request_parameter_mark_safe(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return render(request, "index.html", {"user_input": mark_safe(user_input)})
+
+
+def xss_secure(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return render(request, "index.html", {"user_input": user_input})
+
+
+def xss_http_request_parameter_template_safe(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_template_safe
+    return render(request, "index_safe.html", {"user_input": user_input})
+
+
+def xss_http_request_parameter_autoscape(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_autoscape
+    return render(request, "index_autoescape.html", {"user_input": user_input})
+
+
 def sqli_http_request_parameter(request):
     import bcrypt
     from django.contrib.auth.hashers import BCryptSHA256PasswordHasher
@@ -97,6 +127,14 @@ def sqli_http_request_parameter_name_post(request):
         cursor.execute(list(request.POST.keys())[0] + obj)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def sqli_query_no_redacted(request):
+    obj = request.GET["q"]
+    with connection.cursor() as cursor:
+        # label sqli_query_no_redacted
+        cursor.execute(f"SELECT * FROM {obj} ORDER BY name")
+    return HttpResponse("OK", status=200)
 
 
 def sqli_http_request_header_name(request):
@@ -273,3 +311,20 @@ def validate_querydict(request):
     return HttpResponse(
         "x=%s, all=%s, keys=%s, urlencode=%s" % (str(res), str(lres), str(keys), qd.urlencode()), status=200
     )
+
+
+def stacktrace_leak_view(request):
+    from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_html_django_stacktrace
+
+    return HttpResponse(_load_html_django_stacktrace())
+
+
+def stacktrace_leak_500_view(request):
+    try:
+        raise Exception("FooBar Exception")
+    except Exception:
+        import sys
+
+        from django.views.debug import technical_500_response
+
+        return technical_500_response(request, *sys.exc_info())

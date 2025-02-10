@@ -35,13 +35,13 @@ in your application::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer.wrap`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer.wrap`.
 
 Context Manager
 ---------------
 
-To trace an arbitrary block of code, you can use :py:meth:`ddtrace.Tracer.trace`
-that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
+To trace an arbitrary block of code, you can use :py:meth:`ddtrace.trace.Tracer.trace`
+that returns a :py:mod:`ddtrace.trace.Span` which can be used as a context manager::
 
   # trace some interesting operation
   with tracer.trace('interesting.operations'):
@@ -49,7 +49,7 @@ that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer`.
 
 Using the API
 -------------
@@ -67,8 +67,8 @@ manual API to provide complete control over starting and stopping spans is avail
 
 API details for creating and finishing spans can be found here:
 
-- :py:meth:`ddtrace.Tracer.trace`
-- :py:meth:`ddtrace.Span.finish`.
+- :py:meth:`ddtrace.trace.Tracer.trace`
+- :py:meth:`ddtrace.trace.Span.finish`.
 
 
 Profiling

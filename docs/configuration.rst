@@ -278,7 +278,7 @@ Traces
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
@@ -357,7 +357,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``b3``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, extraction is disabled.
@@ -397,7 +397,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``,``b3``, ``tracecontext``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
          When ``none`` is the only propagator listed, injection is disabled.
@@ -484,6 +484,11 @@ AppSec
      type: Integer
      default: 2
      description: Number of requests analyzed at the same time.
+
+   DD_IAST_DEDUPLICATION_ENABLED:
+     type: Integer
+     default: True
+     description: Avoid sending vulnerabilities in the span if they have already been reported in the last hour.
 
    DD_IAST_REDACTION_ENABLED:
      type: Boolean
@@ -610,22 +615,6 @@ Test Visibility
      
      version_added:
         v2.16.0:
-
-   DD_PYTEST_USE_NEW_PLUGIN_BETA:
-     type: Boolean
-     default: False
-
-     description: |
-        Configures the ``CIVisibility`` service to use a beta release of the new version of the pytest plugin,
-        supporting `Auto Test Retries <https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries>`_,
-        `Early Flake Detection <https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection>`_, and
-        improved coverage collection for `Test Impact Analysis
-        <https://docs.datadoghq.com/tests/test_impact_analysis>`_. This version of the plugin will become the default in
-        the future. See the `release notes for v2.18.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v2.18.0>`_
-        for more information.
-
-     version_added:
-        v2.18.0:
 
    DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS:
      type: Integer
@@ -828,6 +817,7 @@ Sampling
      version_added:
         v0.33.0:
         v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
+        v3.0.0: Only applied when DD_TRACE_SAMPLING_RULES or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
