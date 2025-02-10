@@ -706,7 +706,7 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
     processor._update_rules(CUSTOM_RULE_METHOD)

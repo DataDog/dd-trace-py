@@ -2,9 +2,9 @@ import mock
 import pytest
 
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._utils import _is_python_version_supported
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Pin
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
@@ -33,7 +33,7 @@ class TestTracedCursor(TracerTestCase):
         ):
             _end_iast_context_and_oce()
 
-    @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_tainted_query(self):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -50,13 +50,15 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+            pin = Pin("dbapi_service")
+            pin._tracer = self.tracer
+            traced_cursor = TracedCursor(cursor, pin, cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
             mock_sql_injection_report.assert_called_once_with(evidence_value=query, dialect="sqlite")
 
-    @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_tainted_query_args(self):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -73,13 +75,15 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+            pin = Pin("dbapi_service")
+            pin._tracer = self.tracer
+            traced_cursor = TracedCursor(cursor, pin, cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
             mock_sql_injection_report.assert_not_called()
 
-    @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_untainted_query(self):
         with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
@@ -88,13 +92,15 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+            pin = Pin("dbapi_service")
+            pin._tracer = self.tracer
+            traced_cursor = TracedCursor(cursor, pin, cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
             mock_sql_injection_report.assert_not_called()
 
-    @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_untainted_query_and_args(self):
         with mock.patch(
             "ddtrace.appsec._iast.taint_sinks.sql_injection.SqlInjection.report"
@@ -104,13 +110,15 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+            pin = Pin("dbapi_service")
+            pin._tracer = self.tracer
+            traced_cursor = TracedCursor(cursor, pin, cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
             mock_sql_injection_report.assert_not_called()
 
-    @pytest.mark.skipif(not _is_python_version_supported(), reason="IAST compatible versions")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="IAST compatible versions")
     def test_tainted_query_iast_disabled(self):
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -124,7 +132,9 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+            pin = Pin("dbapi_service")
+            pin._tracer = self.tracer
+            traced_cursor = TracedCursor(cursor, pin, cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 

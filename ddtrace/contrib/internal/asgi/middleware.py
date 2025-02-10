@@ -7,7 +7,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -24,6 +23,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -150,12 +150,8 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        # Calling ddtrace.trace.Pin(...) with the `tracer` argument is deprecated
-        # Remove this if statement when the `tracer` argument is removed
-        if self.tracer is ddtrace.tracer:
-            pin = ddtrace.trace.Pin(service="asgi")
-        else:
-            pin = ddtrace.trace.Pin(service="asgi", tracer=self.tracer)
+        pin = ddtrace.trace.Pin(service="asgi")
+        pin._tracer = self.tracer
 
         with core.context_with_data(
             "asgi.__call__",

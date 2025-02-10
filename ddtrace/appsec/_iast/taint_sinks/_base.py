@@ -4,11 +4,11 @@ from typing import Callable
 from typing import Optional
 from typing import Text
 
-from ddtrace import tracer
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import is_iast_request_enabled

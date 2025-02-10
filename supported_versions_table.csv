@@ -47,5 +47,5 @@ starlette,0.13.6,0.41.3,True
 structlog,20.2.0,24.4.0,False
 tornado *,4.5.3,6.4,False
 urllib3,1.24.3,2.2.3,False
+valkey,6.0.0,6.0.2,True
 vertexai,1.71.1,1.71.1,True
-yaaredis,2.0.4,3.0.0,True
