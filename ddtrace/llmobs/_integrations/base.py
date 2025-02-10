@@ -11,6 +11,7 @@ from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.agent import get_stats_url
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.hostname import get_hostname
@@ -137,7 +138,7 @@ class BaseLLMIntegration:
                 # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
                 # in these cases to avoid conflicting with the later propagated tags.
                 parent_id = _get_llmobs_parent_id(span) or "undefined"
-                span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
+                core.set_item(PARENT_ID_KEY, str(parent_id))
         telemetry_writer.add_count_metric(
             namespace=TELEMETRY_NAMESPACE.MLOBS,
             name="span.start",

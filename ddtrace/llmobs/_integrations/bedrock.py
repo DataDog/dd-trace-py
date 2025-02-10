@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -36,7 +37,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
         if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
             parent_id = _get_llmobs_parent_id(span) or "undefined"
-            span._set_ctx_item(PARENT_ID_KEY, parent_id)
+            core.set_item(PARENT_ID_KEY, parent_id)
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
@@ -48,7 +49,7 @@ class BedrockIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "llm",
                 MODEL_NAME: span.get_tag("bedrock.request.model") or "",

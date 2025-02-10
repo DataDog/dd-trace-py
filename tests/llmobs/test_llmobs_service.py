@@ -8,6 +8,7 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -213,16 +214,16 @@ def test_start_span_uses_kind_as_default_name(llmobs):
 
 
 def test_start_span_with_session_id(llmobs):
-    with llmobs.llm(model_name="test_model", session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
-    with llmobs.tool(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
-    with llmobs.task(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
-    with llmobs.workflow(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
-    with llmobs.agent(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+    with llmobs.llm(model_name="test_model", session_id="test_session_id"):
+        assert core.get_item(SESSION_ID) == "test_session_id"
+    with llmobs.tool(session_id="test_session_id"):
+        assert core.get_item(SESSION_ID) == "test_session_id"
+    with llmobs.task(session_id="test_session_id"):
+        assert core.get_item(SESSION_ID) == "test_session_id"
+    with llmobs.workflow(session_id="test_session_id"):
+        assert core.get_item(SESSION_ID) == "test_session_id"
+    with llmobs.agent(session_id="test_session_id"):
+        assert core.get_item(SESSION_ID) == "test_session_id"
 
 
 def test_session_id_becomes_top_level_field(llmobs, llmobs_events):
@@ -238,9 +239,9 @@ def test_llm_span(llmobs, llmobs_events):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "llm"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
+        assert core.get_item(SPAN_KIND) == "llm"
+        assert core.get_item(MODEL_NAME) == "test_model"
+        assert core.get_item(MODEL_PROVIDER) == "test_provider"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="test_model", model_provider="test_provider"
@@ -249,7 +250,7 @@ def test_llm_span(llmobs, llmobs_events):
 
 def test_llm_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert span._get_ctx_item(MODEL_NAME) == "custom"
+        assert core.get_item(MODEL_NAME) == "custom"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="custom", model_provider="test_provider"
@@ -261,9 +262,9 @@ def test_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "llm"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
+        assert core.get_item(SPAN_KIND) == "llm"
+        assert core.get_item(MODEL_NAME) == "test_model"
+        assert core.get_item(MODEL_PROVIDER) == "custom"
 
 
 def test_tool_span(llmobs, llmobs_events):
@@ -271,7 +272,7 @@ def test_tool_span(llmobs, llmobs_events):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "tool"
+        assert core.get_item(SPAN_KIND) == "tool"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
 
@@ -281,7 +282,7 @@ def test_task_span(llmobs, llmobs_events):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "task"
+        assert core.get_item(SPAN_KIND) == "task"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
 
@@ -291,7 +292,7 @@ def test_workflow_span(llmobs, llmobs_events):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "workflow"
+        assert core.get_item(SPAN_KIND) == "workflow"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
@@ -301,14 +302,14 @@ def test_agent_span(llmobs, llmobs_events):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "agent"
+        assert core.get_item(SPAN_KIND) == "agent"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
 
 def test_embedding_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert span._get_ctx_item(MODEL_NAME) == "custom"
+        assert core.get_item(MODEL_NAME) == "custom"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="custom", model_provider="test_provider"
@@ -320,9 +321,9 @@ def test_embedding_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "embedding"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
+        assert core.get_item(SPAN_KIND) == "embedding"
+        assert core.get_item(MODEL_NAME) == "test_model"
+        assert core.get_item(MODEL_PROVIDER) == "custom"
 
 
 def test_embedding_span(llmobs, llmobs_events):
@@ -330,9 +331,9 @@ def test_embedding_span(llmobs, llmobs_events):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "embedding"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
+        assert core.get_item(SPAN_KIND) == "embedding"
+        assert core.get_item(MODEL_NAME) == "test_model"
+        assert core.get_item(MODEL_PROVIDER) == "test_provider"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="test_model", model_provider="test_provider"
@@ -361,14 +362,14 @@ def test_annotate_finished_span_does_nothing(llmobs, mock_llmobs_logs):
 def test_annotate_metadata(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
-        assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
+        assert core.get_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
 def test_annotate_metadata_updates(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
         llmobs.annotate(span=span, metadata={"temperature": 1, "logit_bias": [{"1": 2}]})
-        assert span._get_ctx_item(METADATA) == {
+        assert core.get_item(METADATA) == {
             "temperature": 1,
             "max_tokens": 20,
             "top_k": 10,
@@ -380,7 +381,7 @@ def test_annotate_metadata_updates(llmobs):
 def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata="wrong_metadata")
-        assert span._get_ctx_item(METADATA) is None
+        assert core.get_item(METADATA) is None
         mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
         mock_llmobs_logs.reset_mock()
 
@@ -388,13 +389,13 @@ def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
 def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+        assert core.get_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
 
 
 def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags=12345)
-        assert span._get_ctx_item(TAGS) is None
+        assert core.get_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
             "span tags must be a dictionary of string key - primitive value pairs."
         )
@@ -403,63 +404,63 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
 def test_annotate_input_string(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, input_data="test_input")
-        assert llm_span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input"}]
+        assert core.get_item(INPUT_MESSAGES) == [{"content": "test_input"}]
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data="test_input")
-        assert task_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data="test_input")
-        assert tool_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data="test_input")
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
     with llmobs.retrieval() as retrieval_span:
         llmobs.annotate(span=retrieval_span, input_data="test_input")
-        assert retrieval_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
 
 
 def test_annotate_numeric_io(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=0, output_data=0)
-        assert task_span._get_ctx_item(INPUT_VALUE) == "0"
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "0"
+        assert core.get_item(INPUT_VALUE) == "0"
+        assert core.get_item(OUTPUT_VALUE) == "0"
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=1.23, output_data=1.23)
-        assert task_span._get_ctx_item(INPUT_VALUE) == "1.23"
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "1.23"
+        assert core.get_item(INPUT_VALUE) == "1.23"
+        assert core.get_item(OUTPUT_VALUE) == "1.23"
 
 
 def test_annotate_input_serializable_value(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span._get_ctx_item(INPUT_VALUE) == str(["test_input"])
+        assert core.get_item(INPUT_VALUE) == str(["test_input"])
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span._get_ctx_item(INPUT_VALUE) == str({"test_input": "hello world"})
+        assert core.get_item(INPUT_VALUE) == str({"test_input": "hello world"})
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == str(("asd", 123))
+        assert core.get_item(INPUT_VALUE) == str(("asd", 123))
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert core.get_item(INPUT_VALUE) == "test_input"
     with llmobs.retrieval() as retrieval_span:
         llmobs.annotate(span=retrieval_span, input_data=[0, 1, 2, 3, 4])
-        assert retrieval_span._get_ctx_item(INPUT_VALUE) == str([0, 1, 2, 3, 4])
+        assert core.get_item(INPUT_VALUE) == str([0, 1, 2, 3, 4])
 
 
 def test_annotate_input_llm_message(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": "human"}])
-        assert span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input", "role": "human"}]
+        assert core.get_item(INPUT_MESSAGES) == [{"content": "test_input", "role": "human"}]
 
 
 def test_annotate_input_llm_message_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data=[{"content": object()}])
-        assert span._get_ctx_item(INPUT_MESSAGES) is None
+        assert core.get_item(INPUT_MESSAGES) is None
         mock_llmobs_logs.warning.assert_called_once_with("Failed to parse input messages.", exc_info=True)
 
 
@@ -475,13 +476,13 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs, m
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = core.get_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data="test_document_text")
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = core.get_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -490,13 +491,13 @@ def test_annotate_document_str(llmobs):
 def test_annotate_document_dict(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data={"text": "test_document_text"})
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = core.get_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data={"text": "test_document_text"})
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = core.get_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -508,7 +509,7 @@ def test_annotate_document_list(llmobs):
             span=span,
             input_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = core.get_item(INPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -521,7 +522,7 @@ def test_annotate_document_list(llmobs):
             span=span,
             output_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = core.get_item(OUTPUT_DOCUMENTS)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -588,72 +589,72 @@ def test_annotate_incorrect_document_field_type_raises_warning(llmobs, mock_llmo
 def test_annotate_output_string(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, output_data="test_output")
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output"}]
+        assert core.get_item(OUTPUT_MESSAGES) == [{"content": "test_output"}]
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data="test_output")
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data="test_output")
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data="test_output")
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data="test_output")
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
 
 
 def test_annotate_output_serializable_value(llmobs):
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
+        assert core.get_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == str(["test_output"])
+        assert core.get_item(OUTPUT_VALUE) == str(["test_output"])
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
+        assert core.get_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == str(("asd", 123))
+        assert core.get_item(OUTPUT_VALUE) == str(("asd", 123))
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert core.get_item(OUTPUT_VALUE) == "test_output"
 
 
 def test_annotate_output_llm_message(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, output_data=[{"content": "test_output", "role": "human"}])
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output", "role": "human"}]
+        assert core.get_item(OUTPUT_MESSAGES) == [{"content": "test_output", "role": "human"}]
 
 
 def test_annotate_output_llm_message_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, output_data=[{"content": object()}])
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) is None
+        assert core.get_item(OUTPUT_MESSAGES) is None
         mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
 def test_annotate_metrics(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
-        assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+        assert core.get_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
 def test_annotate_metrics_updates(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20})
         llmobs.annotate(span=span, metrics={"input_tokens": 20, "total_tokens": 40})
-        assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
+        assert core.get_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
 
 
 def test_annotate_metrics_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, metrics=12345)
-        assert llm_span._get_ctx_item(METRICS) is None
+        assert core.get_item(METRICS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
             "metrics must be a dictionary of string key - numeric value pairs."
         )
@@ -671,7 +672,7 @@ def test_annotate_prompt_dict(llmobs):
                 "id": "test_prompt",
             },
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert core.get_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -694,7 +695,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
                 "rag_query_variables": ["user_input"],
             },
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert core.get_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -717,7 +718,7 @@ def test_annotate_prompt_typed_dict(llmobs):
                 rag_query_variables=["user_input"],
             ),
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert core.get_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -730,7 +731,7 @@ def test_annotate_prompt_typed_dict(llmobs):
 def test_annotate_prompt_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, prompt="prompt")
-        assert span._get_ctx_item(INPUT_PROMPT) is None
+        assert core.get_item(INPUT_PROMPT) is None
         mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
         mock_llmobs_logs.reset_mock()
 
@@ -1536,8 +1537,8 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
 
 
 def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, llmobs):
-    with llmobs.agent(name="test") as agent:
-        agent._set_ctx_item(IS_EVALUATION_SPAN, True)
+    with llmobs.agent(name="test"):
+        core.set_item(IS_EVALUATION_SPAN, True)
         with llmobs.llm(model_name="test_model"):
             pass
     time.sleep(0.1)
@@ -1563,14 +1564,14 @@ def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmob
 
 def test_annotation_context_modifies_span_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
-        with llmobs.agent(name="test_agent") as span:
-            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+        with llmobs.agent(name="test_agent"):
+            assert core.get_item(TAGS) == {"foo": "bar"}
 
 
 def test_annotation_context_modifies_prompt(llmobs):
     with llmobs.annotation_context(prompt={"template": "test_template"}):
-        with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert span._get_ctx_item(INPUT_PROMPT) == {
+        with llmobs.llm(name="test_agent", model_name="test"):
+            assert core.get_item(INPUT_PROMPT) == {
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1586,15 +1587,15 @@ def test_annotation_context_modifies_name(llmobs):
 def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
-    with llmobs.agent(name="test_agent") as span:
-        assert span._get_ctx_item(TAGS) is None
+    with llmobs.agent(name="test_agent"):
+        assert core.get_item(TAGS) is None
 
 
 def test_annotation_context_finished_context_does_not_modify_prompt(llmobs):
     with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
-    with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert span._get_ctx_item(INPUT_PROMPT) is None
+    with llmobs.llm(name="test_agent", model_name="test"):
+        assert core.get_item(INPUT_PROMPT) is None
 
 
 def test_annotation_context_finished_context_does_not_modify_name(llmobs):
@@ -1607,8 +1608,8 @@ def test_annotation_context_finished_context_does_not_modify_name(llmobs):
 def test_annotation_context_nested(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.annotation_context(tags={"foo": "baz"}):
-            with llmobs.agent(name="test_agent") as span:
-                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
+            with llmobs.agent(name="test_agent"):
+                assert core.get_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
 def test_annotation_context_nested_overrides_name(llmobs):
@@ -1624,8 +1625,8 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_even
         with llmobs.agent(name="parent_span") as parent_span:
             with llmobs.annotation_context(tags={"foo": "baz"}):
                 with llmobs.workflow(name="child_span") as child_span:
-                    assert child_span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
-                    assert parent_span._get_ctx_item(TAGS) == {"foo": "bar", "boo": "bar"}
+                    assert core.get_item(TAGS) == {"foo": "baz", "boo": "bar"}
+                    assert core.get_item(TAGS) == {"foo": "bar", "boo": "bar"}
 
     assert len(llmobs_events) == 2
     parent_span, child_span = llmobs_events[1], llmobs_events[0]
@@ -1669,7 +1670,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
         with llmobs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with llmobs.agent(name="test_agent") as span:
                 event.wait()
-                agent_has_correct_tags = span._get_ctx_item(TAGS) == {"foo": "bar"}
+                agent_has_correct_tags = core.get_item(TAGS) == {"foo": "bar"}
                 agent_has_correct_name = span.name == "expected_agent"
 
     # thread which registers an annotation context for 0.5 seconds
@@ -1680,7 +1681,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
             with llmobs.annotation_context(name="expected_tool"):
                 with llmobs.tool(name="test_tool") as tool_span:
                     event.wait()
-                    tool_does_not_have_tags = tool_span._get_ctx_item(TAGS) is None
+                    tool_does_not_have_tags = core.get_item(TAGS) is None
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
     thread_one = threading.Thread(target=context_one)
@@ -1690,7 +1691,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
 
     with llmobs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
-        assert span._get_ctx_item(TAGS) is None
+        assert core.get_item(TAGS) is None
 
     event.set()
     thread_one.join()
@@ -1706,14 +1707,14 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
 
 async def test_annotation_context_async_modifies_span_tags(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar"}):
-        with llmobs.agent(name="test_agent") as span:
-            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+        with llmobs.agent(name="test_agent"):
+            assert core.get_item(TAGS) == {"foo": "bar"}
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):
     async with llmobs.annotation_context(prompt={"template": "test_template"}):
-        with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert span._get_ctx_item(INPUT_PROMPT) == {
+        with llmobs.llm(name="test_agent", model_name="test"):
+            assert core.get_item(INPUT_PROMPT) == {
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
@@ -1729,15 +1730,15 @@ async def test_annotation_context_async_modifies_name(llmobs):
 async def test_annotation_context_async_finished_context_does_not_modify_tags(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
-    with llmobs.agent(name="test_agent") as span:
-        assert span._get_ctx_item(TAGS) is None
+    with llmobs.agent(name="test_agent"):
+        assert core.get_item(TAGS) is None
 
 
 async def test_annotation_context_async_finished_context_does_not_modify_prompt(llmobs):
     async with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
-    with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert span._get_ctx_item(INPUT_PROMPT) is None
+    with llmobs.llm(name="test_agent", model_name="test"):
+        assert core.get_item(INPUT_PROMPT) is None
 
 
 async def test_annotation_context_finished_context_async_does_not_modify_name(llmobs):
@@ -1750,8 +1751,8 @@ async def test_annotation_context_finished_context_async_does_not_modify_name(ll
 async def test_annotation_context_async_nested(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         async with llmobs.annotation_context(tags={"foo": "baz"}):
-            with llmobs.agent(name="test_agent") as span:
-                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
+            with llmobs.agent(name="test_agent"):
+                assert core.get_item(TAGS) == {"foo": "baz", "boo": "bar"}
 
 
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():

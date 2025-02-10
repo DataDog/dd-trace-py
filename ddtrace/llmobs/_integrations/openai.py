@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -116,7 +117,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
-        span._set_ctx_items(
+        core.set_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
 
@@ -131,7 +132,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         if not span.error and completions:
             choices = getattr(completions, "choices", completions)
             output_messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
-        span._set_ctx_items(
+        core.set_items(
             {
                 INPUT_MESSAGES: [{"content": str(p)} for p in prompt],
                 METADATA: parameters,
@@ -146,10 +147,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         for m in kwargs.get("messages", []):
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
-        span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+        core.set_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
         if span.error or not messages:
-            span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+            core.set_item(OUTPUT_MESSAGES, [{"content": ""}])
             return
         if isinstance(messages, list):  # streamed response
             output_messages = []
@@ -167,7 +168,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                         for tool_call in tool_calls
                     ]
                 output_messages.append(message)
-            span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+            core.set_item(OUTPUT_MESSAGES, output_messages)
             return
         choices = _get_attr(messages, "choices", [])
         output_messages = []
@@ -196,7 +197,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
                 continue
             output_messages.append({"content": content, "role": role})
-        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        core.set_item(OUTPUT_MESSAGES, output_messages)
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: Dict[str, Any], resp: Any) -> None:
@@ -212,16 +213,14 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_documents = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
-        span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
+        core.set_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
         if span.error:
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
-            span._set_ctx_item(
-                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
-            )
+            core.set_item(OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim))
             return
-        span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+        core.set_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
     def _extract_llmobs_metrics_tags(span: Span, resp: Any) -> Dict[str, Any]:

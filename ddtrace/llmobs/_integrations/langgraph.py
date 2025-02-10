@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
@@ -45,9 +46,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         invoked_node_span_links = invoked_node.get("span_links")
         if invoked_node_span_links is not None:
             span_links = invoked_node_span_links
-        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+        current_span_links = core.get_item(SPAN_LINKS) or []
 
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs),
@@ -90,10 +91,10 @@ class LangGraphIntegration(BaseLLMIntegration):
             {**self._graph_nodes_by_task_id[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
             for task_id in finished_tasks.keys()
         ]
-        graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
-        graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
+        graph_span_span_links = core.get_item(SPAN_LINKS) or []
+        core.set_item(SPAN_LINKS, graph_span_span_links + output_span_links)
         if graph_caller_span is not None and not is_subgraph_node:
-            graph_caller_span_links = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
+            graph_caller_span_links = core.get_item(SPAN_LINKS) or []
             span_links = [
                 {
                     "span_id": str(graph_span.span_id) or "undefined",
@@ -101,7 +102,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                     "attributes": {"from": "output", "to": "output"},
                 }
             ]
-            graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
+            core.set_item(SPAN_LINKS, graph_caller_span_links + span_links)
         return
 
     def _link_task_to_parent(self, task_id, task, finished_task_names_to_ids):

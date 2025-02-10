@@ -7,6 +7,7 @@ from typing import Union
 import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -112,8 +113,8 @@ def _get_llmobs_parent_id(span: Span) -> Optional[str]:
     """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree.
     In priority order: manually set parent ID tag, nearest LLMObs ancestor, local root's propagated parent ID tag.
     """
-    if span._get_ctx_item(PARENT_ID_KEY):
-        return span._get_ctx_item(PARENT_ID_KEY)
+    if core.get_item(PARENT_ID_KEY):
+        return core.get_item(PARENT_ID_KEY)
     nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
     if nearest_llmobs_ancestor:
         return str(nearest_llmobs_ancestor.span_id)
@@ -126,7 +127,7 @@ def _get_span_name(span: Span) -> str:
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.client") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
-    return span._get_ctx_item(NAME) or span.name
+    return core.get_item(NAME) or span.name
 
 
 def _is_evaluation_span(span: Span) -> bool:
@@ -134,12 +135,12 @@ def _is_evaluation_span(span: Span) -> bool:
     Return whether or not a span is an evaluation span by checking the span's
     nearest LLMObs span ancestor. Default to 'False'
     """
-    is_evaluation_span = span._get_ctx_item(IS_EVALUATION_SPAN)
+    is_evaluation_span = core.get_item(IS_EVALUATION_SPAN)
     if is_evaluation_span:
         return is_evaluation_span
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
-        is_evaluation_span = llmobs_parent._get_ctx_item(IS_EVALUATION_SPAN)
+        is_evaluation_span = core.get_item(IS_EVALUATION_SPAN)
         if is_evaluation_span:
             return is_evaluation_span
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -151,12 +152,12 @@ def _get_ml_app(span: Span) -> str:
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
     """
-    ml_app = span._get_ctx_item(ML_APP)
+    ml_app = core.get_item(ML_APP)
     if ml_app:
         return ml_app
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
-        ml_app = llmobs_parent._get_ctx_item(ML_APP)
+        ml_app = core.get_item(ML_APP)
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -168,12 +169,12 @@ def _get_session_id(span: Span) -> Optional[str]:
     Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the span's trace ID.
     """
-    session_id = span._get_ctx_item(SESSION_ID)
+    session_id = core.get_item(SESSION_ID)
     if session_id:
         return session_id
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
-        session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+        session_id = core.get_item(SESSION_ID)
         if session_id is not None:
             return session_id
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
