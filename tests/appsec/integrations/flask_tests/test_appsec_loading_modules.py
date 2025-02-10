@@ -44,7 +44,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     # Disable debug logging as it creates too large buffer to handle
     env["DD_TRACE_DEBUG"] = "false"
 
-    print(f"\nStarting server {sys.executable} {str(flask_app)}")
+    print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
 
     process = subprocess.Popen(
         [sys.executable, str(flask_app)],
@@ -54,12 +54,12 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         text=True,
     )
 
-    print("process started")
+    print("process started", flush=True)
     for i in range(12):
         time.sleep(1)
         try:
             with urlopen("http://localhost:8475", timeout=1) as response:
-                print(f"got a response {response.status}")
+                print(f"got a response {response.status}", flush=True)
                 assert response.status == 200
                 payload = response.read().decode()
                 data = json.loads(payload)
@@ -79,25 +79,25 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                         assert m not in data["appsec"], f"{m} in {data['appsec']}"
             process.terminate()
             _, _ = process.communicate()
-            print(f"Test passed {i}")
+            print(f"Test passed {i}", flush=True)
             process.wait()
             return
         except HTTPError as e:
-            print(f"HTTP error {i}")
+            print(f"HTTP error {i}", flush=True)
             process.terminate()
             out, err = process.communicate()
             process.wait()
             raise AssertionError(e.read().decode(), err, out)
         except (URLError, TimeoutError):
-            print(f"Server not started yet {i}")
+            print(f"Server not started yet {i}", flush=True)
             continue
         except BaseException:
-            print(f"Test failed {i}")
+            print(f"Test failed {i}", flush=True)
             process.terminate()
             out, err = process.communicate()
             process.wait()
-            print(f"\nSTDERR {err}")
-            print(f"\nSTDOUT {out}")
+            print(f"\nSTDERR {err}", flush=True)
+            print(f"\nSTDOUT {out}", flush=True)
             raise
     process.terminate()
     out, err = process.communicate()
