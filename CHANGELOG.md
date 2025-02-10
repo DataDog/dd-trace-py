@@ -38,7 +38,9 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
   - header_is_traced, this attribute is internal to the tracer.
   - convert_rc_trace_sampling_rules, this attribute is internal to the tracer.
   - enable_remote_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
-  - get_from, use `ddtrace.trace.Pin` to set instance level configurations### Bug Fixes
+  - get_from, use `ddtrace.trace.Pin` to set instance level configurations
+  
+  ### Bug Fixes
 
 - CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
 - Code security (IAST): This fix resolves an issue where the usage of <span class="title-ref">callonce</span> decorator could trigger an import loop
