@@ -108,13 +108,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         except BaseException:
             print(f"Test failed {i}", flush=True)
             process.terminate()
-            if not sys.platform.startswith("win"):
-                out, err = process.communicate()
-            else:
-                out, err = process.stdout.read(), process.stderr.read()
             process.wait()
-            print(f"\nSTDERR {err}", flush=True)
-            print(f"\nSTDOUT {out}", flush=True)
             raise
     process.terminate()
     if not sys.platform.startswith("win"):
