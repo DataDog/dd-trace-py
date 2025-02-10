@@ -557,6 +557,8 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "flask",
+    "requests",
 ]
 
 [envs.ddtrace_unit_tests.env-vars]
@@ -569,6 +571,7 @@ test = [
     "uname -a",
     "pip freeze",
     "python -m pytest tests/internal/service_name/test_extra_services_names.py -vvv -s",
+    "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -vvv -s",
 ]
 
 [[envs.ddtrace_unit_tests.matrix]]
