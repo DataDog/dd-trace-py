@@ -19,7 +19,7 @@ from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1clic
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata

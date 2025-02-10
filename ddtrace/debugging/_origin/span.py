@@ -28,9 +28,10 @@ from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
-from ddtrace.span import Span
+from ddtrace.trace import Span
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
@@ -216,8 +217,12 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.file", filename)
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
-                # DEV: Without a function object we cannot infer the function
-                # and any potential class name.
+                try:
+                    (f,) = functions_for_code(code)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.type", f.__module__)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.method", f.__qualname__)
+                except ValueError:
+                    continue
 
                 # TODO[gab]: This will be enabled as part of the live debugger/distributed debugging
                 # if ld_config.enabled:

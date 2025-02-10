@@ -14,7 +14,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
@@ -706,7 +706,7 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
     processor._update_rules(CUSTOM_RULE_METHOD)

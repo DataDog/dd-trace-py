@@ -2,7 +2,7 @@ import time
 
 from datadog_lambda.wrapper import datadog_lambda_wrapper
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 @datadog_lambda_wrapper

@@ -5,13 +5,13 @@ from typing import Optional
 from typing import Union
 
 import ddtrace
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -128,6 +129,23 @@ def _get_span_name(span: Span) -> str:
     return span._get_ctx_item(NAME) or span.name
 
 
+def _is_evaluation_span(span: Span) -> bool:
+    """
+    Return whether or not a span is an evaluation span by checking the span's
+    nearest LLMObs span ancestor. Default to 'False'
+    """
+    is_evaluation_span = span._get_ctx_item(IS_EVALUATION_SPAN)
+    if is_evaluation_span:
+        return is_evaluation_span
+    llmobs_parent = _get_nearest_llmobs_ancestor(span)
+    while llmobs_parent:
+        is_evaluation_span = llmobs_parent._get_ctx_item(IS_EVALUATION_SPAN)
+        if is_evaluation_span:
+            return is_evaluation_span
+        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
+    return False
+
+
 def _get_ml_app(span: Span) -> str:
     """
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
@@ -185,10 +203,10 @@ def _unserializable_default_repr(obj):
     return default_repr
 
 
-def safe_json(obj):
+def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
-        return json.dumps(obj, ensure_ascii=False, skipkeys=True, default=_unserializable_default_repr)
+        return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)

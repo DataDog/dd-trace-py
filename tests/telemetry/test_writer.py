@@ -15,8 +15,8 @@ from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings import _config as config
-from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from ddtrace.settings import _global_config as config
+from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
 
@@ -118,7 +118,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
-                    {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_COMPUTE_STATS", "origin": "unknown", "value": False},
@@ -225,7 +224,6 @@ import ddtrace.settings.exception_replay
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
-    env["DD_TRACE_ANALYTICS_ENABLED"] = "True"
     env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
     env["DD_TRACE_COMPUTE_STATS"] = "True"
     env["DD_TRACE_DEBUG"] = "True"
@@ -237,7 +235,6 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
-    env["DD_TRACE_SAMPLE_RATE"] = "0.5"
     env["DD_TRACE_RATE_LIMIT"] = "50"
     env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
     env["DD_PROFILING_ENABLED"] = "True"
@@ -291,7 +288,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_API_SECURITY_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING", "origin": "default", "value": ""},
         {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "default", "value": True},
         {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": "identification"},
         {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
@@ -354,9 +350,10 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
+        {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
-        {"name": "DD_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": None},
+        {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
@@ -423,7 +420,7 @@ import ddtrace.settings.exception_replay
             "value": str(file),
         },
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
-        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
@@ -432,7 +429,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
-        {"name": "DD_TRACE_ANALYTICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
@@ -455,13 +451,11 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
-        {"name": "DD_TRACE_SAMPLE_RATE", "origin": "env_var", "value": 0.5},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "env_var",
             "value": '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]',
         },
-        {"name": "DD_TRACE_SPAN_AGGREGATOR_RLOCK", "origin": "default", "value": True},
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
@@ -482,6 +476,7 @@ import ddtrace.settings.exception_replay
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
+        {"name": "trace_sample_rate", "origin": "default", "value": 1.0},
     ]
     assert configurations == expected, configurations
 

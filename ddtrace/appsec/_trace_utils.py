@@ -1,8 +1,6 @@
 from typing import Optional
 
-from ddtrace import Tracer
 from ddtrace import constants
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -11,13 +9,15 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -133,10 +133,10 @@ def track_user_login_success_event(
         return
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
-
+    span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span)
+    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
         res = call_waf_callback(
             custom_data={
@@ -185,6 +185,7 @@ def track_user_login_failure_event(
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
         span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
+        span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
         if login:
@@ -376,5 +377,57 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
     return False, None
 
 
+def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_config):
+    if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
+        return
+    userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
+
+    for possible_key in userid_list:
+        if possible_key in kwargs:
+            user_id = kwargs[possible_key]
+            break
+    else:
+        user_id = None
+
+    user_id_found, user_extra = info_retriever.get_user_info(
+        login=django_config.include_user_login,
+        email=django_config.include_user_email,
+        name=django_config.include_user_realname,
+    )
+    if user_extra.get("login") is None:
+        user_extra["login"] = user_id
+    user_id = user_id_found or user_id
+    if result_user and result_user.is_authenticated:
+        span = pin.tracer.current_root_span()
+        if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+            hash_id = _hash_user_id(user_id)
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+            span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+            set_user(pin.tracer, hash_id, propagate=True, may_block=False, span=span)
+        elif mode == LOGIN_EVENTS_MODE.IDENT:
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+            set_user(
+                pin.tracer,
+                str(user_id),
+                propagate=True,
+                email=user_extra.get("email"),
+                name=user_extra.get("name"),
+                may_block=False,
+                span=span,
+            )
+        if in_asm_context():
+            real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+            custom_data = {
+                "REQUEST_USER_ID": str(user_id) if user_id else None,
+                "REQUEST_USERNAME": user_extra.get("login"),
+                "LOGIN_SUCCESS": real_mode,
+            }
+            res = call_waf_callback(custom_data=custom_data, force_sent=True)
+            if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+                raise BlockingException(get_blocked())
+
+
 core.on("django.login", _on_django_login)
 core.on("django.auth", _on_django_auth, "user")
+core.on("django.process_request", _on_django_process)

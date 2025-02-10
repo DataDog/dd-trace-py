@@ -1,13 +1,8 @@
 import os
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
-
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
-from ..internal.utils.formats import asbool
 from .http import HttpConfig
 
 
@@ -43,9 +38,10 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
-        analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
-        self.setdefault("analytics_enabled", analytics_enabled)
-        self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
+        # Trace Analytics was removed in v3.0.0
+        # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
+        self.setdefault("analytics_enabled", False)
+        self.setdefault("analytics_sample_rate", 1.0)
         service = os.getenv(
             "DD_%s_SERVICE" % name.upper(),
             default=os.getenv(
@@ -65,33 +61,6 @@ class IntegrationConfig(AttrDict):
             self.get_http_tag_query_string(getattr(self, "default_http_tag_query_string", None)),
         )
 
-    def _get_analytics_settings(self):
-        # type: () -> Tuple[Optional[bool], float]
-        # Set default analytics configuration, default is disabled
-        # DEV: Default to `None` which means do not set this key
-        # Inject environment variables for integration
-        env = "DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
-        legacy_env = "DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()
-        analytics_enabled = asbool(os.getenv(env, os.getenv(legacy_env, default=None)))
-
-        if analytics_enabled:
-            deprecate(
-                "Datadog App Analytics is deprecated. "
-                f"App Analytics can be enabled via {env} and {legacy_env} "
-                f"environment variables and the ddtrace.config.{self.integration_name}.analytics_enabled configuration."
-                " This feature and its associated configurations will be removed in a future release.",
-                category=DDTraceDeprecationWarning,
-            )
-
-        analytics_sample_rate = float(
-            os.getenv(
-                "DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(),
-                os.getenv("DD_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(), default=1.0),
-            )
-        )
-
-        return analytics_enabled, analytics_sample_rate
-
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
             dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
@@ -103,7 +72,7 @@ class IntegrationConfig(AttrDict):
     def trace_query_string(self):
         if self.http.trace_query_string is not None:
             return self.http.trace_query_string
-        return self.global_config.http.trace_query_string
+        return self.global_config._http.trace_query_string
 
     @property
     def is_header_tracing_configured(self):
@@ -113,7 +82,7 @@ class IntegrationConfig(AttrDict):
         Will return true if traced headers are configured for this integration
         or if they are configured globally.
         """
-        return self.http.is_header_tracing_configured or self.global_config.http.is_header_tracing_configured
+        return self.http.is_header_tracing_configured or self.global_config._http.is_header_tracing_configured
 
     def header_is_traced(self, header_name):
         # type: (str) -> bool

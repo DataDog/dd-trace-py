@@ -115,6 +115,8 @@ ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/appsec/            @DataDog/asm-python
+ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
@@ -164,12 +166,14 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # API SDK
+ddtrace/trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
 ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
+ddtrace/provider.py                                @DataDog/apm-sdk-api-python
 ddtrace/pin.py                                     @DataDog/apm-sdk-api-python
 ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
 ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python

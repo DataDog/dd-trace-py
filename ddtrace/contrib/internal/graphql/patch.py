@@ -4,8 +4,8 @@ import sys
 from typing import TYPE_CHECKING
 from typing import List
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -24,9 +24,9 @@ from graphql.language.source import Source
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -177,7 +177,7 @@ def _traced_execute(func, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
@@ -207,7 +207,7 @@ def _traced_query(func, args, kwargs):
         span.set_tag_str(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         sample_rate = config.graphql.get_analytics_sample_rate()
         if sample_rate is not None:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)

@@ -4,7 +4,7 @@ import copy
 import pytest
 
 import ddtrace
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
 

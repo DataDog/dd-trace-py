@@ -7,8 +7,8 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
@@ -35,11 +35,11 @@ from tests.utils import override_env
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.Span],
+    spans: t.List[ddtrace.trace.Span],
     span_type: str,
     name: str = None,
     status: t.Optional[str] = None,
-) -> t.List[ddtrace.Span]:
+) -> t.List[ddtrace.trace.Span]:
     _names_map = {
         "session": ("test_session_end",),
         "module": ("test_module_end", "test.module"),
@@ -805,7 +805,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
+        assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
         """Test that pytest sets exception information correctly."""

@@ -7,13 +7,17 @@ from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
+
+
+DATADOG_SITE = "datad0g.com"
 
 
 @pytest.fixture
@@ -28,7 +32,7 @@ def langgraph(monkeypatch, mock_tracer):
     import langgraph
 
     pin = Pin.get_from(langgraph)
-    pin.override(langgraph, tracer=mock_tracer)
+    pin._override(langgraph, tracer=mock_tracer)
     yield langgraph
     unpatch()
 
@@ -48,7 +52,8 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 
 @pytest.fixture
 def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(interval=1.0, timeout=1.0)
+    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, DATADOG_SITE)
+    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
 
 
 @pytest.fixture
