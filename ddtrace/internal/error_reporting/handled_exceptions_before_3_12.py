@@ -26,6 +26,7 @@ def _install_bytecode_injection_reporting():
 class HandledExceptionReportingInjector:
     _configured_modules: list[str] = list()
     _instrumented_modules: set[str] = set()
+    _instrumented_obj: set[int] = set()
     _callback: CallbackType
 
     def __init__(self, configured_modules: list[str], callback: CallbackType | None = None):
@@ -75,6 +76,7 @@ class HandledExceptionReportingInjector:
                     self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
+        self._instrumented_obj.add(hash(obj))
         if (
             type(obj) in (types.FunctionType, types.MethodType, staticmethod)
             and hasattr(obj, "__name__")
@@ -84,7 +86,11 @@ class HandledExceptionReportingInjector:
         elif type(obj) is type:
             # classes
             for candidate in obj.__dict__.keys():
-                if type(obj) in INSTRUMENTABLE_TYPES and not self._is_reserved(candidate):
+                if (
+                    type(obj.__dict__[candidate]) in INSTRUMENTABLE_TYPES
+                    and not self._is_reserved(candidate)
+                    and hash(obj.__dict__[candidate]) not in self._instrumented_obj
+                ):
                     self._instrument_obj(obj.__dict__[candidate])
 
     def _is_reserved(self, name: str) -> bool:
