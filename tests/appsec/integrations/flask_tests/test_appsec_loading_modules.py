@@ -10,6 +10,8 @@ from urllib.request import urlopen
 
 import pytest
 
+from ddtrace.settings.asm import config as asm_config
+
 
 MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._capabilities", "ddtrace.appsec._constants"]
 MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
@@ -39,6 +41,8 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     else:
         env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
 
+    env["DD_TRACE_DEBUG"] = "true"
+
     process = subprocess.Popen(
         [sys.executable, str(flask_app)],
         stdout=subprocess.PIPE,
@@ -62,7 +66,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                     else:
                         assert m not in data["appsec"], f"{m} in {data['appsec']}"
                 for m in MODULE_IAST_ONLY:
-                    if iast_enabled and not aws_lambda:
+                    if iast_enabled and not aws_lambda and asm_config._iast_supported:
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
                     else:
                         assert m not in data["appsec"], f"{m} in {data['appsec']}"
@@ -75,9 +79,10 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
             raise AssertionError(e.read().decode())
         except URLError:
             continue
-        except AssertionError:
+        except AssertionError as e:
             process.terminate()
             process.wait()
+            e.args = e.args + (process.stderr.read().decode(), process.stdout.read().decode())
             raise
     else:
         process.terminate()
