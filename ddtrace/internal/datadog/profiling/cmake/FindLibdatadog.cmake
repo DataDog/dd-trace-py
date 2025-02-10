@@ -26,7 +26,10 @@ if(NOT DEFINED DD_CHECKSUMS)
         "b1e7f971277b5c16339f36f85da38680085974415c31c0414d9b5fed78af6ae4 libdatadog-aarch64-alpine-linux-musl.tar.gz"
         "ac9944d030c24f6c570237ade27185e7da0c1018759b14af5783310fb5b75ddc libdatadog-aarch64-apple-darwin.tar.gz"
         "88cc2d1f412a1681ae1d1b77ffdb15e0199690324d233b4834ccaccc8437f275 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
+        "e3a6fc5a6ba145fa47d7458f5235310d8cbbba848840ac83f95728d8a0e784fd libdatadog-i686-alpine-linux-musl.tar.gz"
+        "be3f64641e6c887c8eee05b705701ba051a3c382c52e7df1e74876a0fcf9e66a libdatadog-i686-unknown-linux-gnu.tar.gz"
         "5717af124b2d4187376676f2da7d01e429e481b690eaafe1580181e89b87ee15 libdatadog-x86_64-alpine-linux-musl.tar.gz"
+        "155c96ccee4df4b4c90fba047d07c9d83049058325d63d70f15e83d040abd561 libdatadog-x86_64-apple-darwin.tar.gz"
         "acf8273bda559700517c6b2de8e6a95b4608ef0200e6c7749507e90b5e75d6cb libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
