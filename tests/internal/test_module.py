@@ -542,7 +542,7 @@ def test_public_modules_in_ddtrace_contrib():
         for file_name in file_names:
             # Ignore private modules (python files prefixed with "_")
             if file_name.endswith(".py") and not file_name.startswith("_"):
-                # Covert filename to a module name (ex: dd-trace-py/ddtrace/contrib/flask.py -> ddtrace.contrib.flask)
+                # Converts filename to a module name (ex: dd-trace-py/ddtrace/contrib/flask.py -> ddtrace.contrib.flask)
                 relative_dir_with_file = relative_dir / file_name[:-3]
                 module_name = "ddtrace.contrib." + ".".join(relative_dir_with_file.parts)
                 public_modules.add(module_name)
