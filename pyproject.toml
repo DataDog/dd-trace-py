@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'", "setuptools-rust<2"]
+requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -66,6 +65,8 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "remote-configuration" = "ddtrace.internal.remoteconfig.product"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
+"appsec" = "ddtrace.internal.appsec.product"
+"iast" = "ddtrace.internal.iast.product"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
@@ -171,7 +172,6 @@ exclude-modules = '''
   | ddtrace.internal.datadog.profiling.ddup._ddup
   | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
   # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_7
   | ddtrace.internal.coverage.instrumentation_py3_8
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11
@@ -198,12 +198,6 @@ exclude_dirs = [
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
 ]
-
-[tool.cibuildwheel]
-build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
-test-command = ["python {project}/tests/smoke_test.py"]
-# Skip trying to test arm64 builds on Intel Macs
-test-skip = "*-macosx_universal2:arm64"
 
 [tool.ruff]
 exclude = [

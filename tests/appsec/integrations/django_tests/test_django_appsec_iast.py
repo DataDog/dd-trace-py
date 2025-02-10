@@ -3,20 +3,16 @@ import json
 
 import pytest
 
-from ddtrace.appsec._asm_request_context import start_context
+from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import urlencode
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -25,7 +21,9 @@ TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
 
 @pytest.fixture(autouse=True)
 def iast_context():
-    with override_env({IAST.ENV: "True", IAST.ENV_REQUEST_SAMPLING: "100", "DD_IAST_DEDUPLICATION_ENABLED": "false"}):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         yield
 
 
@@ -83,34 +81,30 @@ def _aux_appsec_get_root_span_with_exception(
         return False
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_weak_hash(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        patch_iast({"weak_hash": True})
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
-        str_json = root_span.get_tag(IAST.JSON)
-        assert str_json is not None, "no JSON tag in root span"
-        vulnerability = json.loads(str_json)["vulnerabilities"][0]
-        assert vulnerability["location"]["path"].endswith(TEST_FILE)
-        assert vulnerability["evidence"]["value"] == "md5"
+    root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/appsec/weak-hash/")
+    str_json = root_span.get_tag(IAST.JSON)
+    assert str_json is not None, "no JSON tag in root span"
+    vulnerability = json.loads(str_json)["vulnerabilities"][0]
+    assert vulnerability["location"]["path"].endswith(TEST_FILE)
+    assert vulnerability["evidence"]["value"] == "md5"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/taint-checking-enabled/?q=aaa",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/taint-checking-enabled/?q=aaa",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
 
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
 
 @pytest.mark.parametrize(
@@ -137,7 +131,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
         50.0,
     ],
 )
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
         dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
@@ -153,11 +147,9 @@ def test_django_view_with_exception(client, test_spans, tracer, payload, content
         assert response is False
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-
         root_span, response = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -175,198 +167,228 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_parameter/?q=SELECT 1 FROM sqlite_master WHERE name='",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_request_parameter(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/sqli_http_request_parameter/?q=SELECT 1 FROM sqlite_master WHERE name='",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
 
-        vuln_type = "SQL_INJECTION"
+    vuln_type = "SQL_INJECTION"
 
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash("iast_enabled_sqli_http_request_parameter", vuln_type, filename=TEST_FILE)
 
-        assert loaded["sources"] == [
+    assert loaded["sources"] == [
+        {
+            "name": "q",
+            "origin": "http.request.parameter",
+            "pattern": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN",
+            "redacted": True,
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"source": 0, "value": "SELECT "},
+            {"pattern": "h", "redacted": True, "source": 0},
+            {"source": 0, "value": " FROM sqlite_master WHERE name='"},
+            {"redacted": True},
+            {"value": "'"},
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/sqli_http_request_parameter_name_get/?SELECT=unused",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
+
+    vuln_type = "SQL_INJECTION"
+
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash(
+        "iast_enabled_sqli_http_request_parameter_name_get", vuln_type, filename=TEST_FILE
+    )
+
+    assert loaded["sources"] == [
+        {
+            "name": "SELECT",
+            "origin": "http.request.parameter.name",
+            "value": "SELECT",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"source": 0, "value": "SELECT"},
             {
-                "name": "q",
-                "origin": "http.request.parameter",
-                "pattern": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN",
+                "value": " ",
+            },
+            {
                 "redacted": True,
-            }
+            },
         ]
-
-        assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"source": 0, "value": "SELECT "},
-                {"pattern": "h", "redacted": True, "source": 0},
-                {"source": 0, "value": " FROM sqlite_master WHERE name='"},
-                {"redacted": True},
-                {"value": "'"},
-            ]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter_name_get(client, test_spans, tracer):
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_parameter_name_get/?SELECT=unused",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        payload=urlencode({"SELECT": "unused"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/sqli_http_request_parameter_name_post/",
+        headers={"HTTP_USER_AGENT": "test/1.2.3"},
+    )
 
-        vuln_type = "SQL_INJECTION"
+    vuln_type = "SQL_INJECTION"
 
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_parameter_name_get", vuln_type, filename=TEST_FILE
-        )
+    line, hash_value = get_line_and_hash(
+        "iast_enabled_sqli_http_request_parameter_name_post", vuln_type, filename=TEST_FILE
+    )
 
-        assert loaded["sources"] == [
+    assert loaded["sources"] == [
+        {
+            "name": "SELECT",
+            "origin": "http.request.parameter.name",
+            "value": "SELECT",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"source": 0, "value": "SELECT"},
             {
-                "name": "SELECT",
-                "origin": "http.request.parameter.name",
-                "value": "SELECT",
-            }
-        ]
-
-        assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"source": 0, "value": "SELECT"},
-                {
-                    "value": " ",
-                },
-                {
-                    "redacted": True,
-                },
-            ]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-
-
-@pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter_name_post(client, test_spans, tracer):
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            payload=urlencode({"SELECT": "unused"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_parameter_name_post/",
-            headers={"HTTP_USER_AGENT": "test/1.2.3"},
-        )
-
-        vuln_type = "SQL_INJECTION"
-
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
-
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
-
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_parameter_name_post", vuln_type, filename=TEST_FILE
-        )
-
-        assert loaded["sources"] == [
+                "value": " ",
+            },
             {
-                "name": "SELECT",
-                "origin": "http.request.parameter.name",
-                "value": "SELECT",
-            }
+                "redacted": True,
+            },
         ]
-
-        assert loaded["vulnerabilities"][0]["type"] == vuln_type
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"source": 0, "value": "SELECT"},
-                {
-                    "value": " ",
-                },
-                {
-                    "redacted": True,
-                },
-            ]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_value(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_header_value/",
-            headers={"HTTP_USER_AGENT": "master"},
-        )
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_query_no_redacted(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_query_no_redacted/?q=sqlite_master",
+    )
 
-        assert response.status_code == 200
-        assert response.content == b"master"
+    vuln_type = "SQL_INJECTION"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    assert response.status_code == 200
+    assert response.content == b"OK"
 
-        assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"source": 0, "value": "master"},
-            ]
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("sqli_query_no_redacted", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "q",
+            "origin": "http.request.parameter",
+            "value": "sqlite_master",
         }
+    ]
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_header_value", VULN_SQL_INJECTION, filename=TEST_FILE
-        )
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT * FROM "},
+            {"source": 0, "value": "sqlite_master"},
+            {"value": " ORDER BY name"},
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_request_header_value(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/sqli_http_request_header_value/",
+        headers={"HTTP_USER_AGENT": "master"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"master"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    assert loaded["sources"] == [{"origin": "http.request.header", "name": "HTTP_USER_AGENT", "value": "master"}]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " FROM sqlite_"},
+            {"source": 0, "value": "master"},
+        ]
+    }
+
+    line, hash_value = get_line_and_hash(
+        "iast_enabled_sqli_http_request_header_value", VULN_SQL_INJECTION, filename=TEST_FILE
+    )
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_request_header_value(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -385,46 +407,45 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_value(
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_header_name(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
-            content_type="application/x-www-form-urlencoded",
-            url="/appsec/sqli_http_request_header_name/",
-            headers={"master": "test/1.2.3"},
-        )
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_request_header_name(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        payload=urlencode({"mytestingbody_key": "mytestingbody_value"}),
+        content_type="application/x-www-form-urlencoded",
+        url="/appsec/sqli_http_request_header_name/",
+        headers={"master": "test/1.2.3"},
+    )
 
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"value": "master", "source": 0},
-            ]
-        }
+    assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "master", "value": "master"}]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " FROM sqlite_"},
+            {"value": "master", "source": 0},
+        ]
+    }
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_request_header_name", VULN_SQL_INJECTION, filename=TEST_FILE
-        )
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    line, hash_value = get_line_and_hash(
+        "iast_enabled_sqli_http_request_header_name", VULN_SQL_INJECTION, filename=TEST_FILE
+    )
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_request_header_name(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -443,8 +464,8 @@ def test_django_tainted_user_agent_iast_disabled_sqli_http_request_header_name(c
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_path_parameter(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
         test_spans,
@@ -478,8 +499,8 @@ def test_django_iast_enabled_full_sqli_http_path_parameter(client, test_spans, t
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_path_parameter(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -496,48 +517,45 @@ def test_django_iast_disabled_full_sqli_http_path_parameter(client, test_spans, 
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_name(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/sqli_http_request_cookie_name/",
-            cookies={"master": "test/1.2.3"},
-        )
-        assert response.status_code == 200
-        assert response.content == b"test/1.2.3"
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_cookies_name(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_http_request_cookie_name/",
+        cookies={"master": "test/1.2.3"},
+    )
+    assert response.status_code == 200
+    assert response.content == b"test/1.2.3"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        vulnerability = False
-        for vuln in loaded["vulnerabilities"]:
-            if vuln["type"] == VULN_SQL_INJECTION:
-                vulnerability = vuln
+    vulnerability = False
+    for vuln in loaded["vulnerabilities"]:
+        if vuln["type"] == VULN_SQL_INJECTION:
+            vulnerability = vuln
 
-        assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
+    assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
 
-        assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
-        assert vulnerability["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"value": "master", "source": 0},
-            ]
-        }
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_cookies_name", VULN_SQL_INJECTION, filename=TEST_FILE
-        )
-        assert vulnerability["location"]["path"] == TEST_FILE
-        assert vulnerability["location"]["line"] == line
-        assert vulnerability["hash"] == hash_value
+    assert loaded["sources"] == [{"origin": "http.request.cookie.name", "name": "master", "value": "master"}]
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " FROM sqlite_"},
+            {"value": "master", "source": 0},
+        ]
+    }
+    line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", VULN_SQL_INJECTION, filename=TEST_FILE)
+    assert vulnerability["location"]["path"] == TEST_FILE
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_cookies_name(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -554,50 +572,47 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_name(client, test_spans,
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_cookies_value(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/sqli_http_request_cookie_value/",
-            cookies={"master": "master"},
-        )
-        assert response.status_code == 200
-        assert response.content == b"master"
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_cookies_value(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_http_request_cookie_value/",
+        cookies={"master": "master"},
+    )
+    assert response.status_code == 200
+    assert response.content == b"master"
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        vulnerability = False
-        for vuln in loaded["vulnerabilities"]:
-            if vuln["type"] == VULN_SQL_INJECTION:
-                vulnerability = vuln
+    vulnerability = False
+    for vuln in loaded["vulnerabilities"]:
+        if vuln["type"] == VULN_SQL_INJECTION:
+            vulnerability = vuln
 
-        assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
-        assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
-        assert vulnerability["type"] == "SQL_INJECTION"
+    assert vulnerability, "No {} reported".format(VULN_SQL_INJECTION)
+    assert loaded["sources"] == [{"origin": "http.request.cookie.value", "name": "master", "value": "master"}]
+    assert vulnerability["type"] == "SQL_INJECTION"
 
-        assert vulnerability["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"value": "master", "source": 0},
-            ]
-        }
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " FROM sqlite_"},
+            {"value": "master", "source": 0},
+        ]
+    }
 
-        line, hash_value = get_line_and_hash(
-            "iast_enabled_sqli_http_cookies_value", VULN_SQL_INJECTION, filename=TEST_FILE
-        )
-        assert vulnerability["location"]["line"] == line
-        assert vulnerability["location"]["path"] == TEST_FILE
-        assert vulnerability["hash"] == hash_value
+    line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", VULN_SQL_INJECTION, filename=TEST_FILE)
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["path"] == TEST_FILE
+    assert vulnerability["hash"] == hash_value
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_cookies_value(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -621,37 +636,36 @@ def test_django_tainted_iast_disabled_sqli_http_cookies_value(client, test_spans
     ],
 )
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_spans, tracer, payload, content_type):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/sqli_http_request_body/",
-            payload=payload,
-            content_type=content_type,
-        )
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_http_body(client, test_spans, tracer, payload, content_type):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_http_request_body/",
+        payload=payload,
+        content_type=content_type,
+    )
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", VULN_SQL_INJECTION, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash("iast_enabled_sqli_http_body", VULN_SQL_INJECTION, filename=TEST_FILE)
 
-        assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [
-                {"value": "SELECT "},
-                {"redacted": True},
-                {"value": " FROM sqlite_"},
-                {"value": "master", "source": 0},
-            ]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_SQL_INJECTION
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT "},
+            {"redacted": True},
+            {"value": " FROM sqlite_"},
+            {"value": "master", "source": 0},
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
-        assert response.status_code == 200
-        assert response.content == b"master"
+    assert response.status_code == 200
+    assert response.content == b"master"
 
 
 @pytest.mark.parametrize(
@@ -678,7 +692,7 @@ def test_django_tainted_user_agent_iast_enabled_sqli_http_body(client, test_span
     ],
 )
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
         dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
@@ -698,8 +712,8 @@ def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, con
 
 
 @pytest.mark.django_db()
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_django_tainted_iast_disabled_sqli_http_body(client, test_spans, tracer):
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_iast_disabled_sqli_http_body(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=False)):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -716,246 +730,316 @@ def test_django_tainted_iast_disabled_sqli_http_body(client, test_spans, tracer)
         assert response.content == b"master"
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
-def test_querydict_django_with_iast(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True)):
-        root_span, response = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/validate_querydict/?x=1&y=2&x=3",
-        )
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_querydict(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/validate_querydict/?x=1&y=2&x=3",
+    )
 
-        assert root_span.get_tag(IAST.JSON) is None
-        assert response.status_code == 200
-        assert (
-            response.content == b"x=['1', '3'], all=[('x', ['1', '3']), ('y', ['2'])],"
-            b" keys=['x', 'y'], urlencode=x=1&x=3&y=2"
-        )
+    assert root_span.get_tag(IAST.JSON) is None
+    assert response.status_code == 200
+    assert (
+        response.content == b"x=['1', '3'], all=[('x', ['1', '3']), ('y', ['2'])],"
+        b" keys=['x', 'y'], urlencode=x=1&x=3&y=2"
+    )
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        patch_iast({"command_injection": True})
-        from ddtrace.appsec._common_module_patches import patch_common_modules
+    patch_common_modules()
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/command-injection/",
+        payload="master",
+        content_type="application/json",
+    )
 
-        patch_common_modules()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/command-injection/",
-            payload="master",
-            content_type="application/json",
-        )
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    line, hash_value = get_line_and_hash("iast_command_injection", VULN_CMDI, filename=TEST_FILE)
 
-        line, hash_value = get_line_and_hash("iast_command_injection", VULN_CMDI, filename=TEST_FILE)
-
-        assert loaded["sources"] == [
-            {"name": "http.request.body", "origin": "http.request.body", "pattern": "abcdef", "redacted": True}
-        ]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "dir "}, {"redacted": True}, {"pattern": "abcdef", "redacted": True, "source": 0}]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["sources"] == [
+        {"name": "http.request.body", "origin": "http.request.body", "pattern": "abcdef", "redacted": True}
+    ]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "dir "}, {"redacted": True}, {"pattern": "abcdef", "redacted": True, "source": 0}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        patch_iast({"header_injection": True})
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/header-injection/",
-            payload="master",
-            content_type="application/json",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/header-injection/",
+        payload="master",
+        content_type="application/json",
+    )
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-        line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
 
-        assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
-        assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
-        assert loaded["vulnerabilities"][0]["hash"] == hash_value
-        assert loaded["vulnerabilities"][0]["evidence"] == {
-            "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
-        }
-        assert loaded["vulnerabilities"][0]["location"]["line"] == line
-        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/insecure-cookie/test_insecure/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/insecure-cookie/test_insecure/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
-        assert len(loaded["vulnerabilities"]) == 1
-        vulnerability = loaded["vulnerabilities"][0]
-        assert vulnerability["type"] == VULN_INSECURE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-        assert "path" not in vulnerability["location"].keys()
-        assert "line" not in vulnerability["location"].keys()
-        assert vulnerability["location"]["spanId"]
-        assert vulnerability["hash"]
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    assert loaded["sources"] == []
+    assert len(loaded["vulnerabilities"]) == 1
+    vulnerability = loaded["vulnerabilities"][0]
+    assert vulnerability["type"] == VULN_INSECURE_COOKIE
+    assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+    assert "path" not in vulnerability["location"].keys()
+    assert "line" not in vulnerability["location"].keys()
+    assert vulnerability["location"]["spanId"]
+    assert vulnerability["hash"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_secure(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/insecure-cookie/test_secure/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/insecure-cookie/test_secure/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        assert root_span.get_tag(IAST.JSON) is None
+    assert root_span.get_tag(IAST.JSON) is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_empty_cookie(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/insecure-cookie/test_empty_cookie/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/insecure-cookie/test_empty_cookie/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        assert root_span.get_tag(IAST.JSON) is None
+    assert root_span.get_tag(IAST.JSON) is None
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_2_insecure_1_secure(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/insecure-cookie/test_insecure_2_1/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/insecure-cookie/test_insecure_2_1/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
-        assert len(loaded["vulnerabilities"]) == 2
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    assert loaded["sources"] == []
+    assert len(loaded["vulnerabilities"]) == 2
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/insecure-cookie/test_insecure_special/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/insecure-cookie/test_insecure_special/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
-        assert len(loaded["vulnerabilities"]) == 1
-        vulnerability = loaded["vulnerabilities"][0]
-        assert vulnerability["type"] == VULN_INSECURE_COOKIE
-        assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-        assert "path" not in vulnerability["location"].keys()
-        assert "line" not in vulnerability["location"].keys()
-        assert vulnerability["location"]["spanId"]
-        assert vulnerability["hash"]
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    assert loaded["sources"] == []
+    assert len(loaded["vulnerabilities"]) == 1
+    vulnerability = loaded["vulnerabilities"][0]
+    assert vulnerability["type"] == VULN_INSECURE_COOKIE
+    assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
+    assert "path" not in vulnerability["location"].keys()
+    assert "line" not in vulnerability["location"].keys()
+    assert vulnerability["location"]["spanId"]
+    assert vulnerability["hash"]
 
 
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_stacktrace_leak(client, test_spans, tracer):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
-        oce.reconfigure()
-        root_span, _ = _aux_appsec_get_root_span(
-            client,
-            test_spans,
-            tracer,
-            url="/appsec/stacktrace_leak/",
-        )
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/stacktrace_leak/",
+    )
 
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
-        assert loaded["sources"] == []
-        assert len(loaded["vulnerabilities"]) == 1
-        vulnerability = loaded["vulnerabilities"][0]
-        assert vulnerability["type"] == VULN_STACKTRACE_LEAK
-        assert vulnerability["evidence"] == {
-            "valueParts": [
-                {"value": 'Module: ".home.foobaruser.sources.minimal-django-example.app.py"\nException: IndexError'}
-            ]
-        }
-        assert vulnerability["hash"]
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    assert loaded["sources"] == []
+    assert len(loaded["vulnerabilities"]) == 1
+    vulnerability = loaded["vulnerabilities"][0]
+    assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": 'Module: ".home.foobaruser.sources.minimal-django-example.app.py"\nException: IndexError'}
+        ]
+    }
+    assert vulnerability["hash"]
 
 
-@pytest.fixture
-def debug_mode():
-    from django.conf import settings
-
-    original_debug = settings.DEBUG
-    settings.DEBUG = True
-    yield
-    settings.DEBUG = original_debug
-
-
-@pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_stacktrace_from_technical_500_response(client, test_spans, tracer, debug_mode):
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
-        with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
-            start_context(span)
-            oce.reconfigure()
-            root_span, response = _aux_appsec_get_root_span(
-                client,
-                test_spans,
-                tracer,
-                url="/appsec/stacktrace_leak_500/",
-                content_type="text/html",
-            )
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/stacktrace_leak_500/",
+        content_type="text/html",
+    )
 
-            assert response.status_code == 500, "Expected a 500 status code"
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert response.status_code == 500, "Expected a 500 status code"
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == []
-            assert len(loaded["vulnerabilities"]) == 1
-            vulnerability = loaded["vulnerabilities"][0]
-            assert vulnerability["type"] == VULN_STACKTRACE_LEAK
-            assert vulnerability["evidence"] == {
-                "valueParts": [
-                    {"value": "Module: tests.appsec.integrations.django_tests.django_app.views\nException: Exception"}
-                ]
-            }
-            assert vulnerability["hash"]
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    # technical_500_response reports a XSS also
+    vulnerability = [vln for vln in loaded["vulnerabilities"] if vln["type"] == VULN_STACKTRACE_LEAK][0]
+    assert vulnerability["evidence"] == {
+        "valueParts": [
+            {"value": "Module: tests.appsec.integrations.django_tests.django_app.views\nException: Exception"}
+        ]
+    }
+    assert vulnerability["hash"]
+
+
+def test_django_xss(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/?input=<script>alert('XSS')</script>",
+    )
+
+    vuln_type = "XSS"
+
+    assert response.status_code == 200
+    assert response.content == b"<html>\n<body>\n<p>Input: <script>alert('XSS')</script></p>\n</body>\n</html>"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("xss_http_request_parameter_mark_safe", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "input",
+            "origin": "http.request.parameter",
+            "value": "<script>alert('XSS')</script>",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"source": 0, "value": "<script>alert('XSS')</script>"},
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+def test_django_xss_safe_template_tag(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/safe/?input=<script>alert('XSS')</script>",
+    )
+
+    vuln_type = "XSS"
+
+    assert response.status_code == 200
+    assert response.content == b"<html>\n<body>\n<p>Input: <script>alert('XSS')</script></p>\n</body>\n</html>"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("xss_http_request_parameter_template_safe", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "input",
+            "origin": "http.request.parameter",
+            "value": "<script>alert('XSS')</script>",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"source": 0, "value": "<script>alert('XSS')</script>"},
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+def test_django_xss_autoscape(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/autoscape/?input=<script>alert('XSS')</script>",
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.content
+        == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
+    ), f"Error. content is {response.content}"
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+def test_django_xss_secure(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/secure/?input=<script>alert('XSS')</script>",
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.content
+        == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
+    )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None

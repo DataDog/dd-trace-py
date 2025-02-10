@@ -274,7 +274,7 @@ elif sys.version_info >= (3, 9):
     )
 
 
-elif sys.version_info >= (3, 7):
+elif sys.version_info >= (3, 8):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -462,8 +462,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     def __exit__(self, *exc) -> None:
         if exc == (None, None, None):
-            # In Python 3.7 this gets called when the context manager is exited
-            # normally
             return
 
         for context in self._contexts[::-1]:

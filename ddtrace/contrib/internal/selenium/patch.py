@@ -7,7 +7,7 @@ from wrapt.importer import when_imported
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
-import ddtrace.tracer
+from ddtrace.trace import tracer
 
 
 if t.TYPE_CHECKING:
@@ -87,7 +87,7 @@ class SeleniumWrappingContextBase(WrappingContext):
 
 class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
     def _handle_return(self) -> None:
-        root_span = ddtrace.tracer.current_root_span()
+        root_span = tracer.current_root_span()
         test_trace_id = root_span.trace_id
 
         if root_span is None or root_span.get_tag("type") != "test":
@@ -127,7 +127,7 @@ class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
 
 class SeleniumQuitWrappingContext(SeleniumWrappingContextBase):
     def _handle_enter(self) -> None:
-        root_span = ddtrace.tracer.current_root_span()
+        root_span = tracer.current_root_span()
 
         if root_span is None or root_span.get_tag("type") != "test":
             return

@@ -18,8 +18,6 @@ from typing import Union
 from typing import cast
 from uuid import uuid4
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
@@ -32,6 +30,8 @@ from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 @dataclass

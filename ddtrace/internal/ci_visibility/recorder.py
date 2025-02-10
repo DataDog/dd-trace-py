@@ -12,7 +12,6 @@ from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -85,6 +84,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
+from ddtrace.trace import Tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover

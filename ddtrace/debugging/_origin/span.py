@@ -29,7 +29,7 @@ from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
-from ddtrace.span import Span
+from ddtrace.trace import Span
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:

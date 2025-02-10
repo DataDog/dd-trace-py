@@ -11,8 +11,8 @@ import sys
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
 from ddtrace.appsec.iast import ddtrace_iast_flask_patch
+from ddtrace.trace import tracer
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_env
 
