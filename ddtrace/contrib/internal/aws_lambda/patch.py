@@ -20,7 +20,7 @@ def get_version():
 
 
 class DDLambdaLogger:
-    """Uses `DDLogger` to log only on cold start invocations."""
+    """Uses `Logger` to log only on cold start invocations."""
 
     def __init__(self):
         self.logger = get_logger(__name__)

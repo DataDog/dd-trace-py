@@ -128,7 +128,7 @@ on writing documentation for Integrations.
 Logging
 -------
 
-Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve a ``DDLogger`` object you can use
+Use ``ddtrace.internal.logger.get_logger(__name__)`` to initialize/retrieve a ``Logger`` object you can use
 to emit well-formatted log messages from your code.
 
 Keep the following in mind when writing logging code:

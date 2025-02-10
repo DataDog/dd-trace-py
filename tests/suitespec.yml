@@ -256,6 +256,7 @@ suites:
     runner: riot
   vendor:
     paths:
+      - '@core'
       - '@vendor'
       - tests/vendor/*
     runner: riot

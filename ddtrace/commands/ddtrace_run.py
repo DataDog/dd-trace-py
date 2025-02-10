@@ -20,7 +20,7 @@ def _find_executable(args: typing.Optional[argparse.Namespace]) -> typing.Option
 
 
 # Do not use `ddtrace.internal.logger.get_logger` here
-# DEV: It isn't really necessary to use `DDLogger` here so we want to
+# DEV: It isn't really necessary to use our filtered logger here so we want to
 #        defer importing `ddtrace` until we actually need it.
 #      As well, no actual rate limiting would apply here since we only
 #        have a few logged lines
