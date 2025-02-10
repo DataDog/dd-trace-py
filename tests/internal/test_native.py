@@ -1,7 +1,22 @@
 from ddtrace.internal.native import get_configuration_from_disk
 
 
-def test_get_configuration_from_disk(tmp_path):
+def test_get_configuration_from_disk__host_selector(tmp_path):
+    # First test -- config matches & should be returned
+    config_1 = tmp_path / "config_1.yaml"
+    config_1.write_text(
+        """
+apm_configuration_default:
+  DD_RUNTIME_METRICS_ENABLED: true
+""",
+        encoding="utf-8",
+    )
+
+    config = get_configuration_from_disk(file_override=str(config_1))
+    assert config == {"DD_RUNTIME_METRICS_ENABLED": "true"}
+
+
+def test_get_configuration_from_disk__service_selector(tmp_path):
     # First test -- config matches & should be returned
     config_1 = tmp_path / "config_1.yaml"
     config_1.write_text(
