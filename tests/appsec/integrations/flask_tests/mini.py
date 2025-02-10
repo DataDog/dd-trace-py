@@ -29,6 +29,7 @@ def hello_world():
         },
         "aws": "AWS_LAMBDA_FUNCTION_NAME" in os.environ,
         "version": get_version(),
+        "env": dict(os.environ),
     }
 
 
