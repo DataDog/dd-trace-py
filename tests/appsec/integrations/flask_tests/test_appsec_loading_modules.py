@@ -54,6 +54,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         stderr=subprocess.PIPE,
         env=env,
         text=True,
+        shell="win" in sys.platform,
     )
 
     print("process started", flush=True)
