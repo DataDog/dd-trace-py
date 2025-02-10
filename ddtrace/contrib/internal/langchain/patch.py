@@ -536,7 +536,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     inputs = None
     final_output = None
 
-    integration.record_steps(instance, span)
+    integration.record_instance(instance, span)
 
     try:
         try:
@@ -583,7 +583,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     inputs = None
     final_output = None
 
-    integration.record_steps(instance, span)
+    integration.record_instance(instance, span)
 
     try:
         try:
