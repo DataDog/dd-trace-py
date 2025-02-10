@@ -38,7 +38,7 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
 
     def get_http_connection(self, *args, **kwargs):
         conn = httplib.HTTPConnection(*args, **kwargs)
-        Pin.override(conn, tracer=self.tracer)
+        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def request(self, conn=None):

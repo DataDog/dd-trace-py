@@ -27,7 +27,7 @@ import sys
 from ddtrace import config
 from ddtrace.constants import _BASE_SERVICE_KEY
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace._trace.span import Span
+from ddtrace.trace import Span
 from tests.internal.service_name.test_processor import processor
 
 def test(processor):
