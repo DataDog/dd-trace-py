@@ -77,15 +77,19 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
                     else:
                         assert m not in data["appsec"], f"{m} in {data['appsec']}"
-            process.terminate()
-            _, _ = process.communicate()
             print(f"Test passed {i}", flush=True)
+            process.terminate()
+            if "win" not in sys.platform:
+                _, _ = process.communicate()
             process.wait()
             return
         except HTTPError as e:
             print(f"HTTP error {i}", flush=True)
             process.terminate()
-            out, err = process.communicate()
+            if "win" not in sys.platform:
+                out, err = process.communicate()
+            else:
+                out, err = process.stdout.read(), process.stderr.read()
             process.wait()
             raise AssertionError(e.read().decode(), err, out)
         except (URLError, TimeoutError):
@@ -94,12 +98,18 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         except BaseException:
             print(f"Test failed {i}", flush=True)
             process.terminate()
-            out, err = process.communicate()
+            if "win" not in sys.platform:
+                out, err = process.communicate()
+            else:
+                out, err = process.stdout.read(), process.stderr.read()
             process.wait()
             print(f"\nSTDERR {err}", flush=True)
             print(f"\nSTDOUT {out}", flush=True)
             raise
     process.terminate()
-    out, err = process.communicate()
+    if "win" not in sys.platform:
+        out, err = process.communicate()
+    else:
+        out, err = process.stdout.read(), process.stderr.read()
     process.wait()
     raise AssertionError(f"Server did not start.\nSTDERR:{err}\nSTDOUT:{out}")
