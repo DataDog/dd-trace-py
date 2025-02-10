@@ -50,7 +50,9 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
 - LLM Observability: This fix resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError.
 - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
-- profiling: fix SystemError from the memory profiler returning NULL when collecting event### Other Changes
+- profiling: fix SystemError from the memory profiler returning NULL when collecting event
+
+### Other Changes
 
 - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
 - cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
