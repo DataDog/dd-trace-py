@@ -36,10 +36,12 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         env["DD_IAST_ENABLED"] = iast_enabled
     else:
         env.pop("DD_IAST_ENABLED", None)
+        os.environ.pop("DD_IAST_ENABLED", None)
     if aws_lambda:
         env["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
     else:
         env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
+        os.environ.pop("AWS_LAMBDA_FUNCTION_NAME", None)
 
     # Disable debug logging as it creates too large buffer to handle
     env["DD_TRACE_DEBUG"] = "false"
