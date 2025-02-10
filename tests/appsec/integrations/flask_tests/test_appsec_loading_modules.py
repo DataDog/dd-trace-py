@@ -2,6 +2,7 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 import time
 from urllib.error import HTTPError
 from urllib.error import URLError
@@ -39,12 +40,12 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
 
     process = subprocess.Popen(
-        ["python", str(flask_app)],
+        [sys.executable, str(flask_app)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
     )
-    for i in range(16):
+    for i in range(12):
         time.sleep(1)
         try:
             with urlopen("http://localhost:8475") as response:
@@ -81,4 +82,4 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     else:
         process.terminate()
         process.wait()
-        raise AssertionError("Server did not start")
+        raise AssertionError(f"Server did not start. [{process.stderr.read().decode()}]")
