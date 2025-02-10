@@ -50,10 +50,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
 
     process = subprocess.Popen(
         [sys.executable, str(flask_app)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         env=env,
-        text=True,
         shell=sys.platform.startswith("win"),
     )
 
@@ -96,12 +93,8 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         except HTTPError as e:
             print(f"HTTP error {i}", flush=True)
             process.terminate()
-            if not sys.platform.startswith("win"):
-                out, err = process.communicate()
-            else:
-                out, err = process.stdout.read(), process.stderr.read()
             process.wait()
-            raise AssertionError(e.read().decode(), err, out)
+            raise AssertionError(e.read().decode())
         except (URLError, TimeoutError):
             print(f"Server not started yet {i}", flush=True)
             continue
@@ -111,9 +104,5 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
             process.wait()
             raise
     process.terminate()
-    if not sys.platform.startswith("win"):
-        out, err = process.communicate()
-    else:
-        out, err = process.stdout.read(), process.stderr.read()
     process.wait()
-    raise AssertionError(f"Server did not start.\nSTDERR:{err}\nSTDOUT:{out}")
+    raise AssertionError("Server did not start.")
