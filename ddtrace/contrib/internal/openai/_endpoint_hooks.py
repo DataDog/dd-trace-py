@@ -112,7 +112,6 @@ class _BaseCompletionHook(_EndpointHook):
                 _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion)
             finally:
                 span.finish()
-                integration.metric(span, "dist", "request.duration", span.duration_ns)
 
         if _is_async_generator(resp):
 
@@ -199,16 +198,6 @@ class _CompletionHook(_BaseCompletionHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=True)
-        if integration.is_pc_sampled_log(span):
-            attrs_dict = {"prompt": kwargs.get("prompt", "")}
-            if error is None:
-                log_choices = resp.choices
-                if hasattr(resp.choices[0], "model_dump"):
-                    log_choices = [choice.model_dump() for choice in resp.choices]
-                attrs_dict.update({"choices": log_choices})
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
@@ -268,14 +257,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
-        if integration.is_pc_sampled_log(span):
-            log_choices = resp.choices
-            if hasattr(resp.choices[0], "model_dump"):
-                log_choices = [choice.model_dump() for choice in resp.choices]
-            attrs_dict = {"messages": kwargs.get("messages", []), "completion": log_choices}
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
         if not resp:
             return
@@ -518,26 +499,6 @@ class _ImageHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if integration.is_pc_sampled_log(span):
-            attrs_dict = {}
-            if kwargs.get("response_format", "") == "b64_json":
-                attrs_dict.update({"choices": [{"b64_json": "returned"} for _ in resp.data]})
-            else:
-                log_choices = resp.data
-                if hasattr(resp.data[0], "model_dump"):
-                    log_choices = [choice.model_dump() for choice in resp.data]
-                attrs_dict.update({"choices": log_choices})
-            if "prompt" in self._request_kwarg_params:
-                attrs_dict.update({"prompt": kwargs.get("prompt", "")})
-            if "image" in self._request_kwarg_params:
-                image = args[0] if len(args) >= 1 else kwargs.get("image", "")
-                attrs_dict.update({"image": image.name.split("/")[-1]})
-            if "mask" in self._request_kwarg_params:
-                mask = args[1] if len(args) >= 2 else kwargs.get("mask", "")
-                attrs_dict.update({"mask": mask.name.split("/")[-1]})
-            integration.log(
-                span, "info" if error is None else "error", "sampled %s" % self.OPERATION_ID, attrs=attrs_dict
-            )
         if not resp:
             return
         choices = resp.data
@@ -629,19 +590,6 @@ class _BaseAudioHook(_EndpointHook):
                     span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
             if integration.is_pc_sampled_span(span):
                 span.set_tag_str("openai.response.text", integration.trunc(text))
-        if integration.is_pc_sampled_log(span):
-            file_input = args[1] if len(args) >= 2 else kwargs.get("file", "")
-            integration.log(
-                span,
-                "info" if error is None else "error",
-                "sampled %s" % self.OPERATION_ID,
-                attrs={
-                    "file": getattr(file_input, "name", "").split("/")[-1],
-                    "prompt": kwargs.get("prompt", ""),
-                    "language": kwargs.get("language", ""),
-                    "text": text,
-                },
-            )
         return resp
 
 
