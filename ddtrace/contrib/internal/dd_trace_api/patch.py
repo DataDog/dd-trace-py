@@ -1,5 +1,4 @@
 import inspect
-from sys import addaudithook
 from typing import Any
 from typing import Dict
 from typing import List
@@ -34,7 +33,7 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
                 param: self.get_local(param)
                 for param in inspect.signature(self.__wrapped__).parameters.keys()
                 if param != "self"
-            }
+            },
         )
 
     def _handle_enter(self) -> None:
@@ -84,15 +83,6 @@ def _call_on_real_instance(
         _STUB_TO_REAL[retval_from_api] = retval_from_impl
 
 
-def _hook(name, hook_args):
-    """Called in response to `sys.audit` events"""
-    if name != _DD_HOOK_NAME or not dd_trace_api.__datadog_patch:
-        return
-    args = hook_args[0][0]
-    api_return_value, stub_self, method_name = args[0:3]
-    _call_on_real_instance(stub_self, method_name, api_return_value, *args[3:], **hook_args[0][1])
-
-
 def get_version() -> str:
     return getattr(dd_trace_api, "__version__", "")
 
@@ -101,9 +91,6 @@ def patch(tracer=None):
     if getattr(dd_trace_api, "__datadog_patch", False):
         return
     _STUB_TO_REAL[dd_trace_api.tracer] = tracer
-    if False and not getattr(dd_trace_api, "__dd_has_audit_hook", False):
-        addaudithook(_hook)
-    dd_trace_api.__dd_has_audit_hook = True
 
     @when_imported("dd_trace_api")
     def _(m):
@@ -126,7 +113,6 @@ def unpatch():
     if not getattr(dd_trace_api, "__datadog_patch", False):
         return
     dd_trace_api.__datadog_patch = False
-    # NB sys.addaudithook's cannot be removed
 
     DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.start_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(dd_trace_api.Tracer.trace).unwrap()
