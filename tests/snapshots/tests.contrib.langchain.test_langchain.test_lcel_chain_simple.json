@@ -24,7 +24,6 @@
       "_sampling_priority_v1": 1,
       "langchain.tokens.completion_tokens": 101,
       "langchain.tokens.prompt_tokens": 20,
-      "langchain.tokens.total_cost": 0.000232,
       "langchain.tokens.total_tokens": 121,
       "process_id": 82010
     },
@@ -61,7 +60,6 @@
          "_dd.measured": 1,
          "langchain.tokens.completion_tokens": 101,
          "langchain.tokens.prompt_tokens": 20,
-         "langchain.tokens.total_cost": 0.000232,
          "langchain.tokens.total_tokens": 121
        },
        "duration": 6142000,

@@ -61,7 +61,6 @@
          "_dd.measured": 1,
          "langchain.tokens.completion_tokens": 16,
          "langchain.tokens.prompt_tokens": 14,
-         "langchain.tokens.total_cost": 5.3e-05,
          "langchain.tokens.total_tokens": 30
        },
        "duration": 6742000,
@@ -95,7 +94,6 @@
          "_dd.measured": 1,
          "langchain.tokens.completion_tokens": 15,
          "langchain.tokens.prompt_tokens": 14,
-         "langchain.tokens.total_cost": 5.1000000000000006e-05,
          "langchain.tokens.total_tokens": 29
        },
        "duration": 3314000,
