@@ -135,7 +135,6 @@ SPAN_DEPRECATION_MESSAGE = (
 SPAN_DEPRECATION_SUGGESTION = (
     "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
 )
-DEPRECATION_MEMO = set()
 
 
 class ExecutionContext(AbstractContextManager):
@@ -182,8 +181,6 @@ class ExecutionContext(AbstractContextManager):
             )
         except LookupError:
             log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
-        if id(self) in DEPRECATION_MEMO:
-            DEPRECATION_MEMO.remove(id(self))
 
         return (
             True
