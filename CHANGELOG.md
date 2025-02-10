@@ -8,7 +8,9 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
-- openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13### Deprecation Notes
+- openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13
+
+### Deprecation Notes
 
 - tracing: Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
 - tracing: Deprecates the following constants in `ddtrace.constants` module:
