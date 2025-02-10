@@ -3,8 +3,8 @@ from unittest import TestCase
 import pytest
 
 from ddtrace._trace.filters import FilterRequestsOnUrl
-from ddtrace._trace.span import Span
 from ddtrace.ext.http import URL
+from ddtrace.trace import Span
 from ddtrace.trace import TraceFilter
 
 
