@@ -63,7 +63,13 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                 assert response.status == 200
                 payload = response.read().decode()
                 data = json.loads(payload)
-                print(f"got data {data}", flush=True)
+                print("got data", flush=True)
+                if appsec_enabled == "true" and not aws_lambda:
+                    for k, v in data["env"].items():
+                        print(f"ENV {k}={v}", flush=True)
+                    for k, v in data["asm_config"].items():
+                        print(f"CONFIG {k}->{v}", flush=True)
+
                 assert "appsec" in data
                 # appsec is always enabled
                 for m in MODULES_ALWAYS_LOADED:
