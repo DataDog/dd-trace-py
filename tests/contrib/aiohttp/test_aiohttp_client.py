@@ -189,7 +189,7 @@ from tests.contrib.aiohttp.test_aiohttp_client import URL_200
 
 async def test():
     async with aiohttp.ClientSession() as session:
-        Pin.override(session, service="pin-custom-svc")
+        Pin._override(session, service="pin-custom-svc")
         async with session.get(URL_200) as resp:
             pass
 

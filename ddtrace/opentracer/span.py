@@ -9,20 +9,20 @@ from typing import Union  # noqa:F401
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
 
-from ddtrace._trace.context import Context as DatadogContext  # noqa:F401
-from ddtrace._trace.span import Span as DatadogSpan
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.compat import NumericType  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
+from ddtrace.trace import Context as DatadogContext  # noqa:F401
+from ddtrace.trace import Span as DatadogSpan
 
 from .span_context import SpanContext
 from .tags import Tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.tracer import Tracer  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 _TagNameType = Union[Text, bytes]
