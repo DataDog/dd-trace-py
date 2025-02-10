@@ -65,7 +65,7 @@ class _DropTraces(TraceFilter):
 
 
 def drop_traces(tracer):
-    tracer.configure(settings={"FILTERS": [_DropTraces()]})
+    tracer.configure(trace_processors=[_DropTraces()])
 
 
 def drop_telemetry_events():

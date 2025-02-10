@@ -227,9 +227,9 @@ class GrpcTestCase(GrpcBaseTestCase):
     def test_pin_tags_are_put_in_span(self):
         # DEV: stop and restart server to catch overridden pin
         self._stop_server()
-        Pin.override(constants.GRPC_PIN_MODULE_SERVER, service="server1")
-        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={"tag1": "server"})
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tags={"tag2": "client"})
+        Pin._override(constants.GRPC_PIN_MODULE_SERVER, service="server1")
+        Pin._override(constants.GRPC_PIN_MODULE_SERVER, tags={"tag1": "server"})
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, tags={"tag2": "client"})
         self._start_server()
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
@@ -241,10 +241,10 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert spans[0].get_tag("tag2") == "client"
 
     def test_pin_can_be_defined_per_channel(self):
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
         channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
 
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc2")
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc2")
         channel2 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
@@ -630,8 +630,8 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 
 def test_handle_response_future_like():
-    from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.grpc.client_interceptor import _handle_response
+    from ddtrace.trace import Span
 
     span = Span(None)
 

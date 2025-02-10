@@ -1,0 +1,15 @@
+---
+upgrade:
+  - |
+    tracer: Removes deprecated parameters from  ``Tracer.configure(...)`` method and removes the ``Tracer.sampler`` attribute.
+  - |
+    tracing: Drops support for multiple tracer instances, ``ddtrace.trace.Tracer`` can not be reinitialized.
+  - |
+    span: Removes the deprecated ``Span.sampled`` property
+  - |
+    sampling: Drops support for configuring sampling rules using functions and regex in the ``ddtrace.tracer.sampler.rules[].choose_matcher(...)`` method
+    and removes the ``timestamp_ns`` parameter from ``ddtrace.internal.rate_limiter.RateLimiter.is_allowed()``.
+  - |
+    configurations: Drops support for configuring ``DD_TRACE_METHODS`` with the '[]' notation. Ensure DD_TRACE_METHODS use the ':' notation instead".
+  - |
+    opentracing: Removes the deprecated ``ddtracer`` parameter from ``ddtrace.opentracer.tracer.Tracer()``.

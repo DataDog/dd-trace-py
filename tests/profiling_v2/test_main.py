@@ -12,8 +12,6 @@ from tests.utils import flaky
 
 
 def test_call_script():
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
     stdout, stderr, exitcode, _ = call_program(
@@ -31,8 +29,6 @@ def test_call_script():
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent():
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
     if sys.version_info[:2] == (3, 8):
         pytest.skip("this test is flaky on 3.8 with stack v2")
     env = os.environ.copy()
@@ -44,9 +40,6 @@ def test_call_script_gevent():
 
 
 def test_call_script_pprof_output(tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
@@ -74,9 +67,6 @@ def test_call_script_pprof_output(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
-
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
@@ -140,8 +130,6 @@ def test_fork(tmp_path):
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent():
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
     env = os.environ.copy()
     stdout, stderr, exitcode, pid = call_program(
         "python", os.path.join(os.path.dirname(__file__), "../profiling", "gevent_fork.py"), env=env
@@ -157,8 +145,6 @@ methods = multiprocessing.get_all_start_methods()
     set(methods) - {"forkserver", "fork"},
 )
 def test_multiprocessing(method, tmp_path):
-    if sys.version_info[:2] == (3, 7):
-        pytest.skip("stack_v2 is not supported on Python 3.7")
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename

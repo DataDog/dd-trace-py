@@ -301,6 +301,7 @@ urls
 username
 uvicorn
 uWSGI
+valkey
 vendored
 versioned
 vertexai
@@ -314,4 +315,3 @@ workflow
 Wrapt
 wsgi
 xfail
-yaaredis
