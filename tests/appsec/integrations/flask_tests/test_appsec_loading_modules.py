@@ -69,9 +69,15 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                     assert m in data["appsec"], f"{m} not in {data['appsec']}"
                 for m in MODULE_ASM_ONLY:
                     if appsec_enabled == "true" and not aws_lambda:
-                        assert m in data["appsec"], f"{m} not in {data['appsec']}"
+                        assert m in data["appsec"], (
+                            f"{m} not in {data['appsec']} asm_enabled:{asm_config._asm_enabled} "
+                            "waf_available:{asm_config._asm_libddwaf_available}"
+                        )
                     else:
-                        assert m not in data["appsec"], f"{m} in {data['appsec']}"
+                        assert m not in data["appsec"], (
+                            f"{m} in {data['appsec']} asm_enabled:{asm_config._asm_enabled} "
+                            "waf_available:{asm_config._asm_libddwaf_available}"
+                        )
                 for m in MODULE_IAST_ONLY:
                     if iast_enabled and not aws_lambda and asm_config._iast_supported:
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
