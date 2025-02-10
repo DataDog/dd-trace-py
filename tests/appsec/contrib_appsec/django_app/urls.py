@@ -11,8 +11,8 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from ddtrace import tracer
 import ddtrace.constants
+from ddtrace.trace import tracer
 
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
@@ -196,7 +196,7 @@ def login_user(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 

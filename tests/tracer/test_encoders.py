@@ -3,7 +3,6 @@ import contextlib
 import json
 import random
 import string
-import sys
 import threading
 from unittest import TestCase
 
@@ -19,8 +18,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY as ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -34,6 +31,8 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 from tests.utils import DummyTracer
 
 
@@ -845,8 +844,8 @@ def test_json_encoder_traces_bytes():
     import json
     import os
 
-    from ddtrace._trace.span import Span
     import ddtrace.internal.encoding as encoding
+    from ddtrace.trace import Span
 
     encoder_class_name = os.getenv("encoder_cls")
 
@@ -870,20 +869,3 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
-
-
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
-@pytest.mark.subprocess(env={"DD_TRACE_API_VERSION": "v0.3"})
-def test_v03_trace_api_deprecation():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-        from ddtrace import tracer
-
-        assert tracer._writer._api_version == "v0.4"
-        assert len(warns) == 1, warns
-        assert (
-            warns[0].message.args[0] == "DD_TRACE_API_VERSION=v0.3 is deprecated and will be "
-            "removed in version '3.0.0': Traces will be submitted to the v0.4/traces agent endpoint instead."
-        ), warns[0].message

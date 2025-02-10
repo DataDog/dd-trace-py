@@ -6,10 +6,13 @@ from ddtrace.settings.asm import config as asm_config
 
 from .._utils import _get_source_index
 from ..constants import VULN_CMDI
+from ..constants import VULN_CODE_INJECTION
 from ..constants import VULN_HEADER_INJECTION
 from ..constants import VULN_SQL_INJECTION
 from ..constants import VULN_SSRF
+from ..constants import VULN_XSS
 from .command_injection_sensitive_analyzer import command_injection_sensitive_analyzer
+from .default_sensitive_analyzer import default_sensitive_analyzer
 from .header_injection_sensitive_analyzer import header_injection_sensitive_analyzer
 from .sql_sensitive_analyzer import sql_sensitive_analyzer
 from .url_sensitive_analyzer import url_sensitive_analyzer
@@ -19,6 +22,7 @@ log = get_logger(__name__)
 
 REDACTED_SOURCE_BUFFER = string.ascii_letters + string.digits
 LEN_SOURCE_BUFFER = len(REDACTED_SOURCE_BUFFER)
+VALUE_MAX_LENGHT = 45
 
 
 def get_redacted_source(length):
@@ -42,6 +46,8 @@ class SensitiveHandler:
             VULN_SQL_INJECTION: sql_sensitive_analyzer,
             VULN_SSRF: url_sensitive_analyzer,
             VULN_HEADER_INJECTION: header_injection_sensitive_analyzer,
+            VULN_XSS: default_sensitive_analyzer,
+            VULN_CODE_INJECTION: default_sensitive_analyzer,
         }
 
     @staticmethod
@@ -288,7 +294,7 @@ class SensitiveHandler:
         return {"redacted_value_parts": value_parts, "redacted_sources": redacted_sources}
 
     def redact_source(self, sources, redacted_sources, redacted_sources_context, source_index, start, end):
-        if source_index is not None:
+        if source_index is not None and source_index < len(sources):
             if not sources[source_index].redacted:
                 redacted_sources.append(source_index)
                 sources[source_index].pattern = get_redacted_source(len(sources[source_index].value))
@@ -303,8 +309,10 @@ class SensitiveHandler:
         if value:
             if source_index is not None:
                 value_parts.append({"value": value, "source": source_index})
-            else:
+            elif len(value) < VALUE_MAX_LENGHT:
                 value_parts.append({"value": value})
+            else:
+                value_parts.append({"redacted": True})
 
     def write_redacted_value_part(
         self,

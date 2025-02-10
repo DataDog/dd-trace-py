@@ -39,7 +39,7 @@ def tracer():
 
 def get_connection(tracer):
     connection = mariadb.connect(**MARIADB_CONFIG)
-    Pin.override(connection, tracer=tracer)
+    Pin._override(connection, tracer=tracer)
 
     return connection
 

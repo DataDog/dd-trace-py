@@ -80,7 +80,7 @@ def mock_file_system():
         ("python apps/app2/cmd/run.py", "app2"),
         ("python apps/app2/setup.py", "app2"),
         ("DD_ENV=prod OTHER_ENV_VAR=hi python apps/app2/setup.py", "app2"),
-        ("python3.7 apps/app2/setup.py", "app2"),
+        ("python3.8 apps/app2/setup.py", "app2"),
         ("/usr/bin/python3.11 apps/app2/setup.py", "app2"),
         # Additional Python test cases
         ("venv/bin/python3.11/ddtrace-run venv/bin/python3.11 apps/app2/setup.py", "app2"),
