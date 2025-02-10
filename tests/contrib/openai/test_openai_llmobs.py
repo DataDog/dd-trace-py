@@ -596,6 +596,25 @@ class TestLLMObsOpenaiV1:
             )
         )
 
+    def test_deepseek_as_provider(self, openai, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_completion.yaml"):
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
+
+            client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "Hello"},
+                ],
+            )
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue._mock_call_args[0][0]
+
+        assert span_event["name"] == "Deepseek.createChatCompletion"
+        assert span_event["meta"]["model_provider"] == "deepseek"
+        assert span_event["meta"]["model_name"] == "deepseek-chat"
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",

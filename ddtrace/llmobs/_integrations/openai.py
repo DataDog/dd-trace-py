@@ -78,15 +78,20 @@ class OpenAIIntegration(BaseLLMIntegration):
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
                     span.set_tag_str("openai.%s" % attr, str(v))
-        span.set_tag_str("openai.request.client", "AzureOpenAI" if self._is_azure_openai(span) else "OpenAI")
+        client = "OpenAI"
+        if self._is_provider(span, "azure"):
+            client = "AzureOpenAI"
+        elif self._is_provider(span, "deepseek"):
+            client = "Deepseek"
+        span.set_tag_str("openai.request.client", client)
 
     @staticmethod
-    def _is_azure_openai(span):
+    def _is_provider(span, provider="openai"):
         """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
         base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
         if not base_url or not isinstance(base_url, str):
             return False
-        return "azure" in base_url.lower()
+        return provider.lower() in base_url.lower()
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
@@ -108,7 +113,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
+
+        model_provider = "openai"
+        if self._is_provider(span, "azure"):
+            model_provider = "azure_openai"
+        elif self._is_provider(span, "deepseek"):
+            model_provider = "deepseek"
+
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
