@@ -223,6 +223,7 @@ class LLMObs(Service):
         llmobs_span_event["tags"] = cls._llmobs_tags(
             span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
         )
+
         return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
@@ -921,9 +922,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_data is not None:
-            span._set_ctx_item(EXPERIMENT_INPUT, str(input_data))
+            span._set_ctx_item(EXPERIMENT_INPUT, input_data)
         if output_data is not None:
-            span._set_ctx_item(EXPERIMENT_OUTPUT, str(output_data))
+            span._set_ctx_item(EXPERIMENT_OUTPUT, output_data)
 
     @staticmethod
     def _tag_span_tags(span: Span, span_tags: Dict[str, Any]) -> None:
