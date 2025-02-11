@@ -8,7 +8,7 @@ import threading
 from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
-
+import traceback
 
 # Do not use an absolute import here Cython<3.0.0 will
 #   import `ddtrace.internal.constants` instead when this
@@ -500,7 +500,16 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             try:
                 ret = self.pack_span(span, dd_origin)
             except Exception as e:
-                raise RuntimeError("failed to pack span: {!r}. Exception: {}".format(span, e))
+                # Capture full traceback information.
+                tb_info = traceback.format_exc()
+                # Raise an error that includes the span details, exception, and traceback.
+                # Rachel - change what information is included
+                raise RuntimeError(
+                    "Failed to pack span: {!r}.\n"
+                    "Exception: {}.\n"
+                    "Traceback:\n{}"
+                    .format(span, e, tb_info)
+                ) from e
 
             # No exception was raised, but we got an error code from msgpack
             if ret != 0:

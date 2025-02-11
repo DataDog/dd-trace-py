@@ -799,6 +799,7 @@ def test_encoding_invalid_data(data):
     with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
+    # Rachel - these tests will fail
     assert e.match(r"failed to pack span: <Span\(id="), e
     assert encoder.encode()[0] is None
 
