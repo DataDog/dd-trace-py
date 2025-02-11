@@ -12,8 +12,11 @@ class DDTelemetryLogHandler(logging.Handler):
         self.telemetry_writer = telemetry_writer
         super().__init__()
 
-    def emit(self, record):
-        # type: (logging.LogRecord) -> None
+    def emit(self, record: logging.LogRecord) -> None:
+        """This function will:
+        - Log all records with a level of ERROR or higher with telemetry
+        - Log all caught exception originated from ddtrace.contrib modules
+       """
         if record.levelno >= logging.ERROR:
             # Capture start up errors
             full_file_name = os.path.join(record.pathname, record.filename)
