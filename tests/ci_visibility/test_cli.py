@@ -43,6 +43,9 @@ def test_thing():
             args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            check=True,
+            check=False,
         )
+        if result.returncode != 0:
+            print(result.stdout.decode())
+            print(result.stderr.decode())
         assert result.returncode == 0, result.stderr
