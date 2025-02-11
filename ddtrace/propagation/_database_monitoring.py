@@ -86,13 +86,18 @@ class _DBM_Propagator(object):
         dbm_comment = self._get_dbm_comment(dbspan)
         if dbm_comment is None:
             # injection_mode is disabled
+            log.warning("DBM propagation is disabled. To enable it set DD_DBM_PROPAGATION_MODE to 'full' or 'service'.")
             return args, kwargs
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
+        log.debug("DBM propagator original sql statement: %s", original_sql_statement)
+        log.debug("DBM propagator injecting comment: %s", dbm_comment)
         # add dbm comment to original_sql_statement
         sql_with_dbm_tags = self.comment_injector(dbm_comment, original_sql_statement)
+        log.debug("DBM propagator new sql statement: %s", sql_with_dbm_tags)
         # replace the original query or procedure with sql_with_dbm_tags
         args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
+        log.debug("DBM propagator new args, kwargs: %s, %s", args, kwargs)
         return args, kwargs
 
     def _get_dbm_comment(self, db_span):
@@ -171,6 +176,7 @@ _DBM_STANDARD_EVENTS = {
 def listen():
     if dbm_config.propagation_mode in ["full", "service"]:
         for event in _DBM_STANDARD_EVENTS:
+            log.debug("Listening to %s", event)
             core.on(event, handle_dbm_injection, "result")
         core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
 
