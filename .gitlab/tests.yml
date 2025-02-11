@@ -104,7 +104,10 @@ build_base_venvs:
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-
+  artifacts:
+    paths:
+      - '*.log'
+    when: always
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
