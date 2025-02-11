@@ -10,24 +10,24 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67a10b8000000000",
+      "_dd.p.tid": "679bca4500000000",
       "langchain.request.inputs.0": "content='You know everything about the world.'",
       "langchain.request.inputs.1": "content='output a list of the country france their population in JSON format. Use a dict with an outer key of \"countries\" which ...",
       "langchain.request.stream": "True",
       "langchain.request.type": "chain",
       "langchain.response.outputs": "{\"countries\": \"France is a country!\"}",
       "language": "python",
-      "runtime-id": "2b6e3df6ccb54034be82dec730d40cea"
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 68297
+      "process_id": 82010
     },
-    "duration": 47497000,
-    "start": 1738607488701970000
+    "duration": 15748000,
+    "start": 1738263109069056000
   },
      {
        "name": "langchain.request",
@@ -60,6 +60,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 43222000,
-       "start": 1738607488705896000
+       "duration": 14195000,
+       "start": 1738263109070356000
      }]]

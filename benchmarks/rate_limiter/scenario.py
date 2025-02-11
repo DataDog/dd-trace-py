@@ -23,8 +23,8 @@ class RateLimiter(bm.Scenario):
             windows = [start + (i * self.time_window) for i in range(self.num_windows)]
             per_window = math.floor(loops / self.num_windows)
 
-            for window in windows:
+            for _ in windows:
                 for _ in range(per_window):
-                    rate_limiter.is_allowed(window)
+                    rate_limiter.is_allowed()
 
         yield _

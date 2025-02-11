@@ -578,9 +578,7 @@ class AgentWriter(HTTPWriter):
         try:
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
-            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                asm_config._asm_enabled or config._remote_config_enabled
-            ):
+            if asm_config._asm_rc_enabled:
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
                 enable_appsec_rc()

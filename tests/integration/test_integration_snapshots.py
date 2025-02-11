@@ -5,7 +5,6 @@ import os
 import mock
 import pytest
 
-from ddtrace.trace import Tracer
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import mark_snapshot
@@ -214,7 +213,6 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace._trace.span.log") as log:
             with tracer.trace("root") as root:
                 root._metrics = metrics

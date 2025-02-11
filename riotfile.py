@@ -2092,25 +2092,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="yaaredis",
-            command="pytest {cmdargs} tests/contrib/yaaredis",
-            pkgs={
-                "pytest-asyncio": "==0.21.1",
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"yaaredis": ["~=2.0.0", latest]},
-                ),
-                Venv(
-                    # yaaredis added support for Python 3.10 in 3.0
-                    pys="3.10",
-                    pkgs={"yaaredis": latest},
-                ),
-            ],
-        ),
-        Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
@@ -2799,6 +2780,16 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
+            },
+            pys=select_pys(min_version="3.8"),
+        ),
+        Venv(
+            name="valkey",
+            command="pytest {cmdargs} tests/contrib/valkey",
+            pkgs={
+                "valkey": latest,
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.23.7",
             },
             pys=select_pys(min_version="3.8"),
         ),

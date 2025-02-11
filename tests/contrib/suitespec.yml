@@ -202,8 +202,6 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/_aredis.py
     - ddtrace/contrib/internal/aredis/*
-    - ddtrace/contrib/_yaaredis.py
-    - ddtrace/contrib/internal/yaaredis/*
     - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
@@ -239,6 +237,11 @@ components:
   urllib3:
     - ddtrace/contrib/_urllib3.py
     - ddtrace/contrib/internal/urllib3/*
+  valkey:
+    - ddtrace/contrib/internal/valkey/*
+    - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/_trace/utils_valkey.py
+    - ddtrace/ext/valkey.py
   vertica:
     - ddtrace/contrib/_vertica.py
     - ddtrace/contrib/internal/vertica/*
@@ -1162,17 +1165,19 @@ suites:
       - tests/snapshots/tests.contrib.wsgi.*
     runner: riot
     snapshot: true
-  yaaredis:
+  valkey:
+    parallelism: 5
     paths:
-      - '@core'
       - '@bootstrap'
+      - '@core'
       - '@contrib'
       - '@tracing'
-      - '@redis'
-      - tests/contrib/yaaredis/*
-      - tests/snapshots/tests.contrib.yaaredis.*
-    pattern: yaaredis$
+      - '@valkey'
+      - tests/contrib/valkey/*
+      - tests/snapshots/tests.contrib.valkey.*
+    pattern: ^valkey*
     runner: riot
     services:
-      - redis
+      - valkeycluster
+      - valkey
     snapshot: true

@@ -4,9 +4,6 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
@@ -46,10 +43,16 @@ def patch():
 
     _w("requests", "Session.send", _wrap_send)
     # IAST needs to wrap this function because `Session.send` is too late
-    _w("requests", "Session.request", _wrap_request)
+    if asm_config._load_modules:
+        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+
+        _w("requests", "Session.request", _wrap_request)
     Pin(_config=config.requests).onto(requests.Session)
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SSRF
+
         _set_metric_iast_instrumented_sink(VULN_SSRF)
 
 
@@ -59,5 +62,13 @@ def unpatch():
         return
     requests.__datadog_patch = False
 
-    _u(requests.Session, "request")
-    _u(requests.Session, "send")
+    try:
+        _u(requests.Session, "request")
+    except AttributeError:
+        # It was not patched
+        pass
+    try:
+        _u(requests.Session, "send")
+    except AttributeError:
+        # It was not patched
+        pass

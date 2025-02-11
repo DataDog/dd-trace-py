@@ -626,7 +626,7 @@ PACKAGES = [
         "",
         import_module_to_validate="soupsieve.css_match",
         extras=[("beautifulsoup4", "4.12.3")],
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -638,7 +638,7 @@ PACKAGES = [
     #     "Original password: your-password\nHashed password: replaced_hashed\nPassword match: True",
     #     "",
     #     import_module_to_validate="werkzeug.http",
-    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    #     skip_python_version=[(3, 8)],
     # ),
     PackageForTesting(
         "yarl",
@@ -648,7 +648,7 @@ PACKAGES = [
         + " example.com\nPath: /path\nQuery: <MultiDictProxy('query': 'param')>\n",
         "",
         import_module_to_validate="yarl._url",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        skip_python_version=[(3, 8)],
         test_propagation=True,
         fixme_propagation_fails=True,
     ),
@@ -659,7 +659,7 @@ PACKAGES = [
     #     "example.zip",
     #     "Contents of example.zip: ['example.zip/example.txt']",
     #     "",
-    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    #     skip_python_version=[(3, 8)],
     # ),
     ## Skip due to typing-extensions added to the denylist
     # PackageForTesting(
@@ -670,7 +670,7 @@ PACKAGES = [
     #     "",
     #     import_name="typing_extensions",
     #     test_e2e=False,
-    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    #     skip_python_version=[(3, 8)],
     # ),
     PackageForTesting(
         "six",
@@ -678,7 +678,7 @@ PACKAGES = [
         "",
         "We're in Python 3",
         "",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        skip_python_version=[(3, 8)],
     ),
     ## Skip due to pillow added to the denylist
     # PackageForTesting(
@@ -688,7 +688,7 @@ PACKAGES = [
     #     "Image correctly generated",
     #     "",
     #     import_name="PIL.Image",
-    #     skip_python_version=[(3, 6), (3, 7), (3, 8)],
+    #     skip_python_version=[(3, 8)],
     # ),
     PackageForTesting(
         "aiobotocore", "2.13.0", "", "", "", test_e2e=False, test_import=False, import_name="aiobotocore.session"
@@ -853,7 +853,7 @@ PACKAGES = [
         "Processed value: 15",
         "",
         import_name="annotated_types",
-        skip_python_version=[(3, 6), (3, 7), (3, 8)],
+        skip_python_version=[(3, 8)],
     ),
 ]
 
