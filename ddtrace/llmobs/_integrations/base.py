@@ -67,7 +67,9 @@ class BaseLLMIntegration:
 
     @property
     def span_linking_enabled(self) -> bool:
-        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false"))
+        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false")) or asbool(
+            os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false")
+        )
 
     @property
     def metrics_enabled(self) -> bool:
