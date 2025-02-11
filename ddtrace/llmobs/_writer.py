@@ -221,6 +221,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
             return None, 0
+        # print(enc_llm_events)
         return enc_llm_events, len(events)
 
 

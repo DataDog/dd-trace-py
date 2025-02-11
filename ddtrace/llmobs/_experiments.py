@@ -23,16 +23,13 @@ from ddtrace.context import Context
 import ddtrace
 from ddtrace import patch_all
 
-patch_all()
+# patch_all() # TODO: remove this comment if it messes with dist tracing, right now it's needed because it overrides integrations_enabled
 
 DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
 if DD_SITE == "datadoghq.com":
     BASE_URL = f"https://api.{DD_SITE}"
 else:
     BASE_URL = f"https://{DD_SITE}"
-
-class FileType(Enum):
-    CSV = 'csv'
 
 LLMObs.enable(
     ml_app="experiment-jonathan",
@@ -42,6 +39,43 @@ LLMObs.enable(
     api_key=os.getenv("DD_API_KEY"),
 )
 
+IS_INITIALIZED = False
+ENV_ML_APP = None
+ENV_PROJECT_NAME = None
+ENV_SITE = None
+ENV_API_KEY = None
+ENV_APPLICATION_KEY = None
+
+def init(project_name: str,  api_key: str = None, application_key: str = None, ml_app: str = "experiments", site: str = "datadoghq.com") -> None:
+    """Initialize an experiment environment.
+
+    Args:
+        project_name: Name of the project
+        api_key: Datadog API key
+        application_key: Datadog application key
+        ml_app: Name of the ML app
+        site: Datadog site
+    """
+
+    global IS_INITIALIZED
+    if IS_INITIALIZED:
+        raise ValueError("Experiment environment already initialized, please call init() only once")
+    else:
+        if api_key is None:
+            api_key = os.getenv("DD_API_KEY")
+            if api_key is None:
+                raise ValueError("DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(api_key=...)")
+        if application_key is None:
+            application_key = os.getenv("DD_APPLICATION_KEY")
+            if application_key is None:
+                raise ValueError("DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(application_key=...)")
+
+        ENV_ML_APP = ml_app
+        ENV_PROJECT_NAME = project_name
+        ENV_SITE = site
+        ENV_API_KEY = api_key
+        ENV_APPLICATION_KEY = application_key
+        IS_INITIALIZED = True
 
 
 class Dataset:
@@ -331,38 +365,6 @@ class Dataset:
 
         return cls(name=name, data=data, description=description)
 
-    @classmethod
-    def load(cls, path: str, filetype: FileType, name: str, description: str = "", input_columns: List[str] = None, expected_output_columns: List[str] = None, metadata_columns: List[str] = None, delimiter: str = ",") -> "Dataset":
-        """Import a dataset from a file.
-
-        Args:
-            path (str): Path to the input file
-            filetype (FileType): Type of file to import (CSV, JSONL, or PARQUET)
-            name (str): Name of the dataset
-            description (str, optional): Description of the dataset. Defaults to "".
-            input_columns (List[str], optional): List of column names to use as input data. Required for CSV and PARQUET files.
-            expected_output_columns (List[str], optional): List of column names to use as expected output data. Required for CSV and PARQUET files.
-            metadata_columns (List[str], optional): List of column names to include as metadata. Defaults to None.
-            delimiter (str, optional): Delimiter character for CSV files. Defaults to ",".
-
-        Returns:
-            Dataset: A new Dataset instance containing the imported data
-
-        Raises:
-            ValueError: If filetype is not supported or if required columns are missing
-        """
-        if filetype == FileType.CSV:
-            return cls.from_csv(
-                filepath=path,
-                name=name,
-                description=description,
-                delimiter=delimiter,
-                input_columns=input_columns,
-                expected_output_columns=expected_output_columns,
-                metadata_columns=metadata_columns,
-            )
-        
-        raise ValueError(f"Unsupported file type: {filetype}")
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
         """Convert the dataset to a pandas DataFrame.
@@ -602,7 +604,7 @@ class Experiment:
     def run(
         self,
         jobs: int = 10,
-        raise_errors: bool = False,
+        raise_errors: bool = True,
     ) -> "ExperimentResults":
         """
         Execute the task and evaluations, returning the results.
@@ -629,7 +631,7 @@ class Experiment:
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
         return experiment_results
 
-    def run_task(self, _jobs: int = 50, raise_errors: bool = False) -> None:
+    def run_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
         """
         Execute the task function on the dataset concurrently using ThreadPoolExecutor.map,
         updating progress via _print_progress_bar and processing more rows in parallel.
@@ -640,20 +642,21 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            try:
-                with LLMObs._experiment(name=self.task.__name__) as span:
-                    span.context.set_baggage_item("is_experiment_task", True)
-                    input_data = row["input"]
-                    expected_output = row["expected_output"]
+            with LLMObs._experiment(name=self.task.__name__) as span:
+                span.context.set_baggage_item("is_experiment_task", True)
+                span_context = LLMObs.export_span(span=span)
+                span_id = span_context["span_id"]
+                trace_id = span_context["trace_id"]
+                input_data = row["input"]
+                expected_output = row["expected_output"]
 
+
+                try:
+                    
                     if getattr(self.task, "_accepts_config", False):
                         output = self.task(input_data, self.config)
                     else:
                         output = self.task(input_data)
-
-                    # Periodic flush for concurrency
-                    if idx % 30 == 0:
-                        LLMObs.flush()
 
                     LLMObs.annotate(
                         span,
@@ -667,9 +670,9 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
-                    span_context = LLMObs.export_span(span=span)
-                    span_id = span_context["span_id"]
-                    trace_id = span_context["trace_id"]
+                     # Periodic flush for concurrency
+                    if idx % 30 == 0:
+                        LLMObs.flush()
 
                     return {
                         "idx": idx,
@@ -686,31 +689,50 @@ class Experiment:
                         },
                         "error": {"message": None, "stack": None, "type": None},
                     }
-            except Exception as e:
-                error_message = str(e)
-                # In case of an exception, span_id and trace_id are set to None
-                return {
-                    "idx": idx,
-                    "output": None,
-                    "metadata": {
-                        "timestamp": start_time,
-                        "duration": time.time() - start_time,
-                        "dataset_record_index": idx,
-                        "project_name": self.project_name,
-                        "experiment_name": self.name,
-                        "dataset_name": self.dataset.name,
-                        "span_id": None,
-                        "trace_id": None,
-                    },
-                    "error": {
-                        "message": error_message,
-                        "stack": traceback.format_exc(),
-                        "type": type(e).__name__,
+                except Exception as e:
+                    error_message = str(e)
+                    span.error = 1
+                    span.set_exc_info(type(e), e, e.__traceback__)
+
+                    LLMObs.annotate(
+                        span,
+                        input_data=input_data,
+                        tags={
+                            "dataset_id": self.dataset._datadog_dataset_id,
+                            "dataset_record_id": row["record_id"],
+                            "experiment_id": self._datadog_experiment_id,
+                        },
+                    )
+                    LLMObs._tag_expected_output(span, expected_output)
+
+                    # Periodic flush for concurrency
+                    if idx % 30 == 0:
+                        LLMObs.flush()
+
+                    return {
+                        "idx": idx,
+                        "output": None,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": time.time() - start_time,
+                            "dataset_record_index": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                            "span_id": span_id,
+                            "trace_id": trace_id,
+                        },
+                        "error": {
+                            "message": error_message,
+                            "stack": traceback.format_exc(),
+                            "type": type(e).__name__,
+                        }
                     }
-                }
 
         outputs_buffer = []
         completed = 0
+        error_count = 0
+
 
         # Using ThreadPoolExecutor.map to process rows concurrently
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:

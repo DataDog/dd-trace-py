@@ -1009,9 +1009,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_data is not None:
-            span._set_ctx_item(EXPERIMENT_INPUT, str(input_data))
+            span._set_ctx_item(EXPERIMENT_INPUT, input_data)
         if output_data is not None:
-            span._set_ctx_item(EXPERIMENT_OUTPUT, str(output_data))
+            span._set_ctx_item(EXPERIMENT_OUTPUT, output_data)
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
