@@ -502,13 +502,14 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             except Exception as e:
                 # Capture full traceback information.
                 tb_info = traceback.format_exc()
-                # Raise an error that includes the span details, exception, and traceback.
-                # Rachel - change what information is included
+                # Safely get the _metrics attribute from span, if available.
+                metrics = getattr(span, "_metrics", None)
                 raise RuntimeError(
                     "Failed to pack span: {!r}.\n"
+                    "Span metrics: {!r}.\n"
                     "Exception: {}.\n"
                     "Traceback:\n{}"
-                    .format(span, e, tb_info)
+                    .format(span, metrics, e, tb_info)
                 ) from e
 
             # No exception was raised, but we got an error code from msgpack
