@@ -139,7 +139,9 @@ def main():
         )
 
     try:
-        os.execl(executable, executable, *args.command[1:])
+        new_env = os.environ.copy()
+        new_env["DD_TRACE_RUN"] = "true"
+        os.execle(executable, executable, *args.command[1:], new_env)
     except PermissionError:
         print("ddtrace-run: permission error while launching '%s'" % executable)
         print("Did you mean `ddtrace-run python %s`?" % executable)

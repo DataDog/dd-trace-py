@@ -56,6 +56,9 @@ def ddtrace_iast_flask_patch():
     if not asm_config._iast_enabled:
         return
 
+    if os.environ.get("DD_TRACE_RUN") == "true":
+        raise Exception("DD_TRACE_RUN enabled with iast_flask_patch")
+
     from ._ast.ast_patching import astpatch_module
 
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
