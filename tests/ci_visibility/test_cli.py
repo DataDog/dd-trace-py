@@ -13,6 +13,8 @@ def test_pytest_plugin_and_gevent(tmpdir):
     """
 
     test_code = """
+import faulthandler
+faulthandler.enable()
 import ddtrace
 
 import gevent.monkey
