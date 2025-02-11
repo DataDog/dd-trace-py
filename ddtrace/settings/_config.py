@@ -17,7 +17,6 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 
-from .._monkey import PATCH_MODULES
 from .._trace.pin import Pin
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
@@ -97,6 +96,99 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
     r"|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\s|%20|%09)+[a-z0-9._-]+)?"
     r")"
+)
+
+INTEGRATION_CONFIGS = frozenset(
+    {
+        "pyodbc",
+        "dramatiq",
+        "flask",
+        "google_generativeai",
+        "urllib3",
+        "subprocess",
+        "kafka",
+        "futures",
+        "unittest",
+        "falcon",
+        "langgraph",
+        "aioredis",
+        "test_visibility",
+        "redis",
+        "mako",
+        "sqlite3",
+        "aws_lambda",
+        "gevent",
+        "sanic",
+        "snowflake",
+        "pymemcache",
+        "azure_functions",
+        "protobuf",
+        "aiohttp_jinja2",
+        "pymongo",
+        "freezegun",
+        "vertica",
+        "rq_worker",
+        "elasticsearch",
+        "sqlalchemy",
+        "langchain",
+        "pymysql",
+        "psycopg",
+        "graphql",
+        "aiomysql",
+        "pyramid",
+        "dbapi2",
+        "vertexai",
+        "grpc",
+        "aiohttp_client",
+        "loguru",
+        "pytest",
+        "bottle",
+        "selenium",
+        "kombu",
+        "sqlite",
+        "structlog",
+        "celery",
+        "coverage",
+        "mysqldb",
+        "pynamodb",
+        "anthropic",
+        "aiopg",
+        "dogpile_cache",
+        "pylibmc",
+        "mongoengine",
+        "httpx",
+        "httplib",
+        "rq",
+        "jinja2",
+        "aredis",
+        "algoliasearch",
+        "asgi",
+        "tornado",
+        "avro",
+        "fastapi",
+        "consul",
+        "asyncio",
+        "requests",
+        "logbook",
+        "genai",
+        "openai",
+        "logging",
+        "cassandra",
+        "boto",
+        "mariadb",
+        "aiohttp",
+        "wsgi",
+        "botocore",
+        "rediscluster",
+        "asyncpg",
+        "django",
+        "aiobotocore",
+        "pytest_bdd",
+        "starlette",
+        "valkey",
+        "molten",
+        "mysql",
+    }
 )
 
 
@@ -559,7 +651,7 @@ class Config(object):
         if name in self._config:
             return self._config[name].value()
 
-        if name in PATCH_MODULES:
+        if name in INTEGRATION_CONFIGS:
             # supports confg.<integration>
             if name not in self._integration_configs:
                 self._integration_configs[name] = IntegrationConfig(self, name)
@@ -606,8 +698,10 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
-        if integration not in PATCH_MODULES:
-            log.error("Failed to load configurations: %s. %s is not a supported integration", settings, integration)
+        if integration not in INTEGRATION_CONFIGS:
+            log.error(
+                "Failed to load configurations: %s. %s is not a supported integration config", settings, integration
+            )
             return
 
         # DEV: Use `getattr()` to call our `__getattr__` helper
