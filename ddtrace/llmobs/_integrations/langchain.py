@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
+from weakref import WeakKeyDictionary
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -102,8 +103,8 @@ class LangChainIntegration(BaseLLMIntegration):
     _spans: Dict[int, Span] = {}
     """Maps instance ids to spans."""
 
-    _instances: Dict[int, Any] = {}
-    """Maps span ids to instances."""
+    _instances = WeakKeyDictionary()
+    """Maps span to instances."""
 
     def record_instance(self, instance, span: Span):
         if not self.llmobs_enabled or not self.span_linking_enabled:
@@ -111,7 +112,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         instance = _extract_bound(instance)
 
-        self._instances[span.span_id] = instance
+        self._instances[span] = instance
         self._spans[id(instance)] = span
 
     def _llmobs_set_tags(
@@ -176,7 +177,7 @@ class LangChainIntegration(BaseLLMIntegration):
         2. Set the input links from the invoker spans, and either from the input or output of the invoker spans.
         3. Set the output span links, which could involve overwriting span links from a previous output step in a chain.
         """
-        instance = self._instances.get(span.span_id)
+        instance = self._instances.get(span)
         if not instance:
             return
 
@@ -199,7 +200,7 @@ class LangChainIntegration(BaseLLMIntegration):
         The current instance is from the output of the invoker spans if the instance is part of a chain and not
           the first traced step.
         """
-        parent_langchain_instance = self._instances.get(parent_span.span_id)
+        parent_langchain_instance = self._instances.get(parent_span)
         if parent_langchain_instance is None or not _is_chain_instance(parent_langchain_instance):
             return [parent_span], False
 
@@ -274,7 +275,7 @@ class LangChainIntegration(BaseLLMIntegration):
         This is a temporary stopgap until we trace virtually every step in the chain, and we know the last
         step will be the last one traced.
         """
-        parent_instance = self._instances.get(parent_span.span_id)
+        parent_instance = self._instances.get(parent_span)
         if not parent_instance or not from_output:
             return []
 
