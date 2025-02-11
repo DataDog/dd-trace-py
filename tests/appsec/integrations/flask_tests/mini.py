@@ -23,6 +23,9 @@ def hello_world():
     for m in sys.modules:
         if m.startswith("ddtrace.appsec"):
             res.append(m)
+    with open(__file__) as f:
+        # open a file to trigger exploit prevention instrumentation
+        file_length = len(f.read())
     return {
         "appsec": list(sorted(res)),
         "asm_config": {
@@ -31,6 +34,7 @@ def hello_world():
         "aws": "AWS_LAMBDA_FUNCTION_NAME" in os.environ,
         "version": get_version(),
         "env": dict(os.environ),
+        "file_length": file_length,
     }
 
 

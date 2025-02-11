@@ -1,4 +1,3 @@
-import http.client
 import json
 import os
 import pathlib
@@ -100,7 +99,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     finally:
         try:
             urlopen("http://localhost:8475/shutdown", timeout=1)
-        except http.client.RemoteDisconnected:
+        except BaseException:
             time.sleep(1)
         process.wait()
 
