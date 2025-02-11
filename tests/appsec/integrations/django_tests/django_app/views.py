@@ -129,6 +129,14 @@ def sqli_http_request_parameter_name_post(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def sqli_query_no_redacted(request):
+    obj = request.GET["q"]
+    with connection.cursor() as cursor:
+        # label sqli_query_no_redacted
+        cursor.execute(f"SELECT * FROM {obj} ORDER BY name")
+    return HttpResponse("OK", status=200)
+
+
 def sqli_http_request_header_name(request):
     key = [x for x in request.META.keys() if x == "master"][0]
 

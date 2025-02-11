@@ -193,6 +193,5 @@ webtest,0
 werkzeug,<1.0
 wheel,0
 xmltodict,>=0.12
-yaaredis,~=2.0.0
 yarl,~=1.0
 zeep,0
