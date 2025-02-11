@@ -420,7 +420,7 @@ import ddtrace.settings.exception_replay
             "value": str(file),
         },
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
-        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
