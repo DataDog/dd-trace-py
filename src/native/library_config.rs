@@ -2,6 +2,7 @@ use datadog_library_config::{Configurator, ProcessInfo};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::types::PyList;
 
 #[pyclass(name = "PyConfigurator", module = "ddtrace.internal._native")]
 pub struct PyConfigurator {
@@ -26,6 +27,11 @@ impl PyConfigurator {
         Ok(())
     }
 
+    pub fn set_managed_file_override(&mut self, file: String) -> PyResult<()> {
+        self.fleet_file = file;
+        Ok(())
+    }
+
     pub fn get_configuration(&self, py: Python<'_>) -> PyResult<PyObject> {
         let res_config = self.configurator.get_config_from_file(
             self.local_file.as_ref(),
@@ -34,12 +40,16 @@ impl PyConfigurator {
         );
         match res_config {
             Ok(config) => {
-                let dict = PyDict::new_bound(py);
+                let list = PyList::empty_bound(py);
                 for c in config.iter() {
-                    let key = c.name.to_str().to_owned();
-                    let _ = dict.set_item(key, c.value.clone());
+                    let dict = PyDict::new_bound(py);
+                    dict.set_item("name", c.name.to_str().to_owned())?;
+                    dict.set_item("value", c.value.clone())?;
+                    dict.set_item("source", c.source.to_str().to_owned())?;
+                    dict.set_item("config_id", c.config_id.as_deref().unwrap_or("").to_owned())?;
+                    list.append(dict)?;
                 }
-                Ok(dict.into())
+                Ok(list.into())
             }
             Err(e) => {
                 let err_msg = format!("Failed to get configuration: {:?}", e);
