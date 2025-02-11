@@ -355,6 +355,7 @@ def test_amazon_embedding(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(1741838400, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_embedding(bedrock_client, request_vcr):
     body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
     model = "cohere.embed-english-v3"
