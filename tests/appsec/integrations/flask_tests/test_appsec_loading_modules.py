@@ -32,6 +32,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
         env["DD_APPSEC_ENABLED"] = appsec_enabled
     else:
         env.pop("DD_APPSEC_ENABLED", None)
+        os.environ.pop("DD_APPSEC_ENABLED", None)
     if iast_enabled:
         env["DD_IAST_ENABLED"] = iast_enabled
     else:
