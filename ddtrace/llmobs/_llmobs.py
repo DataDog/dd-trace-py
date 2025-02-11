@@ -887,6 +887,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -994,6 +995,14 @@ class LLMObs(Service):
             "ml_app": ml_app,
             "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
         }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
 
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 

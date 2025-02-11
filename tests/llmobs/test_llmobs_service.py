@@ -1792,6 +1792,17 @@ def test_submit_evaluation_llmobs_disabled_raises_debug(llmobs, mock_llmobs_logs
     )
 
 
+def test_submit_evaluation_for_invalid_metadata_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        metadata=1,
+    )
+    mock_llmobs_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
+
+
 def test_submit_evaluation_for_no_ml_app_raises_warning(llmobs, mock_llmobs_logs):
     with override_global_config(dict(_llmobs_ml_app="")):
         llmobs.submit_evaluation_for(
@@ -2067,5 +2078,50 @@ def test_submit_evaluation_for_enqueues_writer_with_score_metric(llmobs, mock_ll
             metric_type="score",
             score_value=0.9,
             ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata={"foo": ["bar", "baz"]},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset()
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata="invalid",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
