@@ -570,7 +570,14 @@ test = [
     "uname -a",
     "pip freeze",
     "python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s",
-    "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -v -s",
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[None-true-true]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[None-true-false]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[None-None-true]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[None-None-false]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[any-true-true]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[any-true-false]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[any-None-true]' -v -s", 
+    "python -m pytest 'tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py::test_loading[any-None-false]' -v -s", 
 ]
 
 [[envs.ddtrace_unit_tests.matrix]]
