@@ -1,3 +1,5 @@
+from functools import lru_cache as cached
+import hashlib
 import importlib
 import io
 import sys
@@ -11,9 +13,21 @@ from ddtrace.settings.error_reporting import _er_config
 
 
 _internal_debug_logger = None
+_error_tuple_info = (None, None, None)
+
+
+@cached(maxsize=4096)
+def _get_formatted_traceback(tb_hash):
+    exc_type, exc_val, exc_tb = _error_tuple_info
+    buff = io.StringIO()
+    limit = int(config._span_traceback_max_size)
+    traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+    return buff.getvalue()
 
 
 def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
+    global _error_tuple_info
+
     span = ddtrace.tracer.current_span()
     if not span:
         return None
@@ -23,12 +37,12 @@ def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
         if not exc:
             return None
 
-    limit = int(config._span_traceback_max_size)
+    _error_tuple_info = type(exc), exc, exc.__traceback__  # type: ignore
 
-    buff = io.StringIO()
-    exc_type, exc_val, exc_tb = type(exc), exc, exc.__traceback__
-    traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
-    tb = buff.getvalue()
+    tb_list = traceback.extract_tb(_error_tuple_info[2])
+    tb_str = "".join(f"{frame.filename}:{frame.lineno}:{frame.name}" for frame in tb_list)
+    tb_hash = hashlib.sha256(tb_str.encode()).hexdigest()
+    tb = _get_formatted_traceback(tb_hash)
 
     return (
         exc,
