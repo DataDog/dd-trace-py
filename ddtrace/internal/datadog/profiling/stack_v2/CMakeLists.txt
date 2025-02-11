@@ -38,7 +38,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "ed744987f224fae3f93c842b2b5ffb083984ff8b"
+    "8c90ce07964e78b5f3920df4a44cb323706ea5fd" # taegyunkim/max-frames
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
