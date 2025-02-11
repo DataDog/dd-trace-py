@@ -61,7 +61,7 @@ def patch():
     Patch ``loguru`` module for injection of tracer information
     by appending a patcher before the add function ``loguru.add``
     """
-    if getattr(loguru, "_datadog_patch", False):
+    if getattr(loguru, "_datadog_patch", False) or not config._logs_injection:
         return
     loguru._datadog_patch = True
     # Adds ddtrace fields to loguru logger

@@ -17,6 +17,7 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 
+from .._monkey import PATCH_MODULES
 from .._trace.pin import Pin
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
@@ -558,10 +559,12 @@ class Config(object):
         if name in self._config:
             return self._config[name].value()
 
-        if name not in self._integration_configs:
-            self._integration_configs[name] = IntegrationConfig(self, name)
-
-        return self._integration_configs[name]
+        if name in PATCH_MODULES:
+            # supports confg.<integration>
+            if name not in self._integration_configs:
+                self._integration_configs[name] = IntegrationConfig(self, name)
+            return self._integration_configs[name]
+        raise AttributeError(f"{type(self)} object has no attribute {name}")
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
@@ -603,6 +606,10 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
+        if integration not in PATCH_MODULES:
+            log.error("Failed to load configurations: %s. %s is not a supported integration", settings, integration)
+            return
+
         # DEV: Use `getattr()` to call our `__getattr__` helper
         existing = getattr(self, integration)
         settings = deepcopy(settings)

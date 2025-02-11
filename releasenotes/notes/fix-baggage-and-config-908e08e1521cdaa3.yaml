@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    baggage: Fixes a bug where setting ``DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED`` to ``true`` would not enable baggage propagation.
+  - |
+    config: Resolves an issue where accessing ``ddtrace.config.<undefined_attribute>`` would create an IntegrationConfig object instead of raising an AttributeError.

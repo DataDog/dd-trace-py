@@ -98,7 +98,7 @@ def patch():
     Patch ``structlog`` module for injection of tracer information
     by appending a processor before creating a logger via ``structlog.get_logger``
     """
-    if getattr(structlog, "_datadog_patch", False):
+    if getattr(structlog, "_datadog_patch", False) or not config._logs_injection:
         return
     structlog._datadog_patch = True
 

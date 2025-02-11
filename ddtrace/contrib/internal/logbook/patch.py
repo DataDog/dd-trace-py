@@ -50,8 +50,9 @@ def patch():
     Patch ``logbook`` module for injection of tracer information
     by editing a log record created via ``logbook.base.RecordDispatcher.process_record``
     """
-    if getattr(logbook, "_datadog_patch", False):
+    if getattr(logbook, "_datadog_patch", False) or not config._logs_injection:
         return
+
     logbook._datadog_patch = True
 
     _w(logbook.base.RecordDispatcher, "process_record", _w_process_record)
