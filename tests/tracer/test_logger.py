@@ -3,8 +3,7 @@ import logging
 import mock
 import pytest
 
-import ddtrace.internal.logger
-from ddtrace.internal.logger import LoggingBucket
+from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
 from tests.utils import BaseTestCase
 
@@ -12,28 +11,22 @@ from tests.utils import BaseTestCase
 ALL_LEVEL_NAMES = ("debug", "info", "warning", "error", "exception", "critical", "fatal")
 
 
-class LoggerTestCase(BaseTestCase):
+class DDLoggerTestCase(BaseTestCase):
     def setUp(self):
-        super(LoggerTestCase, self).setUp()
+        super(DDLoggerTestCase, self).setUp()
 
-        self.manager = logging.root.manager
-
-        # Reset to default values
-        ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._rate_limit = 60
+        self.root = logging.root
+        self.manager = self.root.manager
 
     def tearDown(self):
         # Weeee, forget all existing loggers
         logging.Logger.manager.loggerDict.clear()
         self.assertEqual(logging.Logger.manager.loggerDict, dict())
 
+        self.root = None
         self.manager = None
 
-        # Reset to default values
-        ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._rate_limit = 60
-
-        super(LoggerTestCase, self).tearDown()
+        super(DDLoggerTestCase, self).tearDown()
 
     def _make_record(
         self,
@@ -49,31 +42,42 @@ class LoggerTestCase(BaseTestCase):
     ):
         return logger.makeRecord(logger.name, level, fn, lno, msg, args, exc_info, func, extra)
 
+    @mock.patch("ddtrace.internal.logger.DDLogger.handle")
+    def assert_log_records(self, log, expected_levels, handle):
+        for name in ALL_LEVEL_NAMES:
+            method = getattr(log, name)
+            method("test")
+
+        records = [args[0][0] for args in handle.call_args_list]
+        for record in records:
+            self.assertIsInstance(record, logging.LogRecord)
+            self.assertTrue("test.logger" in record.name or "ddtrace" in record.name)
+
+        levels = [r.levelname for r in records]
+        self.assertEqual(levels, expected_levels)
+
     def test_get_logger(self):
         """
         When using `get_logger` to get a logger
             When the logger does not exist
-                We create a new logging.Logger
+                We create a new DDLogger
             When the logger exists
                 We return the expected logger
             When a different logger is requested
-                We return a new logging.Logger
+                We return a new DDLogger
             When a Placeholder exists
-                We return logging.Logger
+                We return DDLogger
         """
-        assert self.manager is not None
-
         # Assert the logger doesn't already exist
         self.assertNotIn("test.logger", self.manager.loggerDict)
 
         # Fetch a new logger
         log = get_logger("test.logger")
-        assert ddtrace.internal.logger.log_filter in log.filters
         self.assertEqual(log.name, "test.logger")
         self.assertEqual(log.level, logging.NOTSET)
 
-        # Ensure it is a logging.Logger
-        self.assertIsInstance(log, logging.Logger)
+        # Ensure it is a DDLogger
+        self.assertIsInstance(log, DDLogger)
         # Make sure it is stored in all the places we expect
         self.assertEqual(self.manager.getLogger("test.logger"), log)
         self.assertEqual(self.manager.loggerDict["test.logger"], log)
@@ -89,49 +93,163 @@ class LoggerTestCase(BaseTestCase):
         self.assertNotEqual(log, new_log)
 
         # If a PlaceHolder is in place of the logger
-        # We should return the logging.Logger
+        # We should return the DDLogger
         self.assertIsInstance(self.manager.loggerDict["new.test"], logging.PlaceHolder)
         log = get_logger("new.test")
         self.assertEqual(log.name, "new.test")
-        self.assertIsInstance(log, logging.Logger)
+        self.assertIsInstance(log, DDLogger)
 
-    @mock.patch("logging.Logger.callHandlers")
-    def test_logger_handle_no_limit(self, call_handlers):
+    def test_get_logger_children(self):
         """
-        Calling `logging.Logger.handle`
+        When using `get_logger` to get a logger
+            We appropriately assign children loggers
+
+        DEV: This test case is to ensure we are calling `manager._fixupChildren(logger)`
+        """
+        root = get_logger("test")
+        root.setLevel(logging.WARNING)
+
+        child_logger = get_logger("test.newplaceholder.long.component")
+        self.assertEqual(child_logger.parent, root)
+
+        parent_logger = get_logger("test.newplaceholder")
+        self.assertEqual(child_logger.parent, parent_logger)
+
+        parent_logger.setLevel(logging.INFO)
+        # Because the child logger's level remains unset, it should inherit
+        # the level of its closest parent, which is INFO.
+        # If we did not properly maintain the logger tree, this would fail
+        # because child_logger would be set to the default when it was created
+        # which was logging.WARNING.
+        self.assertEqual(child_logger.getEffectiveLevel(), logging.INFO)
+
+        # Clean up for future tests.
+        root.setLevel(logging.NOTSET)
+
+    def test_get_logger_parents(self):
+        """
+        When using `get_logger` to get a logger
+            We appropriately assign parent loggers
+
+        DEV: This test case is to ensure we are calling `manager._fixupParents(logger)`
+        """
+        # Fetch a new logger
+        test_log = get_logger("test")
+        self.assertEqual(test_log.parent, self.root)
+
+        # Fetch a new child log
+        # Auto-associate with parent `test` logger
+        child_log = get_logger("test.child")
+        self.assertEqual(child_log.parent, test_log)
+
+        # Deep child
+        deep_log = get_logger("test.child.logger.from.test.case")
+        self.assertEqual(deep_log.parent, child_log)
+
+    def test_logger_init(self):
+        """
+        When creating a new DDLogger
+            Has the same interface as logging.Logger
+            Configures a defaultdict for buckets
+            Properly configures the rate limit
+        """
+        # Create a logger
+        log = DDLogger("test.logger")
+
+        # Ensure we set the name and use default log level
+        self.assertEqual(log.name, "test.logger")
+        self.assertEqual(log.level, logging.NOTSET)
+
+        # Assert DDLogger default properties
+        self.assertIsInstance(log.buckets, dict)
+        self.assertEqual(log.rate_limit, 60)
+
+        # Assert manager and parent
+        # DEV: Parent is `None` because `manager._findParents()` doesn't get called
+        #      unless we use `get_logger` (this is the same behavior as `logging.getLogger` and `Logger('name')`)
+        self.assertEqual(log.manager, self.manager)
+        self.assertIsNone(log.parent)
+
+        # Override rate limit from environment variable
+        with self.override_env(dict(DD_TRACE_LOGGING_RATE="10")):
+            log = DDLogger("test.logger")
+            self.assertEqual(log.rate_limit, 10)
+
+        # Set specific log level
+        log = DDLogger("test.logger", level=logging.DEBUG)
+        self.assertEqual(log.level, logging.DEBUG)
+
+    def test_logger_log(self):
+        """
+        When calling `DDLogger` log methods
+            We call `DDLogger.handle` with the expected log record
+        """
+        log = get_logger("test.logger")
+
+        # -- NOTSET
+        # By default no level is set so we only get warn, error, and critical messages
+        self.assertEqual(log.level, logging.NOTSET)
+        # `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["WARNING", "ERROR", "ERROR", "CRITICAL", "CRITICAL"])
+
+        # -- CRITICAL
+        log.setLevel(logging.CRITICAL)
+        # `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["CRITICAL", "CRITICAL"])
+
+        # -- ERROR
+        log.setLevel(logging.ERROR)
+        # `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["ERROR", "ERROR", "CRITICAL", "CRITICAL"])
+
+        # -- WARN
+        log.setLevel(logging.WARN)
+        # `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["WARNING", "ERROR", "ERROR", "CRITICAL", "CRITICAL"])
+
+        # -- INFO
+        log.setLevel(logging.INFO)
+        # `log.info`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["INFO", "WARNING", "ERROR", "ERROR", "CRITICAL", "CRITICAL"])
+
+        # -- DEBUG
+        log.setLevel(logging.DEBUG)
+        # `log.debug`, `log.info`, `log.warning`, `log.error`, `log.exception`, `log.critical`, `log.fatal`
+        self.assert_log_records(log, ["DEBUG", "INFO", "WARNING", "ERROR", "ERROR", "CRITICAL", "CRITICAL"])
+
+    @mock.patch("logging.Logger.handle")
+    def test_logger_handle_no_limit(self, base_handle):
+        """
+        Calling `DDLogger.handle`
             When no rate limit is set
                 Always calls the base `Logger.handle`
         """
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.INFO)
-        ddtrace.internal.logger._rate_limit = 0
+        log.rate_limit = 0
 
         # Log a bunch of times very quickly (this is fast)
         for _ in range(1000):
             log.info("test")
 
         # Assert that we did not perform any rate limiting
-        self.assertEqual(call_handlers.call_count, 1000)
+        self.assertEqual(base_handle.call_count, 1000)
 
         # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+        self.assertEqual(log.buckets, dict())
 
-    @mock.patch("logging.Logger.callHandlers")
-    def test_logger_handle_debug(self, call_handlers):
+    @mock.patch("logging.Logger.handle")
+    def test_logger_handle_debug(self, base_handle):
         """
-        Calling `logging.Logger.handle`
+        Calling `DDLogger.handle`
             When effective level is DEBUG
                 Always calls the base `Logger.handle`
         """
-        # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
-
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.DEBUG)
-        assert log.getEffectiveLevel() == logging.DEBUG
-        assert ddtrace.internal.logger._rate_limit > 0
+        assert log.rate_limit > 0
 
         # Log a bunch of times very quickly (this is fast)
         for level in ALL_LEVEL_NAMES:
@@ -141,15 +259,15 @@ class LoggerTestCase(BaseTestCase):
 
         # Assert that we did not perform any rate limiting
         total = 1000 * len(ALL_LEVEL_NAMES)
-        self.assertTrue(total <= call_handlers.call_count <= total + 1)
+        self.assertTrue(total <= base_handle.call_count <= total + 1)
 
         # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+        self.assertEqual(log.buckets, dict())
 
-    @mock.patch("logging.Logger.callHandlers")
-    def test_logger_handle_bucket(self, call_handlers):
+    @mock.patch("logging.Logger.handle")
+    def test_logger_handle_bucket(self, base_handle):
         """
-        When calling `logging.Logger.handle`
+        When calling `DDLogger.handle`
             With a record
                 We pass it to the base `Logger.handle`
                 We create a bucket for tracking
@@ -161,22 +279,22 @@ class LoggerTestCase(BaseTestCase):
         log.handle(record)
 
         # We passed to base Logger.handle
-        call_handlers.assert_called_once_with(record)
+        base_handle.assert_called_once_with(record)
 
         # We added an bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        logging_bucket = ddtrace.internal.logger._buckets.get(key)
-        self.assertIsInstance(logging_bucket, LoggingBucket)
+        logging_bucket = log.buckets.get(key)
+        self.assertIsInstance(logging_bucket, DDLogger.LoggingBucket)
 
         # The bucket entry is correct
-        expected_bucket = int(record.created / ddtrace.internal.logger._rate_limit)
+        expected_bucket = int(record.created / log.rate_limit)
         self.assertEqual(logging_bucket.bucket, expected_bucket)
         self.assertEqual(logging_bucket.skipped, 0)
 
-    @mock.patch("logging.Logger.callHandlers")
-    def test_logger_handle_bucket_limited(self, call_handlers):
+    @mock.patch("logging.Logger.handle")
+    def test_logger_handle_bucket_limited(self, base_handle):
         """
-        When calling `logging.Logger.handle`
+        When calling `DDLogger.handle`
             With multiple records in a single time frame
                 We pass only the first to the base `Logger.handle`
                 We keep track of the number skipped
@@ -184,8 +302,7 @@ class LoggerTestCase(BaseTestCase):
         log = get_logger("test.logger")
 
         # Create log record and handle it
-        record = self._make_record(log, msg="first")
-        first_record = record
+        first_record = self._make_record(log, msg="first")
         log.handle(first_record)
 
         for _ in range(100):
@@ -195,22 +312,21 @@ class LoggerTestCase(BaseTestCase):
             log.handle(record)
 
         # We passed to base Logger.handle
-        call_handlers.assert_called_once_with(first_record)
+        base_handle.assert_called_once_with(first_record)
 
         # We added an bucket entry for these records
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        logging_bucket = ddtrace.internal.logger._buckets.get(key)
-        assert logging_bucket is not None
+        logging_bucket = log.buckets.get(key)
 
         # The bucket entry is correct
-        expected_bucket = int(first_record.created / ddtrace.internal.logger._rate_limit)
+        expected_bucket = int(first_record.created / log.rate_limit)
         self.assertEqual(logging_bucket.bucket, expected_bucket)
         self.assertEqual(logging_bucket.skipped, 100)
 
-    @mock.patch("logging.Logger.callHandlers")
-    def test_logger_handle_bucket_skipped_msg(self, call_handlers):
+    @mock.patch("logging.Logger.handle")
+    def test_logger_handle_bucket_skipped_msg(self, base_handle):
         """
-        When calling `logging.Logger.handle`
+        When calling `DDLogger.handle`
             When a bucket exists for a previous time frame
                 We pass only the record to the base `Logger.handle`
                 We update the record message to include the number of skipped messages
@@ -224,15 +340,15 @@ class LoggerTestCase(BaseTestCase):
 
         # Create a bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        bucket = int(record.created / ddtrace.internal.logger._rate_limit)
+        bucket = int(record.created / log.rate_limit)
         # We want the time bucket to be for an older bucket
-        ddtrace.internal.logger._buckets[key] = LoggingBucket(bucket=bucket - 1, skipped=20)
+        log.buckets[key] = DDLogger.LoggingBucket(bucket=bucket - 1, skipped=20)
 
         # Handle our record
         log.handle(record)
 
         # We passed to base Logger.handle
-        call_handlers.assert_called_once_with(record)
+        base_handle.assert_called_once_with(record)
 
         self.assertEqual(record.msg, original_msg + ", %s additional messages skipped")
         self.assertEqual(record.args, original_args + (20,))
@@ -240,7 +356,7 @@ class LoggerTestCase(BaseTestCase):
 
     def test_logger_handle_bucket_key(self):
         """
-        When calling `logging.Logger.handle`
+        When calling `DDLogger.handle`
             With different log messages
                 We use different buckets to limit them
         """
@@ -272,7 +388,7 @@ class LoggerTestCase(BaseTestCase):
         all_records = (record1, record2, record3, record4, record5, record6)
         [log.handle(record) for record in all_records]
 
-        buckets = ddtrace.internal.logger._buckets
+        buckets = log.buckets
         # We have 6 records but only end up with 5 buckets
         self.assertEqual(len(buckets), 5)
 
