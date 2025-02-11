@@ -87,7 +87,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _is_provider(span, provider):
-        """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
+        """Check if the traced operation is from the given provider."""
         base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
         if not base_url or not isinstance(base_url, str):
             return False
