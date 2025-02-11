@@ -5,10 +5,10 @@ import time
 import mock
 import pytest
 
-from ddtrace._trace.span import Span
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
+from ddtrace.trace import Span
 from tests.llmobs._utils import DummyEvaluator
 from tests.llmobs._utils import _dummy_evaluator_eval_metric_event
 from tests.utils import override_env

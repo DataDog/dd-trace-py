@@ -13,8 +13,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import Span
-from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -40,6 +38,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 if typing.TYPE_CHECKING:
@@ -76,7 +76,7 @@ class TestVisibilitySessionSettings:
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
-            raise TypeError("tracer must be a ddtrace.Tracer")
+            raise TypeError("tracer must be a ddtrace.trace.Tracer")
         if not isinstance(self.workspace_path, Path):
             raise TypeError("root_dir must be a pathlib.Path")
         if not self.workspace_path.is_absolute():

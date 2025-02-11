@@ -9,10 +9,10 @@ except ImportError:
     vcr = None
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.trace import Span
 
 
 if vcr:

@@ -59,7 +59,7 @@ def _asm_feature_is_required() -> bool:
     return (_FEATURE_REQUIRED & flags) != 0
 
 
-def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
+def _rc_capabilities(test_tracer: Optional[ddtrace.trace.Tracer] = None) -> Flags:
     tracer = ddtrace.tracer if test_tracer is None else test_tracer
     value = Flags(0)
     if ddtrace.config._remote_config_enabled:
@@ -74,7 +74,7 @@ def _rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> Flags:
     return value
 
 
-def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.Tracer] = None) -> str:
+def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.trace.Tracer] = None) -> str:
     r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation

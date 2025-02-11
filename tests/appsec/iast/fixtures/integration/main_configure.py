@@ -4,9 +4,9 @@ import logging
 import os
 import sys
 
-from ddtrace import tracer
 from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.ext import SpanTypes
+from ddtrace.trace import tracer
 
 
 logger = logging.getLogger(__name__)

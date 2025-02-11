@@ -39,7 +39,6 @@ except ImportError:
 
 import wrapt
 
-from ddtrace import Span
 from ddtrace import config
 from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.constants import COMPLETION_TOKENS
@@ -63,6 +62,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
