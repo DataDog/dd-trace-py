@@ -26,7 +26,9 @@ class ErrorReportingConfig(Env):
     _modules_to_report = Env.var(
         list, "experimental_reported_handled_exceptions_modules", parser=parse_modules, default=[]
     )
-    _internal_logger = Env.var(str, "experimental_reported_handled_exceptions_logger", default="")
+    _internal_logger = Env.var(
+        str, "experimental_reported_handled_exceptions_logger", default="ddtrace.internal.error_reporting.logger"
+    )
     _report_after_unhandled = Env.var(bool, "experimental_reported_handled_exceptions_after_unhandled", default=False)
 
     if sys.version_info >= (3, 12):

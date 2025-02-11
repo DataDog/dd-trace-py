@@ -507,11 +507,11 @@ class Span(object):
     def _add_exception_event(self, exception: Exception, event: SpanEvent) -> None:
         self._exception_events[exception] = event
 
-    def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None]):
+    def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None], name: str):
         """Add a callback to the on_finish_callbacks list"""
-        if "EXCEPTION_CB" not in self._meta:
+        if name not in self._meta:
             self._on_finish_callbacks.insert(0, cb)
-            self._meta["EXCEPTION_CB"] = ""
+            self._meta[name] = ""
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
