@@ -8,9 +8,21 @@ from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.request import urlopen
 
+import psutil
 import pytest
 
 from ddtrace.settings.asm import config as asm_config
+
+
+def kill_proc_tree(pid, including_parent=True):
+    parent = psutil.Process(pid)
+    children = parent.children(recursive=True)
+    for child in children:
+        child.kill()
+    gone, still_alive = psutil.wait_procs(children, timeout=5)
+    if including_parent:
+        parent.kill()
+        parent.wait(5)
 
 
 MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._capabilities", "ddtrace.appsec._constants"]
@@ -31,77 +43,79 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
         os.environ["DD_APPSEC_ENABLED"] = appsec_enabled
+        os.putenv("DD_APPSEC_ENABLED", appsec_enabled)
     else:
         env.pop("DD_APPSEC_ENABLED", None)
         os.environ.pop("DD_APPSEC_ENABLED", None)
+        os.unsetenv("DD_APPSEC_ENABLED")
     if iast_enabled:
         env["DD_IAST_ENABLED"] = iast_enabled
         os.environ["DD_IAST_ENABLED"] = iast_enabled
+        os.putenv("DD_IAST_ENABLED", iast_enabled)
     else:
         env.pop("DD_IAST_ENABLED", None)
         os.environ.pop("DD_IAST_ENABLED", None)
+        os.unsetenv("DD_IAST_ENABLED")
     if aws_lambda:
         env["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
         os.environ["AWS_LAMBDA_FUNCTION_NAME"] = aws_lambda
+        os.putenv("AWS_LAMBDA_FUNCTION_NAME", aws_lambda)
     else:
         env.pop("AWS_LAMBDA_FUNCTION_NAME", None)
         os.environ.pop("AWS_LAMBDA_FUNCTION_NAME", None)
+        os.unsetenv("AWS_LAMBDA_FUNCTION_NAME")
 
     # Disable debug logging as it creates too large buffer to handle
     env["DD_TRACE_DEBUG"] = "false"
 
     print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
 
-    process = subprocess.Popen(
-        [sys.executable, str(flask_app)],
-        env=env,
-        shell=sys.platform.startswith("win"),
-    )
+    process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
+    try:
+        print("process started", flush=True)
+        for i in range(12):
+            time.sleep(1)
+            try:
+                with urlopen("http://localhost:8475", timeout=1) as response:
+                    print(f"got a response {response.status}", flush=True)
+                    assert response.status == 200
+                    payload = response.read().decode()
+                    data = json.loads(payload)
+                    print("got data", flush=True)
 
-    print("process started", flush=True)
-    for i in range(12):
-        time.sleep(1)
-        try:
-            with urlopen("http://localhost:8475", timeout=1) as response:
-                print(f"got a response {response.status}", flush=True)
-                assert response.status == 200
-                payload = response.read().decode()
-                data = json.loads(payload)
-                print("got data", flush=True)
-
-                assert "appsec" in data
-                # appsec is always enabled
-                for m in MODULES_ALWAYS_LOADED:
-                    assert m in data["appsec"], f"{m} not in {data['appsec']}"
-                for m in MODULE_ASM_ONLY:
-                    if appsec_enabled == "true" and not aws_lambda:
-                        assert m in data["appsec"], f"{m} not in {data['appsec']} data:{data}"
-                    else:
-                        assert m not in data["appsec"], f"{m} in {data['appsec']} data:{data}"
-                for m in MODULE_IAST_ONLY:
-                    if iast_enabled and not aws_lambda and asm_config._iast_supported:
+                    assert "appsec" in data
+                    # appsec is always enabled
+                    for m in MODULES_ALWAYS_LOADED:
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
-                    else:
-                        assert m not in data["appsec"], f"{m} in {data['appsec']}"
-            print(f"Test passed {i}", flush=True)
-            process.terminate()
-            if not sys.platform.startswith("win"):
-                _, _ = process.communicate()
-            process.wait()
-            return
-        except HTTPError as e:
-            print(f"HTTP error {i}", flush=True)
-            process.terminate()
-            process.wait()
-            raise AssertionError(e.read().decode())
-        except (URLError, TimeoutError):
-            print(f"Server not started yet {i}", flush=True)
-            continue
-        except BaseException:
-            print(f"Test failed {i}", flush=True)
-            process.terminate()
-            process.wait()
-            raise
-    process.terminate()
-    process.wait()
+                    for m in MODULE_ASM_ONLY:
+                        if appsec_enabled == "true" and not aws_lambda:
+                            assert m in data["appsec"], f"{m} not in {data['appsec']} data:{data}"
+                        else:
+                            assert m not in data["appsec"], f"{m} in {data['appsec']} data:{data}"
+                    for m in MODULE_IAST_ONLY:
+                        if iast_enabled and not aws_lambda and asm_config._iast_supported:
+                            assert m in data["appsec"], f"{m} not in {data['appsec']}"
+                        else:
+                            assert m not in data["appsec"], f"{m} in {data['appsec']}"
+                print(f"Test passed {i}", flush=True)
+                return
+            except HTTPError as e:
+                print(f"HTTP error {i}", flush=True)
+                raise AssertionError(e.read().decode())
+            except (URLError, TimeoutError):
+                print(f"Server not started yet {i}", flush=True)
+                continue
+            except BaseException:
+                print(f"Test failed {i}", flush=True)
+                raise
+    finally:
+        process.terminate()
+        process.wait()
+        process.kill()
+        process.wait()
+        try:
+            kill_proc_tree(process.pid)
+        except psutil.NoSuchProcess:
+            pass
+
     raise AssertionError("Server did not start.")
