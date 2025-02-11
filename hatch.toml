@@ -571,6 +571,7 @@ test = [
     "pip freeze",
     "python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s",
     "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -k None-true-true -v -s",
+    "set DD_APPSEC_ENABLED=",
     "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -k None-true-false -v -s",
     "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -k None-None-true -v -s",
     "python -m pytest tests/appsec/integrations/flask_tests/test_appsec_loading_modules.py -k None-None-false -v -s",
