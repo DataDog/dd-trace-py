@@ -13,14 +13,7 @@ def test_pytest_plugin_and_gevent(tmpdir):
     """
 
     test_code = """
-import os
 import ddtrace
-from ddtrace.internal.core import crashtracking
-from ddtrace.settings.crashtracker import config
-config.debug_url = "file://" + os.environ["CI_PROJECT_DIR"] + "/crashtracker.log"
-config.stderr_filename = os.environ["CI_PROJECT_DIR"] + "/crashtracker.stderr.log"
-config.stdout_filename = os.environ["CI_PROJECT_DIR"] + "/crashtracker.stdout.log"
-crashtracking.start()
 
 import gevent.monkey
 gevent.monkey.patch_all()
