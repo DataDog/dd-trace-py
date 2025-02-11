@@ -174,6 +174,7 @@ _DBM_STANDARD_EVENTS = {
 
 
 def listen():
+    log.info("Listening to DBM events %s %s", _DBM_STANDARD_EVENTS, dbm_config.propagation_mode)
     if dbm_config.propagation_mode in ["full", "service"]:
         for event in _DBM_STANDARD_EVENTS:
             log.debug("Listening to %s", event)
