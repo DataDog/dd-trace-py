@@ -60,6 +60,7 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -574,9 +575,10 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
     try:
-        from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+        if asm_config._iast_enabled:
+            from ddtrace.appsec._iast._pytest_plugin import print_iast_report
 
-        print_iast_report(terminalreporter)
+            print_iast_report(terminalreporter)
     except Exception:  # noqa: E722
         log.debug("Encountered error during code security summary", exc_info=True)
 
