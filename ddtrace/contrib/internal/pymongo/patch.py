@@ -11,9 +11,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import mongo
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
+from ddtrace.vendor.sqlcommenter import generate_comment_str_from_metadata as _generate_comment_str_from_metadata
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Pin
 
 from ....internal.schema import schematize_service_name
@@ -47,8 +50,38 @@ else:
 
 _CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
 
+log = get_logger(__name__)
 
-config._add("pymongo", dict(_default_service=schematize_service_name("pymongo")))
+
+def _command_comment_injector(dbm_comment, command):
+    # type: (str, dict) -> dict
+    try:
+        if "comment" in command:
+            existing_comment = command["comment"]
+            if isinstance(existing_comment, str):
+                command["comment"] = existing_comment + "," + dbm_comment
+            elif isinstance(existing_comment, list):
+                command["comment"].append(dbm_comment)
+        else:
+            command["comment"] = dbm_comment
+        return command
+    except (TypeError, ValueError):
+        log.warning(
+            "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
+            "To disable this feature please set the following environment variable: "
+            "DD_DBM_PROPAGATION_MODE=disabled",
+            type(command),
+        )
+    return command
+
+
+config._add(
+    "pymongo",
+    dict(
+        _default_service=schematize_service_name("pymongo"),
+        _dbm_propagator=_DBM_Propagator(2, "spec", _command_comment_injector, _generate_comment_str_from_metadata),
+    )
+)
 
 
 def get_version():
