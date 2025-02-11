@@ -4,6 +4,7 @@ import ddtrace.auto  # noqa: F401
 """do not move this import"""
 
 import os  # noqa: E402
+import signal  # noqa: E402
 import sys  # noqa: E402
 
 from flask import Flask  # noqa: E402
@@ -31,6 +32,12 @@ def hello_world():
         "version": get_version(),
         "env": dict(os.environ),
     }
+
+
+@app.route("/shutdown")
+def shutdown():
+    os.kill(os.getpid(), signal.SIGTERM)
+    return "Shutting down"
 
 
 if __name__ == "__main__":

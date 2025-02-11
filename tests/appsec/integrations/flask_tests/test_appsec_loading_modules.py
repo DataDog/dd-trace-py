@@ -1,3 +1,4 @@
+import http.client
 import json
 import os
 import pathlib
@@ -8,21 +9,9 @@ from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.request import urlopen
 
-import psutil
 import pytest
 
 from ddtrace.settings.asm import config as asm_config
-
-
-def kill_proc_tree(pid, including_parent=True):
-    parent = psutil.Process(pid)
-    children = parent.children(recursive=True)
-    for child in children:
-        child.kill()
-    gone, still_alive = psutil.wait_procs(children, timeout=5)
-    if including_parent:
-        parent.kill()
-        parent.wait(5)
 
 
 MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._capabilities", "ddtrace.appsec._constants"]
@@ -109,13 +98,10 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                 print(f"Test failed {i}", flush=True)
                 raise
     finally:
-        process.terminate()
-        process.wait()
-        process.kill()
-        process.wait()
         try:
-            kill_proc_tree(process.pid)
-        except psutil.NoSuchProcess:
-            pass
+            urlopen("http://localhost:8475/shutdown", timeout=1)
+        except http.client.RemoteDisconnected:
+            time.sleep(1)
+        process.wait()
 
     raise AssertionError("Server did not start.")
