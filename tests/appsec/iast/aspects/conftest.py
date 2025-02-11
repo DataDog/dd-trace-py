@@ -33,7 +33,9 @@ def _iast_patched_module(module_name, new_module_object=False):
 
 @pytest.fixture(autouse=True)
 def iast_create_context():
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100)
+    ):
         _start_iast_context_and_oce()
         yield
         _end_iast_context_and_oce()

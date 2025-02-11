@@ -13,23 +13,23 @@ Tracing
 
 .. autofunction:: ddtrace.patch
 
-.. autoclass:: ddtrace.Tracer
+.. autoclass:: ddtrace.trace.Tracer
     :members:
 
-.. autoclass:: ddtrace.Span
+.. autoclass:: ddtrace.trace.Span
     :members:
 
-.. autoclass:: ddtrace.Pin
+.. autoclass:: ddtrace.trace.Pin
     :members:
 
 .. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:
 
-.. autoclass:: ddtrace.sampler.DatadogSampler
+.. autoclass:: ddtrace._trace.sampler.DatadogSampler
     :members:
 
-.. autoclass:: ddtrace.sampler.SamplingRule
+.. autoclass:: ddtrace._trace.sampler.SamplingRule
     :members:
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator

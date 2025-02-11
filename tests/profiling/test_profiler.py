@@ -1,6 +1,5 @@
 import logging
 import os
-import sys
 import time
 
 import mock
@@ -236,11 +235,11 @@ def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
 def test_tracer_url():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar")
+    t._configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
@@ -249,11 +248,11 @@ def test_tracer_url():
 def test_tracer_url_https():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar", https=True)
+    t._configure(hostname="foobar", https=True)
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
@@ -262,11 +261,11 @@ def test_tracer_url_https():
 def test_tracer_url_uds_hostname():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(hostname="foobar", uds_path="/foobar")
+    t._configure(hostname="foobar", uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
@@ -275,11 +274,11 @@ def test_tracer_url_uds_hostname():
 def test_tracer_url_uds():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
-    t.configure(uds_path="/foobar")
+    t._configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
     _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
@@ -288,12 +287,12 @@ def test_tracer_url_uds():
 def test_tracer_url_configure_after():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     prof = profiler.Profiler(tracer=t)
-    t.configure(hostname="foobar")
+    t._configure(hostname="foobar")
     _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
@@ -306,8 +305,8 @@ def test_env_no_api_key():
 def test_env_endpoint_url():
     import os
 
-    from ddtrace import tracer as t
     from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer as t
     from tests.profiling.test_profiler import _check_url
 
     prof = profiler.Profiler(tracer=t)
@@ -435,7 +434,6 @@ def test_profiler_serverless(monkeypatch):
     assert p.tags["functionname"] == "foobar"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess()
 def test_profiler_ddtrace_deprecation():
     """

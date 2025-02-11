@@ -36,8 +36,8 @@ def mock_tracer(ddtrace_global_config, anthropic):
     try:
         pin = Pin.get_from(anthropic)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin.override(anthropic, tracer=mock_tracer)
-        pin.tracer.configure()
+        pin._override(anthropic, tracer=mock_tracer)
+        pin.tracer._configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()

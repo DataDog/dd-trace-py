@@ -11,7 +11,6 @@ from confluent_kafka import admin as kafka_admin
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
@@ -23,6 +22,7 @@ from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
+from ddtrace.trace import tracer as ddtracer
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -106,16 +106,16 @@ def should_filter_empty_polls():
 @pytest.fixture
 def tracer(should_filter_empty_polls):
     patch()
-    t = Tracer()
     if should_filter_empty_polls:
-        t.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+        ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    t._writer._send_payload_with_backoff = t._writer._send_payload
+    previous_backoff = ddtracer._writer._send_payload_with_backoff
+    ddtracer._writer._send_payload_with_backoff = ddtracer._writer._send_payload
     try:
-        yield t
+        yield ddtracer
     finally:
-        t.flush()
-        t.shutdown()
+        ddtracer.flush()
+        ddtracer._writer._send_payload_with_backoff = previous_backoff
         unpatch()
 
 
@@ -124,12 +124,14 @@ def dsm_processor(tracer):
     processor = tracer.data_streams_processor
     with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
         yield processor
+        # flush buckets for the next test run
+        processor.periodic()
 
 
 @pytest.fixture
 def producer(tracer):
     _producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
-    Pin.override(_producer, tracer=tracer)
+    Pin._override(_producer, tracer=tracer)
     return _producer
 
 
@@ -146,7 +148,7 @@ def consumer(tracer, kafka_topic):
     tp = TopicPartition(kafka_topic, 0)
     tp.offset = 0  # we want to read the first message
     _consumer.commit(offsets=[tp])
-    Pin.override(_consumer, tracer=tracer)
+    Pin._override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
@@ -165,7 +167,7 @@ def non_auto_commit_consumer(tracer, kafka_topic):
     tp = TopicPartition(kafka_topic, 0)
     tp.offset = 0  # we want to read the first message
     _consumer.commit(offsets=[tp])
-    Pin.override(_consumer, tracer=tracer)
+    Pin._override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
@@ -176,7 +178,7 @@ def serializing_producer(tracer):
     _producer = confluent_kafka.SerializingProducer(
         {"bootstrap.servers": BOOTSTRAP_SERVERS, "value.serializer": lambda x, y: x}
     )
-    Pin.override(_producer, tracer=tracer)
+    Pin._override(_producer, tracer=tracer)
     return _producer
 
 
@@ -190,7 +192,7 @@ def deserializing_consumer(tracer, kafka_topic):
             "value.deserializer": lambda x, y: x,
         }
     )
-    Pin.override(_consumer, tracer=tracer)
+    Pin._override(_consumer, tracer=tracer)
     _consumer.subscribe([kafka_topic])
     yield _consumer
     _consumer.close()
@@ -248,7 +250,7 @@ def test_producer_bootstrap_servers(config, expect_servers, tracer):
 
 
 def test_produce_single_server(dummy_tracer, producer, kafka_topic):
-    Pin.override(producer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
@@ -259,18 +261,18 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
 
 
 def test_produce_none_key(dummy_tracer, producer, kafka_topic):
-    Pin.override(producer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=None)
     producer.flush()
 
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
-    Pin.override(producer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 
 def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
-    Pin.override(producer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
@@ -278,7 +280,7 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
-    Pin.override(producer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
@@ -325,6 +327,7 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
+@pytest.mark.skip(reason="FIXME: This test requires the initialization of a new tracer. This is not supported")
 def test_commit_with_consume_with_error(producer, consumer, kafka_topic):
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
@@ -505,7 +508,7 @@ def _generate_in_subprocess(random_topic):
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
-    ddtrace.tracer.configure(settings={"FILTERS": [KafkaConsumerPollFilter()]})
+    ddtrace.tracer._configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
     ddtrace.tracer._writer._send_payload_with_backoff = ddtrace.tracer._writer._send_payload
     patch()
@@ -518,8 +521,8 @@ def _generate_in_subprocess(random_topic):
             "auto.offset.reset": "earliest",
         }
     )
-    ddtrace.trace.Pin.override(producer, tracer=ddtrace.tracer)
-    ddtrace.trace.Pin.override(consumer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(producer, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -750,8 +753,8 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
 def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, producer, kafka_topic):
-    Pin.override(producer, tracer=dummy_tracer)
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     test_string = "context test no propagation"
     test_key = "context test key no propagation"
@@ -788,8 +791,8 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
     # None of these spans are part of the same trace
     assert produce_span.trace_id != consume_span.trace_id
 
-    Pin.override(consumer, tracer=None)
-    Pin.override(producer, tracer=None)
+    Pin._override(consumer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 
 # Propagation should work when enabled
@@ -813,8 +816,8 @@ def test(consumer, producer, kafka_topic):
     patch()
     dummy_tracer = DummyTracer()
     dummy_tracer.flush()
-    Pin.override(producer, tracer=dummy_tracer)
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
@@ -851,8 +854,8 @@ def test(consumer, producer, kafka_topic):
     # Two of these spans are part of the same trace
     assert produce_span.trace_id == consume_span.trace_id
 
-    Pin.override(consumer, tracer=None)
-    Pin.override(producer, tracer=None)
+    Pin._override(consumer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -897,7 +900,7 @@ def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     with dummy_tracer.trace("kafka consumer parent span") as parent_span:
         with override_config("kafka", dict(distributed_tracing_enabled=True)):
@@ -912,12 +915,12 @@ def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
     assert consume_span.name == "kafka.consume"
     assert consume_span.parent_id == parent_span.span_id
 
-    Pin.override(consumer, tracer=None)
+    Pin._override(consumer, tracer=None)
 
 
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
-    Pin.override(producer, tracer=dummy_tracer)
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -943,8 +946,8 @@ def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic
     assert consume_span.name == "kafka.consume"
     assert consume_span.get_tag("pathway.hash") is not None
 
-    Pin.override(consumer, tracer=None)
-    Pin.override(producer, tracer=None)
+    Pin._override(consumer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 
 def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
@@ -978,8 +981,8 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     _consumer.commit(offsets=[tp])
     _consumer.subscribe([kafka_topic])
 
-    Pin.override(_producer, tracer=dummy_tracer)
-    Pin.override(_consumer, tracer=dummy_tracer)
+    Pin._override(_producer, tracer=dummy_tracer)
+    Pin._override(_consumer, tracer=dummy_tracer)
 
     test_string = "serializing_test"
     PAYLOAD = {"val": test_string}
@@ -1004,12 +1007,12 @@ def test_tracing_with_serialization_works(dummy_tracer, kafka_topic):
     # a string
     assert consume_span.get_tag("kafka.message_key") is None
 
-    Pin.override(_consumer, tracer=None)
-    Pin.override(_producer, tracer=None)
+    Pin._override(_consumer, tracer=None)
+    Pin._override(_producer, tracer=None)
 
 
 def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     message = "hello"
     while message is not None:
@@ -1029,7 +1032,7 @@ def test_traces_empty_poll_by_default(dummy_tracer, consumer, kafka_topic):
 
     assert empty_poll_span_created is True
 
-    Pin.override(consumer, tracer=None)
+    Pin._override(consumer, tracer=None)
 
 
 # Poll should not be traced when disabled
@@ -1054,8 +1057,8 @@ def test(consumer, producer, kafka_topic):
     patch()
     dummy_tracer = DummyTracer()
     dummy_tracer.flush()
-    Pin.override(producer, tracer=dummy_tracer)
-    Pin.override(consumer, tracer=dummy_tracer)
+    Pin._override(producer, tracer=dummy_tracer)
+    Pin._override(consumer, tracer=dummy_tracer)
 
     assert config.kafka.trace_empty_poll_enabled is False
 
@@ -1102,8 +1105,8 @@ def test(consumer, producer, kafka_topic):
 
     assert non_empty_poll_span_created is True
 
-    Pin.override(consumer, tracer=None)
-    Pin.override(producer, tracer=None)
+    Pin._override(consumer, tracer=None)
+    Pin._override(producer, tracer=None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))

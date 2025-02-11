@@ -12,7 +12,7 @@ from typing import cast  # noqa:F401
 import urllib.parse
 
 import ddtrace
-from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace.trace import Span  # noqa:F401
 
 
 if sys.version_info >= (3, 8):
@@ -23,12 +23,13 @@ else:
 
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.internal.core import dispatch
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Context
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -42,7 +43,6 @@ from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
@@ -510,7 +510,7 @@ class _B3MultiHeader:
 
 
 class _B3SingleHeader:
-    """Helper class to inject/extract B3 Single Header
+    """Helper class to inject/extract B3
 
     https://github.com/openzipkin/b3-propagation/blob/3e54cda11620a773d53c7f64d2ebb10d3a01794c/README.md#single-header
 
@@ -879,20 +879,6 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
-class _NOP_Propagator:
-    @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> None
-        return None
-
-    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
-    # but if it changes then we might want it
-    @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context , Dict[str, str]) -> Dict[str, str]
-        return headers
-
-
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
@@ -964,7 +950,6 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
-    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
     _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
 
@@ -1068,6 +1053,9 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
+        dispatch("http.span_inject", (span_context, headers))
+        if not config._propagation_style_inject:
+            return
         if non_active_span is not None and non_active_span.context is not span_context:
             log.error(
                 "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
@@ -1103,11 +1091,6 @@ class HTTPPropagator(object):
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
-        if config._llmobs_enabled:
-            from ddtrace.llmobs._utils import _inject_llmobs_parent_id
-
-            _inject_llmobs_parent_id(span_context)
-
         if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
@@ -1141,7 +1124,7 @@ class HTTPPropagator(object):
         :return: New `Context` with propagated attributes.
         """
         context = Context()
-        if not headers:
+        if not headers or not config._propagation_style_extract:
             return context
         try:
             style = ""

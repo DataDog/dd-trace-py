@@ -5,7 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL

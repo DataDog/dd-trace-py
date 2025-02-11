@@ -4,7 +4,7 @@ import os
 import mock
 import pytest
 
-from ddtrace import Tracer
+from ddtrace.trace import tracer
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
@@ -12,7 +12,6 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 class TestTraceAcceptedByAgent:
     def test_simple_trace_accepted_by_agent(self):
-        tracer = Tracer()
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             with tracer.trace("root"):
                 for _ in range(999):
@@ -32,7 +31,6 @@ class TestTraceAcceptedByAgent:
     )
     def test_trace_with_meta_accepted_by_agent(self, tags):
         """Meta tags should be text types."""
-        tracer = Tracer()
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             with tracer.trace("root", service="test_encoding", resource="test_resource") as root:
                 root.set_tags(tags)
@@ -53,7 +51,6 @@ class TestTraceAcceptedByAgent:
     )
     def test_trace_with_metrics_accepted_by_agent(self, metrics):
         """Metric tags should be numeric types - i.e. int, float, long (py3), and str numbers."""
-        tracer = Tracer()
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             with tracer.trace("root") as root:
                 root.set_metrics(metrics)
@@ -72,7 +69,6 @@ class TestTraceAcceptedByAgent:
     )
     def test_trace_with_links_accepted_by_agent(self, span_links_kwargs):
         """Links should not break things."""
-        tracer = Tracer()
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             with tracer.trace("root", service="test_encoding", resource="test_resource") as root:
                 root.set_link(**span_links_kwargs)

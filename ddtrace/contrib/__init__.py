@@ -1,4 +1,3 @@
-from ddtrace._trace import trace_handlers  # noqa:F401
-from ddtrace.internal.utils.importlib import func_name  # noqa:F401
-from ddtrace.internal.utils.importlib import module_name  # noqa:F401
-from ddtrace.internal.utils.importlib import require_modules  # noqa:F401
+# Importing trace handlers has the side effect of registering integration level
+# handlers. This is necessary to use the Core API in integrations.
+from ddtrace._trace import trace_handlers as _  # noqa: F401

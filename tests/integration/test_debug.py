@@ -3,21 +3,18 @@ import logging
 import os
 import re
 import subprocess
-from typing import List
-from typing import Optional
 
 import mock
 import pytest
 
 import ddtrace
 import ddtrace._trace.sampler
-from ddtrace._trace.span import Span
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import TraceWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DummyTracer
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION == "testagent", reason="The test agent doesn't support startup logs.")
@@ -36,7 +33,6 @@ def re_matcher(pattern):
 @pytest.mark.subprocess()
 def test_standard_tags():
     from datetime import datetime
-    import sys
 
     import ddtrace
     from ddtrace.internal import debug
@@ -46,10 +42,7 @@ def test_standard_tags():
     date = f.get("date")
     assert isinstance(date, str)
 
-    if sys.version_info >= (3, 7, 0):
-        # Try to parse the date-time, only built-in way to parse
-        # available in Python 3.7+
-        date = datetime.fromisoformat(date)
+    date = datetime.fromisoformat(date)
 
     os_name = f.get("os_name")
     assert isinstance(os_name, str)
@@ -77,14 +70,6 @@ def test_standard_tags():
 
     in_venv = f.get("in_virtual_env")
     assert in_venv is True
-
-    lang_version = f.get("lang_version")
-    if sys.version_info == (3, 7, 0):
-        assert "3.7" in lang_version
-    elif sys.version_info == (3, 6, 0):
-        assert "3.6" in lang_version
-    elif sys.version_info == (2, 7, 0):
-        assert "2.7" in lang_version
 
     agent_url = f.get("agent_url")
     assert agent_url == "http://localhost:8126"
@@ -118,10 +103,10 @@ def test_standard_tags():
 def test_debug_post_configure():
     import re
 
-    from ddtrace import tracer
     from ddtrace.internal import debug
+    from ddtrace.trace import tracer
 
-    tracer.configure(
+    tracer._configure(
         hostname="0.0.0.0",
         port=1234,
     )
@@ -143,10 +128,10 @@ def test_debug_post_configure():
 def test_debug_post_configure_uds():
     import re
 
-    from ddtrace import tracer
     from ddtrace.internal import debug
+    from ddtrace.trace import tracer
 
-    tracer.configure(uds_path="/file.sock")
+    tracer._configure(uds_path="/file.sock")
 
     f = debug.collect(tracer)
 
@@ -201,13 +186,12 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_loglevel_info_connection(self):
-        tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
             ddtrace.config.version = AgentWriter(agent_url="foobar")
-            tracer.configure()
+            ddtrace.trace.tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
@@ -217,10 +201,9 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_loglevel_info_no_connection(self):
-        tracer = ddtrace.Tracer()
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            ddtrace.trace.tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
         assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
@@ -231,9 +214,8 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_log_disabled_error(self):
-        tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            ddtrace.trace.tracer._configure()
         assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
@@ -243,9 +225,8 @@ class TestGlobalConfig(SubprocessTestCase):
         )
     )
     def test_tracer_log_disabled(self):
-        tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            ddtrace.trace.tracer._configure()
         assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
@@ -255,9 +236,8 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
-        tracer = ddtrace.Tracer()
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            tracer.configure()
+            ddtrace.trace.tracer._configure()
         assert mock_logger.mock_calls == []
 
 
@@ -299,16 +279,24 @@ def test_to_json():
     json.dumps(info)
 
 
+@pytest.mark.subprocess(env={"AWS_LAMBDA_FUNCTION_NAME": "something"})
 def test_agentless(monkeypatch):
-    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "something")
-    tracer = ddtrace.Tracer()
-    info = debug.collect(tracer)
+    from ddtrace.internal import debug
+    from ddtrace.trace import tracer
 
+    info = debug.collect(tracer)
     assert info.get("agent_url") == "AGENTLESS"
 
 
+@pytest.mark.subprocess()
 def test_custom_writer():
-    tracer = ddtrace.Tracer()
+    from typing import List
+    from typing import Optional
+
+    from ddtrace.internal import debug
+    from ddtrace.internal.writer import TraceWriter
+    from ddtrace.trace import Span
+    from ddtrace.trace import tracer
 
     class CustomWriter(TraceWriter):
         def recreate(self) -> TraceWriter:
@@ -329,18 +317,26 @@ def test_custom_writer():
     assert info.get("agent_url") == "CUSTOM"
 
 
+@pytest.mark.subprocess()
 def test_different_samplers():
-    tracer = ddtrace.Tracer()
-    tracer.configure(sampler=ddtrace._trace.sampler.RateSampler())
+    import ddtrace
+    from ddtrace.internal import debug
+    from ddtrace.trace import tracer
+
+    tracer._configure(sampler=ddtrace._trace.sampler.RateSampler())
     info = debug.collect(tracer)
 
     assert info.get("sampler_type") == "RateSampler"
 
 
+@pytest.mark.subprocess()
 def test_startup_logs_sampling_rules():
-    tracer = ddtrace.Tracer()
+    import ddtrace
+    from ddtrace.internal import debug
+    from ddtrace.trace import tracer
+
     sampler = ddtrace._trace.sampler.DatadogSampler(rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0)])
-    tracer.configure(sampler=sampler)
+    tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
@@ -351,7 +347,7 @@ def test_startup_logs_sampling_rules():
     sampler = ddtrace._trace.sampler.DatadogSampler(
         rules=[ddtrace._trace.sampler.SamplingRule(sample_rate=1.0, service="xyz", name="abc")]
     )
-    tracer.configure(sampler=sampler)
+    tracer._configure(sampler=sampler)
     f = debug.collect(tracer)
 
     assert f.get("sampler_rules") == [
@@ -427,9 +423,9 @@ def test_debug_span_log():
 
 
 def test_partial_flush_log():
-    tracer = ddtrace.Tracer()
+    tracer = DummyTracer()
 
-    tracer.configure(
+    tracer._configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=300,
     )
@@ -450,7 +446,7 @@ def test_partial_flush_log():
     )
 )
 def test_partial_flush_log_subprocess():
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     assert tracer._partial_flush_enabled is True
     assert tracer._partial_flush_min_spans == 2

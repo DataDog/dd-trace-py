@@ -6,9 +6,6 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace import config
-from ddtrace._trace.span import Span
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -28,7 +25,9 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs.utils import Document
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -312,10 +311,10 @@ class LangChainIntegration(BaseLLMIntegration):
             inputs = kwargs
         formatted_inputs = ""
         if inputs is not None:
-            formatted_inputs = self.format_io(inputs)
+            formatted_inputs = format_langchain_io(inputs)
         formatted_outputs = ""
         if not span.error and outputs is not None:
-            formatted_outputs = self.format_io(outputs)
+            formatted_outputs = format_langchain_io(outputs)
         span._set_ctx_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
 
     def _llmobs_set_meta_tags_from_embedding(
@@ -346,7 +345,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 isinstance(input_texts, list) and all(isinstance(text, str) for text in input_texts)
             ):
                 if is_workflow:
-                    formatted_inputs = self.format_io(input_texts)
+                    formatted_inputs = format_langchain_io(input_texts)
                     span._set_ctx_item(input_tag_key, formatted_inputs)
                 else:
                     if isinstance(input_texts, str):
@@ -392,7 +391,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
         input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
-            formatted_inputs = self.format_io(input_query)
+            formatted_inputs = format_langchain_io(input_query)
             span._set_ctx_item(INPUT_VALUE, formatted_inputs)
         if span.error or not output_documents or not isinstance(output_documents, list):
             span._set_ctx_item(OUTPUT_VALUE, "")
@@ -407,7 +406,7 @@ class LangChainIntegration(BaseLLMIntegration):
             metadata = getattr(d, "metadata", {})
             doc["name"] = metadata.get("name", doc["id"])
             documents.append(doc)
-        span._set_ctx_item(OUTPUT_DOCUMENTS, self.format_io(documents))
+        span._set_ctx_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
@@ -420,10 +419,10 @@ class LangChainIntegration(BaseLLMIntegration):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
-            formatted_input = self.format_io(tool_input)
+            formatted_input = format_langchain_io(tool_input)
         formatted_outputs = ""
         if not span.error and tool_output is not None:
-            formatted_outputs = self.format_io(tool_output)
+            formatted_outputs = format_langchain_io(tool_output)
         span._set_ctx_items(
             {
                 SPAN_KIND: "tool",
@@ -452,54 +451,6 @@ class LangChainIntegration(BaseLLMIntegration):
                 span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
             else:
                 span.set_tag_str(API_KEY, api_key)
-
-    @classmethod
-    def _logs_tags(cls, span: Span) -> str:
-        api_key = span.get_tag(API_KEY) or ""
-        tags = "env:%s,version:%s,%s:%s,%s:%s,%s:%s,%s:%s" % (  # noqa: E501
-            (config.env or ""),
-            (config.version or ""),
-            PROVIDER,
-            (span.get_tag(PROVIDER) or ""),
-            MODEL,
-            (span.get_tag(MODEL) or ""),
-            TYPE,
-            (span.get_tag(TYPE) or ""),
-            API_KEY,
-            api_key,
-        )
-        return tags
-
-    @classmethod
-    def _metrics_tags(cls, span: Span) -> List[str]:
-        provider = span.get_tag(PROVIDER) or ""
-        api_key = span.get_tag(API_KEY) or ""
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "%s:%s" % (PROVIDER, provider),
-            "%s:%s" % (MODEL, span.get_tag(MODEL) or ""),
-            "%s:%s" % (TYPE, span.get_tag(TYPE) or ""),
-            "%s:%s" % (API_KEY, api_key),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags.append("%s:%s" % (ERROR_TYPE, err_type))
-        return tags
-
-    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage or self.metrics_enabled is False:
-            return
-        for token_type in ("prompt", "completion", "total"):
-            num_tokens = usage.get("token_usage", {}).get(token_type + "_tokens")
-            if not num_tokens:
-                continue
-            self.metric(span, "dist", "tokens.%s" % token_type, num_tokens)
-        total_cost = span.get_metric(TOTAL_COST)
-        if total_cost:
-            self.metric(span, "incr", "tokens.total_cost", total_cost)
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
@@ -536,33 +487,3 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
-
-    def format_io(
-        self,
-        messages,
-    ):
-        """
-        Formats input and output messages for serialization to JSON.
-        Specifically, makes sure that any schema messages are converted to strings appropriately.
-        """
-        if isinstance(messages, dict):
-            formatted = {}
-            for key, value in messages.items():
-                formatted[key] = self.format_io(value)
-            return formatted
-        if isinstance(messages, list):
-            return [self.format_io(message) for message in messages]
-        return self.get_content_from_message(messages)
-
-    def get_content_from_message(self, message) -> str:
-        """
-        Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
-        """
-        if isinstance(message, str):
-            return message
-        try:
-            content = getattr(message, "__dict__", {}).get("content", str(message))
-            role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type"), ""))
-            return (role, content) if role else content
-        except AttributeError:
-            return str(message)

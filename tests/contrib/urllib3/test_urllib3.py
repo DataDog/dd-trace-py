@@ -35,7 +35,7 @@ class BaseUrllib3TestCase(TracerTestCase):
 
         patch()
         self.http = urllib3.PoolManager()
-        Pin.override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
+        Pin._override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseUrllib3TestCase, self).tearDown()
@@ -536,7 +536,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
         # Ensure the ASM SpanProcessor is set
-        self.tracer.configure(appsec_standalone_enabled=True, appsec_enabled=True)
+        self.tracer._configure(appsec_standalone_enabled=True, appsec_enabled=True)
         assert asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError
@@ -586,7 +586,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         config.urllib3["distributed_tracing"] = True
         self.tracer.enabled = False
         # Ensure the ASM SpanProcessor is set.
-        self.tracer.configure(appsec_standalone_enabled=False, appsec_enabled=True)
+        self.tracer._configure(appsec_standalone_enabled=False, appsec_enabled=True)
         assert not asm_config._apm_opt_out
         with mock.patch(
             "urllib3.connectionpool.HTTPConnectionPool._make_request", side_effect=ValueError

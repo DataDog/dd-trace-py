@@ -6,11 +6,11 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace import _limits
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
@@ -140,7 +140,7 @@ def _get_perform_request_coro(transport):
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
 
             method, target = args
             params = kwargs.get("params")

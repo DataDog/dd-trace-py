@@ -13,7 +13,7 @@ from tests.utils import assert_is_measured
 
 async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     app, tracer = patched_app_tracer
-    tracer.configure(context_provider=DefaultContextProvider())
+    tracer._configure(context_provider=DefaultContextProvider())
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
     # with the proper tags
@@ -38,7 +38,7 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
     responses = []
 
     app, tracer = patched_app_tracer
-    tracer.configure(context_provider=DefaultContextProvider())
+    tracer._configure(context_provider=DefaultContextProvider())
     client = await aiohttp_client(app)
 
     # it should produce a wrong trace, but the Context must
