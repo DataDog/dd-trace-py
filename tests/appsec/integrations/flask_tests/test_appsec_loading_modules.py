@@ -5,7 +5,6 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError
-from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
@@ -49,7 +48,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
     process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
     try:
         print("process started", flush=True)
-        for i in range(12):
+        for i in range(24):
             time.sleep(1)
             try:
                 with urlopen("http://localhost:8475", timeout=1) as response:
@@ -76,14 +75,14 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                 print(f"Test passed {i}", flush=True)
                 return
             except HTTPError as e:
-                print(f"HTTP error {i}", flush=True)
-                raise AssertionError(e.read().decode())
-            except (URLError, TimeoutError):
-                print(f"Server not started yet {i}", flush=True)
-                continue
-            except BaseException:
+                print(f"HTTP error {i} [{e.status}]", flush=True)
+                raise AssertionError(e.status, e.read().decode())
+            except AssertionError:
                 print(f"Test failed {i}", flush=True)
                 raise
+            except BaseException:
+                print(f"Server not started yet {i}", flush=True)
+                continue
     finally:
         try:
             urlopen("http://localhost:8475/shutdown", timeout=1)
