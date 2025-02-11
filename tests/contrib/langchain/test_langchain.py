@@ -26,6 +26,7 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai.parameters.max_completion_tokens",
     "meta.langchain.request.openai-chat.parameters.max_completion_tokens"
     "meta.langchain.request.openai-chat.parameters.max_tokens",
+    "meta.langchain.request.api_key",
 ]
 
 
@@ -68,11 +69,24 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
         llm.generate([12345, 123456])
 
 
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
 @pytest.mark.snapshot
-def test_cohere_llm_sync(langchain_cohere, request_vcr):
+def test_cohere_llm_sync_0_2(langchain_cohere, request_vcr):
     llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
-    with request_vcr.use_cassette("cohere_completion_sync.yaml"):
+    with request_vcr.use_cassette("cohere_completion_sync_0_2.yaml"):
+        llm.invoke("What is the secret Krabby Patty recipe?")
+
+
+@pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Compatible with langchain>=0.3 only")
+@pytest.mark.snapshot
+def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
+    with request_vcr.use_cassette("cohere_completion_sync_latest.yaml"):
+        llm = langchain_cohere.llms.Cohere(
+            cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            max_tokens=256,
+            temperature=0.75,
+        )
         llm.invoke("What is the secret Krabby Patty recipe?")
 
 
@@ -121,7 +135,13 @@ def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completio
     )
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    variants={
+        "0_2": LANGCHAIN_VERSION < (0, 3),
+        "latest": LANGCHAIN_VERSION >= (0, 3),
+    },
+)
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
     Test that input messages with nested contents are still tagged without error
@@ -150,8 +170,18 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         )
 
 
+@pytest.mark.skipif(
+    LANGCHAIN_VERSION < (0, 3), reason="Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136"
+)
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS
+    + [
+        # async batch requests can result in a non-deterministic order
+        "meta.langchain.response.completions.0.0.content",
+        "meta.langchain.response.completions.1.0.content",
+    ]
+)
 async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
