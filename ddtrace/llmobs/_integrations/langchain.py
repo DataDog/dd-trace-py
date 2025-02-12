@@ -330,24 +330,29 @@ class LangChainIntegration(BaseLLMIntegration):
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
         """
         if not _is_chain_instance(instance):
-            del self._spans[id(instance)]
+            self._delete_instance_recording(instance)
             return
 
         steps = getattr(instance, "steps", [])
         flatmap_chain_steps = _flattened_chain_steps(steps, nested=False)
 
         for step in flatmap_chain_steps:
-            step_id = id(step)
-            if step_id in self._spans:
-                del self._spans[step_id]
+            self._delete_instance_recording(step)
 
         if parent_span is None:
-            del self._spans[id(instance)]
+            self._delete_instance_recording(instance)
             return
 
         parent_instance = self._instances.get(parent_span)
         if parent_instance is None or not _is_chain_instance(parent_instance):
-            del self._spans[id(instance)]
+            self._delete_instance_recording(instance)
+
+    def _delete_instance_recording(self, instance):
+        instance_id = id(instance)
+        if instance_id in self._spans:
+            del self._spans[instance_id]
+        else:
+            log.warning("Unable to delete langchain instance from internal mapping")
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
