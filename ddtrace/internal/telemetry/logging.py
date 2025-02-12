@@ -16,7 +16,7 @@ class DDTelemetryLogHandler(logging.Handler):
         """This function will:
         - Log all records with a level of ERROR or higher with telemetry
         - Log all caught exception originated from ddtrace.contrib modules
-       """
+        """
         if record.levelno >= logging.ERROR:
             # Capture start up errors
             full_file_name = os.path.join(record.pathname, record.filename)
@@ -27,9 +27,7 @@ class DDTelemetryLogHandler(logging.Handler):
             telemetry_level = (
                 TELEMETRY_LOG_LEVEL.ERROR
                 if record.levelno >= logging.ERROR
-                else TELEMETRY_LOG_LEVEL.WARNING
-                if record.levelno == logging.WARNING
-                else TELEMETRY_LOG_LEVEL.DEBUG
+                else TELEMETRY_LOG_LEVEL.WARNING if record.levelno == logging.WARNING else TELEMETRY_LOG_LEVEL.DEBUG
             )
             # Only collect telemetry for logs with a traceback
             stack_trace = self._format_stack_trace(record.exc_info)
