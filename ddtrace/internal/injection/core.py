@@ -166,7 +166,7 @@ def _inject_invocation_nonrecursive(
 
         return (
             code.co_code,
-            code.co_consts,  # type: ignore
+            list(code.co_consts),
             code.co_linetable,
             exception_table,
             [],
