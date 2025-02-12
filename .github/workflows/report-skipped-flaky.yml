@@ -5,6 +5,13 @@ on:
     # Run every Monday and Thursday at 6 AM Eastern Time (EST)
     - cron: '0 11 * * 1,4'
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to run the workflow on"
+        required: true
+        default: "main"
+        type: string
+
 
 jobs:
   flaky-tests:
@@ -14,12 +21,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Run flaky tests report script
         run: python scripts/report_skipped_flaky.py
