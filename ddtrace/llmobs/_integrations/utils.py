@@ -1,3 +1,6 @@
+from typing import Tuple
+from typing import Union
+
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -115,10 +118,29 @@ def extract_message_from_part_google(part, role=None):
     return message
 
 
-def get_llmobs_metrics_tags_google(integration_name, span):
+def get_llmobs_metrics_tags(integration_name, span):
     usage = {}
-    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name)
-    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name)
+
+    # bedrock integration tags usage under meta instead of metrics
+    if integration_name == "bedrock":
+        input_tokens = int(span.get_tag("bedrock.usage.prompt_tokens") or 0)
+        output_tokens = int(span.get_tag("bedrock.usage.completion_tokens") or 0)
+        total_tokens = input_tokens + output_tokens
+        if input_tokens:
+            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens:
+            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if total_tokens:
+            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+        return usage
+
+    # check for both prompt / completion or input / output tokens
+    input_tokens = span.get_metric("%s.response.usage.prompt_tokens" % integration_name) or span.get_metric(
+        "%s.response.usage.input_tokens" % integration_name
+    )
+    output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name) or span.get_metric(
+        "%s.response.usage.output_tokens" % integration_name
+    )
     total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
 
     if input_tokens is not None:
@@ -163,3 +185,41 @@ def get_system_instructions_from_google_model(model_instance):
         elif Part is not None and isinstance(elem, Part):
             system_instructions.append(_get_attr(elem, "text", ""))
     return system_instructions
+
+
+LANGCHAIN_ROLE_MAPPING = {
+    "human": "user",
+    "ai": "assistant",
+    "system": "system",
+}
+
+
+def format_langchain_io(
+    messages,
+):
+    """
+    Formats input and output messages for serialization to JSON.
+    Specifically, makes sure that any schema messages are converted to strings appropriately.
+    """
+    if isinstance(messages, dict):
+        formatted = {}
+        for key, value in messages.items():
+            formatted[key] = format_langchain_io(value)
+        return formatted
+    if isinstance(messages, list):
+        return [format_langchain_io(message) for message in messages]
+    return get_content_from_langchain_message(messages)
+
+
+def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
+    """
+    Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
+    """
+    if isinstance(message, str):
+        return message
+    try:
+        content = getattr(message, "__dict__", {}).get("content", str(message))
+        role = getattr(message, "role", LANGCHAIN_ROLE_MAPPING.get(getattr(message, "type"), ""))
+        return (role, content) if role else content
+    except AttributeError:
+        return str(message)

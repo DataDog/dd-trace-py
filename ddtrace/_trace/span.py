@@ -24,17 +24,17 @@ from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
-from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import SERVICE_VERSION_KEY
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
@@ -52,8 +52,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -281,29 +279,6 @@ class Span(object):
     def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
 
-    @property
-    def sampled(self) -> Optional[bool]:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled references the state of span.context.sampling_priority.
-            Please use span.context.sampling_priority instead to check if a span is sampled.""",
-            category=DDTraceDeprecationWarning,
-        )
-        if self.context.sampling_priority is None:
-            # this maintains original span.sampled behavior, where all spans would start
-            # with span.sampled = True until sampling runs
-            return True
-        return self.context.sampling_priority > 0
-
-    @sampled.setter
-    def sampled(self, value: bool) -> None:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled has a no-op setter.
-            Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",
-            category=DDTraceDeprecationWarning,
-        )
-
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
         If the span has already been finished don't do anything.
@@ -329,7 +304,7 @@ class Span(object):
         self.context.sampling_priority = decision
         set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
         if self._local_root:
-            for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
+            for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
@@ -403,7 +378,7 @@ class Span(object):
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
             self.set_tag(VERSION_KEY, value)
-        elif key == SPAN_MEASURED_KEY:
+        elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
@@ -460,7 +435,7 @@ class Span(object):
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
-        if key == SPAN_MEASURED_KEY:
+        if key == _SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
             except (ValueError, TypeError):
@@ -558,6 +533,10 @@ class Span(object):
         self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
+
+        # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
+        # this event such that the additional tags for inferred aws api gateway spans can be appended here.
+        core.dispatch("web.request.final_tags", (self,))
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
 

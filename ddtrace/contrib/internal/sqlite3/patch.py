@@ -1,13 +1,10 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
-import sys
 
 import wrapt
 
 from ddtrace import config
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -15,8 +12,8 @@ from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 # Original connect method
@@ -48,6 +45,9 @@ def patch():
     sqlite3.dbapi2.connect = wrapped
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
@@ -97,12 +97,9 @@ class TracedSQLite(TracedConnection):
         # sqlite has a few extra sugar functions
         return self.cursor().execute(*args, **kwargs)
 
-    # backup was added in Python 3.7
-    if sys.version_info >= (3, 7, 0):
-
-        def backup(self, target, *args, **kwargs):
-            # sqlite3 checks the type of `target`, it cannot be a wrapped connection
-            # https://github.com/python/cpython/blob/4652093e1b816b78e9a585d671a807ce66427417/Modules/_sqlite/connection.c#L1897-L1899
-            if isinstance(target, TracedConnection):
-                target = target.__wrapped__
-            return self.__wrapped__.backup(target, *args, **kwargs)
+    def backup(self, target, *args, **kwargs):
+        # sqlite3 checks the type of `target`, it cannot be a wrapped connection
+        # https://github.com/python/cpython/blob/4652093e1b816b78e9a585d671a807ce66427417/Modules/_sqlite/connection.c#L1897-L1899
+        if isinstance(target, TracedConnection):
+            target = target.__wrapped__
+        return self.__wrapped__.backup(target, *args, **kwargs)

@@ -8,11 +8,11 @@ import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 class TraceCiVisibilityFilter(TraceFilter):

@@ -4,9 +4,9 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
@@ -42,7 +42,7 @@ def aws_credentials():
 def mock_tracer(ddtrace_global_config, bedrock_client):
     pin = Pin.get_from(bedrock_client)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(bedrock_client, tracer=mock_tracer)
+    pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
 
 
@@ -102,7 +102,7 @@ class TestBedrockConfig(SubprocessTestCase):
         self.bedrock_client = self.session.client("bedrock-runtime")
         self.mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(self.bedrock_client)
-        pin.override(self.bedrock_client, tracer=self.mock_tracer)
+        pin._override(self.bedrock_client, tracer=self.mock_tracer)
 
         super(TestBedrockConfig, self).setUp()
 
@@ -218,6 +218,15 @@ def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
 def test_meta_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with get_request_vcr().use_cassette("meta_invoke.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
+def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
+    body = json.dumps(_REQUEST_BODIES["amazon"])
+    model = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
+    with request_vcr.use_cassette("amazon_invoke_model_arn.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 

@@ -5,21 +5,23 @@ import pytest
 
 
 if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
-    from ddtrace.internal.bytecode_injection.core import InjectionContext
-    from ddtrace.internal.bytecode_injection.core import inject_invocation
+    from ddtrace.internal.injection.core import InjectionContext
+    from ddtrace.internal.injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
-    sys.version_info[:2] < (3, 10) and sys.version_info[:2] > (3, 11),
+    sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
     reason="Injection is currently only supported for 3.10 and 3.11",
 )
 
 
 @skipif_bytecode_injection_not_supported
-def test_linetable_unchanged_when_no_injection():
+def test_unchanged_when_no_injection():
     original = sample_function_1.__code__
     ic = InjectionContext(original, _sample_callback, lambda _: [])
     injected, _ = inject_invocation(ic, "some/path.py", "some.package")
 
+    assert original == injected
+    assert original.co_consts == injected.co_consts
     assert list(original.co_lines()) == list(injected.co_lines())
     assert dict(dis.findlinestarts(original)) == dict(dis.findlinestarts(injected))
 
@@ -105,36 +107,51 @@ def test_linetable_adjustment():
 
     OFFSET = 0
     LINE = 1
+    """ 3.10 will inject 4 instructions, so the opcode we are looking for is shifted of 8 at least
+        3.11 will inject 11 instructions (they are not all visible by dis.dis) so, 22"""
+    SIZE_INJECTED = {
+        (3, 10): 8,
+        (3, 11): 22,
+    }
+    BASE_INJECTED_OFFSET = SIZE_INJECTED[sys.version_info[:2]]
 
     for idx, (original_offset, original_line_start) in enumerate(selected_line_starts):
         assert original_line_start == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
+        bytecode_injected_size = BASE_INJECTED_OFFSET
+        # skip extended args
+        while injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size] == 144:
+            bytecode_injected_size += 2
 
         # offset of line points to the same instructions
         assert (
             original_code.co_code[original_offset]
-            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET]]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size]
         ), "The corresponding opcode is the same"
 
         if original_code.co_code[original_offset] in dis.hasjrel:
             # In case of a jump, we assert that the (dereferenced) target is the same
             # DEV: expand to reverse jumps
             original_arg = original_code.co_code[original_offset + 1]
-            injected_arg = injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+            injected_arg = injected_code.co_code[
+                selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1
+            ]
 
             # dereferencing the jump target (DEV: only depth 1, for now)
             assert (
                 original_code.co_code[original_offset + (original_arg << 1)]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + (injected_arg << 1)]
+                == injected_code.co_code[
+                    selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + (injected_arg << 1)
+                ]
             ), "The corresponding target opcode is the same"
         else:
             assert (
                 original_code.co_code[original_offset + 1]
-                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + 1]
+                == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1]
             ), "The corresponding argument is the same"
 
 
 @pytest.mark.skipif(
-    sys.version_info[:2] < (3, 11),
+    sys.version_info[:2] != (3, 11),
     reason="Exception table was introduced in 3.11",
 )
 def test_exceptiontable_adjustment():
@@ -283,7 +300,7 @@ def test_try_finally_is_executed_when_callback_succeed():
 
 
 @skipif_bytecode_injection_not_supported
-def test_import_adjustment_if_injection_did_not_occur():
+def test_import_adjustment_if_injection_did_not_occur_on_line():
     value = ""
 
     def _callback(*args):
@@ -293,14 +310,21 @@ def test_import_adjustment_if_injection_did_not_occur():
     def the_function():
         from ddtrace.internal.compat import httplib  # noqa
 
+        some_var = 11  # noqa: F841
+
     original = the_function.__code__
 
-    ic = InjectionContext(original, _callback, lambda _: [])
+    INJECTION_INDEXES = {
+        (3, 10): [12],
+        (3, 11): [14],
+    }
+    ic = InjectionContext(original, _callback, lambda _: INJECTION_INDEXES[sys.version_info[:2]])
     injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
 
     the_function.__code__ = injected
 
     the_function()
+    assert value == "<callback>"
     # if the test gets here without an exception, it passed, as the error which occurs is that argument
     # for imports adjustment happened at the wrong time
 
@@ -326,9 +350,11 @@ def test_import_adjustment_if_injection_did_occur():
     original = the_function.__code__
 
     # Injection index from dis.dis(<function to inject into>)
-    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    injection_indexes = {"3.10": 8, "3.11": 14}
-    ic = InjectionContext(original, _callback, lambda _: [injection_indexes[python_version]])
+    INJECTION_INDEXES = {
+        (3, 10): [8],
+        (3, 11): [14],
+    }
+    ic = InjectionContext(original, _callback, lambda _: INJECTION_INDEXES[sys.version_info[:2]])
     injected, _ = inject_invocation(ic, the_function.__code__.co_filename, __name__)
     the_function.__code__ = injected
 

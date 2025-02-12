@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING  # noqa:F401
 from wrapt.importer import when_imported
 
 from ddtrace.appsec import load_common_appsec_modules
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.settings.asm import config as asm_config
 
-from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .settings import _config as config
+from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -48,6 +49,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
+    "langgraph": False,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -91,7 +93,6 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
-    "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_functions": True,
@@ -103,6 +104,7 @@ PATCH_MODULES = {
     "unittest": True,
     "coverage": False,
     "selenium": True,
+    "valkey": True,
 }
 
 
@@ -148,10 +150,11 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
+    "langgraph": (
+        "langgraph",
+        "langgraph.graph",
+    ),
 }
-
-
-DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
 
 class PatchException(Exception):
@@ -164,15 +167,14 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patch_indicator=True):
+def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
         # Import and patch module
-        path = "%s.%s" % (prefix, module)
         try:
-            imported_module = importlib.import_module(path)
+            imported_module = importlib.import_module(path_f % (module,))
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
@@ -186,7 +188,10 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
-                "tracers", "integration_errors", 1, (("integration_name", module), ("error_type", type(e).__name__))
+                TELEMETRY_NAMESPACE.TRACERS,
+                "integration_errors",
+                1,
+                (("integration_name", module), ("error_type", type(e).__name__)),
             )
         else:
             if hasattr(imported_module, "get_versions"):
@@ -195,7 +200,8 @@ def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True, patc
                     telemetry.telemetry_writer.add_integration(
                         name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
-            else:
+            elif hasattr(imported_module, "get_version"):
+                # Some integrations/iast patchers do not define get_version
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
                     module, True, PATCH_MODULES.get(module) is True, "", version=version
@@ -234,7 +240,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 
@@ -244,8 +250,8 @@ def patch_all(**patch_modules):
     load_common_appsec_modules()
 
 
-def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
-    # type: (bool, str, Union[List[str], bool]) -> None
+def patch(raise_errors=True, **patch_modules):
+    # type: (bool, Union[List[str], bool]) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -256,17 +262,22 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
+        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
             if raise_errors:
                 raise ModuleNotFoundException(
-                    "integration module ddtrace.contrib.%s does not exist, "
-                    "module will not have tracing available" % contrib
+                    "integration module ddtrace.contrib.internal.%s.patch does not exist, "
+                    "automatic instrumentation is disabled for this library" % contrib
                 )
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
             when_imported(module)(
-                _on_import_factory(contrib, raise_errors=raise_errors, patch_indicator=patch_indicator)
+                _on_import_factory(
+                    contrib,
+                    "ddtrace.contrib.internal.%s.patch",
+                    raise_errors=raise_errors,
+                    patch_indicator=patch_indicator,
+                )
             )
 
         # manually add module to patched modules

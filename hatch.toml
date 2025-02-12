@@ -57,7 +57,7 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -175,7 +175,7 @@ extra-dependencies = [
 ]
 
 [[envs.integration_test.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [envs.integration_test.env-vars]
 _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
@@ -297,7 +297,7 @@ test = [
 ]
 
 [[envs.appsec_iast_native.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM appsec_iast_packages
 
@@ -308,7 +308,6 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "requests",
     "astunparse",
     "flask",
     "virtualenv-clone"
@@ -318,11 +317,134 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
 ]
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
+
+## ASM appsec_integrations_django
+
+[envs.appsec_integrations_django]
+template = "appsec_integrations_django"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "pylibmc",
+    "bcrypt==4.2.1",
+    "pytest-django[testing]==3.10.0",
+    "Django{matrix:django}",
+]
+
+[envs.appsec_integrations_django.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=3.2"]
+
+## ASM appsec_integrations_flask
+
+[envs.appsec_integrations_flask]
+template = "appsec_integrations_flask"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "gunicorn",
+    "psycopg2-binary~=2.9.9",
+    "MarkupSafe{matrix:markupsafe:}",
+    "itsdangerous{matrix:itsdangerous:}",
+    "Werkzeug{matrix:werkzeug:}",
+    "flask{matrix:flask}",
+]
+
+[envs.appsec_integrations_flask.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9"]
+flask = ["~=1.1"]
+# https://github.com/pallets/markupsafe/issues/282
+# DEV: Breaking change made in 2.1.0 release
+markupsafe = ["~=1.1"]
+itsdangerous = ["==2.0.1"]
+# DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+werkzeug = ["==2.0.3"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11"]
+flask = ["~=2.2"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+flask = ["~=2.2"]
+
+[[envs.appsec_integrations_flask.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+flask = ["~=3.0"]
+
+[[envs.appsec_integrations_flask.matrix]]
+# werkzeug 3.1 drops support for py3.8
+python = ["3.11", "3.12", "3.13"]
+flask = ["~=3.1"]
+werkzeug = ["~=3.1"]
+
+## ASM appsec_integrations_fastapi
+
+[envs.appsec_integrations_fastapi]
+template = "appsec_integrations_fastapi"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "jinja2",
+    "httpx<0.28.0",
+    "anyio{matrix:anyio:}",
+    "fastapi{matrix:fastapi}"
+]
+
+[envs.appsec_integrations_fastapi.env-vars]
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+
+[envs.appsec_integrations_fastapi.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+]
+
+
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.86.0"]
+anyio = ["==3.7.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.94.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["~=0.114.2"]
 
 
 ## ASM FastAPI
@@ -368,8 +490,8 @@ fastapi = ["~=0.114.2"]
 
 ## ASM Appsec Aggregated Leak Testing
 
-[envs.appsec_aggregated_leak_testing]
-template = "appsec_aggregated_leak_testing"
+[envs.iast_aggregated_leak_testing]
+template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -381,19 +503,21 @@ dependencies = [
     "pydantic-settings",
 ]
 
-[envs.appsec_aggregated_leak_testing.env-vars]
+[envs.iast_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 DD_IAST_ENABLED = "true"
+_DD_IAST_PATCH_MODULES = "scripts.iast"
 
-[envs.appsec_aggregated_leak_testing.scripts]
+[envs.iast_aggregated_leak_testing.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
-[[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
+[[envs.iast_aggregated_leak_testing.matrix]]
+python = ["3.10", "3.11", "3.12"]
 
 
 
@@ -448,7 +572,7 @@ test = [
 ]
 
 [[envs.ddtrace_unit_tests.matrix]]
-python = ["3.12", "3.10", "3.7"]
+python = ["3.12", "3.10"]
 
 # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
 # across all supported versions
@@ -467,7 +591,7 @@ test = [
 ]
 
 [[envs.dd_coverage.matrix]]
-python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [envs.error_reporting]
 template = "error_reporting"
@@ -499,7 +623,6 @@ dependencies = [
 ]
 
 [envs.pytest_plugin_v2.env-vars]
-DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
 DD_AGENT_PORT = "9126"
 
 [envs.pytest_plugin_v2.scripts]
@@ -508,11 +631,6 @@ test = [
     "echo $PYTEST_ADDOPTS",
     "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
 ]
-
-[[envs.pytest_plugin_v2.matrix]]
-python = ["3.7"]
-pytest = ["~=6.0", "~=7.0"]
-
 
 [[envs.pytest_plugin_v2.matrix]]
 python = ["3.9", "3.10", "3.12"]
@@ -540,16 +658,13 @@ dependencies = [
     "hypothesis",
 ]
 
-[envs.freezegun.env-vars]
-DD_PYTEST_USE_NEW_PLUGIN_BETA = "true"
-
 [envs.freezegun.scripts]
 test = [
     "pytest tests/contrib/freezegun {args:}",
 ]
 
 [[envs.freezegun.matrix]]
-python = ["3.7", "3.10", "3.12"]
+python = ["3.10", "3.12"]
 freezegun = ["~=1.3.0", "~=1.5.0"]
 
 [envs.selenium]
@@ -573,11 +688,11 @@ test = [
 ]
 
 [[envs.selenium.matrix]]
-python = ["3.7", "3.10", "3.12"]
+python = ["3.10", "3.12"]
 tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]
 matrix.tested_pytest_plugin_version.env-vars = [
-    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "false", if = ["v1"]},
-    { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "true", if = ["v2"]}
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
 ]

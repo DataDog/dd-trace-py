@@ -1,7 +1,7 @@
 from django.db import connections
 import mock
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.utils import DummyTracer
 from tests.utils import override_config
@@ -21,7 +21,7 @@ def get_cursor(tracer, service=None, propagation_mode="service", tags={}):
     pin = Pin.get_from(cursor)
     assert pin is not None
 
-    pin.clone(tracer=tracer, tags={**pin.tags, **tags}).onto(cursor)
+    pin._clone(tracer=tracer, tags={**pin.tags, **tags}).onto(cursor)
 
     return cursor
 

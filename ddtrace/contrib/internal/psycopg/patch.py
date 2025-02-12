@@ -3,20 +3,13 @@ import inspect
 import os
 from typing import List  # noqa:F401
 
-from ddtrace import Pin
-from ddtrace import config
-from ddtrace.contrib import dbapi
-
-
-try:
-    from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
-    from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
-    from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
-# catch async function syntax errors when using Python<3.7 with no async support
-except SyntaxError:
-    pass
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config
+from ddtrace.contrib import dbapi
+from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
+from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
+from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.connection import patched_connect_factory
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
@@ -29,6 +22,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
+from ddtrace.trace import Pin
 
 
 try:

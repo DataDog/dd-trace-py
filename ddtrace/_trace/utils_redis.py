@@ -7,10 +7,10 @@ from typing import List
 from typing import Optional
 
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.redis_utils import _extract_conn_tags
+from ddtrace.contrib.internal.redis_utils import _extract_conn_tags
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -30,7 +30,7 @@ def _set_span_tags(
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag_str(COMPONENT, config_integration.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     if query is not None:
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         span.set_tag_str(span_name, query)

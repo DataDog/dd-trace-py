@@ -50,7 +50,8 @@ class JobSpec:
         if wait_for:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            if self.runner == "riot":
+                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:

@@ -1,34 +1,16 @@
 import os
-import sys
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Literal
+from typing import Optional
 from typing import Tuple
-
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal
-
-    try:
-        from typing_extensions import Optional
-    except ImportError:
-        # hack to support the Optional type for python3.7 + typing_extensions<4.0 (ex: molton)
-        from typing import Union
-
-        class Optional:
-            def __class_getitem__(self, item):
-                return Union[item, type(None)]
-
-else:
-    from typing import Literal
-    from typing import Optional
-
 
 from ..constants import ENV_KEY
 from ..constants import VERSION_KEY
 from ..internal.logger import get_logger
 from ..internal.telemetry import telemetry_writer
-from ..internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
+from ..internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -70,12 +52,16 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
             otel_value,
         )
         otel_value = f"parentbased_{otel_value}"
+    rate = None
     if otel_value == "parentbased_always_on":
-        return "1.0"
+        rate = "1.0"
     elif otel_value == "parentbased_always_off":
-        return "0.0"
+        rate = "0.0"
     elif otel_value == "parentbased_traceidratio":
-        return os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+        rate = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "1")
+
+    if rate is not None:
+        return f'[{{"sample_rate":{rate}}}]'
     return None
 
 
@@ -148,7 +134,7 @@ ENV_VAR_MAPPINGS: Dict[str, Tuple[str, Callable[[str], Optional[str]]]] = {
     "OTEL_SERVICE_NAME": ("DD_SERVICE", _remap_default),
     "OTEL_LOG_LEVEL": ("DD_TRACE_DEBUG", _remap_otel_log_level),
     "OTEL_PROPAGATORS": ("DD_TRACE_PROPAGATION_STYLE", _remap_otel_propagators),
-    "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLE_RATE", _remap_traces_sampler),
+    "OTEL_TRACES_SAMPLER": ("DD_TRACE_SAMPLING_RULES", _remap_traces_sampler),
     "OTEL_TRACES_EXPORTER": ("DD_TRACE_ENABLED", _remap_traces_exporter),
     "OTEL_METRICS_EXPORTER": ("DD_RUNTIME_METRICS_ENABLED", _remap_metrics_exporter),
     "OTEL_LOGS_EXPORTER": ("", _validate_logs_exporter),  # Does not set a DDTRACE environment variable.
@@ -169,7 +155,7 @@ def otel_remapping():
             if otel_env.startswith("OTEL_") and otel_env != "OTEL_PYTHON_CONTEXT":
                 log.warning("OpenTelemetry configuration %s is not supported by Datadog.", otel_env)
                 telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE_TAG_TRACER,
+                    TELEMETRY_NAMESPACE.TRACERS,
                     "otel.env.unsupported",
                     1,
                     (("config_opentelemetry", otel_env.lower()),),
@@ -185,7 +171,7 @@ def otel_remapping():
                 otel_value,
             )
             telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_TRACER,
+                TELEMETRY_NAMESPACE.TRACERS,
                 "otel.env.hiding",
                 1,
                 (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),
@@ -205,7 +191,7 @@ def otel_remapping():
                 otel_value,
             )
             telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE_TAG_TRACER,
+                TELEMETRY_NAMESPACE.TRACERS,
                 "otel.env.invalid",
                 1,
                 (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),

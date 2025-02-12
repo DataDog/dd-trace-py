@@ -5,11 +5,11 @@ import asyncpg
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace import tracer
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
-from ddtrace.contrib.trace_utils import iswrapped
+from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.trace import Pin
+from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
@@ -158,7 +158,7 @@ async def test_cursor_manual(patched_conn):
 @pytest.mark.snapshot
 @pytest.mark.xfail
 async def test_service_override_pin(patched_conn):
-    Pin.override(patched_conn, service="custom-svc")
+    Pin._override(patched_conn, service="custom-svc")
     await patched_conn.execute("SELECT 1")
 
 
@@ -351,7 +351,7 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -468,7 +468,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         db_name = POSTGRES_CONFIG["dbname"]
         conn, tracer = await self._get_conn_tracer()
 
-        Pin.override(conn, service="pin-service-name-override", tracer=tracer)
+        Pin._override(conn, service="pin-service-name-override", tracer=tracer)
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs

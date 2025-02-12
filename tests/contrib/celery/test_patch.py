@@ -1,6 +1,6 @@
 import unittest
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 

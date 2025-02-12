@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 
 import pytest
 
@@ -26,6 +27,8 @@ from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
+from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.http import get_connection
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -82,12 +85,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
-    env.update({"_DD_APPSEC_DEDUPLICATION_ENABLED": str(deduplication)})
+    env.update({"DD_IAST_DEDUPLICATION_ENABLED": str(deduplication)})
     with override_global_config(
         dict(
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
-            _deduplication_enabled=deduplication,
+            _iast_deduplication_enabled=deduplication,
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
@@ -162,11 +165,27 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
 @pytest.fixture(scope="session")
 def configuration_endpoint():
     current_dir = os.path.dirname(__file__)
-    cmd = [
-        "python",
-        os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
-        CONFIG_SERVER_PORT,
-    ]
-    process = subprocess.Popen(cmd, cwd=current_dir)
+    status = None
+    retries = 0
+    while status != 200 and retries < 5:
+        cmd = [
+            "python",
+            os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
+            CONFIG_SERVER_PORT,
+        ]
+        process = subprocess.Popen(cmd, cwd=current_dir)
+        time.sleep(0.2)
+
+        url = f"http://localhost:{CONFIG_SERVER_PORT}/"
+        conn = get_connection(url)
+        conn.request("GET", "/")
+        response = conn.getresponse()
+        result = Response.from_http_response(response)
+        status = result.status
+        retries += 1
+
+    if retries == 5:
+        pytest.skip("Failed to start the configuration server")
+
     yield
     process.kill()

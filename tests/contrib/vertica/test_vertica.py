@@ -2,7 +2,6 @@ import pytest
 import wrapt
 
 import ddtrace
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -10,7 +9,8 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.settings.config import _deepmerge
+from ddtrace.settings._config import _deepmerge
+from ddtrace.trace import Pin
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -130,7 +130,7 @@ class TestVertica(TracerTestCase):
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
             cur = conn.cursor()
-            Pin.override(cur, tracer=test_tracer)
+            Pin._override(cur, tracer=test_tracer)
             with conn:
                 cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
         spans = test_tracer.pop()
@@ -163,7 +163,7 @@ class TestVertica(TracerTestCase):
             test_tracer = DummyTracer()
 
             conn = vertica_python.connect(**VERTICA_CONFIG)
-            Pin.override(conn, service="mycustomservice", tracer=test_tracer)
+            Pin._override(conn, service="mycustomservice", tracer=test_tracer)
             conn.cursor()  # should be traced now
             conn.close()
         spans = test_tracer.pop()
@@ -175,7 +175,7 @@ class TestVertica(TracerTestCase):
         """Metadata related to an `execute` call should be captured."""
         conn, cur = self.test_conn
 
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
@@ -206,7 +206,7 @@ class TestVertica(TracerTestCase):
         """Test overriding the tracer with our own."""
         conn, cur = self.test_conn
 
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
 
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
@@ -403,7 +403,7 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -427,7 +427,7 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -451,7 +451,7 @@ class TestVertica(TracerTestCase):
 
         assert config.service == "mysvc"
         conn, cur = self.test_conn
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -469,7 +469,7 @@ class TestVertica(TracerTestCase):
             should result in the default DD_SERVICE the span service
         """
         conn, cur = self.test_conn
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
@@ -487,7 +487,7 @@ class TestVertica(TracerTestCase):
             should result in the default DD_SERVICE the span service
         """
         conn, cur = self.test_conn
-        Pin.override(cur, tracer=self.test_tracer)
+        Pin._override(cur, tracer=self.test_tracer)
         with conn:
             cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))

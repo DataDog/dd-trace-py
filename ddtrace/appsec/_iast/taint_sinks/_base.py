@@ -4,11 +4,12 @@ from typing import Callable
 from typing import Optional
 from typing import Text
 
-from ddtrace import tracer
+from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
-from ..._deduplications import deduplication
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import is_iast_request_enabled
 from .._iast_request_context import set_iast_reporter
@@ -27,6 +28,9 @@ CWD = os.path.abspath(os.getcwd())
 
 
 class taint_sink_deduplication(deduplication):
+    def _check_deduplication(self):
+        return asm_config._iast_deduplication_enabled
+
     def _extract(self, args):
         # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
         return args[2:]

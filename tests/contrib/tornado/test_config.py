@@ -1,6 +1,5 @@
-from ddtrace._trace.tracer import Tracer
-from ddtrace.filters import TraceFilter
-from tests.utils import DummyWriter
+from ddtrace.trace import TraceFilter
+from tests.utils import DummyTracer
 
 from .utils import TornadoTestCase
 
@@ -19,8 +18,7 @@ class TestTornadoSettings(TornadoTestCase):
     """
 
     def get_app(self):
-        # Override with a real tracer
-        self.tracer = Tracer()
+        self.tracer = DummyTracer()
         super(TestTornadoSettings, self).get_app()
 
     def get_settings(self):
@@ -39,25 +37,6 @@ class TestTornadoSettings(TornadoTestCase):
                 },
             },
         }
-
-    def test_tracer_is_properly_configured(self):
-        # the tracer must be properly configured
-        assert self.tracer._tags.get("env") == "production"
-        assert self.tracer._tags.get("debug") == "false"
-        assert self.tracer.enabled is False
-        assert self.tracer.agent_trace_url == "http://dd-agent.service.consul:8126"
-
-        writer = DummyWriter()
-        self.tracer.configure(enabled=True, writer=writer)
-        with self.tracer.trace("keep"):
-            pass
-        spans = writer.pop()
-        assert len(spans) == 1
-
-        with self.tracer.trace("drop"):
-            pass
-        spans = writer.pop()
-        assert len(spans) == 0
 
 
 class TestTornadoSettingsEnabled(TornadoTestCase):

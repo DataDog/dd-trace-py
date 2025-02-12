@@ -4,10 +4,10 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
@@ -107,7 +107,7 @@ class TestLLMObsBedrock:
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -148,7 +148,7 @@ class TestLLMObsBedrock:
     ):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -249,7 +249,7 @@ class TestLLMObsBedrock:
 
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched

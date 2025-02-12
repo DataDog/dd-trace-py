@@ -6,8 +6,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
-from ddtrace.pin import Pin
 from ddtrace.settings.http import HttpConfig
+from ddtrace.trace import Pin
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -59,7 +59,7 @@ def test_httpx_service_name(tracer, test_spans):
         We set the span service name as a text type and not binary
     """
     client = httpx.Client()
-    Pin.override(client, tracer=tracer)
+    Pin._override(client, tracer=tracer)
 
     with override_config("httpx", {"split_by_domain": True}):
         resp = client.get(get_url("/status/200"))
@@ -124,15 +124,15 @@ async def test_configure_service_name_pin(tracer, test_spans):
 
     # override the tracer on the default sync client
     # DEV: `httpx.get` will call `with Client() as client: client.get()`
-    Pin.override(httpx.Client, tracer=tracer)
+    Pin._override(httpx.Client, tracer=tracer)
 
     # sync client
     client = httpx.Client()
-    Pin.override(client, service="sync-client", tracer=tracer)
+    Pin._override(client, service="sync-client", tracer=tracer)
 
     # async client
     async_client = httpx.AsyncClient()
-    Pin.override(async_client, service="async-client", tracer=tracer)
+    Pin._override(async_client, service="async-client", tracer=tracer)
 
     resp = httpx.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200

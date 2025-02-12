@@ -5,10 +5,10 @@ import time
 import mock
 import pytest
 
-from ddtrace._trace.span import Span
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
+from ddtrace.trace import Span
 from tests.llmobs._utils import DummyEvaluator
 from tests.llmobs._utils import _dummy_evaluator_eval_metric_event
 from tests.utils import override_env
@@ -18,45 +18,73 @@ from tests.utils import override_global_config
 DUMMY_SPAN = Span("dummy_span")
 
 
-def test_evaluator_runner_start(mock_evaluator_logs):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
-    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
+@pytest.fixture
+def active_evaluator_runner(llmobs):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
     evaluator_runner.start()
+    yield evaluator_runner
+
+
+def test_evaluator_runner_start(mock_evaluator_logs, active_evaluator_runner):
     mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
-def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
+def test_evaluator_runner_buffer_limit(mock_evaluator_logs, active_evaluator_runner):
     for _ in range(1001):
-        evaluator_runner.enqueue({}, DUMMY_SPAN)
+        active_evaluator_runner.enqueue({}, DUMMY_SPAN)
     mock_evaluator_logs.warning.assert_called_with(
         "%r event buffer full (limit is %d), dropping event", "EvaluatorRunner", 1000
     )
 
 
-def test_evaluator_runner_periodic_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
-    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
-    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
-    evaluator_runner.periodic()
+def test_evaluator_runner_periodic_enqueues_eval_metric(mock_llmobs_eval_metric_writer, active_evaluator_runner):
+    active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
+    active_evaluator_runner.periodic()
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )
 
 
-@pytest.mark.vcr_logs
-def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer):
-    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
-    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=llmobs))
+def test_evaluator_runner_stopped_does_not_enqueue_metric(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.1, llmobs_service=llmobs)
     evaluator_runner.start()
-
     evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
+    assert not evaluator_runner._buffer
+    assert mock_llmobs_eval_metric_writer.enqueue.call_count == 0
+
+
+def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer, active_evaluator_runner):
+    active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
 
     time.sleep(0.1)
 
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )
+
+
+@pytest.mark.vcr_logs
+def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_writer):
+    evaluator_runner = EvaluatorRunner(interval=0.01, llmobs_service=llmobs)
+    evaluator_runner.evaluators += [
+        DummyEvaluator(llmobs_service=llmobs, label="1"),
+        DummyEvaluator(llmobs_service=llmobs, label="2"),
+        DummyEvaluator(llmobs_service=llmobs, label="3"),
+    ]
+    evaluator_runner.start()
+
+    evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
+
+    time.sleep(0.1)
+
+    calls = [call[0][0] for call in mock_llmobs_eval_metric_writer.enqueue.call_args_list]
+    sorted_calls = sorted(calls, key=lambda x: x["label"])
+    assert sorted_calls == [
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="1"),
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="2"),
+        _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234", label="3"),
+    ]
 
 
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
@@ -92,7 +120,7 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
 
 
 def test_evaluator_runner_unsupported_evaluator():
-    with override_env({"_DD_LLMOBS_EVALUATORS": "unsupported"}):
+    with override_env({EvaluatorRunner.EVALUATORS_ENV_VAR: "unsupported"}):
         with pytest.raises(ValueError):
             EvaluatorRunner(interval=0.01, llmobs_service=mock.MagicMock())
 

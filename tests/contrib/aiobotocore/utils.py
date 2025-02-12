@@ -3,7 +3,7 @@ from async_generator import async_generator
 from async_generator import asynccontextmanager
 from async_generator import yield_
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 
 
 LOCALSTACK_ENDPOINT_URL = {
@@ -42,11 +42,11 @@ async def aiobotocore_client(service, tracer):
         client, aiobotocore.session.ClientCreatorContext
     ):
         async with client as client:
-            Pin.override(client, tracer=tracer)
+            Pin._override(client, tracer=tracer)
             await yield_(client)
 
     else:
-        Pin.override(client, tracer=tracer)
+        Pin._override(client, tracer=tracer)
         try:
             await yield_(client)
         finally:

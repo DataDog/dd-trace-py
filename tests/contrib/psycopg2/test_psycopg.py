@@ -7,11 +7,11 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.trace import Pin
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -49,7 +49,7 @@ class PsycopgCore(TracerTestCase):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
-            pin.clone(service=service, tracer=self.tracer).onto(conn)
+            pin._clone(service=service, tracer=self.tracer).onto(conn)
 
         return conn
 
@@ -146,7 +146,7 @@ class PsycopgCore(TracerTestCase):
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg2.connect(" ".join(configs_arr))
 
-        Pin.get_from(conn).clone(service="postgres", tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
 
     def test_opentracing_propagation(self):

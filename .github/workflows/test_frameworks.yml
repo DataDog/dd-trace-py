@@ -25,7 +25,7 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - id: run_needed
@@ -66,21 +66,22 @@ jobs:
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
 
     defaults:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.9'
-      - uses: actions/checkout@v4
+          python-version: '3.10'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
           persist-credentials: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -102,7 +103,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
-      - name: Run tests
+      - name: Run Debugger exloration tests
         if: needs.needs-run.outputs.outcome == 'success'
         # Disable all test_simple tests because they check for
         # log output and it contains phony error messages.
@@ -110,6 +111,14 @@ jobs:
       - name: Debugger exploration result
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+      - name: Run Bytecode injection tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        # Disable all test_simple tests because they check for
+        # log output and it contains phony error messages.
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/injection/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      - name: Bytecode injection result
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   django-testsuite:
     strategy:
@@ -164,25 +173,25 @@ jobs:
       DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: django/django
           ref: 5.0.7
           path: django
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.11"
@@ -225,14 +234,23 @@ jobs:
           sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
           sed -i'' 's/test_aauthenticate_sensitive_variables/aauthenticate_sensitive_variables/' tests/auth_tests/test_auth_backends.py
 
-      - name: Run tests
+      - name: Run Debugger Exploration tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
 
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+
+      - name: Run Bytecode injection tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/injection/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   graphene-testsuite-3_0:
     strategy:
@@ -268,12 +286,12 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -282,7 +300,7 @@ jobs:
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
           ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
           path: graphene
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.9"
@@ -334,27 +352,28 @@ jobs:
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
     defaults:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.9'
-      - uses: actions/checkout@v4
+          python-version: '3.10'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@v4.1.2
+      - uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
         if: needs.needs-run.outputs.outcome == 'success'
         id: cache
         with:
@@ -366,13 +385,20 @@ jobs:
       - name: Inject ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
-      - name: Test
+      - name: Debugger exploration Test
         if: needs.needs-run.outputs.outcome == 'success'
         # https://github.com/tiangolo/fastapi/pull/10876
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+      - name: Bytecode injection Test
+        if: needs.needs-run.outputs.outcome == 'success'
+        # https://github.com/tiangolo/fastapi/pull/10876
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/injection/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   flask-testsuite:
     strategy:
@@ -409,19 +435,19 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: pallets/flask
           ref: 3.0.3
           path: flask
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -461,19 +487,19 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
@@ -535,19 +561,19 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: sqlalchemy/mako
           ref: rel_1_3_5
           path: mako
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -603,16 +629,16 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -670,16 +696,16 @@ jobs:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -739,16 +765,16 @@ jobs:
       run:
         working-directory: asyncpg
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -796,16 +822,16 @@ jobs:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -855,16 +881,16 @@ jobs:
       run:
         working-directory: uwsgi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
