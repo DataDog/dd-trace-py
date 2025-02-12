@@ -2754,11 +2754,9 @@ venv = Venv(
                 # Python 3.8
                 Venv(
                     pys=["3.8"],
-                    pkgs={
-                        "greenlet": "==3.1.0",
-                        # Avoid a segfault on Python 3.8
-                        "zope.interface": "<7.1",
-                    },
+                    pkgs={"greenlet": "==3.1.0"},
+                    # Avoid a segfault with zope.interface on Python 3.8
+                    env={"PURE_PYTHON": "1"},
                 ),
                 # Python 3.9-3.12
                 Venv(
