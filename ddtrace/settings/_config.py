@@ -194,6 +194,8 @@ INTEGRATION_CONFIGS = frozenset(
         "mysql",
         "grpc_server",
         "grpc_client",
+        "grpc_aio_client",
+        "grpc_aio_server",
     }
 )
 
@@ -757,7 +759,7 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._integration_config.keys())
+        integrations = ", ".join(self._integration_configs.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
     def _subscribe(self, items, handler):

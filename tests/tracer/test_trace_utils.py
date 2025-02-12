@@ -282,11 +282,12 @@ def test_int_service_integration(int_config, tracer):
 
     with override_global_config(dict(service="global-svc")):
         # ensure int config picks up overridden changes
-        int_config = config
+        config.myint = int_config.myint
+        config.myint.global_config = config
 
-        assert trace_utils.int_service(pin, int_config.myint) == "global-svc"
+        assert trace_utils.int_service(pin, config.myint) == "global-svc"
 
-        with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
+        with tracer.trace("something", service=trace_utils.int_service(pin, config.myint)) as s:
             assert s.service == "global-svc"
 
 
@@ -1035,12 +1036,13 @@ def test_url_in_http_with_empty_obfuscation_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
+    from ddtrace.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     assert config._obfuscation_query_string_pattern.pattern == b"", config._obfuscation_query_string_pattern
 
     SENSITIVE_URL = "http://weblog:7777/?application_key=123"
-    config._add("myint", dict())
+    config.myint = IntegrationConfig(config, "myint")
     with tracer.trace("s") as span:
         set_http_meta(
             span,
@@ -1060,6 +1062,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import http
+    from ddtrace.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
     # assert obfuscation is disabled when the regex is an empty string
@@ -1069,7 +1072,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
     # Enable obfucation with an empty regex
     config._global_query_string_obfuscation_disabled = False
 
-    config._add("myint", dict())
+    config.myint = IntegrationConfig(config, "myint")
     with tracer.trace("s") as span:
         set_http_meta(
             span,
@@ -1162,10 +1165,10 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
     REDACTED_URL = BASE_URL + "?" + REDACTED_QS + "#" + FRAGMENT
     STRIPPED_URL = BASE_URL + "#" + FRAGMENT
 
-    int_config.http_tag_query_string = False
+    int_config.myint.http_tag_query_string = False
     trace_utils.set_http_meta(
         span,
-        int_config,
+        int_config.myint,
         method="GET",
         url=SENSITIVE_URL,
         query=SENSITIVE_QS,
@@ -1173,10 +1176,10 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
     )
     assert span.get_tag(http.URL) == STRIPPED_URL
 
-    int_config.http_tag_query_string = True
+    int_config.myint.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
-        int_config,
+        int_config.myint,
         method="GET",
         url=SENSITIVE_URL,
         query=SENSITIVE_QS,
@@ -1191,10 +1194,10 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
     EMPTY_QS = ""
     NONE_QS = None
 
-    int_config.http_tag_query_string = True
+    int_config.myint.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
-        int_config,
+        int_config.myint,
         method="GET",
         url=URL,
         status_code=200,
@@ -1204,7 +1207,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
 
     trace_utils.set_http_meta(
         span,
-        int_config,
+        int_config.myint,
         method="GET",
         url=URL,
         query=EMPTY_QS,
@@ -1215,7 +1218,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
 
     trace_utils.set_http_meta(
         span,
-        int_config,
+        int_config.myint,
         method="GET",
         url=URL,
         query=NONE_QS,
