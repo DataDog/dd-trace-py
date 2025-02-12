@@ -20,6 +20,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import mongo as mongox
 from ddtrace.ext import net as netx
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
@@ -226,7 +227,9 @@ def _trace_socket_command(func, args, kwargs):
         return func(*args, **kwargs)
 
     cmd.db = dbname
-    with _trace_cmd(cmd, socket_instance, socket_instance.address):
+    with _trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        # dispatch DBM
+        s, args, kwargs = _dbm_dispatch(s, args, kwargs)
         return func(*args, **kwargs)
 
 
@@ -245,10 +248,19 @@ def _trace_socket_write_command(func, args, kwargs):
         return func(*args, **kwargs)
 
     with _trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        s, args, kwargs = _dbm_dispatch(s, args, kwargs)
         result = func(*args, **kwargs)
         if result:
             s.set_metric(db.ROWCOUNT, result.get("n", -1))
         return result
+
+
+def _dbm_dispatch(span, args, kwargs):
+    # dispatch DBM
+    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
+    if result:
+        span, args, kwargs = result.value
+    return span, args, kwargs
 
 
 def _trace_cmd(cmd, socket_instance, address):
