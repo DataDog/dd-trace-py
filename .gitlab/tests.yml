@@ -58,13 +58,17 @@ build_base_venvs:
     matrix:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    PIP_VERBOSE: 1
-    DD_PROFILING_NATIVE_TESTS: 1
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '1'
+    DD_PROFILING_NATIVE_TESTS: '1'
+    DD_USE_SCCACHE: '1'
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    SCCACHE_PATH: '${CI_PROJECT_DIR}/.cache/sccache'
   script: |
     if [ ! -f cache_used.txt ];
     then
       echo "No cache found, building native extensions and base venv"
+      apt update && apt install -y sccache
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
       touch cache_used.txt
@@ -72,6 +76,9 @@ build_base_venvs:
       echo "Skipping build, using compiled files/venv from cache"
     fi
   cache:
+    - key: $CI_JOB_NAME
+      paths:
+        - .cache/
     - key:
         prefix: $CI_JOB_NAME
         files:
