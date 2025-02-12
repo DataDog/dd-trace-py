@@ -164,6 +164,7 @@ def override_global_config(values):
         "_llmobs_agentless_enabled",
         "_llmobs_auto_span_linking_enabled",
         "_data_streams_enabled",
+        "_inferred_proxy_services_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
