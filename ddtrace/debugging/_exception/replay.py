@@ -10,6 +10,7 @@ import uuid
 
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -194,6 +195,9 @@ def can_capture(span: Span) -> bool:
         return True
 
     if info_captured is None:
+        if Session.from_trace():
+            # If we are in a debug session we always capture
+            return True
         result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
         root.set_tag_str(CAPTURE_TRACE_TAG, str(result).lower())
         return result
