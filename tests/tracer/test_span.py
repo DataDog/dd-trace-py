@@ -827,6 +827,23 @@ def test_manual_context_usage():
     assert span2.context.sampling_priority == 1
     assert span1.context.sampling_priority == 1
 
+def test_set_exc_info_with_str_override():
+    span = Span("span")
+    class CustomException(Exception):
+        def __str__(self):
+            raise Exception("A custom exception")
+
+    try:
+       raise CustomException()
+    except Exception:
+       type_, value_, traceback_ = sys.exc_info()
+       span.set_exc_info(type_, value_, traceback_)
+
+    span.finish()
+    assert span.get_tag(ERROR_MSG) == "CustomException"
+    assert span.get_tag(ERROR_STACK) is not None
+    assert span.get_tag(ERROR_TYPE) == "tests.tracer.test_span.CustomException"
+
 
 def test_set_exc_info_with_systemexit():
     def get_exception_span():
