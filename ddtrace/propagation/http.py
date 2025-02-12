@@ -101,7 +101,7 @@ _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
 _POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
 _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
-
+_POSSIBLE_HTTP_BAGGAGE_PREFIX = _possible_header(_HTTP_BAGGAGE_PREFIX)
 
 # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
 # Future proofing: The traceparent spec is additive, future traceparent versions may contain more than 4 values
@@ -132,8 +132,9 @@ def _extract_header_value(possible_header_names, headers, default=None):
 def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
-            if key[: len(_HTTP_BAGGAGE_PREFIX)] == _HTTP_BAGGAGE_PREFIX:
-                context.set_baggage_item(key[len(_HTTP_BAGGAGE_PREFIX) :], value)
+            for possible_prefix in _POSSIBLE_HTTP_BAGGAGE_PREFIX:
+                if key.startswith(possible_prefix):
+                    context.set_baggage_item(key[len(possible_prefix) :], value)
 
 
 def _hex_id_to_dd_id(hex_id):

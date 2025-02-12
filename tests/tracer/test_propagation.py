@@ -3306,3 +3306,18 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 def test_http_propagator_baggage_extract(headers):
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
+)
+def test_opentracer_propagator_baggage_extract():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "http_ot_baggage_key1": "value1",
+    }
+    context = HTTPPropagator.extract(headers)
+    assert context._baggage == {"key1": "value1"}
