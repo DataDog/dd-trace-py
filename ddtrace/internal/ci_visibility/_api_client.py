@@ -96,12 +96,16 @@ class EarlyFlakeDetectionSettings:
 class TestManagementSettings:
     enabled: bool = False
 
+    __test__ = False
+
 
 @dataclasses.dataclass(frozen=True)
 class TestProperties:
     quarantined: bool = False
     disabled: bool = False
     attempt_to_fix: bool = False
+
+    __test__ = False
 
 
 @dataclasses.dataclass(frozen=True)
