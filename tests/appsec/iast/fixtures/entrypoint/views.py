@@ -3,9 +3,9 @@ from flask import Flask
 
 def add_test():
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._context import create_context
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import create_context
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     string_to_taint = "abc"
     create_context()

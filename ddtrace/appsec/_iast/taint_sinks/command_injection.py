@@ -3,19 +3,17 @@ import subprocess  # nosec
 from typing import List
 from typing import Union
 
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._common_module_patches import try_unwrap
+from ..._constants import IAST_SPAN_TAGS
+from .. import oce
+from .._iast_request_context import is_iast_request_enabled
+from .._metrics import _set_metric_iast_instrumented_sink
+from .._metrics import increment_iast_span_metric
+from .._patch import try_wrap_function_wrapper
+from ..constants import VULN_CMDI
 from ._base import VulnerabilityBase
 
 
@@ -77,11 +75,13 @@ class CommandInjection(VulnerabilityBase):
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
+    from .._metrics import _set_metric_iast_executed_sink
 
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
 
     if is_iast_request_enabled() and CommandInjection.has_quota():
+        from .._taint_tracking import is_pyobject_tainted
         from .._taint_tracking.aspects import join_aspect
 
         if isinstance(shell_args, (list, tuple)):

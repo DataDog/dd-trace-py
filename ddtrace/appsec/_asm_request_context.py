@@ -16,12 +16,6 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast._taint_utils import taint_structure
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import add_context_log
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -494,8 +488,13 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    from ddtrace.appsec._iast._utils import _is_iast_enabled
 
     if _is_iast_enabled() and kwargs:
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
         if not is_iast_request_enabled():
             return return_value
 
@@ -512,6 +511,11 @@ def _on_set_request_tags(request, span, flask_config):
     from ddtrace.appsec._iast._utils import _is_iast_enabled
 
     if _is_iast_enabled():
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_utils import taint_structure
+
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
         _set_metric_iast_instrumented_source(OriginType.COOKIE)
 

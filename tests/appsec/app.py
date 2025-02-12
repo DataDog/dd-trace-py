@@ -239,7 +239,7 @@ def iast_ast_patching_io_bytes_io_untainted():
         changed = BytesIO(bytes_filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -270,7 +270,7 @@ def iast_ast_patching_io_string_io_untainted():
         changed = StringIO(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -302,7 +302,7 @@ def iast_ast_patching_io_bytes_io_read_untainted():
         changed = BytesIO(bytes_filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not is_pyobject_tainted(changed.read(4)):
             resp = Response("OK")
@@ -333,7 +333,7 @@ def iast_ast_patching_io_string_io_read_untainted():
         changed = StringIO(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not is_pyobject_tainted(changed.read(4)):
             resp = Response("OK")
@@ -365,7 +365,7 @@ def iast_ast_patching_io_bytes_io():
         changed = BytesIO(bytes_filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -396,7 +396,7 @@ def iast_ast_patching_io_string_io():
         changed = StringIO(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -428,7 +428,7 @@ def iast_ast_patching_io_bytes_io_read():
         changed = BytesIO(bytes_filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed.read(4)):
             resp = Response("OK")
@@ -459,7 +459,7 @@ def iast_ast_patching_io_string_io_read():
         changed = StringIO(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed.read(4)):
             resp = Response("OK")
@@ -479,7 +479,7 @@ def iast_ast_patching_re_sub():
         changed = pattern.sub(" ", filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -501,7 +501,7 @@ def iast_ast_patching_non_re_sub():
         changed = pattern.sub(" ", filename)
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("Fail")
@@ -521,7 +521,7 @@ def iast_ast_patching_re_subn():
         changed, number = pattern.subn(" ", filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("OK")
@@ -543,7 +543,7 @@ def iast_ast_patching_non_re_subn():
         changed, number = pattern.subn(" ", filename)
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if is_pyobject_tainted(changed):
             resp = Response("Fail")
@@ -563,7 +563,7 @@ def iast_ast_patching_re_split():
         result = pattern.split(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -585,7 +585,7 @@ def iast_ast_patching_non_re_split():
         result = pattern.split(filename)
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
@@ -605,7 +605,7 @@ def iast_ast_patching_re_findall():
         result = pattern.findall(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -627,7 +627,7 @@ def iast_ast_patching_non_re_findall():
         result = pattern.findall(filename)
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
@@ -647,7 +647,7 @@ def iast_ast_patching_re_finditer():
         result = pattern.finditer(filename)
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -669,7 +669,7 @@ def iast_ast_patching_non_re_finditer():
         result = pattern.finditer(filename)
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
@@ -697,7 +697,7 @@ def iast_ast_patching_re_groups():
             result = []
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if result and all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -727,7 +727,7 @@ def iast_ast_patching_non_re_groups():
             result = []
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not result or any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
@@ -755,7 +755,7 @@ def iast_ast_patching_re_string():
             result = None
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if result and is_pyobject_tainted(result):
             resp = Response("OK")
@@ -785,7 +785,7 @@ def iast_ast_patching_non_re_string():
             result = None
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not result or is_pyobject_tainted(result):
             resp = Response("Fail")
@@ -813,7 +813,7 @@ def iast_ast_patching_re_fullmatch():
             result = []
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if result and all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -843,7 +843,7 @@ def iast_ast_patching_non_re_fullmatch():
             result = []
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not result or any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")
@@ -871,7 +871,7 @@ def iast_ast_patching_re_expand():
             result = None
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if result and is_pyobject_tainted(result):
             resp = Response("OK")
@@ -901,7 +901,7 @@ def iast_ast_patching_non_re_expand():
             result = None
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not result or is_pyobject_tainted(result):
             resp = Response("Fail")
@@ -929,7 +929,7 @@ def iast_ast_patching_re_search():
             result = []
     resp = Response("Fail")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if result and all(map(is_pyobject_tainted, result)):
             resp = Response("OK")
@@ -959,7 +959,7 @@ def iast_ast_patching_non_re_search():
             result = []
     resp = Response("OK")
     try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 
         if not result or any(map(is_pyobject_tainted, result)):
             resp = Response("Fail")

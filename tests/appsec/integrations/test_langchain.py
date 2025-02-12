@@ -14,7 +14,7 @@ FIXTURES_MODULE = "tests.appsec.integrations.fixtures.patch_langchain"
 
 with override_env({"DD_IAST_ENABLED": "True"}):
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
 
 @pytest.mark.skipif(not is_module_installed("langchain"), reason="Langchain tests work on 3.9 or higher")

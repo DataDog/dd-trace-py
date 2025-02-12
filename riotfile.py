@@ -806,7 +806,6 @@ venv = Venv(
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
-                "bcrypt": "==4.2.1",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
