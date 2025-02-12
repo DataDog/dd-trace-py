@@ -52,6 +52,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.settings._config import _JSONType
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -60,7 +61,9 @@ _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, Any]] = None, time_unix_nano: Optional[int] = None):
+    def __init__(
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
+    ):
         self.name: str = name
         if attributes is None:
             self.attributes = {}
@@ -79,19 +82,10 @@ class SpanEvent:
     def __str__(self):
         """
         Stringify and return value.
-        Attribute value can be either str, bool, int/float, list.
+        Attribute value can be either str, bool, int, float, or a list of these.
         """
 
-        def format_value(value: Any) -> str:
-            if isinstance(value, list):
-                return f"[{' '.join(map(str, value))}]"
-            return str(value)
-
-        if not self.attributes:
-            attrs_str = "None"
-        else:
-            attrs_str = ",".join(f"{k}:{format_value(v)}" for k, v in self.attributes.items())
-
+        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
 
@@ -490,7 +484,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, Any]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
         """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
@@ -596,7 +590,7 @@ class Span(object):
     def _local_root(self) -> None:
         del self._local_root_value
 
-    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
+    def link_span(self, context: Context, attributes: Optional[Dict[str, _JSONType]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
             msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
@@ -620,7 +614,7 @@ class Span(object):
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: Optional[Dict[str, _JSONType]] = None,
     ) -> None:
         if attributes is None:
             attributes = dict()
@@ -640,7 +634,7 @@ class Span(object):
         pointer_kind: str,
         pointer_direction: _SpanPointerDirection,
         pointer_hash: str,
-        extra_attributes: Optional[Dict[str, Any]] = None,
+        extra_attributes: Optional[Dict[str, _JSONType]] = None,
     ) -> None:
         # This is a Private API for now.
 
