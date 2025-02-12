@@ -169,7 +169,7 @@ _DBM_STANDARD_EVENTS = {
     "mysqldb.execute",
     "psycopg.execute",
     "pymysql.execute",
-    "pymongo.cmd",
+    "pymongo.execute",
 }
 
 
