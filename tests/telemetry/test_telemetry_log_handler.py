@@ -28,7 +28,7 @@ def error_record():
         msg="Test error message %s",
         args=("arg1",),
         exc_info=None,
-        filename="test.py"
+        filename="test.py",
     )
 
 
@@ -51,10 +51,7 @@ def test_emit_error_level(handler, error_record):
     handler.emit(error_record)
 
     handler.telemetry_writer.add_error.assert_called_once_with(
-        1,
-        "Test error message arg1",
-        os.path.join("/path/to", "test.py"),
-        42
+        1, "Test error message arg1", os.path.join("/path/to", "test.py"), 42
     )
 
 
@@ -68,7 +65,7 @@ def test_emit_ddtrace_contrib_error(handler, exc_info):
         msg="Test error message",
         args=(),
         exc_info=exc_info,
-        filename="test.py"
+        filename="test.py",
     )
 
     handler.emit(record)
@@ -82,11 +79,14 @@ def test_emit_ddtrace_contrib_error(handler, exc_info):
     assert "ValueError: Test exception" in args[3]
 
 
-@pytest.mark.parametrize("level,expected_telemetry_level", [
-    (logging.WARNING, TELEMETRY_LOG_LEVEL.WARNING),
-    (logging.INFO, TELEMETRY_LOG_LEVEL.DEBUG),
-    (logging.DEBUG, TELEMETRY_LOG_LEVEL.DEBUG),
-])
+@pytest.mark.parametrize(
+    "level,expected_telemetry_level",
+    [
+        (logging.WARNING, TELEMETRY_LOG_LEVEL.WARNING),
+        (logging.INFO, TELEMETRY_LOG_LEVEL.DEBUG),
+        (logging.DEBUG, TELEMETRY_LOG_LEVEL.DEBUG),
+    ],
+)
 def test_emit_ddtrace_contrib_levels(handler, level, expected_telemetry_level, exc_info):
     """Test handling of ddtrace.contrib logs at different levels"""
     record = logging.LogRecord(
@@ -97,7 +97,7 @@ def test_emit_ddtrace_contrib_levels(handler, level, expected_telemetry_level, e
         msg="Test message",
         args=(),
         exc_info=exc_info,
-        filename="test.py"
+        filename="test.py",
     )
 
     handler.emit(record)
@@ -116,7 +116,7 @@ def test_emit_ddtrace_contrib_no_stack_trace(handler):
         msg="Test warning message",
         args=(),
         exc_info=None,
-        filename="test.py"
+        filename="test.py",
     )
 
     handler.emit(record)
@@ -134,12 +134,15 @@ def test_format_stack_trace_redaction(handler, exc_info):
     assert "<REDACTED>" in formatted_trace
 
 
-@pytest.mark.parametrize("filename,should_redact", [
-    ("/path/to/file.py", True),
-    ("/path/to/ddtrace/file.py", False),
-    ("/usr/local/lib/python3.8/site-packages/ddtrace/core.py", False),
-    ("/random/path/test.py", True),
-])
+@pytest.mark.parametrize(
+    "filename,should_redact",
+    [
+        ("/path/to/file.py", True),
+        ("/path/to/ddtrace/file.py", False),
+        ("/usr/local/lib/python3.8/site-packages/ddtrace/core.py", False),
+        ("/random/path/test.py", True),
+    ],
+)
 def test_should_redact(handler, filename, should_redact):
     """Test file redaction logic"""
     assert handler._should_redact(filename) == should_redact
@@ -147,7 +150,6 @@ def test_should_redact(handler, filename, should_redact):
 
 def test_format_file_path_value_error(handler):
     """Test file path formatting when relpath raises ValueError"""
-    with patch('os.path.relpath', side_effect=ValueError):
+    with patch("os.path.relpath", side_effect=ValueError):
         filename = "/some/path/file.py"
         assert handler._format_file_path(filename) == filename
-
