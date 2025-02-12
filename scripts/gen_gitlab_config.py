@@ -177,7 +177,8 @@ def gen_build_base_venvs() -> None:
     native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
 
     with TESTS_GEN.open("a") as f:
-        f.write(f"""
+        f.write(
+            f"""
 build_base_venvs:
   extends: .testrunner
   stage: riot
@@ -205,7 +206,8 @@ build_base_venvs:
       echo "Fixing ddtrace versions"
       pip install "setuptools_scm[toml]>=4"
       ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
+      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
+        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
   cache:
@@ -229,7 +231,8 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
-        """)
+        """
+        )
 
 
 # -----------------------------------------------------------------------------
