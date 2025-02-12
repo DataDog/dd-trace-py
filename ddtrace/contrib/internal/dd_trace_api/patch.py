@@ -92,19 +92,17 @@ def patch(tracer=None):
         return
     _STUB_TO_REAL[dd_trace_api.tracer] = tracer
 
-    @when_imported("dd_trace_api")
-    def _(m):
-        DDTraceAPIWrappingContextBase(m.Tracer.start_span).wrap()
-        DDTraceAPIWrappingContextBase(m.Tracer.trace).wrap()
-        DDTraceAPIWrappingContextBase(m.Tracer.current_span).wrap()
-        DDTraceAPIWrappingContextBase(m.Tracer.current_root_span).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.finish).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.set_exc_info).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.finish_with_ancestors).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.set_tags).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.set_traceback).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.__enter__).wrap()
-        DDTraceAPIWrappingContextBase(m.Span.__exit__).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Tracer.start_span).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Tracer.trace).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Tracer.current_span).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Tracer.current_root_span).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.finish).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.set_exc_info).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.finish_with_ancestors).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.set_tags).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.set_traceback).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.__enter__).wrap()
+    DDTraceAPIWrappingContextBase(dd_trace_api.Span.__exit__).wrap()
 
     dd_trace_api.__datadog_patch = True
 

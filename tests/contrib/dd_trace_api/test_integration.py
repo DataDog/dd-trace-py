@@ -2,6 +2,7 @@ import sys
 from typing import Any
 
 import dd_trace_api
+import pytest
 
 from ddtrace._trace.span import Span as dd_span_class
 from ddtrace.contrib.internal.dd_trace_api.patch import patch
@@ -33,34 +34,40 @@ class DDTraceAPITestCase(TracerTestCase):
     def test_tracer_singleton(self):
         assert isinstance(dd_trace_api.tracer, dd_trace_api.Tracer), "Tracer stub should be exposed as a singleton"
 
+    @pytest.mark.snapshot()
     def test_start_span(self):
         with dd_trace_api.tracer.start_span("web.request") as span:
             self._assert_span_stub(span)
         self._assert_real_spans()
 
+    @pytest.mark.snapshot()
     def test_span_finish(self):
         span = dd_trace_api.tracer.start_span("web.request")
         self._assert_span_stub(span)
         span.finish()
         self._assert_real_spans()
 
+    @pytest.mark.snapshot()
     def test_span_finish_with_ancestors(self):
         span = dd_trace_api.tracer.start_span("web.request")
         child_span = dd_trace_api.tracer.start_span("web.request", child_of=span)
         child_span.finish_with_ancestors()
         self._assert_real_spans(2)
 
+    @pytest.mark.snapshot()
     def test_trace(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             self._assert_span_stub(span)
         self._assert_real_spans()
 
+    @pytest.mark.snapshot()
     def test_current_span(self):
         with dd_trace_api.tracer.trace("web.request"):
             span = dd_trace_api.tracer.current_span()
             self._assert_span_stub(span)
         self._assert_real_spans()
 
+    @pytest.mark.snapshot()
     def test_current_root_span(self):
         with dd_trace_api.tracer.trace("web.request"):
             span = dd_trace_api.tracer.current_root_span()
@@ -70,6 +77,7 @@ class DDTraceAPITestCase(TracerTestCase):
                 self._assert_span_stub(root_from_nested)
         self._assert_real_spans(2)
 
+    @pytest.mark.snapshot()
     def test_wrap(self):
         @dd_trace_api.tracer.wrap()
         def foo():
@@ -79,6 +87,7 @@ class DDTraceAPITestCase(TracerTestCase):
         assert result == 2
         self._assert_real_spans()
 
+    @pytest.mark.snapshot()
     def test_set_traceback(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             try:
@@ -88,6 +97,7 @@ class DDTraceAPITestCase(TracerTestCase):
         spans = self._assert_real_spans()
         assert "error.stack" in spans[0]._meta
 
+    @pytest.mark.snapshot()
     def test_set_exc_info(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             try:
@@ -99,6 +109,7 @@ class DDTraceAPITestCase(TracerTestCase):
         assert "error.stack" in spans[0]._meta
         assert "error.type" in spans[0]._meta
 
+    @pytest.mark.snapshot()
     def test_set_tags(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             span.set_tags({"tag1": "value1", "tag2": "value2"})

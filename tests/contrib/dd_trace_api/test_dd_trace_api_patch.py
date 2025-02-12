@@ -21,11 +21,11 @@ class TestDDTraceAPIPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    def assert_module_patched(self, requests):
+    def assert_module_patched(self, dd_trace_api):
         pass
 
-    def assert_not_module_patched(self, requests):
+    def assert_not_module_patched(self, dd_trace_api):
         pass
 
-    def assert_not_module_double_patched(self, requests):
+    def assert_not_module_double_patched(self, dd_trace_api):
         pass
