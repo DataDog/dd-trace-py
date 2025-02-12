@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -128,7 +129,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if metadata:
-            span._set_ctx_item(METADATA, metadata)
+            core.set_item(METADATA, metadata)
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
@@ -146,7 +147,7 @@ class LangChainIntegration(BaseLLMIntegration):
         else:
             input_messages = [{"content": str(prompt)} for prompt in prompts]
 
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "llm",
                 MODEL_NAME: span.get_tag(MODEL) or "",
@@ -156,7 +157,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [{"content": ""}])
+            core.set_item(output_tag_key, [{"content": ""}])
             return
         if stream:
             message_content = [{"content": completions}]  # single completion for streams
@@ -170,8 +171,8 @@ class LangChainIntegration(BaseLLMIntegration):
                         OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                         TOTAL_TOKENS_METRIC_KEY: total_tokens,
                     }
-                    span._set_ctx_item(METRICS, metrics)
-        span._set_ctx_item(output_tag_key, message_content)
+                    core.set_item(METRICS, metrics)
+        core.set_item(output_tag_key, message_content)
 
     def _llmobs_set_tags_from_chat_model(
         self,
@@ -181,7 +182,7 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "llm",
                 MODEL_NAME: span.get_tag(MODEL) or "",
@@ -207,17 +208,17 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
                     input_messages.append({"content": str(content), "role": str(role)})
-        span._set_ctx_item(input_tag_key, input_messages)
+        core.set_item(input_tag_key, input_messages)
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [{"content": ""}])
+            core.set_item(output_tag_key, [{"content": ""}])
             return
 
         output_messages = []
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
-            span._set_ctx_item(output_tag_key, [{"content": content, "role": ROLE_MAPPING.get(role, "")}])
+            core.set_item(output_tag_key, [{"content": content, "role": ROLE_MAPPING.get(role, "")}])
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0
@@ -253,7 +254,7 @@ class LangChainIntegration(BaseLLMIntegration):
             output_tokens = sum(v["output_tokens"] for v in tokens_per_choice_run_id.values())
             total_tokens = sum(v["total_tokens"] for v in tokens_per_choice_run_id.values())
 
-        span._set_ctx_item(output_tag_key, output_messages)
+        core.set_item(output_tag_key, output_messages)
 
         if not is_workflow and total_tokens > 0:
             metrics = {
@@ -261,7 +262,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: total_tokens,
             }
-            span._set_ctx_item(METRICS, metrics)
+            core.set_item(METRICS, metrics)
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""
@@ -315,7 +316,7 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and outputs is not None:
             formatted_outputs = format_langchain_io(outputs)
-        span._set_ctx_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
+        core.set_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
@@ -325,7 +326,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_embedding: Union[List[float], List[List[float]], None],
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "embedding",
                 MODEL_NAME: span.get_tag(MODEL) or "",
@@ -346,16 +347,16 @@ class LangChainIntegration(BaseLLMIntegration):
             ):
                 if is_workflow:
                     formatted_inputs = format_langchain_io(input_texts)
-                    span._set_ctx_item(input_tag_key, formatted_inputs)
+                    core.set_item(input_tag_key, formatted_inputs)
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
                     input_documents = [Document(text=str(doc)) for doc in input_texts]
-                    span._set_ctx_item(input_tag_key, input_documents)
+                    core.set_item(input_tag_key, input_documents)
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
         if span.error or output_embedding is None:
-            span._set_ctx_item(output_tag_key, "")
+            core.set_item(output_tag_key, "")
             return
         try:
             if isinstance(output_embedding[0], float):
@@ -367,7 +368,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 output_values = output_embedding
                 embeddings_count = len(output_embedding)
             embedding_dim = len(output_values[0])
-            span._set_ctx_item(
+            core.set_item(
                 output_tag_key,
                 "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
             )
@@ -382,7 +383,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_documents: Union[List[Any], None],
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "retrieval",
                 MODEL_NAME: span.get_tag(MODEL) or "",
@@ -392,12 +393,12 @@ class LangChainIntegration(BaseLLMIntegration):
         input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
             formatted_inputs = format_langchain_io(input_query)
-            span._set_ctx_item(INPUT_VALUE, formatted_inputs)
+            core.set_item(INPUT_VALUE, formatted_inputs)
         if span.error or not output_documents or not isinstance(output_documents, list):
-            span._set_ctx_item(OUTPUT_VALUE, "")
+            core.set_item(OUTPUT_VALUE, "")
             return
         if is_workflow:
-            span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
+            core.set_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
             return
         documents = []
         for d in output_documents:
@@ -406,9 +407,9 @@ class LangChainIntegration(BaseLLMIntegration):
             metadata = getattr(d, "metadata", {})
             doc["name"] = metadata.get("name", doc["id"])
             documents.append(doc)
-        span._set_ctx_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
+        core.set_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
-        span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
+        core.set_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: Dict[str, Any], tool_output: object) -> None:
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
@@ -423,7 +424,7 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = format_langchain_io(tool_output)
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "tool",
                 METADATA: metadata,

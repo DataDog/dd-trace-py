@@ -5,6 +5,7 @@ import sys
 from typing import Callable
 from typing import Optional
 
+from ddtrace.internal import core
 from ddtrace.internal.compat import iscoroutinefunction
 from ddtrace.internal.compat import isgeneratorfunction
 from ddtrace.internal.logger import get_logger
@@ -192,7 +193,7 @@ def _llmobs_decorator(operation_kind):
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
+                            and core.get_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
@@ -240,7 +241,7 @@ def _llmobs_decorator(operation_kind):
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
+                            and core.get_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp

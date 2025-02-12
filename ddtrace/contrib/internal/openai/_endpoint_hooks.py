@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
+from ddtrace.internal import core
 from ddtrace.internal.utils.version import parse_version
 
 
@@ -248,7 +249,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
                 return
-            span._set_ctx_item("_dd.auto_extract_token_chunk", True)
+            core.set_item("_dd.auto_extract_token_chunk", True)
             stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options

@@ -5,6 +5,7 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -67,7 +68,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
 
-        span._set_ctx_items(
+        core.set_items(
             {
                 SPAN_KIND: "llm",
                 MODEL_NAME: span.get_tag("anthropic.request.model") or "",

@@ -8,6 +8,7 @@ from typing import List
 
 import wrapt
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
 
@@ -87,7 +88,7 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
     def _extract_token_chunk(self, chunk):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not core.get_item("_dd.auto_extract_token_chunk"):
             return
         choices = getattr(chunk, "choices")
         if not choices:
@@ -153,7 +154,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
 
     async def _extract_token_chunk(self, chunk):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not core.get_item("_dd.auto_extract_token_chunk"):
             return
         choices = getattr(chunk, "choices")
         if not choices:

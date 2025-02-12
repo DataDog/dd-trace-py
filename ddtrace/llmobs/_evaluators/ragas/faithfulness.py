@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
@@ -97,7 +98,7 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
         with self.llmobs_service.workflow(
             "dd-ragas.faithfulness", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_faithfulness_workflow:
-            ragas_faithfulness_workflow._set_ctx_item(IS_EVALUATION_SPAN, True)
+            core.set_item(IS_EVALUATION_SPAN, True)
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(
                     span=ragas_faithfulness_workflow
