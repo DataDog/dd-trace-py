@@ -1,7 +1,7 @@
-"""Tests Early Flake Detection (EFD) functionality
+"""Tests Quarantine functionality
 
-The tests in this module only validate the behavior of EFD, so only counts and statuses of tests, retries, and sessions
-are checked.
+The tests in this module only validate the behavior of Quarantine, so only counts and statuses of tests, retries, and
+sessions are checked.
 
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
@@ -12,7 +12,7 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_internal_test_id
@@ -114,7 +114,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=False,
             ),
         ), mock.patch(
@@ -159,7 +159,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
     def test_env_var_disables_quarantine(self):
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
 
-        rec = self.inline_run("--ddtrace", "-q", extra_env={"DD_TEST_QUARANTINE_ENABLED": "0"})
+        rec = self.inline_run("--ddtrace", "-q", extra_env={"DD_TEST_MANAGEMENT_ENABLED": "0"})
 
         assert rec.ret == 1
         assert_stats(rec, quarantined=0, failed=1)
@@ -175,10 +175,10 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=False),
+                test_management=TestManagementSettings(enabled=False),
             ),
         ):
-            rec = self.inline_run("--ddtrace", "-q", extra_env={"DD_TEST_QUARANTINE_ENABLED": "1"})
+            rec = self.inline_run("--ddtrace", "-q", extra_env={"DD_TEST_MANAGEMENT_ENABLED": "1"})
 
         assert rec.ret == 1
         assert_stats(rec, failed=1)
@@ -207,7 +207,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=True,
             ),
         ):
@@ -263,18 +263,18 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session_span.get_tag("test.test_management.enabled") == "true"
 
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
         [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
 
         [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-        assert test_span_fail_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
         assert test_span_fail_quarantined.get_tag("test.status") == "fail"
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "pass"
 
     def test_quarantine_spans_with_atr(self):
@@ -284,7 +284,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=True,
             ),
         ):
@@ -296,7 +296,7 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session_span.get_tag("test.test_management.enabled") == "true"
 
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
@@ -304,13 +304,13 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
 
         test_spans_fail_quarantined = _get_spans_from_list(spans, "test", "test_fail_quarantined")
         assert len(test_spans_fail_quarantined) == 6
-        assert all(span.get_tag("test.quarantine.is_quarantined") == "true" for span in test_spans_fail_quarantined)
+        assert all(span.get_tag("test.management.is_quarantined") == "true" for span in test_spans_fail_quarantined)
         assert all(span.get_tag("test.status") == "fail" for span in test_spans_fail_quarantined)
         assert test_spans_fail_quarantined[0].get_tag("test.is_retry") is None
         assert all(span.get_tag("test.is_retry") for span in test_spans_fail_quarantined[1:])
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "pass"
 
 
@@ -320,7 +320,7 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True, skip_quarantined_tests=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=False,
             ),
         ), mock.patch(
@@ -334,7 +334,7 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_normal=_TEST_PASS_UNQUARANTINED)
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
         self.testdir.makepyfile(test_fail_normal=_TEST_FAIL_UNQUARANTINED)
-        rec = self.inline_run("-q")
+        rec = self.inline_run("-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
         assert rec.ret == 1
         assert_stats(rec, passed=2, failed=2)
         assert len(self.pop_spans()) == 0  # ddtrace disabled, not collecting traces
@@ -343,10 +343,10 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_quarantined=_TEST_PASS_QUARANTINED)
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
 
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
 
         assert rec.ret == 0
-        assert_stats(rec, quarantined=2)
+        assert_stats(rec, skipped=2)
 
         assert len(self.pop_spans()) > 0
 
@@ -356,9 +356,9 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_fail_quarantined=_TEST_FAIL_QUARANTINED)
         self.testdir.makepyfile(test_fail_normal=_TEST_FAIL_UNQUARANTINED)
 
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
         assert rec.ret == 1
-        assert_stats(rec, quarantined=2, passed=1, failed=1)
+        assert_stats(rec, skipped=2, passed=1, failed=1)
 
         assert len(self.pop_spans()) > 0
 
@@ -375,14 +375,14 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True, skip_quarantined_tests=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=atr_enabled,
             ),
         ):
-            rec = self.inline_run("--ddtrace", "-q")
+            rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
 
         assert rec.ret == 0
-        assert_stats(rec, quarantined=1)
+        assert_stats(rec, skipped=1)
 
         outcomes = [(call.report.when, call.report.outcome) for call in rec.getcalls("pytest_report_teststatus")]
         assert outcomes == [
@@ -395,20 +395,20 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
     def test_quarantine_fail_setup(self):
         self.testdir.makepyfile(test_fail_setup_quarantined=_TEST_FAIL_SETUP_QUARANTINED)
 
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
 
         assert rec.ret == 0
-        assert_stats(rec, quarantined=1)
+        assert_stats(rec, skipped=1)
 
         assert len(self.pop_spans()) > 0
 
     def test_quarantine_fail_teardown(self):
         self.testdir.makepyfile(test_fail_teardown_quarantined=_TEST_FAIL_TEARDOWN_QUARANTINED)
 
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
 
         assert rec.ret == 0
-        assert_stats(rec, quarantined=1)
+        assert_stats(rec, skipped=1)
 
         assert len(self.pop_spans()) > 0
 
@@ -428,36 +428,36 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                quarantine=QuarantineSettings(enabled=True, skip_quarantined_tests=True),
+                test_management=TestManagementSettings(enabled=True),
                 flaky_test_retries_enabled=atr_enabled,
             ),
         ):
-            rec = self.inline_run("--ddtrace", "-q")
+            rec = self.inline_run("--ddtrace", "-q", extra_env={"_DD_TEST_SKIP_QUARANTINED_TESTS": "true"})
 
         assert rec.ret == 0
-        assert_stats(rec, quarantined=4)
+        assert_stats(rec, skipped=4)
 
         spans = self.pop_spans()
 
         [session_span] = _get_spans_from_list(spans, "session")
-        assert session_span.get_tag("test_session.quarantine.enabled") == "true"
+        assert session_span.get_tag("test.test_management.enabled") == "true"
 
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span_fail_quarantined] = _get_spans_from_list(spans, "suite", "test_fail_quarantined.py")
         [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
 
         [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-        assert test_span_fail_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
         assert test_span_fail_quarantined.get_tag("test.status") == "skip"
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "skip"
 
         [test_span_fail_setup] = _get_spans_from_list(spans, "test", "test_fail_setup")
-        assert test_span_fail_setup.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_fail_setup.get_tag("test.management.is_quarantined") == "true"
         assert test_span_fail_setup.get_tag("test.status") == "skip"
 
         [test_span_fail_teardown] = _get_spans_from_list(spans, "test", "test_fail_teardown")
-        assert test_span_fail_teardown.get_tag("test.quarantine.is_quarantined") == "true"
+        assert test_span_fail_teardown.get_tag("test.management.is_quarantined") == "true"
         assert test_span_fail_teardown.get_tag("test.status") == "skip"

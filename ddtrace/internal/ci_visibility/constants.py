@@ -83,9 +83,10 @@ CIVISIBILITY_SPAN_TYPE = "ci_visibility"
 # EFD and auto retries
 TEST_IS_NEW = "test.is_new"
 TEST_IS_RETRY = "test.is_retry"
-TEST_IS_QUARANTINED = "test.quarantine.is_quarantined"
+TEST_IS_QUARANTINED = "test.management.is_quarantined"
+TEST_IS_DISABLED = "test.management.is_test_disabled"
 TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
 TEST_EFD_ENABLED = "test.early_flake.enabled"
 TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 
-TEST_SESSION_QUARANTINE_ENABLED = "test_session.quarantine.enabled"
+TEST_SESSION_QUARANTINE_ENABLED = "test.test_management.enabled"

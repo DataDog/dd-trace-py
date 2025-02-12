@@ -87,7 +87,7 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 USER_PROPERTY_QUARANTINED = "dd_quarantined"
 OUTCOME_QUARANTINED = "quarantined"
-SKIPPED_BY_QUARANTINE_REASON = "Skipped by Datadog Quarantine"
+DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -116,17 +116,24 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
-def _handle_quarantine(item, test_id):
+def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
-    if is_quarantined:
+    is_disabled = InternalTest.is_disabled_test(test_id)
+
+    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+        # For internal use: treat quarantined tests as disabled.
+        is_disabled = True
+
+    if is_disabled:
+        # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
+        # It should still have both disabled and quarantined event tags, though.
+        item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+    elif is_quarantined:
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
-
-        if InternalTestSession.should_skip_quarantined_tests():
-            item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_QUARANTINE_REASON))
 
 
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
@@ -340,7 +347,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 
     InternalTest.start(test_id)
 
-    _handle_quarantine(item, test_id)
+    _handle_test_management(item, test_id)
     _handle_itr_should_skip(item, test_id)
 
     item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
