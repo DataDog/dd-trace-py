@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixed an issue where OpenTracer baggage headers with a `wsgi` prefix were not properly recognized. This ensures consistent baggage propagation in WSGI-based environments.
+    baggage: Fixed an issue where `ot-baggage` headers in wsg apps were not properly recognized due to the `http_` header prefix. This ensures consistent baggage propagation in wsgi compatible web frameworks.
