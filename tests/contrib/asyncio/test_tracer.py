@@ -4,9 +4,8 @@ import asyncio
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.asyncio import patch
-from ddtrace.contrib.asyncio import unpatch
-from ddtrace.contrib.asyncio.compat import asyncio_current_task
+from ddtrace.contrib.internal.asyncio.patch import patch
+from ddtrace.contrib.internal.asyncio.patch import unpatch
 
 
 @pytest.fixture(autouse=True)
@@ -61,20 +60,6 @@ async def test_trace_multiple_coroutines(tracer):
 def test_event_loop_exception(tracer):
     # it should handle a loop exception
     asyncio.set_event_loop(None)
-    ctx = tracer.current_trace_context()
-    assert ctx is None
-
-
-def test_context_task_none(tracer):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    # it should handle the case where a Task is not available
-    # Note: the @pytest.mark.asyncio is missing to simulate an execution
-    # without a Task
-    task = asyncio_current_task()
-    # the task is not available
-    assert task is None
-
     ctx = tracer.current_trace_context()
     assert ctx is None
 

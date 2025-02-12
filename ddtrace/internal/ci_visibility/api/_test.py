@@ -5,7 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace.contrib.pytest_benchmark.constants import BENCHMARK_INFO
+from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -21,7 +21,9 @@ from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCove
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
+from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
@@ -55,6 +57,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         is_atr_retry: bool = False,
         resource: Optional[str] = None,
         is_new: bool = False,
+        is_quarantined: bool = False,
     ):
         self._parameters = parameters
         super().__init__(
@@ -74,6 +77,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.PARAMETERS, parameters)
 
         self._is_new = is_new
+        self._is_quarantined = is_quarantined
 
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
@@ -126,6 +130,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
 
+    def _set_quarantine_tags(self) -> None:
+        if self._is_quarantined:
+            self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
+
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
 
@@ -149,6 +157,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             is_new=self.is_new(),
             is_retry=self._efd_is_retry or self._atr_is_retry,
             early_flake_detection_abort_reason=self._efd_abort_reason,
+            is_quarantined=self.is_quarantined(),
             is_rum=self._is_rum(),
             browser_driver=self._get_browser_driver(),
         )
@@ -235,6 +244,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # NOTE: this is a hack because tests with parameters cannot currently be counted as new (due to EFD design
         # decisions)
         return self._is_new and (self._parameters is None)
+
+    def is_quarantined(self):
+        return self._session_settings.quarantine_settings.enabled and (
+            self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
+        )
 
     #
     # EFD (Early Flake Detection) functionality
@@ -360,6 +374,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             codeowners=self._codeowners,
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
+            is_quarantined=self.is_quarantined(),
             is_atr_retry=True,
         )
         retry_test.parent = self.parent
@@ -406,7 +421,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._atr_get_retry_test(retry_number).start()
 
     def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
-        self._atr_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
+        retry_test = self._atr_get_retry_test(retry_number)
+
+        if retry_number >= self._session_settings.atr_settings.max_retries:
+            if self.atr_get_final_status() == TestStatus.FAIL and self.is_quarantined():
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+
+        retry_test.finish_test(status, exc_info=exc_info)
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:

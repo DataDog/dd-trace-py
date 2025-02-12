@@ -4,6 +4,287 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.2
+### Bug Fixes
+
+- Tracing
+  - celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+  - openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - openai: Ensures the OpenAI integration is compatible with Python versions 3.12 and 3.13.
+  - vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+- LLM Observability
+  - This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+- Lib-Injection
+  - Fixes incorrect telemetry data payload format.
+
+---
+
+## 2.19.1
+### Bug Fixes
+
+- Profiling
+  - Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+  - Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - `django`: Fixes issue where django cache is represented as a django service rather than the third party service.
+  - `botocore`: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+
+
+---
+
+## 2.19.0
+### New Features
+- ASM
+  - Introduces "Standalone SCA billing", opting out for APM billing and applying to only SCA. Enable this by setting these two environment variables: `DD_APPSEC_SCA_ENABLED` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED`
+
+- Code Security
+  - Introduces stack trace reports for Code Security.
+
+- Profiling
+  - Adds an experimental integration with the PyTorch profiler which can be enabled by setting `DD_PROFILING_PYTORCH_ENABLED=true`. This feature instruments the PyTorch profiler API (<https://pytorch.org/docs/stable/_modules/torch/profiler/profiler.html>) so that GPU profiling data can be sent to Datadog for visualization. This feature supports torch version \>= 1.8.1.
+
+- Tracing
+  - `azure_functions`: Introduces support for Azure Functions.
+
+### Upgrade Notes
+- Makes the library compatible with Python 3.13
+
+### Bug Fixes
+- ASM
+  - Resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- Lib-Injection
+  - Fixes missing lib-injection telemetry for common abort scenarios.
+
+- LLM Observability
+  - Resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically  
+  the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+
+- Telemetry
+  - library: Resolves deadlocks that could occur when sending instrumentation telemetry data after an unhandled exception is raised.
+
+- Tracing
+  - `ASGI`: This fix resolves an issue parsing response cookies in FastAPI and awsgi
+  - `asyncio`: Resolves an issue where asyncio event loops fail to register when `ddtrace-run`/`import ddtrace.auto` is used and gevent is installed.
+  - `datastreams`: Logs at warning level for Kinesis errors that break the Data Streams Monitoring map.
+
+
+---
+
+## 2.18.2
+
+
+### Bug Fixes
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- Profiling
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - `ASGI`: Resolves an issue parsing response cookies in FastAPI and awsgi
+  - Integrations: Improves error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.
+
+
+---
+
+## 2.18.1
+
+
+### Bug Fixes
+
+Profiling:
+- Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+- Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+
+Tracing:
+- celery: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+
+---
+
+## 2.18.0
+
+### Upgrade Notes
+- ASM
+  - With this upgrade, you can now control how the stack trace report are cropped when reported for exploit prevention or IAST.  
+    - `DD_APPSEC_MAX_STACK_TRACE_DEPTH` allowed to control the maximum stack trace size reported (default 32)
+    - `DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT` allows now to specify how the stack trace is cropped as a percentage.
+
+    For example, a value of 100 will report the top DD_APPSEC_MAX_STACK_TRACE_DEPTH frames from the stack, while a value of 0 will report the bottom DD_APPSEC_MAX_STACK_TRACE_DEPTH frames of the trace. A value of 50 will report half of DD_APPSEC_MAX_STACK_TRACE_DEPTH (rounded down) frames from the top of the stack and the rest from bottom. Default value is 75.
+  - Upgrades `libddwaf` to 1.22.0
+  - Upgrades `libddwaf` to 1.21.0 and security rule file to 1.13.3
+
+
+### Deprecation Notes
+- Python 3.7 support is deprecated and will be removed in 3.0
+
+
+### New Features
+- CI Visibility
+  - Beta release of the new version of the pytest plugin, introducing the following features:  
+    - [Auto Test Retries](https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries)
+    - [Early Flake Detection](https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection)
+    - Improved coverage collection for [Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis) (formerly Intelligent Test Runner) now uses an internal collection method instead of [coverage.py](https://github.com/nedbat/coveragepy), with improved dependency discovery.
+
+    Set the `DD_PYTEST_USE_NEW_PLUGIN_BETA` environment variable to `true` to use this new version.
+
+    **NOTE:** this new version of the plugin introduces breaking changes:  
+    - `module`, `suite`, and `test` names are now parsed from the `item.nodeid` attribute
+    - test names now include the class for class-based tests
+    - Test skipping by Test Impact Analysis (formerly Intelligent Test Runner) is now done at the suite level, instead of at the test level
+- Adds support for [Selenium and RUM integration](https://docs.datadoghq.com/tests/browser_tests/)
+
+- Code Security
+  - Introduces "Standalone Code Security", a feature that disables APM in the tracer but keeps Code Security (IAST) enabled. In order to enable it, set the environment variables `DD_IAST_ENABLED=1` and `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED=1`.
+
+- LLM Observability
+  - Adds support to automatically submit Vertex AI Python calls to LLM Observability.
+  - `vertexai`: Introduces tracing support for Google's Vertex AI SDK for Python's `generate_content` and `send_message` calls. See [the docs](https://ddtrace.readthedocs.io/en/stable/integrations.html#vertexai) for more information.
+
+- Profiling
+  - Profiler uses agent url configured via `tracer.configure()`
+
+
+### Bug Fixes
+- ASM
+  - Ensures that common patches for exploit prevention and sca are only loaded if required, and only loaded once.
+  - Resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+  - Resolves an issue where some root span where not appropriately tagged for ASM standalone.
+  - ASM: Resolves an issue where AppSec was using a patched request and builtins functions, 
+    creating telemetry errors.
+
+- CI Visibility
+  - Fixes an issue where the CIVisbility service would incorrectly default the tracer env to `None` in EVP proxy mode if `DD_ENV` was not specified but the agent had a default environment set to a value other than `none` (eg: using `DD_APM_ENV` in the agent's environment).
+  - Updates the inferred base service name algorithm to ensure that arguments following `--ddtrace` are no longer skipped when executing tests with pytest. Previously, the algorithm misinterpreted these arguments as standard flags, overlooking possible test paths that may contribute to the inferred service name.
+
+- Code Security
+  - Patches the module dir function so original pre-patch results are not changed.
+  - Resolves a patching issue with `psycopg3`.
+  - This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Ensures IAST SSRF vulnerability redacts the url query parameters correctly.
+  - Adds `umap`, `numba` and `pynndescent` to the Code Security denylist.
+
+- Crashtracking
+  - Resolves issue where the crashtracker receiver may leave a zombie process behind after a crash.
+
+- Lib-Injection
+  - Ensures any user defined `sitecustomize.py` are preserved when auto-injecting.
+  - Supports Python 2.7+ for injection compatibility check.
+  - Resolves an issue where the default versions of `click` and `jinja2` installed on 3.8 were outside of the allowed minimum versions for autoinstrumentation.
+
+- LLM Observability
+  - Ensures bedrock spans are finished even when streamed responses are not fully consumed.
+  - `langchain`: Resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
+  - Fixes an issue where decorators were not tracing generator functions properly.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+  - Fixes unbounded memory usage growth caused by keeping arbitrary user-generated strings (e.g. asyncio Task names) in an internal table and never removing them.
+  - Fixes an issue where `asyncio` task names are not properly propagated when using stack v2, i.e. when `DD_PROFILING_STACK_V2_ENABLED` is set. Fixes an issue where `asyncio` tasks are not associated with spans when using stack v2, i.e. when `DD_PROFILING_STACK_V2_ENABLED` is set.
+
+- Telemetry
+  - Ensures that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Tracing
+  - `botocore`: This fix resolves an issue in the Bedrock integration where not consuming the full response stream would prevent spans from finishing.
+  - `botocore`: This fix resolves the issue where the span pointer for deserialized DynamoDB requests (through the resource-based API) were not being generated.
+  - `botocore`: This fix resolves an issue where our span pointer calculation code added recently logged unactionable messages.
+  - `celery`: This fix resolves two issues with context propagation in celery
+    1.  Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    2.  Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace
+  - `celery`: Changes celery `out.host` span tag to point towards broker host url instead of local celery process hostname. Fixes inferred service representation issues when using celery.
+  - `grpcaio`: Resolves a concurrency bug where distributed tracing headers were overwritten resulting in spans being assigned to the wrong trace.
+  - `kafka`: Fixes an issue with Kafka consumer spans not using the active trace context when distributed tracing was enabled and no valid distributed context found was found within a consumed message.
+
+
+### Other Changes
+- Tracing
+  - Removed x-forwarded from headers used for client IP resolution (but not from collected headers). We lack evidence of actual usage, and whether this should follow RFC 7239 or regular XFF list format.
+
+---
+## 2.17.5
+
+### Bug Fixes
+
+- Tracing
+  - `celery`: Fixes an issue where `celery.apply` spans from Celery pre-run got closed too soon leading to span tags being missing.
+
+
+---
+
+## 2.17.4
+
+### Bug Fixes
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- ASM
+  - Resolves an issue where AppSec was using a patched JSON loads, creating telemetry errors.
+  - Resolves an issue where AppSec was using a patched request and builtins functions, creating telemetry errors.
+
+- LLM Observability
+  - Resolves an issue where `LLMObs.enable()` ignored global patch configurations, specifically the `DD_TRACE_<INTEGRATION>_ENABLED` and `DD_PATCH_MODULES` environment variables.
+  - `langchain`: Resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+- Tracing
+  - `ASGI`: Resolves an issue parsing response cookies in FastAPI and awsgi
+
+
+---
+
+## 2.17.3
+
+### Bug Fixes
+
+- SCA:
+  - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Celery:
+  - This fix resolves two issues with context propagation in celery
+    - 1.  Invalid span parentage when task A calls task B async and task A errors out, causing A's queuing of B, and B itself to not be parented under A.
+    - 2.  Invalid context propagation from client to workers, and across retries, causing multiple traces instead of a single trace
+
+- Code Security:
+  - This fix resolves a patching issue with <span class="title-ref">psycopg3</span>.
+  - This fix resolves an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+  - Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+- Profiling:
+    - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+---
+
+## 2.16.6
+
+### Bug Fixes
+
+- SCA:
+    - Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.
+
+- Code Security:
+    - Resolve a patching issue with psycopg3.
+    - Resolve an issue where the modulo (%) operator would not be replaced correctly for bytes and bytesarray if IAST is enabled.
+    - Ensure IAST SSRF vulnerability redacts the url query parameters correctly.
+
+- Lib-Injection:
+    - Fix injection guardrail check when sys.argv is not available.
+
+- Profiling
+  - Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file. This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14, and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.
+
+
+---
+
 ## 2.17.2
 
 ### Bug Fixes

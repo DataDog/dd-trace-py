@@ -1,11 +1,11 @@
 import consul
 from wrapt import BoundFunctionWrapper
 
-from ddtrace import Pin
-from ddtrace.contrib.consul.patch import patch
-from ddtrace.contrib.consul.patch import unpatch
+from ddtrace.contrib.internal.consul.patch import patch
+from ddtrace.contrib.internal.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -22,8 +22,8 @@ class TestConsulPatch(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin.override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
-        Pin.override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin._override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin._override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):
@@ -168,8 +168,8 @@ class TestSchematization(TracerTestCase):
             host=CONSUL_CONFIG["host"],
             port=CONSUL_CONFIG["port"],
         )
-        Pin.override(consul.Consul, tracer=self.tracer)
-        Pin.override(consul.Consul.KV, tracer=self.tracer)
+        Pin._override(consul.Consul, tracer=self.tracer)
+        Pin._override(consul.Consul.KV, tracer=self.tracer)
         self.c = c
 
     def tearDown(self):

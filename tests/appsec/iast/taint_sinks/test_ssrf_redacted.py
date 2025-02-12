@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.reporter import Evidence
@@ -21,9 +21,11 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.mark.parametrize(
-    "evidence_input, sources_expected, vulnerabilities_expected", list(get_parametrize(VULN_SSRF, ignore_list={9, 10}))
+    "evidence_input,sources_expected,vulnerabilities_expected,element", list(get_parametrize(VULN_SSRF))
 )
-def test_ssrf_redaction_suite(evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults):
+def test_ssrf_redaction_suite(
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
+):
     tainted_object = evidence_input_value = evidence_input.get("value", "")
     if evidence_input_value:
         tainted_object = _taint_pyobject_multiranges(

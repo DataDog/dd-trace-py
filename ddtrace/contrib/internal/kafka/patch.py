@@ -1,18 +1,18 @@
 import os
 import sys
+from time import time_ns
 
 import confluent_kafka
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
@@ -24,8 +24,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.trace import Pin
 
 
 _Producer = confluent_kafka.Producer
@@ -192,7 +192,7 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
@@ -289,7 +289,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 pass
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)

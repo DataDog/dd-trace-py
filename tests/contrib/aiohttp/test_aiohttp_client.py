@@ -3,10 +3,10 @@ import os
 import aiohttp
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.aiohttp import patch
-from ddtrace.contrib.aiohttp import unpatch
-from ddtrace.contrib.aiohttp.patch import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.aiohttp.patch import patch
+from ddtrace.contrib.internal.aiohttp.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -101,7 +101,7 @@ async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subproces
 import asyncio
 import sys
 import aiohttp
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL
 
 async def test():
@@ -184,12 +184,12 @@ def test_configure_service_name_pin(ddtrace_run_python_code_in_subprocess):
 import asyncio
 import sys
 import aiohttp
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL_200
 
 async def test():
     async with aiohttp.ClientSession() as session:
-        Pin.override(session, service="pin-custom-svc")
+        Pin._override(session, service="pin-custom-svc")
         async with session.get(URL_200) as resp:
             pass
 

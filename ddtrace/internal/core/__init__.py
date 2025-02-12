@@ -110,13 +110,11 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
-from ._core import DDSketch  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
 from .event_hub import dispatch_with_results  # noqa:F401
@@ -276,7 +274,11 @@ class ExecutionContext(AbstractContextManager):
     @property
     def span(self) -> "Span":
         if self._inner_span is None:
-            raise ValueError("No span set on ExecutionContext")
+            log.warning("No span found in ExecutionContext %s", self.identifier)
+            # failsafe
+            from ddtrace.trace import tracer
+
+            self._inner_span = tracer.current_span() or tracer.trace("default")
         return self._inner_span
 
     @span.setter
@@ -362,15 +364,14 @@ def discard_local_item(data_key: str) -> None:
 def get_span() -> Optional["Span"]:
     current: Optional[ExecutionContext] = _CURRENT_CONTEXT.get()
     while current is not None:
-        try:
-            return current.span
-        except ValueError:
-            current = current.parent
+        if current._inner_span is not None:
+            return current._inner_span
+        current = current.parent
     return None
 
 
 def get_root_span() -> Optional["Span"]:
-    span = _CURRENT_CONTEXT.get().span
+    span = get_span()
     if span is None:
         return None
     return span._local_root or span

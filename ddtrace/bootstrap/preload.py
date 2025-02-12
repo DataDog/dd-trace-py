@@ -6,7 +6,6 @@ Add all monkey-patching that needs to run by default here
 import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
@@ -15,9 +14,8 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
 from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
-from ddtrace.settings.asm import config as asm_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 import typing as t
@@ -71,21 +69,6 @@ if profiling_config.enabled:
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
-
-if _is_iast_enabled():
-    """
-    This is the entry point for the IAST instrumentation. `enable_iast_propagation` is called on patch_all function
-    too but patch_all depends of DD_TRACE_ENABLED environment variable. This is the reason why we need to call it
-    here and it's not a duplicate call due to `enable_iast_propagation` has a global variable to avoid multiple calls.
-    """
-    from ddtrace.appsec._iast import enable_iast_propagation
-
-    enable_iast_propagation()
-
-if asm_config._asm_enabled or config._remote_config_enabled:
-    from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
-
-    enable_appsec_rc()
 
 if config._otel_enabled:
 

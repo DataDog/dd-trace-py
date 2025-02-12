@@ -2,8 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
 
 def sqli_simple(table):

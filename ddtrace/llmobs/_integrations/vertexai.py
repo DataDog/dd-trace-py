@@ -4,7 +4,7 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -15,10 +15,11 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.trace import Span
 
 
 class VertexAIIntegration(BaseLLMIntegration):
@@ -45,7 +46,11 @@ class VertexAIIntegration(BaseLLMIntegration):
         metadata = llmobs_get_metadata_google(kwargs, instance)
 
         system_instruction = get_system_instructions_from_google_model(instance)
-        input_contents = get_argument_value(args, kwargs, 0, "contents")
+        input_contents = None
+        try:
+            input_contents = get_argument_value(args, kwargs, 0, "content")
+        except ArgumentError:
+            input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
         output_messages = [{"content": ""}]
@@ -60,7 +65,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 INPUT_MESSAGES: input_messages,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags_google("vertexai", span),
+                METRICS: get_llmobs_metrics_tags("vertexai", span),
             }
         )
 

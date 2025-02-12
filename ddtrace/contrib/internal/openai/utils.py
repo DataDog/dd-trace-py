@@ -48,11 +48,28 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
-        return self
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                self._extract_token_chunk(chunk)
+                yield chunk
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     def __next__(self):
         try:
             chunk = self.__wrapped__.__next__()
+            self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopIteration:
@@ -68,6 +85,25 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
+    def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+            return
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
+        if not getattr(choice, "finish_reason", None):
+            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
+            return
+        try:
+            # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
+            # so we consume it and extract the token usage metadata before it reaches the user.
+            usage_chunk = self.__wrapped__.__next__()
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopIteration, GeneratorExit):
+            return
+
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     async def __aenter__(self):
@@ -77,12 +113,29 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
-    def __aiter__(self):
-        return self
+    async def __aiter__(self):
+        exception_raised = False
+        try:
+            async for chunk in self.__wrapped__:
+                await self._extract_token_chunk(chunk)
+                yield chunk
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
+            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     async def __anext__(self):
         try:
             chunk = await self.__wrapped__.__anext__()
+            await self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopAsyncIteration:
@@ -97,6 +150,22 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             self._dd_span.finish()
             self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
+
+    async def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+            return
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
+        if not getattr(choice, "finish_reason", None):
+            return
+        try:
+            usage_chunk = await self.__wrapped__.__anext__()
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopAsyncIteration, GeneratorExit):
+            return
 
 
 def _compute_token_count(content, model):

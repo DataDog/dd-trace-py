@@ -3,11 +3,11 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal.ci_visibility.telemetry.constants import CIVISIBILITY_TELEMETRY_NAMESPACE as _NAMESPACE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -50,7 +50,6 @@ def _record_event(
         log.debug("has_codeowners tag can only be set for sessions, but event type is %s", event_type)
     if is_unsupported_ci and event_type != EVENT_TYPES.SESSION:
         log.debug("unsupported_ci tag can only be set for sessions, but event type is %s", event_type)
-
     if early_flake_detection_abort_reason and (
         event_type not in [EVENT_TYPES.SESSION] or event != EVENTS_TELEMETRY.FINISHED
     ):
@@ -68,7 +67,7 @@ def _record_event(
     if early_flake_detection_abort_reason and event == EVENTS_TELEMETRY.FINISHED and event_type == EVENT_TYPES.SESSION:
         _tags.append(("early_flake_detection_abort_reason", early_flake_detection_abort_reason))
 
-    telemetry_writer.add_count_metric(_NAMESPACE, event.value, 1, tuple(_tags))
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, event.value, 1, tuple(_tags))
 
 
 def record_event_created(
@@ -118,11 +117,19 @@ def record_event_finished(
 def record_manual_api_event_created(event_type: EVENT_TYPES):
     # Note: _created suffix is added in cases we were to change the metric name in the future.
     # The current metric applies to event creation even though it does not specify it
-    telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.MANUAL_API_EVENT, 1, (("event_type", event_type),))
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        EVENTS_TELEMETRY.MANUAL_API_EVENT,
+        1,
+        (("event_type", event_type),)
+    )
 
 
 def record_events_enqueued_for_serialization(events_count: int):
-    telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count)
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION,
+        events_count)
 
 
 def record_event_created_test(
@@ -140,7 +147,7 @@ def record_event_created_test(
     if is_benchmark:
         tags.append(("is_benchmark", "true"))
 
-    telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
 
 
 def record_event_finished_test(
@@ -151,6 +158,7 @@ def record_event_finished_test(
     is_rum: bool = False,
     browser_driver: Optional[str] = None,
     is_benchmark: bool = False,
+    is_quarantined: bool = False,
 ):
     log.debug(
         "Recording test event finished: test_framework=%s"
@@ -159,7 +167,8 @@ def record_event_finished_test(
         ", early_flake_detection_abort_reason=%s"
         ", is_rum=%s"
         ", browser_driver=%s"
-        ", is_benchmark=%s",
+        ", is_benchmark=%s"
+        ", is_quarantined=%s",
         test_framework,
         is_new,
         is_retry,
@@ -167,6 +176,7 @@ def record_event_finished_test(
         is_rum,
         browser_driver,
         is_benchmark,
+        is_quarantined,
     )
 
     tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
@@ -185,5 +195,7 @@ def record_event_finished_test(
         tags.append(("browser_driver", browser_driver))
     if early_flake_detection_abort_reason is not None:
         tags.append(("early_flake_detection_abort_reason", early_flake_detection_abort_reason))
+    if is_quarantined:
+        tags.append(("is_quarantined", "true"))
 
-    telemetry_writer.add_count_metric(_NAMESPACE, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))

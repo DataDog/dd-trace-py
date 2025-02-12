@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where configuring custom trace filters/processors onto the tracer would disable LLM Observability.
+     Note that if LLM Observability is enabled in agentless mode, writing APM traces must be explicitly disabled by setting `DD_TRACE_ENABLED=0`.  

@@ -9,10 +9,10 @@ except ImportError:
     vcr = None
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.trace import Span
 
 
 if vcr:
@@ -62,7 +62,6 @@ def _expected_llmobs_llm_span_event(
     input_documents=None,
     output_messages=None,
     output_value=None,
-    parameters=None,
     metadata=None,
     token_metrics=None,
     model_name=None,
@@ -78,7 +77,6 @@ def _expected_llmobs_llm_span_event(
     span_kind: either "llm" or "agent" or "embedding"
     input_messages: list of input messages in format {"content": "...", "optional_role", "..."}
     output_messages: list of output messages in format {"content": "...", "optional_role", "..."}
-    parameters: dict of input parameters
     metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     model_name: name of the model
@@ -112,8 +110,6 @@ def _expected_llmobs_llm_span_event(
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
     meta_dict.update({"metadata": metadata or {}})
-    if parameters is not None:
-        meta_dict["input"].update({"parameters": parameters})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
         span_event["metrics"].update(token_metrics)
@@ -126,7 +122,6 @@ def _expected_llmobs_non_llm_span_event(
     input_value=None,
     output_value=None,
     output_documents=None,
-    parameters=None,
     metadata=None,
     token_metrics=None,
     tags=None,
@@ -140,7 +135,6 @@ def _expected_llmobs_non_llm_span_event(
     span_kind: one of "workflow", "task", "tool", "retrieval"
     input_value: input value string
     output_value: output value string
-    parameters: dict of input parameters
     metadata: dict of metadata key value pairs
     token_metrics: dict of token metrics (e.g. prompt_tokens, completion_tokens, total_tokens)
     tags: dict of tags to add/override on span
@@ -160,8 +154,6 @@ def _expected_llmobs_non_llm_span_event(
             meta_dict["output"].update({"value": output_value})
     if input_value is not None:
         meta_dict["input"].update({"value": input_value})
-    if parameters is not None:
-        meta_dict["input"].update({"parameters": parameters})
     meta_dict.update({"metadata": metadata or {}})
     if output_value is not None:
         meta_dict["output"].update({"value": output_value})
@@ -210,11 +202,13 @@ def _get_llmobs_parent_id(span: Span):
 
 
 def _expected_llmobs_eval_metric_event(
-    span_id,
-    trace_id,
     metric_type,
     label,
     ml_app,
+    tag_key=None,
+    tag_value=None,
+    span_id=None,
+    trace_id=None,
     timestamp_ms=None,
     categorical_value=None,
     score_value=None,
@@ -223,8 +217,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
 ):
     eval_metric_event = {
-        "span_id": span_id,
-        "trace_id": trace_id,
+        "join_on": {},
         "metric_type": metric_type,
         "label": label,
         "tags": [
@@ -232,6 +225,10 @@ def _expected_llmobs_eval_metric_event(
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
     }
+    if tag_key is not None and tag_value is not None:
+        eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
+    if span_id is not None and trace_id is not None:
+        eval_metric_event["join_on"]["span"] = {"span_id": span_id, "trace_id": trace_id}
     if categorical_value is not None:
         eval_metric_event["categorical_value"] = categorical_value
     if score_value is not None:
@@ -270,7 +267,6 @@ def _completion_event():
             "model_provider": "openai",
             "input": {
                 "messages": [{"content": "who broke enigma?"}],
-                "parameters": {"temperature": 0, "max_tokens": 256},
             },
             "output": {
                 "messages": [
@@ -279,6 +275,7 @@ def _completion_event():
                     }
                 ]
             },
+            "metadata": {"temperature": 0, "max_tokens": 256},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -307,7 +304,6 @@ def _chat_completion_event():
                     },
                     {"role": "user", "content": "I am a hobbit looking to go to Mordor"},
                 ],
-                "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
             "output": {
                 "messages": [
@@ -317,6 +313,7 @@ def _chat_completion_event():
                     },
                 ]
             },
+            "metadata": {"temperature": 0.9, "max_tokens": 256},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -483,7 +480,7 @@ def expected_ragas_trace_tags():
         "env:",
         "service:tests.llmobs",
         "source:integration",
-        "ml_app:dd-ragas-unnamed-ml-app",
+        "ml_app:unnamed-ml-app",
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
         "error:0",
@@ -526,34 +523,73 @@ def _llm_span_with_expected_ragas_inputs_in_messages(ragas_inputs=None):
 
 
 class DummyEvaluator:
-    LABEL = "dummy"
-
-    def __init__(self, llmobs_service):
+    def __init__(self, llmobs_service, label="dummy"):
         self.llmobs_service = llmobs_service
+        self.LABEL = label
 
     def run_and_submit_evaluation(self, span):
         self.llmobs_service.submit_evaluation(
             span_context=span,
-            label=DummyEvaluator.LABEL,
+            label=self.LABEL,
             value=1.0,
             metric_type="score",
         )
 
 
-def _dummy_evaluator_eval_metric_event(span_id, trace_id):
+def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
-        span_id=span_id,
-        trace_id=trace_id,
+        join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",
         timestamp_ms=mock.ANY,
         metric_type="score",
-        label=DummyEvaluator.LABEL,
+        label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
     )
 
 
-def _expected_ragas_spans(ragas_inputs=None):
+def _expected_ragas_context_precision_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.context_precision",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": "1.0"},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]
+
+
+def _expected_ragas_faithfulness_spans(ragas_inputs=None):
     if not ragas_inputs:
         ragas_inputs = default_ragas_inputs
     return [
@@ -581,7 +617,7 @@ def _expected_ragas_spans(ragas_inputs=None):
             "trace_id": mock.ANY,
             "span_id": mock.ANY,
             "parent_id": mock.ANY,
-            "name": "dd-ragas.extract_faithfulness_inputs",
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
             "start_ns": mock.ANY,
             "duration": mock.ANY,
             "status": "ok",
@@ -664,6 +700,64 @@ def _expected_ragas_spans(ragas_inputs=None):
                 "span.kind": "task",
                 "output": {"value": "1.0"},
                 "metadata": {"faithful_statements": 1, "num_statements": 1},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+    ]
+
+
+def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
+    if not ragas_inputs:
+        ragas_inputs = default_ragas_inputs
+    return [
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": "undefined",
+            "name": "dd-ragas.answer_relevancy",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {"answer_classifications": mock.ANY, "strictness": mock.ANY},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.extract_evaluation_inputs_from_span",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
+            },
+            "metrics": {},
+            "tags": expected_ragas_trace_tags(),
+        },
+        {
+            "trace_id": mock.ANY,
+            "span_id": mock.ANY,
+            "parent_id": mock.ANY,
+            "name": "dd-ragas.calculate_similarity",
+            "start_ns": mock.ANY,
+            "duration": mock.ANY,
+            "status": "ok",
+            "meta": {
+                "span.kind": "workflow",
+                "input": {"value": mock.ANY},
+                "output": {"value": mock.ANY},
+                "metadata": {},
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),

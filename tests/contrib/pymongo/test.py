@@ -3,13 +3,14 @@ import time
 
 import pymongo
 
-# project
-from ddtrace import Pin
 from ddtrace.contrib.internal.pymongo.client import normalize_filter
 from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
+
+# project
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -419,7 +420,7 @@ class PymongoCore(object):
         tracer = DummyTracer()
         client = MongoClient(port=MONGO_CONFIG["port"])
         # Ensure the dummy tracer is used to create span in the pymongo integration
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         # Ensure that the client is traced
         client.server_info()
         spans = tracer.pop()
@@ -439,7 +440,7 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
     def get_tracer_and_client(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         return tracer, client
 
     def test_host_kwarg(self):
@@ -470,7 +471,9 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def get_tracer_and_client(self):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service="pymongo", tracer=self.tracer).onto(client)
+        pin = Pin(service="pymongo")
+        pin._tracer = self.tracer
+        pin.onto(client)
         return self.tracer, client
 
     def test_patch_unpatch(self):
@@ -479,7 +482,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=self.tracer).onto(client)
         client["testdb"].drop_collection("whatever")
 
         spans = self.pop_spans()
@@ -499,7 +502,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=self.tracer).onto(client)
         client["testdb"].drop_collection("whatever")
 
         spans = self.pop_spans()
@@ -519,7 +522,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -538,7 +541,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -558,7 +561,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert cfg.service == "new-mongo", f"service name is {cfg.service}"
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
 
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
@@ -578,7 +581,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -592,7 +595,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         """
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -604,8 +607,10 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_user_specified_pymongo_service_v0(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service="mypymongo", tracer=self.tracer).onto(client)
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        pin = Pin(service="mypymongo")
+        pin._tracer = self.tracer
+        pin.onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -617,8 +622,10 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_user_specified_pymongo_service_v1(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service="mypymongo", tracer=self.tracer).onto(client)
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        pin = Pin(service="mypymongo")
+        pin._tracer = self.tracer
+        pin.onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -630,8 +637,10 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_service_precedence_v0(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service="mypymongo", tracer=self.tracer).onto(client)
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        pin = Pin(service="mypymongo")
+        pin._tracer = self.tracer
+        pin.onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -643,8 +652,10 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_service_precedence_v1(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin(service="mypymongo", tracer=self.tracer).onto(client)
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        pin = Pin(service="mypymongo")
+        pin._tracer = self.tracer
+        pin.onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -657,7 +668,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         """
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -670,7 +681,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         """
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
         spans = tracer.pop()
         assert len(spans) == 2
@@ -680,7 +691,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
     def test_peer_service_tagging(self):
         tracer = DummyTracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         db_name = "testdb"
         client[db_name].drop_collection("whatever")
         spans = tracer.pop()
@@ -690,7 +701,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
-        tracer.configure(enabled=False)
+        tracer._configure(enabled=False)
 
         db = client.testdb
         db.drop_collection("teams")
@@ -756,13 +767,13 @@ class TestPymongoSocketTracing(TracerTestCase):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
         # Override server pin's tracer with our dummy tracer
-        Pin.override(Server, tracer=self.tracer)
+        Pin._override(Server, tracer=self.tracer)
         # maxPoolSize controls the number of sockets that the client can instantiate
         # and choose from to perform classic operations. For the sake of our tests,
         # let's limit this number to 1
         self.client = pymongo.MongoClient(port=MONGO_CONFIG["port"], maxPoolSize=1)
         # Override MongoClient's pin's tracer with our dummy tracer
-        Pin.override(self.client, tracer=self.tracer, service="testdb")
+        Pin._override(self.client, tracer=self.tracer, service="testdb")
 
     def tearDown(self):
         unpatch()

@@ -14,7 +14,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
@@ -65,6 +65,7 @@ def test_enable(tracer):
 def test_enable_custom_rules():
     with override_global_config(dict(_asm_static_rule_file=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
     assert processor.rule_filename == rules.RULES_GOOD_PATH
@@ -345,6 +346,7 @@ def test_ddwaf_not_raises_exception():
 def test_obfuscation_parameter_key_empty():
     with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="")):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -352,6 +354,7 @@ def test_obfuscation_parameter_key_empty():
 def test_obfuscation_parameter_value_empty():
     with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="")):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -361,6 +364,7 @@ def test_obfuscation_parameter_key_and_value_empty():
         dict(_asm_obfuscation_parameter_key_regexp="", _asm_obfuscation_parameter_value_regexp="")
     ):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -368,6 +372,7 @@ def test_obfuscation_parameter_key_and_value_empty():
 def test_obfuscation_parameter_key_invalid_regex():
     with override_global_config(dict(_asm_obfuscation_parameter_key_regexp="(")):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -375,6 +380,7 @@ def test_obfuscation_parameter_key_invalid_regex():
 def test_obfuscation_parameter_invalid_regex():
     with override_global_config(dict(_asm_obfuscation_parameter_value_regexp="(")):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -384,6 +390,7 @@ def test_obfuscation_parameter_key_and_value_invalid_regex():
         dict(_asm_obfuscation_parameter_key_regexp="(", _asm_obfuscation_parameter_value_regexp="(")
     ):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor.enabled
 
@@ -638,7 +645,23 @@ CUSTOM_RULE_METHOD = {
             "name": "test required",
             "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
             "transformers": [],
-        }
+        },
+        {
+            "conditions": [
+                {
+                    "operator": "match_regex",
+                    "parameters": {
+                        "inputs": [{"address": "usr.login"}],
+                        "options": {"case_sensitive": False},
+                        "regex": "GET",
+                    },
+                }
+            ],
+            "id": "32b243c7-26eb-4046-bbbb-custom",
+            "name": "test required",
+            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+            "transformers": [],
+        },
     ]
 }
 
@@ -646,6 +669,7 @@ CUSTOM_RULE_METHOD = {
 def test_required_addresses():
     with override_global_config(dict(_asm_static_rule_file=rules.RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -672,6 +696,7 @@ def test_required_addresses():
         "server.request.query",
         "server.response.headers.no_cookies",
         "usr.id",
+        "usr.login",
     }
 
 
@@ -681,7 +706,7 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
     processor._update_rules(CUSTOM_RULE_METHOD)

@@ -8,9 +8,9 @@ from types import TracebackType
 import typing as t
 import uuid
 
-from ddtrace._trace.span import Span
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -21,6 +21,8 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.utils.time import HourGlass
+from ddtrace.settings.exception_replay import config
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -193,6 +195,9 @@ def can_capture(span: Span) -> bool:
         return True
 
     if info_captured is None:
+        if Session.from_trace():
+            # If we are in a debug session we always capture
+            return True
         result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
         root.set_tag_str(CAPTURE_TRACE_TAG, str(result).lower())
         return result
@@ -225,7 +230,9 @@ class SpanExceptionHandler:
 
         seq = count(1)  # 1-based sequence number
 
-        while chain:
+        frames_captured = 0
+
+        while chain and frames_captured <= config.max_frames:
             exc, _tb = chain.pop()  # LIFO: reverse the chain
 
             if _tb is None or _tb.tb_frame is None:
@@ -233,7 +240,7 @@ class SpanExceptionHandler:
                 continue
 
             # DEV: We go from the handler up to the root exception
-            while _tb:
+            while _tb and frames_captured <= config.max_frames:
                 frame = _tb.tb_frame
                 code = frame.f_code
                 seq_nr = next(seq)
@@ -262,6 +269,9 @@ class SpanExceptionHandler:
 
                         # Memoize
                         frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
+
+                        # Count
+                        frames_captured += 1
 
                     # Add correlation tags on the span
                     span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)

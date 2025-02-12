@@ -3,9 +3,9 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace import patch
-from ddtrace.contrib.langchain.patch import unpatch
+from ddtrace.contrib.internal.langchain.patch import patch
+from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -18,34 +18,6 @@ def ddtrace_config_langchain():
     return {}
 
 
-@pytest.fixture(scope="session")
-def mock_metrics():
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
-    try:
-        DogStatsdMock = patcher.start()
-        m = mock.MagicMock()
-        DogStatsdMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
-@pytest.fixture
-def mock_logs(scope="session"):
-    """
-    Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
-    before it is instantiated.
-    """
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
-    try:
-        V2LogWriterMock = patcher.start()
-        m = mock.MagicMock()
-        V2LogWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
 @pytest.fixture
 def snapshot_tracer(langchain, mock_logs, mock_metrics):
     pin = Pin.get_from(langchain)
@@ -55,15 +27,12 @@ def snapshot_tracer(langchain, mock_logs, mock_metrics):
 
 
 @pytest.fixture
-def mock_tracer(langchain, mock_logs, mock_metrics):
+def mock_tracer(langchain):
     pin = Pin.get_from(langchain)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(langchain, tracer=mock_tracer)
-    pin.tracer.configure()
+    pin._override(langchain, tracer=mock_tracer)
+    pin.tracer._configure()
     yield mock_tracer
-
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
 
 
 @pytest.fixture
@@ -79,7 +48,7 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
-def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
+def langchain(ddtrace_config_langchain):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         with override_config("langchain", ddtrace_config_langchain):
             with override_env(
@@ -91,18 +60,15 @@ def langchain(ddtrace_config_langchain, mock_logs, mock_metrics):
                     AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
                 )
             ):
-                patch(langchain=True)
+                patch()
                 import langchain
-
-                mock_logs.reset_mock()
-                mock_metrics.reset_mock()
 
                 yield langchain
                 unpatch()
 
 
 @pytest.fixture
-def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_community(ddtrace_config_langchain, langchain):
     try:
         import langchain_community
 
@@ -112,7 +78,7 @@ def langchain_community(ddtrace_config_langchain, mock_logs, mock_metrics, langc
 
 
 @pytest.fixture
-def langchain_core(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_core(ddtrace_config_langchain, langchain):
     import langchain_core
     import langchain_core.prompts  # noqa: F401
 
@@ -120,7 +86,7 @@ def langchain_core(ddtrace_config_langchain, mock_logs, mock_metrics, langchain)
 
 
 @pytest.fixture
-def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_openai(ddtrace_config_langchain, langchain):
     try:
         import langchain_openai
 
@@ -130,7 +96,7 @@ def langchain_openai(ddtrace_config_langchain, mock_logs, mock_metrics, langchai
 
 
 @pytest.fixture
-def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_cohere(ddtrace_config_langchain, langchain):
     try:
         import langchain_cohere
 
@@ -140,7 +106,7 @@ def langchain_cohere(ddtrace_config_langchain, mock_logs, mock_metrics, langchai
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_anthropic(ddtrace_config_langchain, langchain):
     try:
         import langchain_anthropic
 
@@ -150,7 +116,7 @@ def langchain_anthropic(ddtrace_config_langchain, mock_logs, mock_metrics, langc
 
 
 @pytest.fixture
-def langchain_pinecone(ddtrace_config_langchain, mock_logs, mock_metrics, langchain):
+def langchain_pinecone(ddtrace_config_langchain, langchain):
     with override_env(
         dict(
             PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
@@ -179,7 +145,7 @@ def streamed_response_responder():
 
             def handle_request(self, request: httpx.Request) -> httpx.Response:
                 with open(
-                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    os.path.join(os.path.dirname(__file__), f"cassettes/{self.file}"),
                     "r",
                     encoding="utf-8",
                 ) as f:
@@ -219,7 +185,7 @@ def async_streamed_response_responder():
 
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
                 with open(
-                    os.path.join(os.path.dirname(__file__), f"cassettes/langchain_community/{self.file}"),
+                    os.path.join(os.path.dirname(__file__), f"cassettes/{self.file}"),
                     "r",
                     encoding="utf-8",
                 ) as f:

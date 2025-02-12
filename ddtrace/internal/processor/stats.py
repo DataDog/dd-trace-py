@@ -8,10 +8,10 @@ from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
-from ddtrace.internal.core import DDSketch
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
-from ...constants import SPAN_MEASURED_KEY
+from ...constants import _SPAN_MEASURED_KEY
 from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
@@ -29,7 +29,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -38,7 +38,7 @@ log = get_logger(__name__)
 def _is_measured(span):
     # type: (Span) -> bool
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(SPAN_MEASURED_KEY) == 1
+    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
 
 
 """

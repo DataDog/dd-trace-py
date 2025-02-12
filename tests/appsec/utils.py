@@ -2,11 +2,10 @@ import contextlib
 import sys
 import typing
 
-from ddtrace import tracer as default_tracer
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
-from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
+from ddtrace.trace import tracer as default_tracer
 from tests.utils import override_global_config
 
 
@@ -35,10 +34,8 @@ def asm_context(
     with override_global_config(config) if config else contextlib.nullcontext():
         if tracer is None:
             tracer = default_tracer
-        if asm_config._asm_enabled:
-            tracer._asm_enabled = True
         if config:
-            tracer.configure(api_version="v0.4")
+            tracer._configure(api_version="v0.4")
 
         with core.context_with_data(
             "test.asm",

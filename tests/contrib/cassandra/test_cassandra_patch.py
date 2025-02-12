@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.cassandra import get_version
-from ddtrace.contrib.cassandra.patch import patch
+from ddtrace.contrib.internal.cassandra.patch import patch
+from ddtrace.contrib.internal.cassandra.session import get_version
 
 
 try:
-    from ddtrace.contrib.cassandra.patch import unpatch
+    from ddtrace.contrib.internal.cassandra.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

@@ -3,11 +3,11 @@ import pytest
 from wrapt import ObjectProxy
 
 from ddtrace import config
-from ddtrace.contrib.httpx.patch import HTTPX_VERSION
-from ddtrace.contrib.httpx.patch import patch
-from ddtrace.contrib.httpx.patch import unpatch
-from ddtrace.pin import Pin
+from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
+from ddtrace.contrib.internal.httpx.patch import patch
+from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.settings.http import HttpConfig
+from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -57,7 +57,7 @@ async def test_httpx_service_name(tracer, test_spans):
         We set the span service name as a text type and not binary
     """
     client = httpx.Client()
-    Pin.override(client, tracer=tracer)
+    Pin._override(client, tracer=tracer)
 
     with override_config("httpx", {"split_by_domain": True}):
         resp = await client.get(get_url("/status/200"))
@@ -112,11 +112,11 @@ async def test_configure_service_name_pin(tracer, test_spans):
 
     # override the tracer on the default sync client
     # DEV: `httpx.get` will call `with Client() as client: client.get()`
-    Pin.override(httpx.Client, tracer=tracer)
+    Pin._override(httpx.Client, tracer=tracer)
 
     # sync client
     client = httpx.Client()
-    Pin.override(client, service="sync-client", tracer=tracer)
+    Pin._override(client, service="sync-client", tracer=tracer)
 
     resp = await httpx.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200
@@ -143,7 +143,7 @@ def test_configure_service_name_env():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -172,7 +172,7 @@ def test_configure_global_service_name_env():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -201,7 +201,7 @@ def test_schematized_configure_global_service_name_env_default():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -230,7 +230,7 @@ def test_schematized_configure_global_service_name_env_v0():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -259,7 +259,7 @@ def test_schematized_configure_global_service_name_env_v1():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -287,7 +287,7 @@ def test_schematized_unspecified_service_name_env_default():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -315,7 +315,7 @@ def test_schematized_unspecified_service_name_env_v0():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -343,7 +343,7 @@ def test_schematized_unspecified_service_name_env_v1():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -371,7 +371,7 @@ def test_schematized_operation_name_env_v0():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -399,7 +399,7 @@ def test_schematized_operation_name_env_v1():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
     from tests.utils import snapshot_context
 
@@ -536,7 +536,7 @@ def test_distributed_tracing_disabled_env():
 
     import httpx
 
-    from ddtrace.contrib.httpx import patch
+    from ddtrace.contrib.internal.httpx.patch import patch
     from tests.contrib.httpx.test_httpx import get_url
 
     patch()

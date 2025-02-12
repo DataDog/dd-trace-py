@@ -10,19 +10,19 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
-from ddtrace.sampler import DatadogSampler
 from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 logger = get_logger(__name__)
@@ -117,8 +117,8 @@ def collect(tracer):
     from ddtrace._trace.tracer import log
 
     return dict(
-        # Timestamp UTC ISO 8601
-        date=datetime.datetime.utcnow().isoformat(),
+        # Timestamp UTC ISO 8601 with the trailing +00:00 removed
+        date=datetime.datetime.now(datetime.timezone.utc).isoformat()[0:-6],
         # eg. "Linux", "Darwin"
         os_name=platform.system(),
         # eg. 12.5.0

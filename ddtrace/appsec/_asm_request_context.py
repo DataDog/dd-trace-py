@@ -12,7 +12,6 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -23,6 +22,17 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
+
+
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+else:
+
+    def is_iast_request_enabled() -> bool:
+        return False
 
 
 if TYPE_CHECKING:
@@ -59,7 +69,7 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         self.root = not in_asm_context()
         if self.root:
@@ -174,7 +184,7 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 def flush_waf_triggers(env: ASM_Environment) -> None:
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         current_span = tracer.current_span()
         if current_span is None:
@@ -488,13 +498,8 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
 
-    if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
+    if asm_config._iast_enabled and kwargs:
         if not is_iast_request_enabled():
             return return_value
 
@@ -507,32 +512,8 @@ def _on_wrapped_view(kwargs):
     return return_value
 
 
-def _on_set_request_tags(request, span, flask_config):
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import taint_structure
-
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        if not is_iast_request_enabled():
-            return
-
-        request.cookies = taint_structure(
-            request.cookies,
-            OriginType.COOKIE_NAME,
-            OriginType.COOKIE,
-            override_pyobject_tainted=True,
-        )
-
-
 def _on_pre_tracedrequest(ctx):
     current_span = ctx.span
-    _on_set_request_tags(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
@@ -603,7 +584,6 @@ def asm_listen():
     core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
     core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
-    core.on("flask.set_request_tags", _on_set_request_tags)
 
     core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)

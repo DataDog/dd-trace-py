@@ -1,9 +1,9 @@
 # -*- encoding: utf-8 -*-
 import logging
+import time
 
 import mock
 
-from ddtrace.internal import compat
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
@@ -64,11 +64,11 @@ def test_serverless_periodic(mock_periodic):
     r = recorder.Recorder()
     s = scheduler.ServerlessScheduler(r, [exporter.NullExporter()])
     # Fake start()
-    s._last_export = compat.time_ns()
+    s._last_export = time.time_ns()
     s.periodic()
     assert s._profiled_intervals == 1
     mock_periodic.assert_not_called()
-    s._last_export = compat.time_ns() - 65
+    s._last_export = time.time_ns() - 65
     s._profiled_intervals = 65
     s.periodic()
     assert s._profiled_intervals == 0

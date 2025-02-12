@@ -5,9 +5,9 @@ from celery import Celery
 from celery.contrib.testing.worker import start_worker
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.celery import patch
-from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.internal.celery.patch import patch
+from ddtrace.contrib.internal.celery.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 
 from .base import AMQP_BROKER_URL
@@ -61,14 +61,14 @@ def dummy_tracer():
 @pytest.fixture(autouse=False)
 def traced_redis_celery_app(instrument_celery, dummy_tracer):
     Pin.get_from(redis_celery_app)
-    Pin.override(redis_celery_app, tracer=dummy_tracer)
+    Pin._override(redis_celery_app, tracer=dummy_tracer)
     yield redis_celery_app
 
 
 @pytest.fixture(autouse=False)
 def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     Pin.get_from(amqp_celery_app)
-    Pin.override(amqp_celery_app, tracer=dummy_tracer)
+    Pin._override(amqp_celery_app, tracer=dummy_tracer)
     yield amqp_celery_app
 
 

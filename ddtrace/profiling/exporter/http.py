@@ -40,7 +40,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     def __init__(
         self,
-        tracer: ddtrace.Tracer = ddtrace.tracer,
+        tracer: ddtrace.trace.Tracer = ddtrace.tracer,
         enable_code_provenance: bool = True,
         api_key: typing.Optional[str] = None,
         timeout: float = config.api_timeout,
@@ -220,8 +220,18 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "family": "python",
             "attachments": [item["filename"].decode("utf-8") for item in data],
             "tags_profiler": self._get_tags(service),
-            "start": (datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
-            "end": (datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
+            "start": (
+                datetime.datetime.fromtimestamp(start_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
+                + "Z"
+            ),
+            "end": (
+                datetime.datetime.fromtimestamp(end_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
+                + "Z"
+            ),
         }  # type: Dict[str, Any]
 
         if self.endpoint_call_counter_span_processor is not None:

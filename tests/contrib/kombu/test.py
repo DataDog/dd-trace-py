@@ -2,13 +2,13 @@
 import kombu
 import mock
 
-from ddtrace import Pin
-from ddtrace.contrib.kombu import utils
-from ddtrace.contrib.kombu.patch import patch
-from ddtrace.contrib.kombu.patch import unpatch
+from ddtrace.contrib.internal.kombu import utils
+from ddtrace.contrib.internal.kombu.patch import patch
+from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -28,7 +28,7 @@ class TestKombuPatch(TracerTestCase):
         conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
         conn.connect()
         producer = conn.Producer()
-        Pin.override(producer, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin._override(producer, service=self.TEST_SERVICE, tracer=self.tracer)
 
         self.conn = conn
         self.producer = producer
@@ -63,7 +63,7 @@ class TestKombuPatch(TracerTestCase):
         )
 
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
-            Pin.override(consumer, service="kombu-patch", tracer=self.tracer)
+            Pin._override(consumer, service="kombu-patch", tracer=self.tracer)
             self.conn.drain_events(timeout=2)
 
         self.assertEqual(results[0], to_publish)
@@ -130,7 +130,7 @@ class TestKombuSettings(TracerTestCase):
         conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
         conn.connect()
         producer = conn.Producer()
-        Pin.override(producer, tracer=self.tracer)
+        Pin._override(producer, tracer=self.tracer)
 
         self.conn = conn
         self.producer = producer
@@ -151,7 +151,7 @@ class TestKombuSchematization(TracerTestCase):
         conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
         conn.connect()
         producer = conn.Producer()
-        Pin.override(producer, tracer=self.tracer)
+        Pin._override(producer, tracer=self.tracer)
 
         self.conn = conn
         self.producer = producer
@@ -180,7 +180,7 @@ class TestKombuSchematization(TracerTestCase):
         )
 
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
-            Pin.override(consumer, tracer=self.tracer)
+            Pin._override(consumer, tracer=self.tracer)
             self.conn.drain_events(timeout=2)
 
         return self.get_spans()
@@ -256,7 +256,7 @@ class TestKombuSchematization(TracerTestCase):
             )
 
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
-            Pin.override(consumer, tracer=self.tracer)
+            Pin._override(consumer, tracer=self.tracer)
             self.conn.drain_events(timeout=2)
 
         spans = self.get_spans()
@@ -275,7 +275,7 @@ class TestKombuDsm(TracerTestCase):
         self.conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=RABBITMQ_CONFIG["port"]))
         self.conn.connect()
         self.producer = self.conn.Producer()
-        Pin.override(self.producer, tracer=self.tracer)
+        Pin._override(self.producer, tracer=self.tracer)
 
         self.patcher = mock.patch(
             "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
@@ -313,7 +313,7 @@ class TestKombuDsm(TracerTestCase):
             self.producer.publish(to_publish, routing_key=task_queue.routing_key, declare=[task_queue])
 
         with kombu.Consumer(self.conn, [task_queue], accept=["json"], callbacks=[process_message]) as consumer:
-            Pin.override(consumer, service="kombu-patch", tracer=self.tracer)
+            Pin._override(consumer, service="kombu-patch", tracer=self.tracer)
             self.conn.drain_events(timeout=2)
             queue_name = consumer.channel.queue_declare("tasks", passive=True).queue
 

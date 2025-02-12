@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+import sys
 from typing import List
 from typing import Optional
 
@@ -16,9 +17,8 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._core import report_telemetry as _report_telemetry
-from ddtrace.vendor.debtcollector import deprecate
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -73,36 +73,8 @@ class ASMConfig(Env):
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
-    _use_metastruct_for_triggers = False
+    _use_metastruct_for_triggers = True
 
-    _automatic_login_events_mode = Env.var(str, APPSEC.AUTOMATIC_USER_EVENTS_TRACKING, default="", parser=str.lower)
-    # Deprecation phase, to be removed in ddtrace 3.0.0
-    if _automatic_login_events_mode is not None:
-        if _automatic_login_events_mode == "extended":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=extended is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=identification instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            _automatic_login_events_mode = LOGIN_EVENTS_MODE.IDENT
-        elif _automatic_login_events_mode == "safe":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=safe is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=anonymisation instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            _automatic_login_events_mode = LOGIN_EVENTS_MODE.ANON
-        elif _automatic_login_events_mode == "disabled":
-            deprecate(
-                "Using DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING=disabled is deprecated",
-                message="Please use 'DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE=disabled"
-                " instead or DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED=false"
-                " to disable the feature and bypass Remote Config",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
     _auto_user_instrumentation_local_mode = Env.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
@@ -132,7 +104,7 @@ class ASMConfig(Env):
         help_type=float,
         help="Timeout in milliseconds for WAF computations",
     )
-
+    _asm_deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
     _asm_obfuscation_parameter_key_regexp = Env.var(
         str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
     )
@@ -167,7 +139,7 @@ class ASMConfig(Env):
         default=2,
     )
     _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
-    _deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
+    _iast_deduplication_enabled = Env.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -209,7 +181,6 @@ class ASMConfig(Env):
         "_iast_telemetry_report_lvl",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
-        "_automatic_login_events_mode",
         "_auto_user_instrumentation_local_mode",
         "_auto_user_instrumentation_rc_mode",
         "_auto_user_instrumentation_enabled",
@@ -226,13 +197,14 @@ class ASMConfig(Env):
         "_iast_max_concurrent_requests",
         "_iast_max_vulnerabilities_per_requests",
         "_iast_lazy_taint",
+        "_iast_deduplication_enabled",
         "_ep_stack_trace_enabled",
         "_ep_max_stack_traces",
         "_ep_max_stack_trace_depth",
         "_ep_stack_top_percent",
         "_iast_stack_trace_enabled",
         "_asm_config_keys",
-        "_deduplication_enabled",
+        "_asm_deduplication_enabled",
         "_django_include_user_name",
         "_django_include_user_email",
         "_django_include_user_login",
@@ -244,19 +216,30 @@ class ASMConfig(Env):
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+    _bypass_instrumentation_for_waf = False
+
+    # IAST supported on python 3.6 to 3.13 and never on windows
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
+        sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    )
 
     def __init__(self):
         super().__init__()
-        # Is one click available?
-        self._eval_asm_can_be_enabled()
-        # Only for deprecation phase
-        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
-            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
-        if not self._asm_libddwaf_available:
+        if not self._iast_supported:
+            self._iast_enabled = False
+        if not self._asm_libddwaf_available or in_aws_lambda():
             self._asm_enabled = False
             self._asm_can_be_enabled = False
             self._iast_enabled = False
             self._api_security_enabled = False
+            self._ep_enabled = False
+            self._auto_user_instrumentation_enabled = False
+            self._auto_user_instrumentation_local_mode = LOGIN_EVENTS_MODE.DISABLED
+            self._load_modules = False
+            self._asm_rc_enabled = False
+        else:
+            # Is one click available?
+            self._eval_asm_can_be_enabled()
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
@@ -264,10 +247,20 @@ class ASMConfig(Env):
 
     def _eval_asm_can_be_enabled(self):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._load_modules: bool = bool(
+            self._iast_enabled or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
+        )
+        self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
 
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
+
+    @property
+    def _apm_opt_out(self) -> bool:
+        return (
+            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+        ) and self._appsec_standalone_enabled
 
     @property
     def _user_event_mode(self) -> str:

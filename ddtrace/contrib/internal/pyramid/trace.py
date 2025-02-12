@@ -6,12 +6,8 @@ import wrapt
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
@@ -67,29 +63,30 @@ def trace_tween_factory(handler, registry):
     service = settings.get(SETTINGS_SERVICE) or schematize_service_name("pyramid")
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
-    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
+
+    # ensure distributed tracing within pyramid settings matches config
+    config.pyramid.distributed_tracing_enabled = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
     if enabled:
         # make a request tracing function
         def trace_tween(request):
-            trace_utils.activate_distributed_headers(
-                tracer, int_config=config.pyramid, request_headers=request.headers, override=distributed_tracing
-            )
-
-            span_name = schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND)
-            with tracer.trace(span_name, service=service, resource="404", span_type=SpanTypes.WEB) as span:
-                span.set_tag_str(COMPONENT, config.pyramid.integration_name)
-
-                # set span.kind to the type of operation being performed
-                span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-
-                span.set_tag(SPAN_MEASURED_KEY)
-                # Configure trace search sample rate
+            with core.context_with_data(
+                "pyramid.request",
+                span_name=schematize_url_operation("pyramid.request", protocol="http", direction=SpanDirection.INBOUND),
+                span_type=SpanTypes.WEB,
+                service=service,
+                resource="404",
+                tags={},
+                tracer=tracer,
+                distributed_headers=request.headers,
+                distributed_headers_config=config.pyramid,
+                headers_case_sensitive=True,
                 # DEV: pyramid is special case maintains separate configuration from config api
-                analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
-
-                if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-                    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
+                analytics_enabled=settings.get(SETTINGS_ANALYTICS_ENABLED),
+                analytics_sample_rate=settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True),
+            ) as ctx, ctx.span as req_span:
+                ctx.set_item("req_span", req_span)
+                core.dispatch("web.request.start", (ctx, config.pyramid))
 
                 setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates
                 response = None
@@ -110,8 +107,8 @@ def trace_tween_factory(handler, registry):
                 finally:
                     # set request tags
                     if request.matched_route:
-                        span.resource = "{} {}".format(request.method, request.matched_route.name)
-                        span.set_tag_str("pyramid.route.name", request.matched_route.name)
+                        req_span.resource = "{} {}".format(request.method, request.matched_route.name)
+                        req_span.set_tag_str("pyramid.route.name", request.matched_route.name)
                     # set response tags
                     if response:
                         status = response.status_code
@@ -119,17 +116,22 @@ def trace_tween_factory(handler, registry):
                     else:
                         response_headers = None
 
-                    trace_utils.set_http_meta(
-                        span,
-                        config.pyramid,
-                        method=request.method,
-                        url=request.path_url,
-                        status_code=status,
-                        query=request.query_string,
-                        request_headers=request.headers,
-                        response_headers=response_headers,
-                        route=request.matched_route.pattern if request.matched_route else None,
+                    core.dispatch(
+                        "web.request.finish",
+                        (
+                            req_span,
+                            config.pyramid,
+                            request.method,
+                            request.path_url,
+                            status,
+                            request.query_string,
+                            request.headers,
+                            response_headers,
+                            request.matched_route.pattern if request.matched_route else None,
+                            False,
+                        ),
                     )
+
                 return response
 
         return trace_tween

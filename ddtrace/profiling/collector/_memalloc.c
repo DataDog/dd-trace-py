@@ -5,6 +5,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -48,7 +49,13 @@ static PyObject* object_string = NULL;
 // We add an option here to _add_ a crash, in order to observe this condition in a future diagnostic iteration.
 // **This option is _intended_ to crash the Python process** do not use without a good reason!
 static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMALLOC_CRASH_ON_MUTEX_PASS";
-static const char* g_truthy_values[] = { "1", "true", "yes", "on", "enable", "enabled", NULL }; // NB the sentinel NULL
+// The allocation profiler functions should (in theory) only be called when allocating Python
+// objects, which should (in theory) only be done with the GIL held. We have reason to believe
+// that this code is sometimes reached without the GIL held, since some crashes in the code
+// seem to go away with our own locking. This debug flag will make the profiler crash if
+// it detects the GIL is not held in places where we think it ought to be.
+static char g_crash_on_no_gil_str[] = "_DD_PROFILING_MEMALLOC_CRASH_ON_NO_GIL";
+static bool g_crash_on_no_gil = false;
 static memlock_t g_memalloc_lock;
 
 static alloc_tracker_t* global_alloc_tracker;
@@ -56,6 +63,28 @@ static alloc_tracker_t* global_alloc_tracker;
 // This is a multiplatform way to define an operation to happen at static initialization time
 static void
 memalloc_init(void);
+
+static void
+memalloc_prefork(void)
+{
+    // Lock the mutex prior to forking. This ensures that the memory profiler
+    // data structures will be in a consistent state in the child process.
+    // The rest of the memalloc calls do trylock so we don't run the risk
+    // of deadlocking if some other fork handler allocates
+    memlock_lock(&g_memalloc_lock);
+}
+
+static void
+memalloc_postfork_parent(void)
+{
+    memlock_unlock(&g_memalloc_lock);
+}
+
+static void
+memalloc_postfork_child(void)
+{
+    memlock_unlock(&g_memalloc_lock);
+}
 
 #ifdef _MSC_VER
 #pragma section(".CRT$XCU", read)
@@ -70,22 +99,30 @@ static void
 memalloc_init()
 {
     // Check if we should crash the process on mutex pass
-    char* crash_on_mutex_pass_str = getenv(g_crash_on_mutex_pass_str);
-    bool crash_on_mutex_pass = false;
-    if (crash_on_mutex_pass_str) {
-        for (int i = 0; g_truthy_values[i]; i++) {
-            if (strcmp(crash_on_mutex_pass_str, g_truthy_values[i]) == 0) {
-                crash_on_mutex_pass = true;
-                break;
-            }
-        }
-    }
+    bool crash_on_mutex_pass = memalloc_get_bool_env(g_crash_on_mutex_pass_str);
     memlock_init(&g_memalloc_lock, crash_on_mutex_pass);
+#ifndef _WIN32
+    pthread_atfork(memalloc_prefork, memalloc_postfork_parent, memalloc_postfork_child);
+#endif
+
+    g_crash_on_no_gil = memalloc_get_bool_env(g_crash_on_no_gil_str);
+}
+
+static void
+memalloc_assert_gil()
+{
+    if (g_crash_on_no_gil && !PyGILState_Check()) {
+        int* p = NULL;
+        *p = 0;
+        abort(); // should never reach here
+    }
 }
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
+    memalloc_assert_gil();
+
     uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
     /* Return if we've reached the maximum number of allocations */
@@ -301,6 +338,8 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
+    memalloc_assert_gil();
+
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
     if (memlock_trylock(&g_memalloc_lock)) {
@@ -355,18 +394,28 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     }
 
     IterEventsState* iestate = (IterEventsState*)type->tp_alloc(type, 0);
-    if (!iestate)
+    if (!iestate) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate IterEventsState");
         return NULL;
+    }
 
-    /* reset the current traceback list */
-    if (memlock_trylock(&g_memalloc_lock)) {
-        iestate->alloc_tracker = global_alloc_tracker;
-        global_alloc_tracker = alloc_tracker_new();
-        memlock_unlock(&g_memalloc_lock);
-    } else {
+    memalloc_assert_gil();
+
+    /* Reset the current traceback list. Do this outside lock so we can track it,
+     * and avoid reentrancy/deadlock problems, if we start tracking the raw
+     * allocator domain */
+    alloc_tracker_t* tracker = alloc_tracker_new();
+    if (!tracker) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
         Py_TYPE(iestate)->tp_free(iestate);
         return NULL;
     }
+
+    memlock_lock(&g_memalloc_lock);
+    iestate->alloc_tracker = global_alloc_tracker;
+    global_alloc_tracker = tracker;
+    memlock_unlock(&g_memalloc_lock);
+
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);

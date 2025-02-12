@@ -7,8 +7,8 @@ import wrapt
 # project
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.redis.patch import instrumented_execute_command
 from ddtrace.contrib.internal.redis.patch import instrumented_pipeline
@@ -23,7 +23,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
@@ -102,7 +102,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
         s.set_tag_str(db.SYSTEM, redisx.APP)
-        s.set_tag(SPAN_MEASURED_KEY)
+        s.set_tag(_SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
 

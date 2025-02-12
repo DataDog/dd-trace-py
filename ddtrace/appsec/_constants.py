@@ -1,3 +1,5 @@
+# this module must not load any other unsafe appsec module directly
+
 import os
 from re import Match
 import sys
@@ -75,6 +77,8 @@ class APPSEC(metaclass=Constant_Class):
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
     USER_LOGIN_EVENT_PREFIX_PUBLIC: Literal["appsec.events.users.login"] = "appsec.events.users.login"
+    USER_LOGIN_USERID: Literal["_dd.appsec.usr.id"] = "_dd.appsec.usr.id"
+    USER_LOGIN_USERNAME: Literal["_dd.appsec.usr.login"] = "_dd.appsec.usr.login"
     USER_LOGIN_EVENT_SUCCESS_TRACK: Literal[
         "appsec.events.users.login.success.track"
     ] = "appsec.events.users.login.success.track"
@@ -88,11 +92,9 @@ class APPSEC(metaclass=Constant_Class):
     AUTO_LOGIN_EVENTS_FAILURE_MODE: Literal[
         "_dd.appsec.events.users.login.failure.auto.mode"
     ] = "_dd.appsec.events.users.login.failure.auto.mode"
+    AUTO_LOGIN_EVENTS_COLLECTION_MODE: Literal["_dd.appsec.user.collection_mode"] = "_dd.appsec.user.collection_mode"
     BLOCKED: Literal["appsec.blocked"] = "appsec.blocked"
     EVENT: Literal["appsec.event"] = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING: Literal[
-        "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
-    ] = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
     AUTO_USER_INSTRUMENTATION_MODE: Literal[
         "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
     ] = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
@@ -180,6 +182,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_COOKIES: Literal["server.request.cookies"] = "server.request.cookies"
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
+    REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -194,6 +197,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_COOKIES,
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
+            REQUEST_USERNAME,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
@@ -202,7 +206,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
 
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
-    CMDI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
+    CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
+    SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
@@ -328,6 +333,7 @@ class DEFAULT(metaclass=Constant_Class):
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
+    BLOCKING: Literal["exploit_prevention"] = "exploit_prevention"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
     EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
@@ -339,6 +345,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
+        SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
@@ -346,6 +353,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     class ADDRESS(metaclass=Constant_Class):
         CMDI: Literal["CMDI_ADDRESS"] = "CMDI_ADDRESS"
         LFI: Literal["LFI_ADDRESS"] = "LFI_ADDRESS"
+        SHI: Literal["SHI_ADDRESS"] = "SHI_ADDRESS"
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"
         SQLI_TYPE: Literal["SQLI_SYSTEM_ADDRESS"] = "SQLI_SYSTEM_ADDRESS"

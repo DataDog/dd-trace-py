@@ -2,18 +2,17 @@ import time
 
 import pytest
 
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.tracer import Tracer
+from ddtrace.trace import tracer as ddtracer
+from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import override_global_config
-
-from .test_integration import AGENT_VERSION
 
 
 def _turn_tracer_into_dummy(tracer):
@@ -55,7 +54,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
 def test_priority_sampling_rate_honored():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
 
@@ -83,7 +82,7 @@ def test_priority_sampling_rate_honored():
             pass
         t.flush()
     assert len(t._writer.traces) == captured_span_count
-    sampled_spans = [s for s in t._writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
+    sampled_spans = [s for s in t._writer.spans if s.context._metrics[_SAMPLING_PRIORITY_KEY] == AUTO_KEEP]
     sampled_ratio = len(sampled_spans) / captured_span_count
     diff_magnitude = abs(sampled_ratio - rate_from_agent)
     assert diff_magnitude < 0.3, "the proportion of sampled spans should approximate the sample rate given by the agent"
@@ -96,7 +95,7 @@ def test_priority_sampling_rate_honored():
 def test_priority_sampling_response():
     import time
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()
@@ -116,18 +115,16 @@ def test_priority_sampling_response():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.9999})
 def test_agent_sample_rate_keep():
     """Ensure that the agent sample rate is respected when a trace is auto sampled."""
-    tracer = Tracer()
-
     # First trace won't actually have the sample rate applied since the response has not yet been received.
-    with tracer.trace(""):
+    with ddtracer.trace(""):
         pass
     # Force a flush to get the response back.
-    tracer.flush()
+    ddtracer.flush()
 
     # Subsequent traces should have the rate applied.
-    with tracer.trace("test", service="test") as span:
+    with ddtracer.trace("test", service="test") as span:
         pass
-    tracer.flush()
+    ddtracer.flush()
     assert span.get_metric("_dd.agent_psr") == pytest.approx(0.9999)
     assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
     assert span.get_tag("_dd.p.dm") == "-1"
@@ -137,21 +134,17 @@ def test_agent_sample_rate_keep():
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():
     """Ensure that the agent sample rate is respected when a trace is auto rejected."""
-    from ddtrace.tracer import Tracer
-
-    tracer = Tracer()
-
     # First trace won't actually have the sample rate applied since the response has not yet been received.
-    with tracer.trace(""):
+    with ddtracer.trace(""):
         pass
 
     # Force a flush to get the response back.
-    tracer.flush()
+    ddtracer.flush()
 
     # Subsequent traces should have the rate applied.
-    with tracer.trace("test", service="test") as span:
+    with ddtracer.trace("test", service="test") as span:
         pass
-    tracer.flush()
+    ddtracer.flush()
     assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
     assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
     assert span.get_tag("_dd.p.dm") == "-1"

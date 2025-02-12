@@ -2,8 +2,6 @@ from pathlib import Path
 import typing as t
 from typing import NamedTuple
 
-from ddtrace import Span
-from ddtrace import Tracer
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
@@ -21,6 +19,8 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._utils import _get_item_span
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -118,6 +118,20 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
 
     @staticmethod
     @_catch_and_log_exceptions
+    def should_skip_quarantined_tests() -> bool:
+        log.debug("Checking if quarantined tests should be skipped")
+
+        should_skip = bool(
+            core.dispatch_with_results(
+                "test_visibility.session.should_skip_quarantined_tests"
+            ).should_skip_quarantined_tests.value
+        )
+        log.debug("Quarantined tests should be skipped: %s", should_skip)
+
+        return should_skip
+
+    @staticmethod
+    @_catch_and_log_exceptions
     def set_covered_lines_pct(coverage_pct: float):
         log.debug("Setting covered lines percentage for session to %s", coverage_pct)
 
@@ -174,6 +188,16 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
         is_new = bool(core.dispatch_with_results("test_visibility.test.is_new", (item_id,)).is_new.value)
         log.debug("Test %s is new: %s", item_id, is_new)
         return is_new
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_quarantined_test(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s is quarantined", item_id)
+        is_quarantined = bool(
+            core.dispatch_with_results("test_visibility.test.is_quarantined", (item_id,)).is_quarantined.value
+        )
+        log.debug("Test %s is quarantined: %s", item_id, is_quarantined)
+        return is_quarantined
 
     class OverwriteAttributesArgs(NamedTuple):
         test_id: InternalTestId

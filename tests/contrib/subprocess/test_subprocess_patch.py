@@ -1,10 +1,10 @@
-from ddtrace.contrib.subprocess.patch import get_version
-from ddtrace.contrib.subprocess.patch import patch
+from ddtrace.contrib.internal.subprocess.patch import get_version
+from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.settings.asm import config as asm_config
 
 
 try:
-    from ddtrace.contrib.subprocess.patch import unpatch
+    from ddtrace.contrib.internal.subprocess.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase
@@ -19,6 +19,8 @@ class TestSubprocessPatch(PatchTestCase.Base):
 
     def __init__(self, *args, **kwargs):
         asm_config._asm_enabled = True
+        asm_config._ep_enabled = True
+        asm_config._load_modules = True
         super(TestSubprocessPatch, self).__init__(*args, **kwargs)
 
     def assert_module_patched(self, subprocess):

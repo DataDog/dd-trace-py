@@ -4,13 +4,13 @@ from __future__ import absolute_import
 from itertools import chain
 import logging
 import sys
+import time
 import typing
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
-from ddtrace._trace.tracer import Tracer
-from ddtrace.internal import compat
+from ddtrace.trace import Tracer
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -131,10 +131,10 @@ ELSE:
         cdef stdint.int64_t _last_process_time
 
         def __init__(self):
-            self._last_process_time = compat.process_time_ns()
+            self._last_process_time = time.process_time_ns()
 
         def __call__(self, pthread_ids):
-            current_process_time = compat.process_time_ns()
+            current_process_time = time.process_time_ns()
             cpu_time = current_process_time - self._last_process_time
             self._last_process_time = current_process_time
             # Spread the consumed CPU time on all threads.
@@ -194,19 +194,7 @@ ELIF UNAME_SYSNAME != "Windows":
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
 
-    IF PY_VERSION_HEX < 0x03080000:
-        # Python 3.7
-        cdef extern from "<internal/pystate.h>":
-
-            cdef struct pyinterpreters:
-                PyThread_type_lock mutex
-
-            ctypedef struct _PyRuntimeState:
-                pyinterpreters interpreters
-
-            cdef extern _PyRuntimeState _PyRuntime
-
-    ELIF PY_VERSION_HEX >= 0x03080000:
+    IF PY_VERSION_HEX >= 0x03080000:
         # Python 3.8
         cdef extern from "<internal/pycore_pystate.h>":
 
@@ -524,7 +512,7 @@ class StackCollector(collector.PeriodicCollector):
     def _init(self):
         # type: (...) -> None
         self._thread_time = _ThreadTime()
-        self._last_wall_time = compat.monotonic_ns()
+        self._last_wall_time = time.monotonic_ns()
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
@@ -569,7 +557,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def collect(self):
         # Compute wall time
-        now = compat.monotonic_ns()
+        now = time.monotonic_ns()
         wall_time = now - self._last_wall_time
         self._last_wall_time = now
         all_events = []
@@ -587,7 +575,7 @@ class StackCollector(collector.PeriodicCollector):
                 now_ns=now,
             )
 
-        used_wall_time_ns = compat.monotonic_ns() - now
+        used_wall_time_ns = time.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
 
         if self._stack_collector_v2_enabled:

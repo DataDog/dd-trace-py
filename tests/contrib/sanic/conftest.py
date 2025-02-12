@@ -1,8 +1,8 @@
 import pytest
 
 import ddtrace
-from ddtrace.contrib.sanic import patch
-from ddtrace.contrib.sanic import unpatch
+from ddtrace.contrib.internal.sanic.patch import patch
+from ddtrace.contrib.internal.sanic.patch import unpatch
 from tests.utils import DummyTracer
 
 

@@ -5,9 +5,11 @@ from typing import Text
 from wrapt import FunctionWrapper
 
 from ddtrace.appsec._common_module_patches import wrap_object
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
-
-from ._taint_utils import taint_structure
 
 
 log = get_logger(__name__)
@@ -48,10 +50,6 @@ def _patched_dictionary(origin_key, origin_value, original_func, instance, args,
 
 
 def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     def path(self) -> str:
         return taint_pyobject(
             self.components.path,
@@ -65,8 +63,6 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
 
 
 def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-
     def receive(self):
         """This pattern comes from a Request._receive property, which returns a callable"""
 
@@ -82,10 +78,6 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
 
 
 async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     result = await wrapped(*args, **kwargs)
 
     return taint_pyobject(
@@ -94,9 +86,6 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 
 def _iast_instrument_starlette_scope(scope):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     if scope.get("path_params"):
         try:
             for k, v in scope["path_params"].items():

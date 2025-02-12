@@ -125,19 +125,6 @@ memlock_trylock(memlock_t* lock)
     if (!lock)
         return false;
 
-#ifdef __linux__
-    // On Linux, we need to make sure we didn't just fork
-    // pthreads will guarantee the lock is consistent, but we at least need to clear it
-    static pid_t my_pid = 0;
-    if (my_pid == 0) {
-        my_pid = getpid();
-    } else if (my_pid != getpid()) {
-        // We've forked, so we need to free the lock
-        memlock_unlock(lock);
-        my_pid = getpid();
-    }
-#endif
-
 #ifdef _WIN32
     bool result = WAIT_OBJECT_0 == WaitForSingleObject(lock->mutex, 0); // 0ms timeout -> no wait
 #else
@@ -151,6 +138,19 @@ memlock_trylock(memlock_t* lock)
     }
 
     return result;
+}
+
+static inline void
+memlock_lock(memlock_t* lock)
+{
+    if (!lock)
+        return;
+
+#ifdef _WIN32
+    WaitForSingleObject(lock->mutex, INFINITE);
+#else
+    pthread_mutex_lock(&lock->mutex);
+#endif
 }
 
 // Cleanup function

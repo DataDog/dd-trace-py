@@ -2,9 +2,9 @@
 import pytest
 import redis
 
-from ddtrace import Pin
-from ddtrace.contrib.redis.patch import patch
-from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.contrib.internal.redis.patch import patch
+from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
@@ -28,7 +28,7 @@ async def traced_redis_cluster(tracer, test_spans):
     startup_nodes = [redis.asyncio.cluster.ClusterNode(TEST_HOST, int(port)) for port in TEST_PORTS.split(",")]
     redis_cluster = redis.asyncio.cluster.RedisCluster(startup_nodes=startup_nodes)
     await redis_cluster.flushall()
-    Pin.override(redis_cluster, tracer=tracer)
+    Pin._override(redis_cluster, tracer=tracer)
     try:
         yield redis_cluster, test_spans
     finally:
@@ -125,7 +125,7 @@ async def test_patch_unpatch(redis_cluster):
     patch()
 
     r = redis_cluster
-    Pin.override(r, tracer=tracer)
+    Pin._override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
@@ -145,7 +145,7 @@ async def test_patch_unpatch(redis_cluster):
     patch()
 
     r = redis_cluster
-    Pin.override(r, tracer=tracer)
+    Pin._override(r, tracer=tracer)
     await r.get("key")
 
     spans = tracer.pop()
@@ -164,9 +164,9 @@ def test_default_service_name_v1():
 
     import redis
 
-    from ddtrace import Pin
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -182,7 +182,7 @@ def test_default_service_name_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -210,9 +210,9 @@ def test_user_specified_service_v0():
 
     import redis
 
-    from ddtrace import Pin
     from ddtrace import config
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -231,7 +231,7 @@ def test_user_specified_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -259,9 +259,9 @@ def test_user_specified_service_v1():
 
     import redis
 
-    from ddtrace import Pin
     from ddtrace import config
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -280,7 +280,7 @@ def test_user_specified_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -304,8 +304,8 @@ def test_env_user_specified_rediscluster_service_v0():
 
     import redis
 
-    from ddtrace import Pin
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -321,7 +321,7 @@ def test_env_user_specified_rediscluster_service_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -345,8 +345,8 @@ def test_env_user_specified_rediscluster_service_v1():
 
     import redis
 
-    from ddtrace import Pin
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -362,7 +362,7 @@ def test_env_user_specified_rediscluster_service_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -390,9 +390,9 @@ def test_service_precedence_v0():
 
     import redis
 
-    from ddtrace import Pin
     from ddtrace import config
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -411,7 +411,7 @@ def test_service_precedence_v0():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 
@@ -435,9 +435,9 @@ def test_service_precedence_v1():
 
     import redis
 
-    from ddtrace import Pin
     from ddtrace import config
-    from ddtrace.contrib.redis import patch
+    from ddtrace.contrib.internal.redis.patch import patch
+    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -456,7 +456,7 @@ def test_service_precedence_v1():
         tracer = DummyTracer()
         test_spans = TracerSpanContainer(tracer)
 
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
+        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         await r.get("key")
         await r.close()
 

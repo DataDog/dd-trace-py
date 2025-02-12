@@ -2,8 +2,8 @@ import json
 import os
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.pytest_bdd._plugin import _get_step_func_args_json
-from ddtrace.contrib.pytest_bdd._plugin import get_version
+from ddtrace.contrib.internal.pytest_bdd._plugin import _get_step_func_args_json
+from ddtrace.contrib.internal.pytest_bdd._plugin import get_version
 from ddtrace.ext import test
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
@@ -197,20 +197,23 @@ class TestPytest(PytestTestCaseBase):
         assert spans[0].get_tag(ERROR_MSG)
 
     def test_get_step_func_args_json_empty(self):
-        self.monkeypatch.setattr("ddtrace.contrib.pytest_bdd._plugin._extract_step_func_args", lambda *args: None)
+        self.monkeypatch.setattr(
+            "ddtrace.contrib.internal.pytest_bdd._plugin._extract_step_func_args", lambda *args: None
+        )
 
         assert _get_step_func_args_json(None, lambda: None, None) is None
 
     def test_get_step_func_args_json_valid(self):
         self.monkeypatch.setattr(
-            "ddtrace.contrib.pytest_bdd._plugin._extract_step_func_args", lambda *args: {"func_arg": "test string"}
+            "ddtrace.contrib.internal.pytest_bdd._plugin._extract_step_func_args",
+            lambda *args: {"func_arg": "test string"},
         )
 
         assert _get_step_func_args_json(None, lambda: None, None) == '{"func_arg": "test string"}'
 
     def test_get_step_func_args_json_invalid(self):
         self.monkeypatch.setattr(
-            "ddtrace.contrib.pytest_bdd._plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
+            "ddtrace.contrib.internal.pytest_bdd._plugin._extract_step_func_args", lambda *args: {"func_arg": set()}
         )
 
         expected = '{"error_serializing_args": "Object of type set is not JSON serializable"}'

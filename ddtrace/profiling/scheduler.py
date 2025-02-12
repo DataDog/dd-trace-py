@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
+import time
 from typing import Any  # noqa F401
 from typing import Callable
 from typing import Dict  # noqa F401
@@ -8,13 +9,12 @@ from typing import Optional
 from typing import Sequence  # noqa F401
 
 import ddtrace
-from ddtrace._trace.tracer import Tracer
-from ddtrace.internal import compat
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
+from ddtrace.trace import Tracer
 
 from .exporter import Exporter
 from .recorder import EventsType
@@ -49,7 +49,7 @@ class Scheduler(periodic.PeriodicService):
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
         super(Scheduler, self)._start_service()
-        self._last_export = compat.time_ns()
+        self._last_export = time.time_ns()
         LOG.debug("Scheduler started")
 
     def flush(self):
@@ -68,14 +68,14 @@ class Scheduler(periodic.PeriodicService):
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
             start = self._last_export
-            self._last_export = compat.time_ns()
+            self._last_export = time.time_ns()
             return
 
         events: EventsType = {}
         if self.recorder:
             events = self.recorder.reset()
         start = self._last_export
-        self._last_export = compat.time_ns()
+        self._last_export = time.time_ns()
         if self.exporters:
             for exp in self.exporters:
                 try:
@@ -90,11 +90,11 @@ class Scheduler(periodic.PeriodicService):
 
     def periodic(self):
         # type: (...) -> None
-        start_time = compat.monotonic()
+        start_time = time.monotonic()
         try:
             self.flush()
         finally:
-            self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
+            self.interval = max(0, self._configured_interval - (time.monotonic() - start_time))
 
 
 class ServerlessScheduler(Scheduler):
@@ -119,7 +119,7 @@ class ServerlessScheduler(Scheduler):
     def periodic(self):
         # type: (...) -> None
         # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
-        if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (compat.time_ns() - self._last_export) >= (
+        if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (time.time_ns() - self._last_export) >= (
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS
         ):
             try:

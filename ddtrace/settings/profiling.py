@@ -334,7 +334,7 @@ class ProfilingConfigStack(En):
     _v2_enabled = En.v(
         bool,
         "v2_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )

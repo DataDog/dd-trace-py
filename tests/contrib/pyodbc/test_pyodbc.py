@@ -1,9 +1,9 @@
 import pyodbc
 
-from ddtrace import Pin
-from ddtrace.contrib.pyodbc.patch import patch
-from ddtrace.contrib.pyodbc.patch import unpatch
+from ddtrace.contrib.internal.pyodbc.patch import patch
+from ddtrace.contrib.internal.pyodbc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -211,7 +211,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -227,7 +227,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
             conn = pyodbc.connect(PYODBC_CONNECT_DSN)
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(tracer=self.tracer).onto(conn)
+            pin._clone(tracer=self.tracer).onto(conn)
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
@@ -256,7 +256,7 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
     def test_user_pin_override(self):
         conn, tracer = self._get_conn_tracer()
         pin = Pin.get_from(conn)
-        pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
+        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()

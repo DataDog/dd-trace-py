@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves a data race issue accessing lock's acquired
+    time, leading to an ``AttributeError``: ``_Profiled_ThreadingLock`` object
+    has no attribute ``self_acquired_at``

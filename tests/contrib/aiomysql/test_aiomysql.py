@@ -5,11 +5,10 @@ import mock
 import pymysql
 import pytest
 
-from ddtrace import Pin
-from ddtrace import Tracer
-from ddtrace.contrib.aiomysql import patch
-from ddtrace.contrib.aiomysql import unpatch
+from ddtrace.contrib.internal.aiomysql.patch import patch
+from ddtrace.contrib.internal.aiomysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -31,19 +30,16 @@ def patch_aiomysql():
 @pytest.fixture
 async def patched_conn(tracer):
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
     yield conn
     conn.close()
 
 
 @pytest.fixture()
-async def snapshot_conn():
-    tracer = Tracer()
+async def snapshot_conn(tracer):
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(tracer=tracer).onto(conn)
     yield conn
     conn.close()
-    tracer.shutdown()
+    tracer.flush()
 
 
 @pytest.mark.asyncio
@@ -66,7 +62,7 @@ async def test_queries(snapshot_conn):
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_pin_override(patched_conn, tracer):
-    Pin.override(patched_conn, service="db")
+    Pin._override(patched_conn, service="db")
     cursor = await patched_conn.cursor()
     await cursor.execute("SELECT 1")
     rows = await cursor.fetchall()
@@ -82,7 +78,7 @@ async def test_patch_unpatch(tracer, test_spans):
     service = "fo"
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -104,7 +100,7 @@ async def test_patch_unpatch(tracer, test_spans):
     patch()
 
     conn = await aiomysql.connect(**AIOMYSQL_CONFIG)
-    Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+    Pin.get_from(conn)._clone(service=service, tracer=tracer).onto(conn)
     await (await conn.cursor()).execute("select 'dba4x4'")
     conn.close()
 
@@ -241,7 +237,7 @@ class AioMySQLTestCase(AsyncioTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
+            pin._clone(tracer=self.tracer, tags={**tags, **pin.tags}).onto(self.conn)
 
             return self.conn, self.tracer
 

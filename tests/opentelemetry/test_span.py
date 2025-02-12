@@ -119,8 +119,9 @@ def test_otel_span_status_with_status_obj(oteltracer, caplog):
         assert errspan_dup_des._ddspan.error == 1
         assert errspan_dup_des._ddspan.get_tag("error.message") in "main otel err message"
         assert (
-            "Description ot_duplicate_message ignored. Use either `Status` or `(StatusCode, Description)`"
-            in caplog.text
+            "Conflicting descriptions detected. The following description will not be set "
+            "on the otel-error-dup-description span: ot_duplicate_message. Ensure `Span.set_status(...)` "
+            "is called with `(Status(status_code, description), None)` or `(status_code, description)`" in caplog.text
         )
 
     with oteltracer.start_span("set-status-on-otel-span") as span1:

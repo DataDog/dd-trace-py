@@ -1,36 +1,35 @@
 from dataclasses import dataclass
+from functools import partial
 from itertools import count
 from pathlib import Path
 import sys
-
-# from threading import current_thread
+from threading import current_thread
+from time import monotonic_ns
 from types import FrameType
 from types import FunctionType
 import typing as t
 import uuid
 
 import ddtrace
-
-# from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
-
-# from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
 from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import ProbeEvalTiming
-
-# from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._session import Session
+from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.ext import EXIT_SPAN_TYPES
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
-from ddtrace.span import Span
+from ddtrace.trace import Span
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
@@ -40,13 +39,13 @@ def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
         _frame = _frame.f_back
 
 
-def wrap_entrypoint(f: t.Callable) -> None:
+def wrap_entrypoint(collector: SignalCollector, f: t.Callable) -> None:
     if not _isinstance(f, FunctionType):
         return
 
     _f = t.cast(FunctionType, f)
     if not EntrySpanWrappingContext.is_wrapped(_f):
-        EntrySpanWrappingContext(_f).wrap()
+        EntrySpanWrappingContext(collector, _f).wrap()
 
 
 @dataclass
@@ -120,8 +119,12 @@ class EntrySpanLocation:
 
 
 class EntrySpanWrappingContext(WrappingContext):
-    def __init__(self, f):
+    __priority__ = 199
+
+    def __init__(self, collector: SignalCollector, f: FunctionType) -> None:
         super().__init__(f)
+
+        self.collector = collector
 
         filename = str(Path(f.__code__.co_filename).resolve())
         name = f.__qualname__
@@ -152,36 +155,37 @@ class EntrySpanWrappingContext(WrappingContext):
             s.set_tag_str("_dd.code_origin.frames.0.type", location.module)
             s.set_tag_str("_dd.code_origin.frames.0.method", location.name)
 
-        # TODO[gab]: This will be enabled as part of the live debugger/distributed debugging
-        # if ld_config.enabled:
-        #     # Create a snapshot
-        #     snapshot = Snapshot(
-        #         probe=location.probe,
-        #         frame=self.__frame__,
-        #         thread=current_thread(),
-        #         trace_context=root,
-        #     )
-
-        #     # Capture on entry
-        #     context = Debugger.get_collector().attach(snapshot)
-
-        #     # Correlate the snapshot with the span
-        #     root.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-        #     span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-
-        #     self.set("context", context)
-        #     self.set("start_time", compat.monotonic_ns())
+        self.set("start_time", monotonic_ns())
 
         return self
 
     def _close_signal(self, retval=None, exc_info=(None, None, None)):
-        try:
-            signal: Signal = t.cast(Signal, self.get("signal"))
-        except KeyError:
-            # No snapshot was created
+        root = ddtrace.tracer.current_root_span()
+        span = ddtrace.tracer.current_span()
+        if root is None or span is None:
             return
 
-        signal.do_exit(retval, exc_info, compat.monotonic_ns() - self.get("start_time"))
+        # Check if we have any level 2 debugging sessions running for the
+        # current trace
+        if any(s.level >= 2 for s in Session.from_trace()):
+            # Create a snapshot
+            snapshot = Snapshot(
+                probe=self.location.probe,
+                frame=self.__frame__,
+                thread=current_thread(),
+                trace_context=root,
+            )
+
+            # Capture on entry
+            snapshot.do_enter()
+
+            # Correlate the snapshot with the span
+            root.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+            span.set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+
+            snapshot.do_exit(retval, exc_info, monotonic_ns() - self.get("start_time"))
+
+            self.collector.push(snapshot)
 
     def __return__(self, retval):
         self._close_signal(retval=retval)
@@ -194,7 +198,10 @@ class EntrySpanWrappingContext(WrappingContext):
 
 @dataclass
 class SpanCodeOriginProcessor(SpanProcessor):
+    __uploader__ = LogsIntakeUploaderV1
+
     _instance: t.Optional["SpanCodeOriginProcessor"] = None
+    _handler: t.Optional[t.Callable] = None
 
     def on_span_start(self, span: Span) -> None:
         if span.span_type not in EXIT_SPAN_TYPES:
@@ -216,27 +223,32 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.file", filename)
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
-                # DEV: Without a function object we cannot infer the function
-                # and any potential class name.
+                try:
+                    (f,) = functions_for_code(code)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.type", f.__module__)
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.method", f.__qualname__)
+                except ValueError:
+                    continue
 
-                # TODO[gab]: This will be enabled as part of the live debugger/distributed debugging
-                # if ld_config.enabled:
-                #     # Create a snapshot
-                #     snapshot = Snapshot(
-                #         probe=ExitSpanProbe.from_frame(frame),
-                #         frame=frame,
-                #         thread=current_thread(),
-                #         trace_context=span,
-                #     )
+                # Check if we have any level 2 debugging sessions running for
+                # the current trace
+                if any(s.level >= 2 for s in Session.from_trace()):
+                    # Create a snapshot
+                    snapshot = Snapshot(
+                        probe=ExitSpanProbe.from_frame(frame),
+                        frame=frame,
+                        thread=current_thread(),
+                        trace_context=span,
+                    )
 
-                #     # Capture on entry
-                #     snapshot.line()
+                    # Capture on entry
+                    snapshot.do_line()
 
-                #     # Collect
-                #     Debugger.get_collector().push(snapshot)
+                    # Collect
+                    self.__uploader__.get_collector().push(snapshot)
 
-                #     # Correlate the snapshot with the span
-                #     span.set_tag_str(f"_dd.code_origin.frames.{n}.snapshot_id", snapshot.uuid)
+                    # Correlate the snapshot with the span
+                    span.set_tag_str(f"_dd.code_origin.frames.{n}.snapshot_id", snapshot.uuid)
 
     def on_span_finish(self, span: Span) -> None:
         pass
@@ -246,17 +258,31 @@ class SpanCodeOriginProcessor(SpanProcessor):
         if cls._instance is not None:
             return
 
-        core.on("service_entrypoint.patch", wrap_entrypoint)
-
         instance = cls._instance = cls()
+
+        # Register code origin for span with the snapshot uploader
+        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        # Register the processor for exit spans
         instance.register()
+
+        # Register the entrypoint wrapping for entry spans
+        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__.get_collector())
+        core.on("service_entrypoint.patch", handler)
 
     @classmethod
     def disable(cls):
         if cls._instance is None:
             return
 
-        cls._instance.unregister()
-        cls._instance = None
+        # Unregister the entrypoint wrapping for entry spans
+        core.reset_listeners("service_entrypoint.patch", cls._handler)
+        cls._handler = None
 
-        core.reset_listeners("service_entrypoint.patch", wrap_entrypoint)
+        # Unregister the processor for exit spans
+        cls._instance.unregister()
+
+        # Unregister code origin for span with the snapshot uploader
+        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        cls._instance = None

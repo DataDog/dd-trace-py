@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.mariadb import get_version
-from ddtrace.contrib.mariadb.patch import patch
+from ddtrace.contrib.internal.mariadb.patch import get_version
+from ddtrace.contrib.internal.mariadb.patch import patch
 
 
 try:
-    from ddtrace.contrib.mariadb.patch import unpatch
+    from ddtrace.contrib.internal.mariadb.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

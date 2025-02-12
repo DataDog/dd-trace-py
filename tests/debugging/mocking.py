@@ -2,9 +2,11 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import monotonic
 from time import sleep
 from typing import Any
 from typing import Generator
+from typing import List
 
 from envier import En
 
@@ -15,8 +17,8 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import monotonic
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 
@@ -115,6 +117,10 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
     def payloads(self):
         return [_ for data in self.queue for _ in json.loads(data)]
 
+    @property
+    def snapshots(self) -> List[Snapshot]:
+        return self.collector.queue
+
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
@@ -144,6 +150,10 @@ class TestDebugger(Debugger):
     @property
     def collector(self):
         return self.__uploader__.get_collector()
+
+    @property
+    def snapshots(self) -> List[Snapshot]:
+        return self.uploader.snapshots
 
     @property
     def probe_status_logger(self):

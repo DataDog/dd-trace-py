@@ -1,15 +1,8 @@
 import json
 import os
-from unittest import mock
 
 import msgpack
-import pytest
 
-import ddtrace
-from ddtrace._trace.span import Span
-from ddtrace.contrib.pytest.plugin import is_enabled
-from ddtrace.internal.ci_visibility import CIVisibility
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
@@ -17,10 +10,8 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
-from tests.ci_visibility.test_ci_visibility import _dummy_noop_git_client
-from tests.ci_visibility.util import _patch_dummy_writer
-from tests.utils import TracerTestCase
-from tests.utils import override_env
+from ddtrace.trace import Span
+from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
 def test_encode_traces_civisibility_v0():
@@ -241,38 +232,7 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     assert complete_payload is None
 
 
-class PytestEncodingTestCase(TracerTestCase):
-    @pytest.fixture(autouse=True)
-    def fixtures(self, testdir, monkeypatch):
-        self.testdir = testdir
-        self.monkeypatch = monkeypatch
-
-    def inline_run(self, *args):
-        """Execute test script with test tracer."""
-
-        class CIVisibilityPlugin:
-            @staticmethod
-            def pytest_configure(config):
-                if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-
-        with override_env(dict(DD_API_KEY="foobar.baz")), _dummy_noop_git_client(), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
-            return_value=TestVisibilityAPISettings(False, False, False, False),
-        ):
-            return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
-
-    def subprocess_run(self, *args):
-        """Execute test script with test tracer."""
-        return self.testdir.runpytest_subprocess(*args)
-
-    def teardown(self):
-        if CIVisibility.enabled:
-            CIVisibility.disable()
-
+class PytestEncodingTestCase(PytestTestCaseBase):
     def test_event_payload(self):
         """Test that a pytest test case will generate a test event, but with:
         - test_session_id, test_module_id, test_suite_id moved from meta to event content dictionary
