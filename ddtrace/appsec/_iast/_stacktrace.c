@@ -17,8 +17,8 @@
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
-#define FRAME_DECREF(frame) Py_DecRef(frame)
-#define FRAME_XDECREF(frame) Py_XDECREF(frame)
+#define FRAME_DECREF(frame) Py_DecRef((PyObject*)frame)
+#define FRAME_XDECREF(frame) Py_XDECREF((PyObject*)frame)
 #define FILENAME_DECREF(filename) Py_DecRef(filename)
 #define FILENAME_XDECREF(filename)                                                                                     \
     if (filename)                                                                                                      \
@@ -31,17 +31,24 @@ GET_FILENAME(PyFrameObject* frame)
         return NULL;
     }
     PyObject* filename = PyObject_GetAttrString((PyObject*)code, "co_filename");
-    Py_DecRef(code);
+    Py_DecRef((PyObject*)code);
     return filename;
 }
+
+/* Use the public API to get the locals dictionary */
+static inline PyObject* GET_LOCALS(PyFrameObject* frame) {
+    return PyFrame_GetLocals(frame);
+}
+
 #else
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
-#define GET_FILENAME(frame) frame->f_code->co_filename
+#define GET_FILENAME(frame) ((PyObject*)(frame->f_code->co_filename))
 #define FRAME_DECREF(frame)
 #define FRAME_XDECREF(frame)
 #define FILENAME_DECREF(filename)
 #define FILENAME_XDECREF(filename)
+#define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
 /* See: https://bugs.python.org/issue44964 */
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
@@ -50,29 +57,31 @@ GET_FILENAME(PyFrameObject* frame)
 #endif
 #endif
 
-/* Inline helper to get the function name from the frame.
-   Returns a new reference to frame->f_code.co_name or an empty string on failure. */
 static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
-    PyObject* func = PyObject_GetAttrString((PyObject*)frame->f_code, "co_name");
+    PyCodeObject* code = PyFrame_GetCode(frame);
+    if (!code) {
+        return PyUnicode_FromString("");
+    }
+    PyObject* func = PyObject_GetAttrString((PyObject*)code, "co_name");
+    Py_DecRef((PyObject*)code);
     if (!func) {
         return PyUnicode_FromString("");
     }
     return func;
 }
 
-/* Inline helper to get the class name from the frame.
-   If "self" exists in frame->f_locals, returns a new reference to self.__class__.__name__,
-   otherwise returns a new reference to an empty string.
-*/
 static inline PyObject* GET_CLASS(PyFrameObject* frame) {
-    PyObject* self_obj = PyDict_GetItemString(frame->f_locals, "self");
-    if (self_obj) {
-        PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
-        if (self_class) {
-            PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
-            Py_DecRef(self_class);
-            if (class_name) {
-                return class_name;
+    PyObject* locals = GET_LOCALS(frame);
+    if (locals) {
+        PyObject* self_obj = PyDict_GetItemString(locals, "self");
+        if (self_obj) {
+            PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
+            if (self_class) {
+                PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
+                Py_DecRef(self_class);
+                if (class_name) {
+                    return class_name;
+                }
             }
         }
     }
@@ -138,7 +147,6 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
         if (!line_obj) {
             goto exit;
         }
-
         PyObject* func_name = GET_FUNCTION(frame);
         if (!func_name) {
             Py_DecRef(line_obj);
@@ -166,7 +174,7 @@ exit:
     FILENAME_XDECREF(filename_o);
     return result;
 
-exit_0:; // fix: "a label can only be part of a statement and a declaration is not a statement" error
+exit_0:; /* Label must be followed by a statement */
     {
         // Return "", -1, "", ""
         PyObject* line_obj = Py_BuildValue("i", -1);
