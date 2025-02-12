@@ -27,7 +27,9 @@ class DDTelemetryLogHandler(logging.Handler):
             telemetry_level = (
                 TELEMETRY_LOG_LEVEL.ERROR
                 if record.levelno >= logging.ERROR
-                else TELEMETRY_LOG_LEVEL.WARNING if record.levelno == logging.WARNING else TELEMETRY_LOG_LEVEL.DEBUG
+                else TELEMETRY_LOG_LEVEL.WARNING
+                if record.levelno == logging.WARNING
+                else TELEMETRY_LOG_LEVEL.DEBUG
             )
             # Only collect telemetry for logs with a traceback
             stack_trace = self._format_stack_trace(record.exc_info)
