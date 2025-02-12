@@ -166,6 +166,7 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
+        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -183,6 +184,7 @@ def _trace_server_send_message_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
+        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
