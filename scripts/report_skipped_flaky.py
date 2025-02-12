@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import os
 import re
 import subprocess
@@ -122,6 +123,9 @@ def main():
     """Generate flaky test report and print it instead of sending to Slack."""
     test_data, counts = get_flaky_tests()
     text_report = format_text_report(test_data)
+    output_file = "flaky_tests_report.json"
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(test_data, f, indent=4)
     print(text_report)
     # sanity check with output from:
     #
