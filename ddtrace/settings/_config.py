@@ -98,6 +98,8 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r")"
 )
 
+# All integration config names must be set here.
+# This allows users to set integration configs before an integration is patched.
 INTEGRATION_CONFIGS = frozenset(
     {
         "pyodbc",
@@ -650,13 +652,13 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
-        if name in INTEGRATION_CONFIGS:
-            # supports confg.<integration>
-            if name not in self._integration_configs:
-                self._integration_configs[name] = IntegrationConfig(self, name)
+        elif name in self._integration_configs:
             return self._integration_configs[name]
-        raise AttributeError(f"{type(self)} object has no attribute {name}")
+        elif name in INTEGRATION_CONFIGS:
+            # Allows for accessing integration configs before an integration is patched
+            self._integration_configs[name] = IntegrationConfig(self, name)
+            return self._integration_configs[name]
+        raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
@@ -700,7 +702,7 @@ class Config(object):
         """
         if integration not in INTEGRATION_CONFIGS:
             log.error(
-                "Failed to load configurations: %s. %s is not a supported integration config", settings, integration
+                "%s not found in INTEGRATION_CONFIGS, the following settings will be ignored: %s", integration, settings
             )
             return
 

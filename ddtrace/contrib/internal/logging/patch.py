@@ -123,7 +123,7 @@ def patch():
     Patch ``logging`` module in the Python Standard Library for injection of
     tracer information by wrapping the base factory method ``Logger.makeRecord``
     """
-    if getattr(logging, "_datadog_patch", False) or not config._logs_injection:
+    if getattr(logging, "_datadog_patch", False):
         return
     logging._datadog_patch = True
 

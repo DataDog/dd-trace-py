@@ -5,11 +5,14 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.settings.asm import config as asm_config
 
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
+from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -82,10 +85,10 @@ PATCH_MODULES = {
     "falcon": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": True,
-    "logging": True,
-    "loguru": True,
-    "structlog": True,
+    "logbook": config._logs_injection,  # type: ignore
+    "logging": config._logs_injection,  # type: ignore
+    "loguru": config._logs_injection,  # type: ignore
+    "structlog": config._logs_injection,  # type: ignore
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -237,10 +240,6 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-
-    from ddtrace.appsec import load_common_appsec_modules
-    from ddtrace.settings.asm import config as asm_config
-
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
