@@ -33,13 +33,15 @@ def _params_for_fn(wrapping_context: WrappingContext, instance: dd_trace_api._St
 
 class DDTraceAPIWrappingContextBase(WrappingContext):
     def _handle_return(self) -> None:
+        stub = self.get_local("self")
+        fn_name = self.__frame__.f_code.co_name
         _call_on_real_instance(
-            self.get_local("self"),
-            self.__frame__.f_code.co_name,
+            stub,
+            fn_name,
             self.get_local("retval"),
             **{
                 param: self.get_local(param)
-                for param in _params_for_fn(self, self.get_local("self"), self.__frame__.f_code.co_name)
+                for param in _params_for_fn(self, stub, fn_name)
                 if param != "self"
             },
         )
