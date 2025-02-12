@@ -21,6 +21,14 @@ _STUB_TO_REAL = weakref.WeakKeyDictionary()
 _STUB_TO_REAL[dd_trace_api.tracer] = ddtrace.tracer
 log = get_logger(__name__)
 T = TypeVar("T")
+_FN_PARAMS: Dict[str, List[str]] = dict()
+
+
+def _params_for_fn(wrapping_context: WrappingContext, instance: dd_trace_api._Stub, fn_name: str):
+    key = f"{instance.__class__.__name__}.{fn_name}"
+    if key not in _FN_PARAMS:
+        _FN_PARAMS[key] = list(inspect.signature(wrapping_context.__wrapped__).parameters.keys())
+    return _FN_PARAMS[key]
 
 
 class DDTraceAPIWrappingContextBase(WrappingContext):
@@ -31,7 +39,7 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
             self.get_local("retval"),
             **{
                 param: self.get_local(param)
-                for param in inspect.signature(self.__wrapped__).parameters.keys()
+                for param in _params_for_fn(self, self.get_local("self"), self.__frame__.f_code.co_name)
                 if param != "self"
             },
         )
