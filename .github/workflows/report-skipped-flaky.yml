@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install codeowners
+        run: go install github.com/hmarr/codeowners/cmd/codeowners@latest
+
       - name: Run flaky tests report script
         run: python scripts/report_skipped_flaky.py
 
