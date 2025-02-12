@@ -490,7 +490,7 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    import ddtrace  #  noqa:F401
+    import ddtrace  # noqa:F401
     from tests.internal.namespace_test import ns_module
 
     # Check that the loader's get_code is wrapped:
@@ -568,3 +568,9 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.requests",
         "ddtrace.contrib.pyramid",
     }
+
+
+def test_lazy_decorator():
+    import tests.internal.lazy as lazy
+
+    assert lazy.new_value == 42
