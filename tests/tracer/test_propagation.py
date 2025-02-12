@@ -3526,6 +3526,7 @@ def test_http_propagator_baggage_extract(headers):
 
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
+    parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
 )
 def test_opentracer_propagator_baggage_extract():
     from ddtrace.propagation.http import HTTPPropagator
