@@ -4,7 +4,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
+from weakref import WeakKeyDictionary
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -23,9 +25,11 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -54,8 +58,66 @@ ROLE_MAPPING = {
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
 
 
+def _extract_instance(instance):
+    """
+    Extracts the bound object from a RunnableBinding or RunnableAssign instance.
+    LangChain will sometimes stick things we trace (chat models) in these runnables,
+    and they will show up as steps in the chain instead of the model instance itself.
+
+    Additionally, these can be nested, so we need to extract the innermost instance.
+    """
+    if hasattr(instance, "bound"):  # RunnableBinding
+        return _extract_instance(instance.bound)
+    if hasattr(instance, "mapper"):  # RunnableAssign
+        return _extract_instance(instance.mapper)
+    return instance
+
+
+def _flattened_chain_steps(steps: List[Any], nested: bool = True) -> List[Any]:
+    """
+    Flattens the contents of a chain into non-RunnableBindings and non-RunnableParallel steps.
+    RunnableParrallel steps are extracted and can either be nested into sublists or flattened.
+    """
+    flattened_steps = []
+    for step in steps:
+        step = _extract_instance(step)
+        if hasattr(step, "steps__"):
+            parallel_steps = getattr(step, "steps__", {})
+            flattened_parallel_steps = []
+            for parallel_step in parallel_steps.values():
+                parallel_step = _extract_instance(parallel_step)
+                flattened_parallel_steps.append(parallel_step)
+            if nested:
+                flattened_steps.append(flattened_parallel_steps)
+            else:
+                flattened_steps.extend(flattened_parallel_steps)
+        else:
+            flattened_steps.append(step)
+    return flattened_steps
+
+
+def _is_chain_instance(instance):
+    """Determines if the given instance is a chain instance."""
+    return instance and hasattr(instance, "steps")
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
+
+    _spans: Dict[int, Span] = {}
+    """Maps instance ids to spans."""
+
+    _instances: WeakKeyDictionary = WeakKeyDictionary()
+    """Maps span to instances."""
+
+    def record_instance(self, instance, span: Span):
+        if not self.llmobs_enabled or not self.span_linking_enabled:
+            return
+
+        instance = _extract_instance(instance)
+
+        self._instances[span] = instance
+        self._spans[id(instance)] = span
 
     def _llmobs_set_tags(
         self,
@@ -71,6 +133,9 @@ class LangChainIntegration(BaseLLMIntegration):
         if operation not in SUPPORTED_OPERATIONS:
             log.warning("Unsupported operation : %s", operation)
             return
+
+        if self.span_linking_enabled:
+            self._set_links(span)
 
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
@@ -108,6 +173,186 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+
+    def _set_links(self, span: Span) -> None:
+        """
+        Sets span links for the given LangChain span, by doing the following:
+        1. Determine the invoker spans, and if the invoker spans are from the output of those spans or inputs.
+        2. Set the input links from the invoker spans, and either from the input or output of the invoker spans.
+        3. Set the output span links, which could involve overwriting span links from a previous output step in a chain.
+        """
+        instance = self._instances.get(span)
+        if not instance:
+            return
+
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        if parent_span is None:
+            self._clear_instance_recordings(instance, parent_span)
+            return
+
+        invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
+
+        self._set_input_links(span, invoker_spans, from_output)
+        self._set_output_links(span, parent_span, invoker_spans, from_output)
+
+        self._clear_instance_recordings(instance, parent_span)
+
+    def _get_invoker_spans(self, instance, parent_span: Span) -> Tuple[List[Span], bool]:
+        """
+        Gets a list of invoker spans, and whether the current instance is from the output of the invoker spans.
+        Will return:
+        - A list of just the parent span if there is no parent langchain instance, or that instance is not a chain.
+        - A list of invoker spans if the current instance is from the output of the invoker spans.
+
+        The current instance is from the output of the invoker spans if the instance is part of a chain and not
+          the first traced step.
+        """
+        parent_langchain_instance = self._instances.get(parent_span)
+        if parent_langchain_instance is None or not _is_chain_instance(parent_langchain_instance):
+            return [parent_span], False
+
+        steps = getattr(parent_langchain_instance, "steps", [])
+        flatmap_chain_steps = _flattened_chain_steps(steps)
+
+        curr_idx = 0
+        curr_step = flatmap_chain_steps[0]
+        prev_traced_step_idx = -1
+
+        while id(curr_step) != id(instance) and not (
+            isinstance(curr_step, list) and any(id(sub_step) == id(instance) for sub_step in curr_step)
+        ):
+            if id(curr_step) in self._spans or (
+                isinstance(curr_step, list) and any(id(sub_step) in self._spans for sub_step in curr_step)
+            ):
+                prev_traced_step_idx = curr_idx
+            curr_idx += 1
+            if curr_idx >= len(flatmap_chain_steps):
+                break
+            curr_step = flatmap_chain_steps[curr_idx]
+
+        if prev_traced_step_idx == -1:
+            return [parent_span], False
+
+        invoker_steps = flatmap_chain_steps[prev_traced_step_idx]
+
+        if isinstance(invoker_steps, list):
+            invoker_spans = []
+            for step in invoker_steps:
+                span = self._spans.get(id(step))
+                if span:
+                    invoker_spans.append(span)
+            return invoker_spans, True
+
+        return [self._spans[id(invoker_steps)]], True
+
+    def _set_input_links(self, span: Span, invoker_spans: List[Span], from_output: bool):
+        """Sets the input links for the given span (to: input)"""
+        self._set_span_links(
+            span=span,
+            from_spans=invoker_spans,
+            link_from="output" if from_output else "input",
+            link_to="input",
+        )
+
+    def _set_output_links(self, span: Span, parent_span: Span, invoker_spans: List[Span], from_output: bool) -> None:
+        """
+        Sets the output links for the parent span of the given span (to: output)
+        This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
+        We add output->output span links at every step.
+        """
+        parent_links = parent_span._get_ctx_item(SPAN_LINKS) or []
+        pop_indices = self._get_popped_span_link_indices(parent_span, parent_links, invoker_spans, from_output)
+
+        self._set_span_links(
+            span=parent_span,
+            from_spans=[span],
+            link_from="output",
+            link_to="output",
+            popped_span_link_indices=pop_indices,
+        )
+
+    def _get_popped_span_link_indices(
+        self, parent_span: Span, parent_links: List[Dict[str, Any]], invoker_spans: List[Span], from_output: bool
+    ) -> List[int]:
+        """
+        Returns a list of indices to pop from the parent span links list
+        This is determined by if the parent span represents a chain, and if there are steps before the step
+        represented by the span that need to be removed.
+
+        This is a temporary stopgap until we trace virtually every step in the chain, and we know the last
+        step will be the last one traced.
+        """
+        parent_instance = self._instances.get(parent_span)
+        if not parent_instance or not from_output:
+            return []
+
+        parent_instance = _extract_instance(parent_instance)
+        if not _is_chain_instance(parent_instance):
+            return []
+
+        invoker_span_ids = [str(span.span_id) for span in invoker_spans]
+        return [i for i, link in enumerate(parent_links) if link["span_id"] in invoker_span_ids]
+
+    def _set_span_links(
+        self,
+        span: Span,
+        from_spans: List[Span],
+        link_from: str,
+        link_to: str,
+        popped_span_link_indices: Optional[List[int]] = None,
+    ) -> None:
+        """Sets the span links on the given span along with the existing links."""
+        existing_links = span._get_ctx_item(SPAN_LINKS) or []
+
+        if popped_span_link_indices:
+            existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indices]
+
+        links = [
+            {
+                "trace_id": "{:x}".format(from_span.trace_id),
+                "span_id": str(from_span.span_id),
+                "attributes": {"from": link_from, "to": link_to},
+            }
+            for from_span in from_spans
+            if from_span is not None
+        ]
+
+        if links:
+            span._set_ctx_item(SPAN_LINKS, existing_links + links)
+
+    def _clear_instance_recordings(self, instance: Any, parent_span: Optional[Span]) -> None:
+        """
+        Deletes the references of steps in a chain from the instance id to span mapping.
+
+        The relevant instances will be recorded again if they are re-used in another chain when
+        the other chain is invoked.
+
+        We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
+        """
+        if not _is_chain_instance(instance):
+            self._safe_delete_instance_recording(instance)
+            return
+
+        steps = getattr(instance, "steps", [])
+        flatmap_chain_steps = _flattened_chain_steps(steps, nested=False)
+
+        for step in flatmap_chain_steps:
+            self._safe_delete_instance_recording(step)
+
+        if parent_span is None:
+            self._safe_delete_instance_recording(instance)
+            return
+
+        parent_instance = self._instances.get(parent_span)
+        if parent_instance is None or not _is_chain_instance(parent_instance):
+            self._safe_delete_instance_recording(instance)
+
+    def _safe_delete_instance_recording(self, instance):
+        instance_id = id(instance)
+        if instance_id in self._spans:
+            del self._spans[instance_id]
+        else:
+            log.debug("Unable to delete langchain instance from internal mapping")
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -205,7 +450,7 @@ class LangChainIntegration(BaseLLMIntegration):
                     content = (
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
-                    role = getattr(message, "role", ROLE_MAPPING.get(message.type, ""))
+                    role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
         span._set_ctx_item(input_tag_key, input_messages)
 
