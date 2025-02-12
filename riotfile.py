@@ -1339,8 +1339,16 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                ),
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"botocore": "==1.29.69", "boto3": "==1.26.69"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"botocore": latest, "boto3": latest},
                 ),
             ],
         ),
