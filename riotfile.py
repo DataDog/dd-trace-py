@@ -2740,8 +2740,7 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest --no-ddtrace -vvv -s {cmdargs} tests/ci_visibility",
-            pys=select_pys(max_version="3.12"),
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -2761,9 +2760,9 @@ venv = Venv(
                         "zope.interface": "<7.1",
                     },
                 ),
-                # Python 3.9+
+                # Python 3.9-3.12
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
             ],
         ),
