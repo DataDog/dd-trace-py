@@ -37,10 +37,12 @@ from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
 from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -1759,6 +1761,149 @@ def test_django_request_distributed_disabled(client, test_spans):
     assert root.get_tag("span.kind") == "server"
     assert root.trace_id != 12345
     assert root.parent_id is None
+
+
+def test_inferred_spans_api_gateway_default(client, test_spans):
+    """
+    When making a request to a Django app,
+        the django.request span properly inherits from the inferred spans
+    """
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
+    headers = {
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
+    }
+
+    # When the inferred proxy feature is not enabled, there should be no inferred span
+    resp = client.get("/", **headers)
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+    web_span = test_spans.find_span(name="django.request")
+    assert web_span._parent is None
+
+    with override_global_config(dict(_inferred_proxy_services_enabled="true")):
+        test_spans.reset()
+        resp = client.get("/", **headers)
+        web_span = test_spans.find_span(name="django.request")
+        aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+        )
+
+        test_spans.reset()
+        try:
+            client.get("/error-500/", **headers)
+        except Exception:
+            web_span = test_spans.find_span(name="django.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+            # Assert common behavior including aws gateway metadata and web span metadata
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="django.request",
+                web_span_component="django",
+                web_span_service_name="django",
+                web_span_resource="GET ^error-500/$",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                route="/",
+                status_code="500",
+                url="local/",
+                start=1736973768.0,
+            )
+
+
+def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
+    """
+    When making a request to a Django app with distributed tracing headers,
+        the django.request span properly inherits from the inferred spans
+        and the inferred span inherits from the trace
+    """
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
+    test_headers = {
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
+        "HTTP_X_DATADOG_TRACE_ID": "1",
+        "HTTP_X_DATADOG_PARENT_ID": "2",
+        "HTTP_X_DATADOG_ORIGIN": "rum",
+        "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
+    }
+    # Without the feature enabled, we should not be creating the inferred span
+    resp = client.get("/", **test_headers)
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+
+    web_span = test_spans.find_span(name="django.request")
+    aws_gateway_span = web_span._parent
+    assert aws_gateway_span is None
+    web_span.assert_matches(
+        name="django.request",
+        trace_id=1,
+        parent_id=2,
+        metrics={
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
+    )
+
+    with override_global_config(dict(_inferred_proxy_services_enabled="true")):
+        test_spans.reset()
+        client.get("/", **test_headers)
+        web_span = test_spans.find_span(name="django.request")
+        aws_gateway_span = web_span._parent
+
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            route="/",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+            is_distributed=True,
+            distributed_trace_id=1,
+            distributed_parent_id=2,
+            distributed_sampling_priority=USER_KEEP,
+        )
+
+        # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
+        web_span.assert_matches(
+            name="django.request",
+            trace_id=1,
+        )
+        assert len(test_spans.spans) == 27
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):
