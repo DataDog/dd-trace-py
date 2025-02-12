@@ -2092,25 +2092,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="yaaredis",
-            command="pytest {cmdargs} tests/contrib/yaaredis",
-            pkgs={
-                "pytest-asyncio": "==0.21.1",
-                "pytest-randomly": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"yaaredis": ["~=2.0.0", latest]},
-                ),
-                Venv(
-                    # yaaredis added support for Python 3.10 in 3.0
-                    pys="3.10",
-                    pkgs={"yaaredis": latest},
-                ),
-            ],
-        ),
-        Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
@@ -2760,7 +2741,6 @@ venv = Venv(
         Venv(
             name="ci_visibility",
             command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
-            pys=select_pys(max_version="3.12"),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -2775,10 +2755,12 @@ venv = Venv(
                 Venv(
                     pys=["3.8"],
                     pkgs={"greenlet": "==3.1.0"},
+                    # Prevent segfaults from zope.interface c optimizations
+                    env={"PURE_PYTHON": "1"},
                 ),
-                # Python 3.9+
+                # Python 3.9-3.12
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
             ],
         ),

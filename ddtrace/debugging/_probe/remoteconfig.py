@@ -14,6 +14,7 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import DEFAULT_TRIGGER_PROBE_RATE
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
@@ -34,6 +35,8 @@ from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._probe.model import TimingMixin
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
+from ddtrace.debugging._probe.model import TriggerLineProbe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
@@ -202,8 +205,32 @@ class SpanDecorationProbeFactory(ProbeFactory):
         )
 
 
+class TriggerProbeFactory(ProbeFactory):
+    __line_class__ = TriggerLineProbe
+    __function_class__ = TriggerFunctionProbe
+
+    @classmethod
+    def update_args(cls, args, attribs):
+        args.update(
+            rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
+            session_id=attribs["session_id"],
+            level=int(attribs["level"]),
+            condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
+            condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,
+        )
+
+
 class InvalidProbeConfiguration(ValueError):
     pass
+
+
+PROBE_FACTORY = {
+    ProbeType.LOG_PROBE: LogProbeFactory,
+    ProbeType.METRIC_PROBE: MetricProbeFactory,
+    ProbeType.SPAN_PROBE: SpanProbeFactory,
+    ProbeType.SPAN_DECORATION_PROBE: SpanDecorationProbeFactory,
+    ProbeType.TRIGGER_PROBE: TriggerProbeFactory,
+}
 
 
 def build_probe(attribs: Dict[str, Any]) -> Probe:
@@ -222,14 +249,9 @@ def build_probe(attribs: Dict[str, Any]) -> Probe:
         tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
     )
 
-    if _type == ProbeType.LOG_PROBE:
-        return LogProbeFactory.build(args, attribs)
-    if _type == ProbeType.METRIC_PROBE:
-        return MetricProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_PROBE:
-        return SpanProbeFactory.build(args, attribs)
-    if _type == ProbeType.SPAN_DECORATION_PROBE:
-        return SpanDecorationProbeFactory.build(args, attribs)
+    factory = PROBE_FACTORY.get(_type)
+    if factory is not None:
+        return factory.build(args, attribs)
 
     raise InvalidProbeConfiguration("Unsupported probe type: %s" % _type)
 

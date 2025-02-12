@@ -46,6 +46,7 @@ from bytecode import Label
 from ddtrace.debugging._safety import safe_getitem
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.safety import _isinstance
 
 
 DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
@@ -126,7 +127,7 @@ class DDCompiler:
         return FunctionType(abstract_code.to_code(), {}, name, (), None)
 
     def _make_lambda(self, ast: DDASTType) -> Callable[[Any, Any], Any]:
-        return self._make_function(ast, ("_dd_it", "_locals"), "<lambda>")
+        return self._make_function(ast, ("_dd_it", "_dd_key", "_dd_value", "_locals"), "<lambda>")
 
     def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
@@ -200,12 +201,12 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            return self._call_function(
-                lambda i, c, _locals: f(c(_, _locals) for _ in i),
-                ca,
-                [Instr("LOAD_CONST", fb)],
-                [Instr("LOAD_FAST", "_locals")],
-            )
+            def coll_iter(it, cond, _locals):
+                if _isinstance(it, dict):
+                    return f(cond(k, k, v, _locals) for k, v in it.items())
+                return f(cond(e, None, None, _locals) for e in it)
+
+            return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
 
         if _type in {"startsWith", "endsWith"}:
             a, b = args
@@ -245,8 +246,8 @@ class DDCompiler:
             if not isinstance(arg, str):
                 return None
 
-            if arg == "@it":
-                return [Instr("LOAD_FAST", "_dd_it")]
+            if arg in {"@it", "@key", "@value"}:
+                return [Instr("LOAD_FAST", f"_dd_{arg[1:]}")]
 
             return self._call_function(
                 get_local, [Instr("LOAD_FAST", "_locals")], [Instr("LOAD_CONST", self.__ref__(arg))]
@@ -297,12 +298,12 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            return self._call_function(
-                lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)),
-                ca,
-                [Instr("LOAD_CONST", fb)],
-                [Instr("LOAD_FAST", "_locals")],
-            )
+            def coll_filter(it, cond, _locals):
+                if _isinstance(it, dict):
+                    return type(it)({k: v for k, v in it.items() if cond(k, k, v, _locals)})
+                return type(it)(e for e in it if cond(e, None, None, _locals))
+
+            return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
 
         if _type == "getmember":
             v, attr = args
