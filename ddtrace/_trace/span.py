@@ -590,7 +590,7 @@ class Span(object):
     def _local_root(self) -> None:
         del self._local_root_value
 
-    def link_span(self, context: Context, attributes: Optional[Dict[str, _JSONType]] = None) -> None:
+    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
             msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
@@ -614,7 +614,7 @@ class Span(object):
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Dict[str, _JSONType]] = None,
+        attributes: Optional[Dict[str, Any]] = None,
     ) -> None:
         if attributes is None:
             attributes = dict()
@@ -634,7 +634,7 @@ class Span(object):
         pointer_kind: str,
         pointer_direction: _SpanPointerDirection,
         pointer_hash: str,
-        extra_attributes: Optional[Dict[str, _JSONType]] = None,
+        extra_attributes: Optional[Dict[str, Any]] = None,
     ) -> None:
         # This is a Private API for now.
 
