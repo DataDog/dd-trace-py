@@ -655,8 +655,8 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_input = ""
         if tool_inputs is not None:
             tool_input = tool_inputs.get("input")
-            # if tool_inputs.get("config"):
-            #     metadata["tool_config"] = tool_inputs.get("config")
+            if tool_inputs.get("config"):
+                metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
             formatted_input = format_langchain_io(tool_input)
