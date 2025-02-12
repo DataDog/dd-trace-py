@@ -2,10 +2,20 @@ download_ddtrace_artifacts:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
+  id_tokens:
+    VAULT_ID_TOKEN:
+      aud: "https://vault.us1.ddbuild.io"
+  variables:
+    VAULT_PATH_PREFIX: "kv/ci/${CI_PROJECT_NAME}/protected"
+  before_script:
+    - |
+      wget -O - https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+      apt update && apt install vault
+      export VAULT_TOKEN="$(vault write -field=token auth/jwt-gitlab/login role=${CI_PROJECT_NAME}/protected-tag jwt=$VAULT_ID_TOKEN)"
+      export VAULT_ADDR=https://vault.us1.ddbuild.io
   script:
-    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
-    - gh auth login --with-token < token
-    - rm token
+    - vault kv get -field=gh_token "${VAULT_PATH_PREFIX}/ci" | gh auth login --with-token
     - .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:

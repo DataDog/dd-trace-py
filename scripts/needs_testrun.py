@@ -90,23 +90,17 @@ if not GITHUB_TOKEN:
         GITHUB_TOKEN = (
             check_output(
                 [
-                    "aws",
-                    "ssm",
-                    "get-parameter",
-                    "--region",
-                    "us-east-1",
-                    "--name",
-                    f'ci.{os.environ["CI_PROJECT_NAME"]}.gh_token',
-                    "--with-decryption",
-                    "--query",
-                    "Parameter.Value",
-                    "--output=text",
+                    "vault",
+                    "kv",
+                    "get",
+                    "-field=gh_token"
+                    f'kv/ci/{os.environ["CI_PROJECT_NAME"]}/protected/ci',
                 ]
             )
             .decode("utf-8")
             .strip()
         )
-        LOGGER.info("GitHub token retrieved from SSM")
+        LOGGER.info("GitHub token retrieved from Vault")
     except Exception:
         LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
 else:
