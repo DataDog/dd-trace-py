@@ -168,7 +168,7 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
         return func(*args, **kwargs)
     with span:
         span, _, operation = _dbm_dispatch(span, [], operation)
-        args, kwargs = set_argument_value(args, kwargs, 1, "operation", operation)
+        args, kwargs = set_argument_value(args, kwargs, 2, "operation", operation)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
