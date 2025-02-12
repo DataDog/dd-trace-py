@@ -5,6 +5,8 @@ import re
 import subprocess
 import time
 
+from codeowners import CodeOwners
+
 
 FLAKY_PATTERN = re.compile(r'^\s*@flaky\(\s*(?:until=)?(\d+),?\s*(?:reason=\s*"(.*?)")?\s*\)?', re.IGNORECASE)
 TEST_FUNCTION_PATTERN = re.compile(r"^\s*def\s+(test_\w+)\s*\(", re.IGNORECASE)  # Captures test function names
@@ -24,6 +26,7 @@ ONE_WEEK_LATER = NOW + 7 * 24 * 60 * 60  # 1 week from now
 def get_flaky_tests():
     """Finds all tests with @flaky decorators and extracts their expiration timestamps."""
     test_data = {ACTIVE: [], SOON: [], EXPIRED: []}
+    codeowners_config = load_codeowners()
     counts = {}
     total = 0
     for root, _, files in os.walk(TEST_DIR):
@@ -53,7 +56,7 @@ def get_flaky_tests():
                         timestamp = int(flaky_match.group(1))
                         reason = flaky_match.group(2)
                         category = categorize_test(timestamp)
-                        codeowners = get_codeowners(file_path)
+                        codeowners = get_codeowners(codeowners_config, file_path)
 
                         test_data[category].append(
                             {
@@ -85,13 +88,11 @@ def categorize_test(timestamp):
     return ACTIVE
 
 
-def get_codeowners(file_path):
+def get_codeowners(codeowners, file_path):
     """Fetch CODEOWNER info and extract only the owners."""
     try:
-        result = subprocess.run(["codeowners", file_path], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip().split()[1:]  # Skip the filename (first entry)
-        return []
+        owners = codeowners.of(file_path) or ["Unknown"]
+        return owners
     except FileNotFoundError:
         return []
 
@@ -117,6 +118,16 @@ def format_text_report(test_data):
             count += 1
     output.append(f"TOTAL: {count} flaky decorators")
     return "\n".join(output)
+
+
+def load_codeowners():
+    """Loads and returns a CodeOwners object for efficient lookups."""
+    try:
+        with open(".github/CODEOWNERS", "r", encoding="utf-8") as f:
+            return CodeOwners(f.read())
+    except FileNotFoundError:
+        print("Warning: CODEOWNERS file not found. Returning an empty mapping.")
+        return CodeOwners("")  # Return an empty mapping instead of None
 
 
 def main():
