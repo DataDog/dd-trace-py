@@ -427,7 +427,7 @@ venv = Venv(
                             pkgs={
                                 # https://github.com/gevent/gevent/issues/2076
                                 "gevent": ["~=21.1.0", "<21.8.0"],
-                                "greenlet": "~=1.0",
+                                "greenlet": ">=1.0,<2.0",
                             },
                         ),
                         Venv(
@@ -567,7 +567,7 @@ venv = Venv(
                     pkgs={
                         "falcon": [
                             "~=3.0.0",
-                            "~=3.0",  # latest 3.x
+                            ">=3.0,<4.0",  # latest 3.x
                             latest,
                         ],
                     },
@@ -1369,7 +1369,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "httpx": latest,
-                "asgiref": ["~=3.0.0", "~=3.0", latest],
+                "asgiref": ["~=3.0.0", ">=3.0,<4.0", latest],
                 "pytest-randomly": latest,
             },
             pys=select_pys(min_version="3.8"),
@@ -1387,7 +1387,7 @@ venv = Venv(
                     pkgs={
                         "mariadb": [
                             "~=1.0.0",
-                            "~=1.0",
+                            ">=1.0,<2.0",
                             latest,
                         ],
                     },
@@ -2200,7 +2200,7 @@ venv = Venv(
                 # our test_asyncpg.py uses `yield` in an async function and is not compatible with Python 3.5
                 Venv(
                     pys="3.8",
-                    pkgs={"asyncpg": ["~=0.23", latest]},
+                    pkgs={"asyncpg": [">=0.23,<0.24", latest]},
                 ),
                 Venv(
                     # asyncpg added support for Python 3.9 in 0.22
