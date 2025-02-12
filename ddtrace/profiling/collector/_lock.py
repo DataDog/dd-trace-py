@@ -171,7 +171,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     self._self_recorder.push_event(event)
             except Exception as e:
-                LOG.debug("Failed to record lock acquire event: %s", e)
+                LOG.debug("Failed to record a lock acquire event: %s", e)
                 pass  # nosec
 
     def acquire(self, *args, **kwargs):
