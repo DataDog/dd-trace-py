@@ -50,13 +50,43 @@ GET_FILENAME(PyFrameObject* frame)
 #endif
 #endif
 
+/* Inline helper to get the function name from the frame.
+   Returns a new reference to frame->f_code.co_name or an empty string on failure. */
+static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
+    PyObject* func = PyObject_GetAttrString((PyObject*)frame->f_code, "co_name");
+    if (!func) {
+        return PyUnicode_FromString("");
+    }
+    return func;
+}
+
+/* Inline helper to get the class name from the frame.
+   If "self" exists in frame->f_locals, returns a new reference to self.__class__.__name__,
+   otherwise returns a new reference to an empty string.
+*/
+static inline PyObject* GET_CLASS(PyFrameObject* frame) {
+    PyObject* self_obj = PyDict_GetItemString(frame->f_locals, "self");
+    if (self_obj) {
+        PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
+        if (self_class) {
+            PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
+            Py_DecRef(self_class);
+            if (class_name) {
+                return class_name;
+            }
+        }
+    }
+    return PyUnicode_FromString("");
+}
+
 /**
  * get_file_and_line
  *
- * Get the filename (path + filename) and line number of the original wrapped
- *function to report it.
+ * Get the filename, line number, function name and class name of the original wrapped
+ * function to report it.
  *
- * @return Tuple, string and integer.
+ * Returns a tuple:
+ *     (filename, line_number, function name, class name)
  **/
 static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
@@ -108,7 +138,22 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
         if (!line_obj) {
             goto exit;
         }
-        result = PyTuple_Pack(2, filename_o, line_obj);
+
+        PyObject* func_name = GET_FUNCTION(frame);
+        if (!func_name) {
+            Py_DecRef(line_obj);
+            goto exit;
+        }
+        PyObject* class_name = GET_CLASS(frame);
+        if (!class_name) {
+            Py_DecRef(line_obj);
+            Py_DecRef(func_name);
+            goto exit;
+        }
+        result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
+        Py_DecRef(func_name);
+        Py_DecRef(class_name);
+        Py_DecRef(line_obj);
         break;
     }
     if (result == NULL) {
@@ -122,27 +167,36 @@ exit:
     return result;
 
 exit_0:; // fix: "a label can only be part of a statement and a declaration is not a statement" error
-    // Return "", -1
-    PyObject* line_obj = Py_BuildValue("i", -1);
-    filename_o = PyUnicode_FromString("");
-    result = PyTuple_Pack(2, filename_o, line_obj);
-    Py_DecRef(cwd_bytes);
-    FRAME_XDECREF(frame);
-    FILENAME_XDECREF(filename_o);
-    Py_DecRef(line_obj);
-    return result;
+    {
+        // Return "", -1, "", ""
+        PyObject* line_obj = Py_BuildValue("i", -1);
+        filename_o = PyUnicode_FromString("");
+        PyObject* func_name = PyUnicode_FromString("");
+        PyObject* class_name = PyUnicode_FromString("");
+        result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
+        Py_DecRef(cwd_bytes);
+        FRAME_XDECREF(frame);
+        FILENAME_XDECREF(filename_o);
+        Py_DecRef(line_obj);
+        Py_DecRef(func_name);
+        Py_DecRef(class_name);
+        return result;
+    }
 }
 
 static PyMethodDef StacktraceMethods[] = {
-    { "get_info_frame", (PyCFunction)get_file_and_line, METH_O, "stacktrace functions" },
+    { "get_info_frame", (PyCFunction)get_file_and_line, METH_O,
+      "Stacktrace function: returns (filename, line, function name, class name)" },
     { NULL, NULL, 0, NULL }
 };
 
-static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
-                                         "ddtrace.appsec._iast._stacktrace",
-                                         "stacktrace module",
-                                         -1,
-                                         StacktraceMethods };
+static struct PyModuleDef stacktrace = {
+    PyModuleDef_HEAD_INIT,
+    "ddtrace.appsec._iast._stacktrace",
+    "Stacktrace module",
+    -1,
+    StacktraceMethods
+};
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)

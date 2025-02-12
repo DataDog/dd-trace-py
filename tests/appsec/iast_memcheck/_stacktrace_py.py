@@ -26,6 +26,10 @@ def get_info_frame(cwd):
     for frame in stack[FIRST_FRAME_NO_DDTRACE:]:
         filename = frame.filename
         lineno = frame.lineno
+        function_name = frame.function
+        instance = frame.frame.f_locals.get("self")
+        class_name = instance.__class__.__name__ if instance else None
+
         if (
             (DD_TRACE_INSTALLED_PREFIX in filename and TESTS_PREFIX not in filename)
             or (cwd not in filename)
@@ -33,6 +37,6 @@ def get_info_frame(cwd):
         ):
             continue
 
-        return filename, lineno
+        return filename, lineno, function_name, class_name
 
     return None
