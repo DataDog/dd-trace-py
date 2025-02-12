@@ -26,7 +26,7 @@ _tracked_lines: t.Dict[str, t.List[int]] = {}
 
 
 def instrument_all_lines(func, callback: CallbackType) -> t.List[int]:
-    func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+    code_to_instr = func.__wrapped__ if hasattr(func, "__wrapped__") else func
     if "__code__" not in dir(func):
         return []
     code = func.__code__
@@ -34,7 +34,7 @@ def instrument_all_lines(func, callback: CallbackType) -> t.List[int]:
     injection_context = InjectionContext(code, callback, lambda _: [o for o, _ in dis.findlinestarts(code)])
     new_code, seen_lines = inject_invocation(injection_context, code.co_filename, "package.py")
 
-    func.__code__ = new_code
+    code_to_instr.__code__ = new_code
     return seen_lines
 
 
@@ -129,7 +129,9 @@ class InjectionWatchdog(BaseModuleWatchdog):
         total_diff = 0
         for o, lines in sorted(_tracked_lines.items(), key=lambda x: x[0]):
             total_lines += len(lines)
-            seen_lines = _callback_lines[o]
+            seen_lines = []
+            if o in _callback_lines:
+                seen_lines = _callback_lines[o]
             total_covered += len(seen_lines)
 
             # we want to be sure we instrument the same lines
@@ -187,7 +189,7 @@ class InjectionWatchdog(BaseModuleWatchdog):
                 if filename not in _tracked_lines:
                     _tracked_lines[filename] = []
                 _tracked_lines[obj.__code__.co_filename].extend(nb_instrumented_lines)
-        elif type(obj) is type:
+        elif isinstance(obj, type):
             # classes
             for candidate in obj.__dict__.keys():
                 if type(obj) in INSTRUMENTABLE_TYPES and not self._is_reserved(candidate):
