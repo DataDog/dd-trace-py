@@ -24,6 +24,7 @@ class SpanKind(object):
     SERVER = "server"
     PRODUCER = "producer"
     CONSUMER = "consumer"
+    INTERNAL = "internal"
 
 
 EXIT_SPAN_TYPES = frozenset(
