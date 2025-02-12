@@ -35,7 +35,7 @@ from tests.utils import override_global_config
 @pytest.fixture
 def int_config():
     c = Config()
-    c._add("myint", dict())
+    c.myint = IntegrationConfig(c, "myint")
     return c
 
 
@@ -321,7 +321,7 @@ def test_set_http_meta_with_http_header_tags_config():
         "header2": "",
         "header3": "third-header",
     }, config._trace_http_header_tags
-    integration_config = config.new_integration
+    integration_config = config.requests
     assert integration_config.is_header_tracing_configured
 
     # test request headers
@@ -405,13 +405,13 @@ def test_set_http_meta(
     appsec_enabled,
     span_type,
 ):
-    int_config._http.trace_headers(["my-header"])
-    int_config._trace_query_string = True
+    int_config.myint.http.trace_headers(["my-header"])
+    int_config.myint.http.trace_query_string = True
     span.span_type = span_type
     with asm_context(config={"_asm_enabled": appsec_enabled}):
         trace_utils.set_http_meta(
             span,
-            int_config,
+            int_config.myint,
             method=method,
             url=url,
             target_host=target_host,
@@ -441,7 +441,7 @@ def test_set_http_meta(
         else:
             expected_url = url
 
-        if query and int_config._trace_query_string:
+        if query and int_config.myint.http.trace_query_string:
             assert span.get_tag(http.URL) == str(expected_url + "?" + query)
         else:
             assert span.get_tag(http.URL) == str(expected_url)
@@ -460,7 +460,7 @@ def test_set_http_meta(
     if status_msg is not None:
         assert span.get_tag(http.STATUS_MSG) == str(status_msg)
 
-    if query is not None and int_config._trace_query_string:
+    if query is not None and int_config.myint.http.trace_query_string:
         assert span.get_tag(http.QUERY_STRING) == query
 
     if request_headers is not None:
@@ -510,9 +510,10 @@ def test_set_http_meta_custom_errors(mock_log, span, int_config, error_codes, st
 def test_set_http_meta_custom_errors_via_env():
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.settings.integration import IntegrationConfig
     from ddtrace.trace import tracer
 
-    config._add("myint", dict())
+    config.myint = IntegrationConfig(config, "myint")
     with tracer.trace("error") as span1:
         set_http_meta(span1, config.myint, status_code=405)
         assert span1.error == 1

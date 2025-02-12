@@ -140,6 +140,8 @@ INTEGRATION_CONFIGS = frozenset(
         "pyramid",
         "dbapi2",
         "vertexai",
+        "cherrypy",
+        "flask_cache",
         "grpc",
         "aiohttp_client",
         "loguru",
@@ -190,6 +192,8 @@ INTEGRATION_CONFIGS = frozenset(
         "valkey",
         "molten",
         "mysql",
+        "grpc_server",
+        "grpc_client",
     }
 )
 
