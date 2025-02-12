@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/6bec1ec.in
 #
-attrs==25.1.0
+attrs==24.3.0
 coverage[toml]==7.6.1
 exceptiongroup==1.2.2
 gevent==24.2.1
