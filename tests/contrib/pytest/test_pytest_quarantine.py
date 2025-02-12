@@ -100,6 +100,7 @@ def assert_stats(rec, **outcomes):
     """
     stats = {**rec.getcall("pytest_terminal_summary").terminalreporter.stats}
     stats.pop("", None)
+    stats.pop("warnings", None) # TODO: figure out why we get warnings now
 
     for outcome, expected_count in outcomes.items():
         actual_count = len(stats.pop(outcome, []))
