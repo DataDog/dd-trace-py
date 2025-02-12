@@ -61,9 +61,28 @@ build_base_venvs:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     PIP_VERBOSE: 1
     DD_PROFILING_NATIVE_TESTS: 1
-  script:
-    - pip install riot==0.20.1
-    - riot -P -v generate --python=$PYTHON_VERSION
+  script: |
+    if [ ! -f cache_used.txt ];
+    then
+      echo "No cache found, building native extensions and base venv"
+      pip install riot==0.20.1
+      riot -P -v generate --python=$PYTHON_VERSION
+      touch cache_used.txt
+    else
+      echo "Skipping build, using compiled files/venv from cache"
+    fi
+  cache:
+    - key:
+        prefix: $CI_JOB_NAME
+        files:
+          # Comes from "hash native sources" job
+          - native_sources.sha256sum
+      paths:
+        - .riot/venv_*
+        - ddtrace/**/*.so*
+        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+        - ddtrace/internal/datadog/profiling/test/test_*
+        - cache_used.txt
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
@@ -118,5 +137,25 @@ build_base_venvs:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
 
+
+"hash native sources":
+  extends: .testrunner
+  stage: precheck
+  script: >
+     find ddtrace src setup.py pyproject.toml
+       -name '*.c'
+       -or -name '*.cpp'
+       -or -name '*.pyx'
+       -or -name '*.h'
+       -or -name 'CMakeLists.txt'
+       -or -name 'Cargo.lock'
+       -or -name '*.rs'
+       -or -name 'setup.py'
+       -or -name 'pyproject.toml' |
+       sort |
+       xargs sha256sum > native_sources.sha256sum
+  artifacts:
+    paths:
+      - 'native_sources.sha256sum'
 
 # Required jobs will appear here
