@@ -8,7 +8,7 @@ from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
 from ddtrace.trace import Pin
 from tests.contrib.config import MARIADB_CONFIG
-from tests.utils import DummyTracer
+from tests.utils import DummyTracer, flaky
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
 from tests.utils import override_config
@@ -210,6 +210,7 @@ def test_simple_query_snapshot(tracer):
 
 
 @snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS, ignores=["meta.error.stack"])
+@flaky(1741838400, reason="Did not receive expected traces: 'mariadb.query'")
 def test_simple_malformed_query_snapshot(tracer):
     with get_connection(tracer) as connection:
         cursor = connection.cursor()
