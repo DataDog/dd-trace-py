@@ -167,8 +167,11 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
+        log.debug("before dbm operation: %s", operation)
         span, _, operation = _dbm_dispatch(span, [], operation)
+        log.debug("after dbm operation: %s", operation)
         args, kwargs = set_argument_value(args, kwargs, 2, "operation", operation)
+        log.debug("new args, kwargs: %s, %s", args, kwargs)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -186,8 +189,6 @@ def _trace_server_send_message_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
-        span, _, operation = _dbm_dispatch(span, [], operation)
-        args, kwargs = set_argument_value(args, kwargs, 1, "operation", operation)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -370,6 +371,8 @@ def _dbm_comment_injector(dbm_comment, command):
                     command[comment_key] = existing_comment + "," + dbm_comment
                 elif isinstance(existing_comment, list):
                     command[comment_key].append(dbm_comment)
+                elif existing_comment is None:
+                    command[comment_key] = dbm_comment
                 comment_exists = True
         if not comment_exists:
             command["comment"] = dbm_comment

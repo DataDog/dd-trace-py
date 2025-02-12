@@ -33,12 +33,12 @@ def generate_sql_comment(**meta):
     Return a SQL comment with comma delimited key=value pairs created from
     **meta kwargs.
     """
-    comment_str = _generate_comment_from_metadata(**meta)
+    comment = _generate_comment_from_metadata(**meta)
 
-    if not comment_str:
+    if not comment:
         return ""
 
-    return " /*" + comment_str + "*/"
+    return "/*" + comment + "*/"
 
 def _generate_comment_from_metadata(**meta):
     """
