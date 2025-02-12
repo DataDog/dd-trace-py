@@ -1,15 +1,13 @@
+from datetime import datetime
 import os
 import re
-import time
 import subprocess
-from datetime import datetime
+import time
 
-# Regex patterns
+
 FLAKY_PATTERN = re.compile(r'^\s*@flaky\(\s*(?:until=)?(\d+),?\s*(?:reason=\s*"(.*?)")?\s*\)?', re.IGNORECASE)
-
 TEST_FUNCTION_PATTERN = re.compile(r"^\s*def\s+(test_\w+)\s*\(", re.IGNORECASE)  # Captures test function names
 
-# Directories
 TEST_DIR = "tests"
 EXCLUDE_DIR = "tests/contrib/pytest"
 
@@ -27,7 +25,7 @@ def get_flaky_tests():
     test_data = {ACTIVE: [], SOON: [], EXPIRED: []}
     counts = {}
     total = 0
-    for root, dirs, files in os.walk(TEST_DIR):
+    for root, _, files in os.walk(TEST_DIR):
         if EXCLUDE_DIR in root:
             continue
 
@@ -125,8 +123,13 @@ def main():
     test_data, counts = get_flaky_tests()
     text_report = format_text_report(test_data)
     print(text_report)
-    # sanity check with output from
-    # grep -R -E -i '(@flaky|@.*![unittest].*skip($|\())' tests --exclude-dir=tests/contrib/pytest | awk '{split($0, parts, ":"); print parts[1]}' | sort | uniq -c | sort -r | awk '{printf("%d\t", $1); system("codeowners "$2)}'
+    # sanity check with output from:
+    #
+    # grep -R -E -i '(@flaky|@.*![unittest].*skip($|\())' tests
+    # --exclude-dir=tests/contrib/pytest | awk '{split($0, parts, ":");
+    # print parts[1]}' | sort | uniq -c | sort -r | awk '{printf("%d\t", $1);
+    # system("codeowners "$2)}'
+    #
     # print(f"total: {str(counts["total"])}")
     # print(counts)
 
