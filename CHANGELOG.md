@@ -6,7 +6,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ## 2.20.2
 
-
 ### Deprecation Notes
 
   - tracing: Deprecates the following constants in `ddtrace.constants` module:
@@ -40,6 +39,14 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
   - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
   - cassandra,cherrypy,flask\_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+---
+
+## 2.19.3
+### Bug Fixes
+
+- CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+- profiling: fix SystemError from the memory profiler returning NULL when collecting events
 
 
 ---
