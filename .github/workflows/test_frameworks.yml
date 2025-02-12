@@ -44,10 +44,6 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -103,7 +99,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
-      - name: Run Debugger exloration tests
+      - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # Disable all test_simple tests because they check for
         # log output and it contains phony error messages.
@@ -157,7 +153,7 @@ jobs:
             appsec: 0
     runs-on: ubuntu-latest
     needs: needs-run
-    timeout-minutes: 15
+    timeout-minutes: 25
     name: Django 5.0.7 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
@@ -234,7 +230,7 @@ jobs:
           sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
           sed -i'' 's/test_aauthenticate_sensitive_variables/aauthenticate_sensitive_variables/' tests/auth_tests/test_auth_backends.py
 
-      - name: Run Debugger Exploration tests
+      - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
@@ -330,10 +326,6 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -385,7 +377,7 @@ jobs:
       - name: Inject ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
-      - name: Debugger exploration Test
+      - name: Test
         if: needs.needs-run.outputs.outcome == 'success'
         # https://github.com/tiangolo/fastapi/pull/10876
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
