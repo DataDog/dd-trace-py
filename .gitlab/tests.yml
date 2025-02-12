@@ -143,17 +143,17 @@ build_base_venvs:
   stage: precheck
   script: >
      find ddtrace src setup.py pyproject.toml
-       -name '*.c'
-       -or -name '*.cpp'
-       -or -name '*.pyx'
-       -or -name '*.h'
-       -or -name 'CMakeLists.txt'
-       -or -name 'Cargo.lock'
-       -or -name '*.rs'
-       -or -name 'setup.py'
-       -or -name 'pyproject.toml' |
-       sort |
-       xargs sha256sum > native_sources.sha256sum
+     -name '*.c'
+     -or -name '*.cpp'
+     -or -name '*.pyx'
+     -or -name '*.h'
+     -or -name 'CMakeLists.txt'
+     -or -name 'Cargo.lock'
+     -or -name '*.rs'
+     -or -name 'setup.py'
+     -or -name 'pyproject.toml' |
+     sort |
+     xargs sha256sum > native_sources.sha256sum
   artifacts:
     paths:
       - 'native_sources.sha256sum'
