@@ -500,7 +500,7 @@ class _B3MultiHeader:
             )
         except (TypeError, ValueError):
             log.debug(
-                "received invalid x-b3-* headers, " "trace-id: %r, span-id: %r, sampled: %r, flags: %r",
+                "received invalid x-b3-* headers, trace-id: %r, span-id: %r, sampled: %r, flags: %r",
                 trace_id_val,
                 span_id_val,
                 sampled,
@@ -882,10 +882,8 @@ class _TraceContext:
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
 
-    SAFE_CHARACTERS_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'*+-.^_`|~"
-    SAFE_CHARACTERS_VALUE = (
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "abcdefghijklmnopqrstuvwxyz" "0123456789" "!#$%&'()*+-./:<>?@[]^_`{|}~"
-    )
+    SAFE_CHARACTERS_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
+    SAFE_CHARACTERS_VALUE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&'()*+-./:<>?@[]^_`{|}~"
 
     @staticmethod
     def _encode_key(key: str) -> str:
@@ -963,15 +961,16 @@ class HTTPPropagator(object):
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
-        for prop_style in config._propagation_style_extract:
-            propagator = _PROP_STYLES[prop_style]
-            context = propagator._extract(normalized_headers)  # type: ignore
-            # baggage is handled separately
-            if prop_style == _PROPAGATION_STYLE_BAGGAGE:
-                continue
-            if context:
-                contexts.append(context)
-                styles_w_ctx.append(prop_style)
+        if config._propagation_style_extract is not None:
+            for prop_style in config._propagation_style_extract:
+                # baggage is handled separately
+                if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                    continue
+                propagator = _PROP_STYLES[prop_style]
+                context = propagator._extract(normalized_headers)  # type: ignore
+                if context:
+                    contexts.append(context)
+                    styles_w_ctx.append(prop_style)
         return contexts, styles_w_ctx
 
     @staticmethod
@@ -997,8 +996,8 @@ class HTTPPropagator(object):
         primary_context = contexts[0]
         links = []
 
-        for context in contexts[1:]:
-            style_w_ctx = styles_w_ctx[contexts.index(context)]
+        for i, context in enumerate(contexts[1:], 1):
+            style_w_ctx = styles_w_ctx[i]
             # encoding expects at least trace_id and span_id
             if context.trace_id and context.trace_id != primary_context.trace_id:
                 link = HTTPPropagator._context_to_span_link(
