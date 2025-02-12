@@ -74,13 +74,16 @@ build_base_venvs:
       touch cache_used.txt
     else
       echo "Skipping build, using compiled files/venv from cache"
+      echo "Recreating ddtrace/_version.py with correct version"
+      pip install "setuptools_scm[toml]>=4"
+      python -m setuptools_scm --force-write-version-files
     fi
   cache:
-    - key: $CI_JOB_NAME
+    - key: build_base_venvs_${PYTHON_VERSION}
       paths:
         - .cache/
     - key:
-        prefix: $CI_JOB_NAME
+        prefix: build_base_venvs_${PYTHON_VERSION}
         files:
           # Comes from "hash native sources" job
           - native_sources.sha256sum
@@ -94,6 +97,7 @@ build_base_venvs:
     name: venv_$PYTHON_VERSION
     paths:
       - .riot/venv_*
+      - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
@@ -164,5 +168,15 @@ build_base_venvs:
   artifacts:
     paths:
       - 'native_sources.sha256sum'
+
+example:
+  extends: .testrunner
+  stage: riot
+  needs: [ "build_base_venvs" ]
+  script: >
+    source .riot/venv_py3128/bin/activate
+    pip freeze
+    python -c "import ddtrace; print(ddtrace.__version__)"
+
 
 # Required jobs will appear here
