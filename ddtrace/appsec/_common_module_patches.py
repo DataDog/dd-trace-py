@@ -1,5 +1,4 @@
-# This module must not import other modules inconditionnaly that
-# require iast, ddwaf or any native optional module.
+# This module must not import other modules unconditionally that require iast
 
 import ctypes
 import os
@@ -17,9 +16,6 @@ import ddtrace
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -27,6 +23,14 @@ from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
+
+
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+else:
+
+    def is_iast_request_enabled() -> bool:
+        return False
 
 
 log = get_logger(__name__)
@@ -40,18 +44,31 @@ _RASP_POPEN = "rasp_Popen"
 
 def patch_common_modules():
     global _is_patched
-    if _is_patched:
-        return
-    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
-    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
-    try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     # ensure that the subprocess patch is applied even after one click activation
     subprocess_patch.patch()
     subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
     subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+    if _is_patched:
+        return
+    # for testing purposes, we need to update is_iast_request_enabled
+    if asm_config._iast_enabled:
+        global is_iast_request_enabled
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+    else:
+        global is_iast_request_enabled
+
+        def is_iast_request_enabled() -> bool:
+            return False
+
+    try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
+    try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
+    try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
+    try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
     _is_patched = True
 
