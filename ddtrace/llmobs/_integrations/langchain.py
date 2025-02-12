@@ -352,7 +352,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if instance_id in self._spans:
             del self._spans[instance_id]
         else:
-            log.warning("Unable to delete langchain instance from internal mapping")
+            log.debug("Unable to delete langchain instance from internal mapping")
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
