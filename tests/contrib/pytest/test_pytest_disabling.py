@@ -104,13 +104,13 @@ class PytestDisablingTestCase(PytestTestCaseBase):
         [suite_span_pass] = _get_spans_from_list(spans, "suite", "test_pass.py")
 
         [test_span_disabled] = _get_spans_from_list(spans, "test", "test_disabled")
-        assert test_span_disabled.get_tag("test.management.is_quarantined") is None
-        assert test_span_disabled.get_tag("test.management.is_test_disabled") == "true"
+        assert test_span_disabled.get_tag("test.test_management.is_quarantined") is None
+        assert test_span_disabled.get_tag("test.test_management.is_test_disabled") == "true"
         assert test_span_disabled.get_tag("test.status") == "skip"
 
         [test_span_pass] = _get_spans_from_list(spans, "test", "test_pass")
-        assert test_span_pass.get_tag("test.management.is_quarantined") is None
-        assert test_span_pass.get_tag("test.management.is_test_disabled") is None
+        assert test_span_pass.get_tag("test.test_management.is_quarantined") is None
+        assert test_span_pass.get_tag("test.test_management.is_test_disabled") is None
         assert test_span_pass.get_tag("test.status") == "pass"
 
     def test_disabled_and_quarantined_test(self):
@@ -125,6 +125,6 @@ class PytestDisablingTestCase(PytestTestCaseBase):
         [suite_span] = _get_spans_from_list(spans, "suite", "test_disabled_and_quarantined.py")
 
         [test_span] = _get_spans_from_list(spans, "test", "test_disabled_and_quarantined")
-        assert test_span.get_tag("test.management.is_quarantined") == "true"
-        assert test_span.get_tag("test.management.is_test_disabled") == "true"
+        assert test_span.get_tag("test.test_management.is_quarantined") == "true"
+        assert test_span.get_tag("test.test_management.is_test_disabled") == "true"
         assert test_span.get_tag("test.status") == "skip"

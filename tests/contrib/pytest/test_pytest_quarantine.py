@@ -270,11 +270,11 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
         [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
 
         [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-        assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_fail_quarantined.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_fail_quarantined.get_tag("test.status") == "fail"
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "pass"
 
     def test_quarantine_spans_with_atr(self):
@@ -304,13 +304,15 @@ class PytestQuarantineTestCase(PytestTestCaseBase):
 
         test_spans_fail_quarantined = _get_spans_from_list(spans, "test", "test_fail_quarantined")
         assert len(test_spans_fail_quarantined) == 6
-        assert all(span.get_tag("test.management.is_quarantined") == "true" for span in test_spans_fail_quarantined)
+        assert all(
+            span.get_tag("test.test_management.is_quarantined") == "true" for span in test_spans_fail_quarantined
+        )
         assert all(span.get_tag("test.status") == "fail" for span in test_spans_fail_quarantined)
         assert test_spans_fail_quarantined[0].get_tag("test.is_retry") is None
         assert all(span.get_tag("test.is_retry") for span in test_spans_fail_quarantined[1:])
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "pass"
 
 
@@ -447,17 +449,17 @@ class PytestQuarantineSkippingTestCase(PytestTestCaseBase):
         [suite_span_pass_quarantined] = _get_spans_from_list(spans, "suite", "test_pass_quarantined.py")
 
         [test_span_fail_quarantined] = _get_spans_from_list(spans, "test", "test_fail_quarantined")
-        assert test_span_fail_quarantined.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_fail_quarantined.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_fail_quarantined.get_tag("test.status") == "skip"
 
         [test_span_pass_quarantined] = _get_spans_from_list(spans, "test", "test_pass_quarantined")
-        assert test_span_pass_quarantined.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_pass_quarantined.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_pass_quarantined.get_tag("test.status") == "skip"
 
         [test_span_fail_setup] = _get_spans_from_list(spans, "test", "test_fail_setup")
-        assert test_span_fail_setup.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_fail_setup.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_fail_setup.get_tag("test.status") == "skip"
 
         [test_span_fail_teardown] = _get_spans_from_list(spans, "test", "test_fail_teardown")
-        assert test_span_fail_teardown.get_tag("test.management.is_quarantined") == "true"
+        assert test_span_fail_teardown.get_tag("test.test_management.is_quarantined") == "true"
         assert test_span_fail_teardown.get_tag("test.status") == "skip"
