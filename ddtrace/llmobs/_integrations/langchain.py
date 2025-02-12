@@ -330,24 +330,24 @@ class LangChainIntegration(BaseLLMIntegration):
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
         """
         if not _is_chain_instance(instance):
-            self._delete_instance_recording(instance)
+            self._safe_delete_instance_recording(instance)
             return
 
         steps = getattr(instance, "steps", [])
         flatmap_chain_steps = _flattened_chain_steps(steps, nested=False)
 
         for step in flatmap_chain_steps:
-            self._delete_instance_recording(step)
+            self._safe_delete_instance_recording(step)
 
         if parent_span is None:
-            self._delete_instance_recording(instance)
+            self._safe_delete_instance_recording(instance)
             return
 
         parent_instance = self._instances.get(parent_span)
         if parent_instance is None or not _is_chain_instance(parent_instance):
-            self._delete_instance_recording(instance)
+            self._safe_delete_instance_recording(instance)
 
-    def _delete_instance_recording(self, instance):
+    def _safe_delete_instance_recording(self, instance):
         instance_id = id(instance)
         if instance_id in self._spans:
             del self._spans[instance_id]
