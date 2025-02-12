@@ -1,4 +1,0 @@
----
-features:
-  - |
-    dd-trace-api: adds a simple and minimal instrumentation for the dd-trace-api-py package
