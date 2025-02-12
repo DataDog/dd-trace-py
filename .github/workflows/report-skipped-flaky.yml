@@ -1,9 +1,6 @@
 name: Skipped Flaky Tests Report
 
 on:
-  push:
-    branches:
-      - erikayasuda/mark-existing-flaky
   schedule:
     # Run every Monday and Thursday at 6 AM Eastern Time (EST)
     - cron: '0 11 * * 1,4'
