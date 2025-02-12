@@ -39,3 +39,6 @@ jobs:
 
       - name: Check min_compatible_versions diff
         run: scripts/check-diff 'min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'
+
+      - name: Check lib-injection min_compatible_versions diff
+        run: scripts/check-diff 'lib-injection/sources/min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'
