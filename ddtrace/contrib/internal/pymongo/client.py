@@ -26,6 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.trace import Pin
 
 from .parse import parse_msg
@@ -166,7 +167,8 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
-        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
+        span, _, operation = _dbm_dispatch(span, [], operation)
+        args, kwargs = set_argument_value(args, kwargs, 1, "operation", operation)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -184,7 +186,8 @@ def _trace_server_send_message_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
-        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
+        span, _, operation = _dbm_dispatch(span, [], operation)
+        args, kwargs = set_argument_value(args, kwargs, 1, "operation", operation)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -250,19 +253,10 @@ def _trace_socket_write_command(func, args, kwargs):
         return func(*args, **kwargs)
 
     with _trace_cmd(cmd, socket_instance, socket_instance.address) as s:
-        s, args, kwargs = _dbm_dispatch(s, args, kwargs)
         result = func(*args, **kwargs)
         if result:
             s.set_metric(db.ROWCOUNT, result.get("n", -1))
         return result
-
-
-def _dbm_dispatch(span, args, kwargs):
-    # dispatch DBM
-    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
-    if result:
-        span, args, kwargs = result.value
-    return span, args, kwargs
 
 
 def _trace_cmd(cmd, socket_instance, address):
@@ -354,3 +348,37 @@ def set_query_rowcount(docs, span):
     if cursor:
         rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
         span.set_metric(db.ROWCOUNT, rowcount)
+
+
+
+def _dbm_dispatch(span, args, kwargs):
+    # dispatch DBM
+    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
+    if result:
+        span, args, kwargs = result.value
+    return span, args, kwargs
+
+
+def _dbm_comment_injector(dbm_comment, command):
+    # type: (str, dict) -> dict
+    try:
+        comment_exists = False
+        for comment_key in ("comment", "$comment"):
+            if comment_key in command:
+                existing_comment = command[comment_key]
+                if isinstance(existing_comment, str):
+                    command[comment_key] = existing_comment + "," + dbm_comment
+                elif isinstance(existing_comment, list):
+                    command[comment_key].append(dbm_comment)
+                comment_exists = True
+        if not comment_exists:
+            command["comment"] = dbm_comment
+        return command
+    except (TypeError, ValueError):
+        log.warning(
+            "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
+            "To disable this feature please set the following environment variable: "
+            "DD_DBM_PROPAGATION_MODE=disabled",
+            type(command),
+        )
+    return command
