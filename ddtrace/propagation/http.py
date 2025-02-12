@@ -1137,7 +1137,7 @@ class HTTPPropagator(object):
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)
                     style = prop_style
-                    if config.propagation_http_baggage_enabled is True:
+                    if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
 
