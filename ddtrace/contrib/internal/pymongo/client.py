@@ -6,6 +6,7 @@ from typing import Iterable
 
 # 3p
 import pymongo
+from pymongo.message import _GetMore, _Query
 from wrapt import ObjectProxy
 
 # project
@@ -167,11 +168,9 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
-        log.debug("before dbm operation: %s", operation)
-        span, _, operation = _dbm_dispatch(span, [], operation)
-        log.debug("after dbm operation: %s", operation)
-        args, kwargs = set_argument_value(args, kwargs, 2, "operation", operation)
-        log.debug("new args, kwargs: %s, %s", args, kwargs)
+        log.debug("before dbm operation: %s", getattr(operation, "spec"))
+        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
+        log.debug("after dbm operation: %s", getattr(operation, "spec"))
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -361,21 +360,21 @@ def _dbm_dispatch(span, args, kwargs):
 
 
 def _dbm_comment_injector(dbm_comment, command):
-    # type: (str, dict) -> dict
     try:
-        comment_exists = False
-        for comment_key in ("comment", "$comment"):
-            if comment_key in command:
-                existing_comment = command[comment_key]
-                if isinstance(existing_comment, str):
-                    command[comment_key] = existing_comment + "," + dbm_comment
-                elif isinstance(existing_comment, list):
-                    command[comment_key].append(dbm_comment)
-                elif existing_comment is None:
-                    command[comment_key] = dbm_comment
-                comment_exists = True
-        if not comment_exists:
-            command["comment"] = dbm_comment
+        if isinstance(command, _Query):
+            if _is_query(command):
+                command.spec = _dbm_comment_injector(dbm_comment, command.spec)
+        elif isinstance(command, _GetMore):
+            if hasattr(command, "comment"):
+                command.comment = _dbm_merge_comment(command.comment, dbm_comment)
+        else:
+            comment_exists = False
+            for comment_key in ("comment", "$comment"):
+                if comment_key in command:
+                    command[comment_key] = _dbm_merge_comment(command[comment_key], dbm_comment)
+                    comment_exists = True
+            if not comment_exists:
+                command["comment"] = dbm_comment
         return command
     except (TypeError, ValueError):
         log.warning(
@@ -385,3 +384,14 @@ def _dbm_comment_injector(dbm_comment, command):
             type(command),
         )
     return command
+
+
+def _dbm_merge_comment(existing_comment, dbm_comment):
+    if existing_comment is None:
+        return dbm_comment
+    if isinstance(existing_comment, str):
+        return existing_comment + "," + dbm_comment
+    elif isinstance(existing_comment, list):
+        existing_comment.append(dbm_comment)
+        return existing_comment
+    return dbm_comment
