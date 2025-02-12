@@ -28,10 +28,6 @@ from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
-# TODO(munir): Remove the imports below in v3.0
-from ddtrace._trace import pin as _p  # noqa: E402, F401
-from ddtrace._trace import span as _s  # noqa: E402, F401
-from ddtrace._trace import tracer as _t  # noqa: E402, F401
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 
