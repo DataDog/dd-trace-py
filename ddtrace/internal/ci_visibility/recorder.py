@@ -39,6 +39,7 @@ from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettin
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -210,6 +211,7 @@ class CIVisibility(Service):
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
+        self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -510,6 +512,15 @@ class CIVisibility(Service):
             log.debug("Error fetching unique tests", exc_info=True)
         return None
 
+    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
+        try:
+            if self._api_client is not None:
+                return self._api_client.fetch_test_management_tests()
+            log.warning("API client not initialized, cannot fetch tests from Test Management")
+        except Exception:
+            log.debug("Error fetching unique tests", exc_info=True)
+        return None
+
     def _should_skip_path(self, path, name, test_skipping_mode=None):
         """This method supports legacy usage of the CIVisibility service and should be removed
 
@@ -635,6 +646,13 @@ class CIVisibility(Service):
                 "Auto Test Retries is enabled by API but disabled by "
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
             )
+
+        if self._api_settings.quarantine.enabled:
+            test_properties = self._fetch_test_management_tests()
+            if test_properties is None:
+                log.warning("Failed to fetch quarantined tests from Test Management")
+            else:
+                self._test_properties = test_properties
 
     def _stop_service(self):
         # type: () -> None
@@ -942,8 +960,11 @@ class CIVisibility(Service):
         if instance is None:
             return False
 
-        # TODO: retrieve this information from the API, once it is available in the backend.
-        return False
+        test_properties = instance._test_properties.get(test_id)
+        if test_properties is None:
+            return False
+
+        return test_properties.quarantined
 
 
 def _requires_civisibility_enabled(func):
