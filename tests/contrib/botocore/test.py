@@ -24,6 +24,7 @@ import pytest
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.utils_botocore import span_tags
+from tests.utils import flaky
 from tests.utils import get_128_bit_trace_id_from_headers
 
 

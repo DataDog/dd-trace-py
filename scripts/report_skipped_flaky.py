@@ -3,7 +3,9 @@ import json
 import os
 import re
 import time
+
 from codeowners import CodeOwners
+
 
 FLAKY_PATTERN = re.compile(r'^\s*@flaky\(\s*(?:until=)?(\d+),?\s*(?:reason=\s*"(.*?)")?\s*\)?', re.IGNORECASE)
 TEST_FUNCTION_PATTERN = re.compile(r"^\s*def\s+(test_\w+)\s*\(", re.IGNORECASE)
