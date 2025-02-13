@@ -48,6 +48,7 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     assert aws_gateway_span.start == start
 
     # assert basic api gateway meta
+    assert aws_gateway_span.get_tag("span.kind") == "internal"
     assert aws_gateway_span.get_tag("component") == "aws-apigateway"
     assert aws_gateway_span.get_tag("_dd.inferred_span") == "1"
 
