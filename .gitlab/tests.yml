@@ -50,28 +50,6 @@ include:
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
-
-build_base_venvs:
-  extends: .testrunner
-  stage: riot
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    PIP_VERBOSE: 1
-    DD_PROFILING_NATIVE_TESTS: 1
-  script:
-    - pip install riot==0.20.1
-    - riot -P -v generate --python=$PYTHON_VERSION
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-      - ddtrace/internal/datadog/profiling/test/test_*
-
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
   extends: .testrunner
