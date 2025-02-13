@@ -57,7 +57,7 @@ def _tree_pkgs_from_riot(node: riotfile.Venv) -> Dict[str, Set]:
 def min_version_spec(version_specs: List[str]) -> str:
     min_numeric = ""
     min_spec = ""
-    for spec in version_specs:
+    for spec in sorted(version_specs):
         numeric = parse_version(spec.strip("~==<>"))
         if not min_numeric or numeric < min_numeric:
             min_numeric = numeric
