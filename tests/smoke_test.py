@@ -37,8 +37,14 @@ root_logger.setLevel(logging.WARNING)
 try:
     from ddtrace.appsec._iast._taint_tracking._native import ops
 
-    assert ops
-    assert len(log_messages) == 0
+    if os.environ.get("DD_IAST_ENABLED") == "False":
+        assert any(
+            "IAST not enabled but native module is being loaded" in message
+            for message in log_messages
+        )
+    else:
+        assert ops
+        assert len(log_messages) == 0
 except ImportError as e:
     assert False, "Importing the native module failed, _native probably not compiled correctly: %s" % str(e)
 """

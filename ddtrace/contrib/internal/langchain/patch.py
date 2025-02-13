@@ -1406,8 +1406,8 @@ def unpatch():
 
 def taint_outputs(instance, inputs, outputs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     try:
         ranges = None
@@ -1429,8 +1429,8 @@ def taint_outputs(instance, inputs, outputs):
 
 def taint_parser_output(func, instance, args, kwargs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     result = func(*args, **kwargs)
     try:

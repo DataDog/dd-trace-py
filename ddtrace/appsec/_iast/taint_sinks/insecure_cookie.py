@@ -7,7 +7,7 @@ from .. import oce
 from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking._errors import iast_taint_log_error
+from .._taint_tracking import iast_taint_log_error
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
 from ..constants import VULN_NO_SAMESITE_COOKIE

@@ -18,7 +18,7 @@ def load_appsec():
 
 def load_iast():
     """Lazily load the iast module listeners."""
-    from ddtrace.appsec._iast._listener import iast_listen
+    from ddtrace.appsec._iast._iast_request_context import iast_listen
 
     global _IAST_TO_BE_LOADED
     if _IAST_TO_BE_LOADED:

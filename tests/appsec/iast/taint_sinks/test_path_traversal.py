@@ -4,7 +4,7 @@ import mock
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from tests.appsec.iast.aspects.conftest import _iast_patched_module

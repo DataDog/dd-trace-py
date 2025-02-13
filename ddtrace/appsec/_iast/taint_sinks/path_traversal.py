@@ -1,14 +1,12 @@
 from typing import Any
 
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal.logger import get_logger
 
+from ..._constants import IAST_SPAN_TAGS
+from .. import oce
+from .._iast_request_context import is_iast_request_enabled
+from .._metrics import increment_iast_span_metric
+from ..constants import VULN_PATH_TRAVERSAL
 from ._base import VulnerabilityBase
 
 
@@ -23,6 +21,9 @@ class PathTraversal(VulnerabilityBase):
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
     if is_iast_request_enabled() and PathTraversal.has_quota():
         try:
+            from .._metrics import _set_metric_iast_executed_sink
+            from .._taint_tracking import is_pyobject_tainted
+
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, PathTraversal.vulnerability_type)
             _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
             filename_arg = args[0] if args else kwargs.get("file", None)

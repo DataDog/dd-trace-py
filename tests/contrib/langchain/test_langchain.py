@@ -9,6 +9,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import long_input_text
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -147,6 +148,7 @@ def test_cohere_llm_sync(langchain, request_vcr):
         llm("What is the secret Krabby Patty recipe?")
 
 
+@flaky(1731959126)
 @pytest.mark.snapshot(ignores=["resource"])
 def test_huggingfacehub_llm_sync(langchain, request_vcr):
     llm = langchain.llms.HuggingFaceHub(

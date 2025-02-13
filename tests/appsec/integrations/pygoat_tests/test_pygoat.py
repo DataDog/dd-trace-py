@@ -143,7 +143,7 @@ def test_sqli(client):
 @pytest.mark.skip("TODO: SSRF is not implemented for open()")
 def test_ssrf1(client, iast_context_defaults):
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     s = "templates/Lab/ssrf/blogs/blog2.txt"
     tainted_path = taint_pyobject(
@@ -160,7 +160,7 @@ def test_ssrf1(client, iast_context_defaults):
 
 def test_ssrf2(client, iast_context_defaults):
     from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     s = "http://example.com"
     tainted_path = taint_pyobject(
