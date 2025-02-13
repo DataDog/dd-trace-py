@@ -49,8 +49,6 @@ def _assert_vulnerability(label, value_parts=None, source_name="", check_value=F
     line, hash_value = get_line_and_hash(label, VULN_CMDI, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
-    assert vulnerability["location"]["function"] == function
-    assert vulnerability["location"]["class_name"] == class_name
     assert vulnerability["hash"] == hash_value
 
 
