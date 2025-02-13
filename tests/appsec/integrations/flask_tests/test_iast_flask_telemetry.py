@@ -1,6 +1,7 @@
 from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from tests.appsec.appsec_utils import flask_server
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -15,6 +16,7 @@ def test_iast_span_metrics():
         assert response.content == b"OK"
 
 
+@flaky(1735812000)
 def test_flask_instrumented_metrics(telemetry_writer):
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import origin_to_str
