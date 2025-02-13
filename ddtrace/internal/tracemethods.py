@@ -79,11 +79,21 @@ def trace_method(module, method_name):
 
 def trace_wrapper(wrapped, instance, args, kwargs):
     from ddtrace.trace import tracer
+    import inspect
 
     resource = wrapped.__name__
     if hasattr(instance, "__class__") and instance.__class__ is not type(None):  # noqa: E721
         resource = "%s.%s" % (instance.__class__.__name__, resource)
 
-    with tracer.trace("trace.annotation", resource=resource) as span:
-        span.set_tag_str("component", "trace")
-        return wrapped(*args, **kwargs)
+    # Check for async
+    if inspect.iscoroutinefunction(wrapped):
+        async def async_wrapper(*a, **kw):
+            with tracer.trace("trace.annotation", resource=resource) as span:
+                span.set_tag_str("component", "trace")
+                return await wrapped(*a, **kw)
+
+        return async_wrapper(*args, **kwargs)
+    else:
+        with tracer.trace("trace.annotation", resource=resource) as span:
+            span.set_tag_str("component", "trace")
+            return wrapped(*args, **kwargs)
