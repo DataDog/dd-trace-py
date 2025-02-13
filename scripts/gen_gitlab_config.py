@@ -6,6 +6,7 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import os
 import typing as t
 
 
@@ -169,13 +170,77 @@ def gen_pre_checks() -> None:
     )
 
 
+def gen_build_base_venvs() -> None:
+    """Generate the list of base jobs for building virtual environments."""
+
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            f"""
+build_base_venvs:
+  extends: .testrunner
+  stage: riot
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '1'
+    DD_PROFILING_NATIVE_TESTS: '1'
+    DD_USE_SCCACHE: '1'
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+  script: |
+    set -e -o pipefail
+    if [ ! -f cache_used.txt ];
+    then
+      echo "No cache found, building native extensions and base venv"
+      apt update && apt install -y sccache
+      pip install riot==0.20.1
+      riot -P -v generate --python=$PYTHON_VERSION
+      touch cache_used.txt
+    else
+      echo "Skipping build, using compiled files/venv from cache"
+      echo "Fixing ddtrace versions"
+      pip install "setuptools_scm[toml]>=4"
+      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
+      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
+        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
+      echo "Using version: ${{ddtrace_version}}"
+    fi
+  cache:
+    # Share pip/sccache between jobs of the same Python version
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
+      paths:
+        - .cache
+    # Re-use job artifacts between runs if no native source files have been changed
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
+      paths:
+        - .riot/venv_*
+        - ddtrace/**/*.so*
+        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+        - ddtrace/internal/datadog/profiling/test/test_*
+        - cache_used.txt
+  artifacts:
+    name: venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
+      - ddtrace/_version.py
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+      - ddtrace/internal/datadog/profiling/test/test_*
+        """
+        )
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
 # generally no reason to modify it.
 
 import logging  # noqa
-import os  # noqa
 import sys  # noqa
 from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
