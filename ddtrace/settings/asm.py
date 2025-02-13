@@ -247,6 +247,7 @@ class ASMConfig(Env):
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+    _bypass_instrumentation_for_waf = False
 
     # IAST supported on python 3.6 to 3.13 and never on windows
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
