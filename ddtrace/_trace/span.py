@@ -544,7 +544,7 @@ class Span(object):
     def record_exception(
         self,
         exception: Exception,
-        attributes: Optional[Dict[str, str]] = None,
+        attributes: Optional[Dict[str, _JSONType]] = None,
         timestamp: Optional[int] = None,
         escaped=False,
     ) -> None:
@@ -577,7 +577,7 @@ class Span(object):
         attrs = {
             "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
             "exception.message": str(exception),
-            "exception.escaped": str(escaped),
+            "exception.escaped": escaped,
             "exception.stacktrace": tb,
         }
         if attributes:

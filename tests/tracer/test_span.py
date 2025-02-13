@@ -543,7 +543,7 @@ class SpanTestCase(TracerTestCase):
 
         span.assert_span_event_count(1)
         span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
         )
 
     def test_span_record_multiple_exceptions(self):
@@ -561,10 +561,10 @@ class SpanTestCase(TracerTestCase):
 
         span.assert_span_event_count(2)
         span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "False"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
         )
         span.assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": "False"}
+            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": False}
         )
 
     def test_span_record_escaped_exception(self):
@@ -585,7 +585,7 @@ class SpanTestCase(TracerTestCase):
         )
         span.assert_span_event_count(1)
         span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": "True"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": True}
         )
 
 
