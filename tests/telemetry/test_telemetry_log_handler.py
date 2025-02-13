@@ -1,8 +1,10 @@
-import pytest
 import logging
 import os
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
+
+import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.logging import DDTelemetryLogHandler
