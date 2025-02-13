@@ -36,6 +36,8 @@ from tests.utils import override_global_config
 CONFIG_SERVER_PORT = "9596"
 
 
+os.environ['_DD_IAST_PYTEST'] = '1'
+
 @pytest.fixture
 def no_request_sampling(tracer):
     with override_env(

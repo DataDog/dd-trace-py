@@ -24,6 +24,7 @@ _BAD_DIR_DEFAULT = "forbidden_dir/"
 
 
 def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function="", class_name=""):
+    function_name = label if not function else function
     if value_parts is None:
         value_parts = [
             {"value": "dir "},
@@ -49,6 +50,8 @@ def _assert_vulnerability(label, value_parts=None, source_name="", check_value=F
     line, hash_value = get_line_and_hash(label, VULN_CMDI, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == function_name
+    assert vulnerability["location"]["class_name"] == class_name
     assert vulnerability["hash"] == hash_value
 
 
@@ -62,7 +65,7 @@ def test_ossystem(iast_context_defaults):
     assert is_pyobject_tainted(_BAD_DIR)
     # label test_ossystem
     os.system(add_aspect("dir -l ", _BAD_DIR))
-    _assert_vulnerability("test_ossystem", source_name=source_name, function="test_ossystem")
+    _assert_vulnerability("test_ossystem", source_name=source_name)
 
 
 def test_communicate(iast_context_defaults):
@@ -168,6 +171,7 @@ def test_osspawn_variants(iast_context_defaults, function, mode, arguments, tag)
         value_parts=[{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}],
         source_name=source_name,
         check_value=True,
+        function="test_osspawn_variants",
     )
 
 

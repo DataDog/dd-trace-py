@@ -99,7 +99,7 @@ class VulnerabilityBase(Operation):
         vulnerability = Vulnerability(
             type=vulnerability_type,
             evidence=evidence,
-            location=Location(path=file_name, line=line_number, spanId=span_id, function=function_name, class_name=class_name),
+            location=Location(path=file_name, line=line_number, spanId=span_id, method=function_name, class_name=class_name),
         )
         if report:
             report.vulnerabilities.add(vulnerability)

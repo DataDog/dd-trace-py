@@ -66,12 +66,12 @@ class Location(NotNoneDictable):
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
-    function: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default='')
+    method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default='')
     class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default='')
 
+
     def __repr__(self):
-        # return f"Location(path='{self.path}', line={self.line}, function='{self.function}', class_name='{self.class_name})"
-        return f"Location(path='{self.path}', line={self.line}"
+        return f"Location(path='{self.path}', line={self.line})"
 
 
 @dataclasses.dataclass(unsafe_hash=True)
@@ -85,7 +85,6 @@ class Vulnerability(NotNoneDictable):
     def __post_init__(self):
         # avoid circular import
         from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
-
         self.hash = zlib.crc32(repr(self).encode())
         stacktrace_id = get_iast_stacktrace_id()
         self.stackId = None

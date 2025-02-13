@@ -194,7 +194,7 @@ exit_0:; /* Label must be followed by a statement */
 
 static PyMethodDef StacktraceMethods[] = {
     { "get_info_frame", (PyCFunction)get_file_and_line, METH_O,
-      "Stacktrace function: returns (filename, line, function name, class name)" },
+      "Stacktrace function: returns (filename, line, method, class)" },
     { NULL, NULL, 0, NULL }
 };
 
