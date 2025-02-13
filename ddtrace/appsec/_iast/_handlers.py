@@ -128,6 +128,11 @@ def _on_flask_patch(flask_version):
             )
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
+        # Instrumented on _on_set_request_tags_iast
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
     if asm_config._iast_enabled and args and is_iast_request_enabled():
