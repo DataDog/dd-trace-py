@@ -54,9 +54,6 @@ class GlobalConfigTestCase(TestCase):
         assert isinstance(e.value, KeyError)
 
     def test_missing_integration(self):
-        # ensure a meaningful exception is raised when an integration
-        # that is not available is retrieved in the configuration
-        # object
         with pytest.raises(AttributeError) as e:
             self.config.integration_that_does_not_exist
 
