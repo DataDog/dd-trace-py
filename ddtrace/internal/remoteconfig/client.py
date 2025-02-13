@@ -292,8 +292,8 @@ class RemoteConfigClient:
             return True
         return False
 
-    def start_products(self, products_list: list) -> None:
-        for product_name in products_list:
+    def start_products(self, products: Set[str]) -> None:
+        for product_name in products:
             pubsub_instance = self._products.get(product_name)
             if pubsub_instance:
                 pubsub_instance.restart_subscriber()
@@ -315,6 +315,7 @@ class RemoteConfigClient:
         self._products = dict()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
+        conn = None
         try:
             log.debug(
                 "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
@@ -340,7 +341,8 @@ class RemoteConfigClient:
             log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
             return None
         finally:
-            conn.close()
+            if conn is not None:
+                conn.close()
 
         if resp.status == 404:
             # Remote configuration is not enabled or unsupported by the agent

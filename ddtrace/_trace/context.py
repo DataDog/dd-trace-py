@@ -48,7 +48,17 @@ class Context(object):
     boundaries.
     """
 
-    __slots__ = ["trace_id", "span_id", "_lock", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote"]
+    __slots__ = [
+        "trace_id",
+        "span_id",
+        "_lock",
+        "_meta",
+        "_metrics",
+        "_span_links",
+        "_baggage",
+        "_is_remote",
+        "__weakref__",
+    ]
 
     def __init__(
         self,
@@ -259,7 +269,6 @@ class Context(object):
             with self._lock:
                 return (
                     self.trace_id == other.trace_id
-                    and self.span_id == other.span_id
                     and self._meta == other._meta
                     and self._metrics == other._metrics
                     and self._span_links == other._span_links
@@ -278,5 +287,8 @@ class Context(object):
             self._baggage,
             self._is_remote,
         )
+
+    def __hash__(self) -> int:
+        return hash(self.trace_id)
 
     __str__ = __repr__
