@@ -37,7 +37,7 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     assert web_span.resource == web_span_resource
     assert web_span.get_tag("span.kind") == "server"
     assert web_span.get_tag("component") == web_span_component
-    assert web_span.get_tag("_dd.inferred_span") is None
+    assert web_span.get_metric("_dd.inferred_span") is None
 
     # assert top level api gateway attributes
     assert aws_gateway_span.name == "aws.apigateway"
@@ -48,7 +48,7 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
 
     # assert basic api gateway meta
     assert aws_gateway_span.get_tag("component") == "aws-apigateway"
-    assert aws_gateway_span.get_tag("_dd.inferred_span") == "1"
+    assert aws_gateway_span.get_metric("_dd.inferred_span") == 1
 
     # assert api gateway http meta
     assert aws_gateway_span.get_tag("http.method") == method
