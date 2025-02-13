@@ -545,9 +545,17 @@ class Span(object):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-
-        self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
+
+        try:
+            self._meta[ERROR_MSG] = str(exc_val)
+        except Exception:
+            # An exception can occur if a custom Exception overrides __str__
+            # If this happens str(exc_val) won't work, so best we can do is print the class name
+            # Otherwise, don't try to set an error message
+            if exc_val and hasattr(exc_val, "__class__"):
+                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+
         self._meta[ERROR_STACK] = tb
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
