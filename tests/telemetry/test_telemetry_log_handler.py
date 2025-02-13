@@ -52,9 +52,7 @@ def test_emit_error_level(handler, error_record):
     """Test handling of ERROR level logs"""
     handler.emit(error_record)
 
-    handler.telemetry_writer.add_error.assert_called_once_with(
-        1, "Test error message arg1", ANY, 42
-    )
+    handler.telemetry_writer.add_error.assert_called_once_with(1, "Test error message arg1", ANY, 42)
 
 
 def test_emit_ddtrace_contrib_error(handler, exc_info):
