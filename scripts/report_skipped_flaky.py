@@ -107,7 +107,7 @@ def format_text_report(test_data):
     for category, tests in test_data.items():
         output.append(f"  {emoji_map[category]} {category} {emoji_map[category]}")
         for test in tests:
-            print(test['codeowners'])
+            print(test["codeowners"])
             output.append(
                 f"    `{test['test']}` in `{test['file']}`\n"
                 f"      *Expires:* {datetime.fromtimestamp(test['expires']).strftime('%Y-%m-%d')}\n"
