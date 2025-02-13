@@ -25,7 +25,7 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 
-if asm_config._iast_enabled or '_DD_IAST_PYTEST' in os.environ:
+if asm_config._iast_enabled or "_DD_IAST_PYTEST" in os.environ:
     from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 else:
 
@@ -51,7 +51,7 @@ def patch_common_modules():
     if _is_patched:
         return
     # for testing purposes, we need to update is_iast_request_enabled
-    if asm_config._iast_enabled or '_DD_IAST_PYTEST' in os.environ:
+    if asm_config._iast_enabled or "_DD_IAST_PYTEST" in os.environ:
         global is_iast_request_enabled
         from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
     else:

@@ -35,6 +35,10 @@ from tests.utils import override_global_config
 
 CONFIG_SERVER_PORT = "9596"
 
+# There are some pretty early conditional imports for is_iast_request_enabled() that are usually run before the
+# fixtures, so they also check for this
+os.environ["_DD_IAST_PYTEST"] = "1"
+
 
 os.environ['_DD_IAST_PYTEST'] = '1'
 
