@@ -1,7 +1,7 @@
 import logging
-import os
 import sys
-from unittest.mock import Mock, ANY
+from unittest.mock import ANY
+from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
