@@ -66,11 +66,12 @@ class Location(NotNoneDictable):
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
-    function: Optional[str] = None
-    class_name: Optional[str] = None
+    function: Optional[str] = dataclasses.field(compare=False, hash=False, repr=True, default='')
+    class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=True, default='')
 
     def __repr__(self):
-        return f"Location(path='{self.path}', line={self.line}, function='{self.function}', class_name='{self.class_name})"
+        # return f"Location(path='{self.path}', line={self.line}, function='{self.function}', class_name='{self.class_name})"
+        return f"Location(path='{self.path}', line={self.line}"
 
 
 @dataclasses.dataclass(unsafe_hash=True)
