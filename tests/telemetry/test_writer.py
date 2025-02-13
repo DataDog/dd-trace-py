@@ -876,4 +876,4 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]
+    assert tags == [["config_opentelemetry:otel_logs_exporter"]]
