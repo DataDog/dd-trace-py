@@ -20,12 +20,11 @@ aredis,0
 asgiref,~=3.0.0
 astunparse,0
 async_generator,~=1.10
-asyncpg,~=0.23
+asyncpg,~=0.23.0
 asynctest,==0.13.0
 austin-python,~=1.0
 avro,0
 azure.functions,0
-bcrypt,==4.2.1
 blinker,0
 bottle,>=0.12
 bytecode,0

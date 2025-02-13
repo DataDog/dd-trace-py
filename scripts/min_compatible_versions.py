@@ -16,6 +16,7 @@ OUT_FILENAME = "min_compatible_versions.csv"
 OUT_DIRECTORIES = (".", "lib-injection/sources")
 IGNORED_PACKAGES = {
     "attrs",
+    "bcrypt",
     "boto3",
     "botocore",
     "click",
