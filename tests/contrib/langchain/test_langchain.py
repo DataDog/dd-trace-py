@@ -1,3 +1,4 @@
+from operator import itemgetter
 import os
 import sys
 
@@ -310,27 +311,33 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completi
     chain.batch(inputs=["chickens"])
 
 
-# @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-# def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
-#     """
-#     Test that invoking a nested chain will result in a 4-span trace with a root
-#     RunnableSequence span (complete_chain), then another RunnableSequence (chain1) +
-#     LangChain ChatOpenAI span (chain1's llm call) and finally a second LangChain ChatOpenAI span (chain2's llm call)
-#     """
-#     prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
-#     prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
-#         "what country is the city {city} in? respond in {language}"
-#     )
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    variants={
+        "0_2": LANGCHAIN_VERSION < (0, 3),
+        "latest": LANGCHAIN_VERSION >= (0, 3),
+    },
+)
+def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
+    """
+    Test that invoking a nested chain will result in a 4-span trace with a root
+    RunnableSequence span (complete_chain), then another RunnableSequence (chain1) +
+    LangChain ChatOpenAI span (chain1's llm call) and finally a second LangChain ChatOpenAI span (chain2's llm call)
+    """
+    prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
+    prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
+        "what country is the city {city} in? respond in {language}"
+    )
 
-#     model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.ChatOpenAI()
 
-#     chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
-#     chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
+    chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
+    chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
 
-#     complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
+    complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
 
-#     with request_vcr.use_cassette("lcel_openai_chain_nested.yaml"):
-#         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
+    with request_vcr.use_cassette("lcel_openai_chain_nested.yaml"):
+        complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
 @pytest.mark.asyncio
@@ -379,24 +386,24 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_co
     llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-# @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-# def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
-#     import langchain_core.tools
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
+    import langchain_core.tools
 
-#     @langchain_core.tools.tool
-#     def add(a: int, b: int) -> int:
-#         """Adds a and b.
+    @langchain_core.tools.tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b.
 
-#         Args:
-#             a: first int
-#             b: second int
-#         """
-#         return a + b
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
 
-#     llm = langchain_anthropic.ChatAnthropic(temperature=1, model_name="claude-3-opus-20240229")
-#     llm_with_tools = llm.bind_tools([add])
-#     with request_vcr.use_cassette("lcel_with_tools_anthropic.yaml"):
-#         llm_with_tools.invoke("What is the sum of 1 and 2?")
+    llm = langchain_anthropic.ChatAnthropic(temperature=1, model_name="claude-3-opus-20240229")
+    llm_with_tools = llm.bind_tools([add])
+    with request_vcr.use_cassette("lcel_with_tools_anthropic.yaml"):
+        llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
 # @pytest.mark.snapshot
