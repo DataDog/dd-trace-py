@@ -166,7 +166,7 @@ def _on_web_framework_start_request(ctx, int_config):
 
 
 def _on_web_framework_finish_request(
-    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
+    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
     trace_utils.set_http_meta(
         span=span,
@@ -178,9 +178,70 @@ def _on_web_framework_finish_request(
         request_headers=req_headers,
         response_headers=res_headers,
         route=route,
+        **kwargs,
     )
+    _set_inferred_proxy_tags(span, status_code)
+
     if finish:
         span.finish()
+
+
+def _set_inferred_proxy_tags(span, status_code):
+    if span._parent and span._parent.name == "aws.apigateway":
+        inferred_span = span._parent
+        status_code = status_code if status_code else span.get_tag("http.status_code")
+        if status_code:
+            inferred_span.set_tag("http.status_code", status_code)
+        if span.error == 1:
+            inferred_span.error = span.error
+            if ERROR_MSG in span._meta.keys():
+                inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
+            if ERROR_TYPE in span._meta.keys():
+                inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
+            if ERROR_STACK in span._meta.keys():
+                inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+
+
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+    # Skip creating another inferred span if one has already been created for this request
+    if ctx.get_item("inferred_proxy_span"):
+        return
+
+    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
+    # and normalized headers in 'headers'
+    headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+
+    # Inferred Proxy Spans
+    if distributed_headers_config and headers is not None:
+        create_inferred_proxy_span_if_headers_exist(
+            ctx,
+            headers=headers,
+            child_of=tracer.current_trace_context(),
+            tracer=tracer,
+        )
+        inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+
+        # use the inferred proxy span as the new parent span
+        if inferred_proxy_span and not call_trace:
+            span_kwargs["child_of"] = inferred_proxy_span
+            ctx.set_item("span_kwargs", span_kwargs)
+
+
+def _on_inferred_proxy_finish(ctx):
+    if not config._inferred_proxy_services_enabled:
+        return
+
+    inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+    inferred_proxy_finish_callback = ctx.get_item("inferred_proxy_finish_callback")
+
+    # add callback to finish inferred proxy span when this span finishes
+    if (
+        inferred_proxy_span
+        and inferred_proxy_finish_callback
+        and ctx.span
+        and ctx.span.parent_id == inferred_proxy_span.span_id
+    ):
+        ctx.span._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -842,6 +903,11 @@ def listen():
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
+    core.on("web.request.final_tags", _on_web_request_final_tags)
+
+    # inferred proxy handlers
+    core.on("inferred_proxy.start", _on_inferred_proxy_start)
+    core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
@@ -859,6 +925,7 @@ def listen():
         "molten.request",
         "pyramid.request",
         "sanic.request",
+        "tornado.request",
         "flask.call",
         "flask.jsonify",
         "flask.render_template",
