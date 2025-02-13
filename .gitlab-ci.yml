@@ -30,7 +30,7 @@ tests-gen:
   extends: .testrunner
   script:
     - pip install riot==0.20.1
-    - export DD_NATIVE_SOURCES_HASH=$(find ddtrace src setup.py pyproject.toml -name '*.c' -or -name '*.cpp' -or -name '*.pyx' -or -name '*.h' -or -name 'CMakeLists.txt' -or -name 'Cargo.lock' -or -name '*.rs' -or -name 'setup.py' -or -name 'pyproject.toml' | sort | xargs sha256sum | sha256sum | awk '{print $1}')
+    - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
