@@ -124,7 +124,7 @@ def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.events", "meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.error.stack", "meta.events"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)

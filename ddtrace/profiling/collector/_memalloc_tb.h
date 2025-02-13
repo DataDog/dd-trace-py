@@ -63,7 +63,7 @@ traceback_to_tuple(traceback_t* tb);
 
 /* The maximum number of events we can store in `traceback_array_t.count` */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
-#define TRACEBACK_ARRAY_COUNT_TYPE uint16_t
+#define TRACEBACK_ARRAY_COUNT_TYPE size_t
 
 DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
 

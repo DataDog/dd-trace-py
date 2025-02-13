@@ -2,13 +2,20 @@ import os
 import re
 import sys
 import traceback
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+
+from typing import TYPE_CHECKING
+from typing import List
+
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import Span
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Callable  # noqa:F401
+    from typing import Dict  # noqa:F401
+    from typing import Iterable  # noqa:F401
+    from typing import Tuple  # noqa:F401
+    from typing import Union  # noqa:F401
 
 import graphql
 from graphql import MiddlewareManager
@@ -308,6 +315,9 @@ def _validate_error_extensions(error: GraphQLError, extensions: Optional[str], a
 
 
 def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
+    """
+    Set tags on error span and set span events on each error.
+    """
     if not errors:
         # do nothing if the list of graphql errors is empty
         return
@@ -316,12 +326,9 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
     span.set_tag_str(ERROR_TYPE, exc_type_str)
     error_msgs = "\n".join([str(error) for error in errors])
-    # Since we do not support adding and visualizing multiple tracebacks to one span
-    # we will not set the error.stack tag on graphql spans. Setting only one traceback
-    # could be misleading and might obfuscate errors.
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
-        locations = " ".join(f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations)
+        locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
         attributes = {
             "message": error.message,
             "type": span.get_tag("error.type"),
@@ -329,7 +336,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
         }
 
         if error.__traceback__:
-            stacktrace = "".join(
+            stacktrace = "\n".join(
                 traceback.format_exception(
                     type(error), error, error.__traceback__, limit=config._span_traceback_max_size
                 )
@@ -347,6 +354,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             error_extensions, attributes = _validate_error_extensions(error, extensions, attributes)
             if error_extensions:
                 attributes["extensions"] = str(error_extensions)
+
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,
