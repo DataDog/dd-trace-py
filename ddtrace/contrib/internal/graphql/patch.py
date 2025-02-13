@@ -3,8 +3,10 @@ import re
 import sys
 import traceback
 from typing import TYPE_CHECKING
+from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span
@@ -12,9 +14,7 @@ from ddtrace.trace import Span
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import Iterable  # noqa:F401
-    from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
 
 
