@@ -761,7 +761,8 @@ class Config(object):
     def __repr__(self):
         cls = self.__class__
         integrations = ", ".join(self._integration_configs.keys())
-        return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+        rc_configs = ", ".join(self._config.keys())
+        return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
     def _subscribe(self, items, handler):
         # type: (List[str], Callable[[Config, List[str]], None]) -> None
