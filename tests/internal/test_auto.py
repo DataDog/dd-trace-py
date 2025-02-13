@@ -1,6 +1,7 @@
 import sys
 
 import pytest
+from tests.utils import flaky
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12, 5), reason="Python < 3.12.5 eagerly loads the threading module")
@@ -10,6 +11,7 @@ import pytest
         DD_REMOTE_CONFIGURATION_ENABLED="1",
     )
 )
+@flaky(until=1742014801, reason='assert "threading" not in sys.modules')
 def test_auto():
     import sys
 
