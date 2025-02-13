@@ -237,19 +237,29 @@ def _get_version_bounds(packages) -> dict:
     return bounds
 
 def output_outdated_packages(all_required_packages, envs, bounds):
+    print("DEBUG: Starting output_outdated_packages")
+    print(f"DEBUG: all_required_packages = {all_required_packages}")
+    print(f"DEBUG: envs = {envs}")
+
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
         bounds[package] = (earliest, latest)
+        print(f"DEBUG: For package {package}, earliest={earliest}, latest={latest}")
 
     all_used_versions = defaultdict(set)
     for env in envs:
         versions_used = _get_package_versions_from(env, all_required_packages)
+        print(f"DEBUG: For env {env}, versions_used = {versions_used}")
         for pkg, version in versions_used:
             all_used_versions[pkg].add(version)
 
+    print(f"DEBUG: all_used_versions = {dict(all_used_versions)}")
+
     for package in all_required_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
+        print(f"DEBUG: For package {package}, ordered versions = {ordered}")
         if not ordered:
+            print(f"DEBUG: Skipping {package} - no versions found")
             continue
         if not _versions_fully_cover_bounds(bounds[package], ordered):
             print(f"{package}")
