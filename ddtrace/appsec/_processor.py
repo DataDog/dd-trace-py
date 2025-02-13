@@ -33,8 +33,8 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import has_triggers
-from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.constants import _RUNTIME_FAMILY
+from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
@@ -244,7 +244,7 @@ class AppSecSpanProcessor(SpanProcessor):
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
 
         span.set_metric(APPSEC.ENABLED, 1.0)
-        span.set_tag_str(_RUNTIME_FAMILY, "python")
+        span.set_tag_str(RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None, **kwargs):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
@@ -400,8 +400,8 @@ class AppSecSpanProcessor(SpanProcessor):
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
             _asm_manual_keep(span)
-            if span.get_tag(_ORIGIN_KEY) is None:
-                span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+            if span.get_tag(ORIGIN_KEY) is None:
+                span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results
 
     def _is_needed(self, address: str) -> bool:
