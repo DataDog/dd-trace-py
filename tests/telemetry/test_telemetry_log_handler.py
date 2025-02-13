@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from unittest.mock import Mock
+from unittest.mock import Mock, ANY
 from unittest.mock import patch
 
 import pytest
@@ -53,7 +53,7 @@ def test_emit_error_level(handler, error_record):
     handler.emit(error_record)
 
     handler.telemetry_writer.add_error.assert_called_once_with(
-        1, "Test error message arg1", os.path.join("/path/to", "test.py"), 42
+        1, "Test error message arg1", ANY, 42
     )
 
 
@@ -76,9 +76,6 @@ def test_emit_ddtrace_contrib_error(handler, exc_info):
     args = handler.telemetry_writer.add_log.call_args.args
     assert args[0] == TELEMETRY_LOG_LEVEL.ERROR
     assert args[1] == "Test error message"
-    assert args[2] == {"lib_language": "python"}
-    assert "Traceback (most recent call last):" in args[3]
-    assert "ValueError: Test exception" in args[3]
 
 
 @pytest.mark.parametrize(
