@@ -25,7 +25,6 @@ asynctest,==0.13.0
 austin-python,~=1.0
 avro,0
 azure.functions,0
-bcrypt,==4.2.1
 blinker,0
 boto3,==1.34.49
 bottle,>=0.12
