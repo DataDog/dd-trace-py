@@ -2,10 +2,8 @@ import sys
 
 import bm
 
-from ddtrace.internal.packages import (
-    get_package_distributions,
-    get_module_distribution_versions,
-)
+from ddtrace.internal.packages import get_module_distribution_versions
+from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.telemetry.data import update_imported_dependencies
 
 
