@@ -1,0 +1,677 @@
+{
+    "active": [
+        {
+            "test": "test_otel_span_attributes_overrides",
+            "file": "tests/opentelemetry/test_span.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'client','server','producer','consumer','internal'",
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        },
+        {
+            "test": "test_auto",
+            "file": "tests/internal/test_auto.py",
+            "expires": 1741838400,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python"
+            ]
+        },
+        {
+            "test": "test_simple_query_snapshot",
+            "file": "tests/contrib/mariadb/test_mariadb.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'mariadb.query'",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_openai_llm_sync",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_llm_sync",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_llm_sync_multiple_prompts",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_llm_sync_multiple_prompts",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_llm_error",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_cohere_llm_sync",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_ai21_llm_sync",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_chat_model_sync_call_langchain_openai",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_openai_chat_model_sync_generate",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_pinecone_vectorstore_similarity_search",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_simple",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_complicated",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_batch_311",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_non_dict_input",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_with_tools_openai",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_faiss_vectorstore_retrieval",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_chain",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_chat",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_llm",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_llm",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_llm",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_streamed_llm",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1754218112,
+            "reason": "Problematic test that needs fixing",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_schematized_operation_name_v1",
+            "file": "tests/contrib/pyramid/test_pyramid.py",
+            "expires": 1740089353,
+            "reason": "Sample app doesn't seem to spin up in subprocess",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_aws_payload_tagging_s3",
+            "file": "tests/contrib/botocore/test.py",
+            "expires": 1741838400,
+            "reason": "span mismatch on 'service': got 'dd-trace-py' which does not match expected 'aws.sqs'",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_amazon_embedding",
+            "file": "tests/contrib/botocore/test_bedrock.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'bedrock-runtime.command'",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_continue_on_early_trace_ending",
+            "file": "tests/contrib/aws_lambda/test_aws_lambda.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'aws.lambda' for [handler3-instance_handler_with_code]",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_nohttponly_cookie",
+            "file": "tests/appsec/integrations/pygoat_tests/test_pygoat.py",
+            "expires": 1741838400,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_collect_gevent_threads",
+            "file": "tests/profiling/collector/test_stack.py",
+            "expires": 1748750400,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        }
+    ],
+    "expiring_soon": [],
+    "expired": [
+        {
+            "test": "test_only_root_span_runtime_external_span_types",
+            "file": "tests/tracer/runtime/test_runtime_metrics.py",
+            "expires": 1731169429,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        },
+        {
+            "test": "test_metrics",
+            "file": "tests/tracer/runtime/test_metric_collectors.py",
+            "expires": 1717343326,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        },
+        {
+            "test": "test_flask_stream",
+            "file": "tests/contrib/flask/test_flask_snapshot.py",
+            "expires": 1706677200,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_service_operation_schema",
+            "file": "tests/contrib/aiohttp/test_middleware.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_service_operation_schema",
+            "file": "tests/contrib/aiohttp/test_middleware.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_service_operation_schema",
+            "file": "tests/contrib/aiohttp/test_middleware.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_service_operation_schema",
+            "file": "tests/contrib/aiohttp/test_middleware.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_service_operation_schema",
+            "file": "tests/contrib/aiohttp/test_middleware.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_handle_response_future_like",
+            "file": "tests/contrib/grpc/test_grpc.py",
+            "expires": 1738272799,
+            "reason": "GitLab CI does not support ipv6 at this time",
+            "codeowners": [
+                "@DataDog/apm-idm-python",
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_openai_chat_model_vision_generate",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1735812000,
+            "reason": "Batch call has a non-deterministic response order.",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_complicated",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1735812000,
+            "reason": "batch() is non-deterministic in which order it processes inputs",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_batch",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1735812000,
+            "reason": "batch() is non-deterministic in which order it processes inputs",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_lcel_chain_nested",
+            "file": "tests/contrib/langchain/test_langchain.py",
+            "expires": 1735812000,
+            "reason": "batch() is non-deterministic in which order it processes inputs",
+            "codeowners": [
+                "@DataDog/ml-observability"
+            ]
+        },
+        {
+            "test": "test_configure_service_name_env_v0",
+            "file": "tests/contrib/asyncpg/test_asyncpg.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_httpx_service_name",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_httpx_service_name",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1706677200,
+            "reason": "flaky errors with no error logs, need to investigate",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_httpx_service_name",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_configure_service_name_env",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_schematized_configure_global_service_name_env_default",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_schematized_configure_global_service_name_env_v0",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_schematized_configure_global_service_name_env_v1",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_schematized_unspecified_service_name_env_default",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_schematized_unspecified_service_name_env_v1",
+            "file": "tests/contrib/httpx/test_httpx.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_dont_trace_websocket_by_default",
+            "file": "tests/contrib/fastapi/test_fastapi.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_fn_task_apply_async",
+            "file": "tests/contrib/celery/test_integration.py",
+            "expires": 1722529274,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_fn_task_apply_async_ot",
+            "file": "tests/contrib/celery/test_integration.py",
+            "expires": 1720288420,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_timeout_traces",
+            "file": "tests/contrib/aws_lambda/test_aws_lambda.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_urlpatterns_include",
+            "file": "tests/contrib/django/test_django_snapshots.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_404_exceptions",
+            "file": "tests/contrib/django/test_django_snapshots.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_psycopg2_query_default",
+            "file": "tests/contrib/django/test_django_snapshots.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_asgi_200",
+            "file": "tests/contrib/django/test_django_snapshots.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_cached_view",
+            "file": "tests/contrib/django/test_django.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_conn",
+            "file": "tests/contrib/vertica/test_vertica.py",
+            "expires": 1735812000,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_taint_iast_single",
+            "file": "tests/appsec/iast/test_grpc_iast.py",
+            "expires": 1735812000,
+            "reason": "IAST context refactor breaks grpc. APPSEC-55239",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_taint_iast_single_server",
+            "file": "tests/appsec/iast/test_grpc_iast.py",
+            "expires": 1735812000,
+            "reason": "IAST context refactor breaks grpc. APPSEC-55239",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_taint_iast_twice_server",
+            "file": "tests/appsec/iast/test_grpc_iast.py",
+            "expires": 1735812000,
+            "reason": "IAST context refactor breaks grpc. APPSEC-55239",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_taint_iast_repeatedly_server",
+            "file": "tests/appsec/iast/test_grpc_iast.py",
+            "expires": 1735812000,
+            "reason": "IAST context refactor breaks grpc. APPSEC-55239",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker",
+            "file": "tests/appsec/integrations/flask_tests/test_flask_remoteconfig.py",
+            "expires": 1706677200,
+            "reason": "_request_403 is flaky, figure out the error",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_multiprocessing",
+            "file": "tests/profiling/test_main.py",
+            "expires": 1731959126,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        },
+        {
+            "test": "test_multiprocessing",
+            "file": "tests/profiling_v2/test_main.py",
+            "expires": 1731959126,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        }
+    ]
+}
