@@ -1271,7 +1271,7 @@ venv = Venv(
                     pys="3.8",
                     pkgs={
                         "requests": [
-                            "~=2.23.0",
+                            "~=2.22.0",
                             latest,
                         ],
                     },

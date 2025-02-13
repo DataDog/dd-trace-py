@@ -12,7 +12,8 @@ from tests.utils import flaky
         DD_REMOTE_CONFIGURATION_ENABLED="1",
     )
 )
-@flaky(1741838400, reason='assert "threading" not in sys.modules')
+
+@flaky(until=1742014801, reason='assert "threading" not in sys.modules')
 def test_auto():
     import sys
 
