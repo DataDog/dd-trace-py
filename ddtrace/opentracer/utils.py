@@ -1,6 +1,6 @@
 from opentracing import ScopeManager  # noqa:F401
 
-from ddtrace._trace.provider import BaseContextProvider  # noqa:F401
+from ddtrace._trace.provider import DefaultContextProvider
 
 
 # DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
@@ -11,19 +11,7 @@ def get_context_provider_for_scope_manager(scope_manager):
     # type: (ScopeManager) -> BaseContextProvider
     """Returns the context_provider to use with a given scope_manager."""
 
-    scope_manager_type = type(scope_manager).__name__
-
-    # avoid having to import scope managers which may not be compatible
-    # with the version of python being used
-    if scope_manager_type == "AsyncioScopeManager":
-        import ddtrace.contrib.asyncio
-
-        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
-    else:
-        from ddtrace._trace.provider import DefaultContextProvider
-
-        dd_context_provider = DefaultContextProvider()
-
+    dd_context_provider = DefaultContextProvider()
     _patch_scope_manager(scope_manager, dd_context_provider)
 
     return dd_context_provider
