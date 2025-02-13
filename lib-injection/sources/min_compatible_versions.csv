@@ -17,10 +17,10 @@ algoliasearch,~=2.5
 anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
-asgiref,~=3.0.0
+asgiref,~=3.0
 astunparse,0
 async_generator,~=1.10
-asyncpg,~=0.23.0
+asyncpg,~=0.23
 asynctest,==0.13.0
 austin-python,~=1.0
 avro,0
@@ -63,7 +63,7 @@ elasticsearch[async],0
 envier,==0.5.2
 exceptiongroup,0
 faiss-cpu,==1.8.0
-falcon,~=3.0.0
+falcon,~=3.0
 fastapi,~=0.64.0
 flask,~=0.12.0
 flask-caching,~=1.10.0
