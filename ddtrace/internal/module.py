@@ -405,11 +405,6 @@ class BaseModuleWatchdog(abc.ABC):
             self._finding.remove(fullname)
 
     @classmethod
-    def _check_installed(cls) -> None:
-        if cls.is_installed():
-            return
-
-    @classmethod
     def install(cls) -> None:
         """Install the module watchdog."""
         if cls.is_installed():
@@ -430,7 +425,9 @@ class BaseModuleWatchdog(abc.ABC):
         This will uninstall only the most recently installed instance of this
         class.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
+
         cls._remove_from_meta_path()
 
         cls._instance = None
@@ -516,7 +513,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
     @classmethod
     def get_by_origin(cls, _origin: Path) -> t.Optional[ModuleType]:
         """Lookup a module by its origin."""
-        cls._check_installed()
+        if not cls.is_installed():
+            return None
 
         instance = t.cast(ModuleWatchdog, cls._instance)
 
@@ -544,7 +542,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         The hook will be called with the module object as argument.
         """
-        cls._check_installed()
+        cls.install()
 
         # DEV: Under the hypothesis that this is only ever called by the probe
         # poller thread, there are no further actions to take. Should this ever
@@ -585,7 +583,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """Unregister the hook registered with the given module origin and
         argument.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
 
         resolved_path = _resolve(origin)
         if resolved_path is None:
@@ -616,7 +615,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         The hook will be called with the module object as argument.
         """
-        cls._check_installed()
+        cls.install()
 
         log.debug("Registering hook '%r' on module '%s'", hook, module)
         instance = t.cast(ModuleWatchdog, cls._instance)
@@ -636,7 +635,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """Unregister the hook registered with the given module name and
         argument.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if module not in instance._hook_map:
@@ -671,7 +671,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         that the hook is applied only to the modules that are required,
         the condition is evaluated against the module name.
         """
-        cls._check_installed()
+        cls.install()
 
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = t.cast(ModuleWatchdog, cls._instance)
@@ -689,7 +689,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def register_import_exception_hook(
         cls: t.Type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
     ):
-        cls._check_installed()
+        cls.install()
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._import_exception_hooks.add((cond, hook))
