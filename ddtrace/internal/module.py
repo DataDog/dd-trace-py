@@ -286,18 +286,24 @@ class _ImportHookChainedLoader:
         if pre_exec_hook:
             pre_exec_hook(self, module)
         else:
-            try:
-                if self.loader is None:
-                    spec = getattr(module, "__spec__", None)
-                    if spec is not None and is_namespace_spec(spec):
-                        sys.modules[spec.name] = module
-                else:
+            if self.loader is None:
+                spec = getattr(module, "__spec__", None)
+                if spec is not None and is_namespace_spec(spec):
+                    sys.modules[spec.name] = module
+            else:
+                try:
                     self.loader.exec_module(module)
-            except Exception:
-                exception_hook = self._find_first_exception_hook(module)
-                if exception_hook is not None:
-                    exception_hook(self, module)
-                raise
+                except Exception:
+                    exception_hook = self._find_first_exception_hook(module)
+                    if exception_hook is not None:
+                        exception_hook(self, module)
+
+                    # Hide the chained loader method from the traceback
+                    _, e, tb = sys.exc_info()
+                    if e is not None and tb is not None:
+                        e.__traceback__ = tb.tb_next
+
+                    raise
 
         try:
             self.call_back(module)
