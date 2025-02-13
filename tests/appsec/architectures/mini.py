@@ -4,6 +4,7 @@ import ddtrace.auto  # noqa: F401
 """do not move this import"""
 
 import os  # noqa: E402
+import signal  # noqa: E402
 import sys  # noqa: E402
 
 from flask import Flask  # noqa: E402
@@ -22,6 +23,9 @@ def hello_world():
     for m in sys.modules:
         if m.startswith("ddtrace.appsec"):
             res.append(m)
+    with open(__file__) as f:
+        # open a file to trigger exploit prevention instrumentation
+        file_length = len(f.read())
     return {
         "appsec": list(sorted(res)),
         "asm_config": {
@@ -29,7 +33,15 @@ def hello_world():
         },
         "aws": "AWS_LAMBDA_FUNCTION_NAME" in os.environ,
         "version": get_version(),
+        "env": dict(os.environ),
+        "file_length": file_length,
     }
+
+
+@app.route("/shutdown")
+def shutdown():
+    os.kill(os.getpid(), signal.SIGTERM)
+    return "Shutting down"
 
 
 if __name__ == "__main__":
