@@ -73,7 +73,7 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     @taint_sink_deduplication
-    def _prepare_report(cls, vulnerability_type, evidence, file_name, line_number, function_name, class_name):
+    def _prepare_report(cls, vulnerability_type, evidence, file_name, line_number, function_name="", class_name=""):
         if not is_iast_request_enabled():
             if _is_iast_debug_enabled():
                 log.debug(

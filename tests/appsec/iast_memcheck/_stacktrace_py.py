@@ -17,7 +17,7 @@ TESTS_PREFIX = os.sep + "tests" + os.sep
 
 
 def get_info_frame(cwd):
-    # type: (Text) -> Optional[Tuple[Text, int]]
+    # type: (Text) -> Optional[Tuple[Text, int, Text, Text]]
     """Get the filename (path + filename) and line number of the original wrapped function to report it.
 
     CAVEAT: We should migrate this function to native code to improve the performance.
