@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import re
 import typing as t
@@ -7,9 +8,9 @@ import pytest
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace._monkey import patch
-from ddtrace.contrib.coverage import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
@@ -59,6 +60,7 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -182,7 +184,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        log.warning("This version of the ddtrace pytest plugin is currently in beta.")
         # Freezegun is proactively patched to avoid it interfering with internal timing
         patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
@@ -199,14 +200,14 @@ def pytest_load_initial_conftests(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
-    # The only way we end up in pytest_configure is if the environment variable is being used, and logging the warning
-    # now ensures it shows up in output regardless of the use of the -s flag
-    deprecate(
-        "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
-        message="this preview version of the pytest ddtrace plugin will become the only version.",
-        removal_version="3.0.0",
-        category=DDTraceDeprecationWarning,
-    )
+    if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+        # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
+        deprecate(
+            "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
+            message="the new pytest plugin is now the default version. No additional configurations are required.",
+            removal_version="3.0.0",
+            category=DDTraceDeprecationWarning,
+        )
 
     try:
         if is_enabled(config):
@@ -574,9 +575,10 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
     try:
-        from ddtrace.appsec._iast._pytest_plugin import print_iast_report
+        if asm_config._iast_enabled:
+            from ddtrace.appsec._iast._pytest_plugin import print_iast_report
 
-        print_iast_report(terminalreporter)
+            print_iast_report(terminalreporter)
     except Exception:  # noqa: E722
         log.debug("Encountered error during code security summary", exc_info=True)
 

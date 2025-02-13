@@ -9,7 +9,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def get_version():
@@ -121,6 +121,7 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -139,6 +140,9 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 break
             except Exception:
                 span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                )
                 span.finish()
                 raise
 
@@ -160,6 +164,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -178,6 +183,9 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 break
             except Exception:
                 span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                )
                 span.finish()
                 raise
 

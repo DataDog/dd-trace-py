@@ -16,8 +16,6 @@ from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 from .._trace.pin import Pin
 from ..internal import gitmetadata
@@ -32,7 +30,6 @@ from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
@@ -116,7 +113,6 @@ def _parse_propagation_styles(styles_str):
     - "datadog"
     - "b3multi"
     - "b3" (formerly 'b3 single header')
-    - "b3 single header (deprecated for 'b3')"
     - "tracecontext"
     - "baggage"
     - "none"
@@ -142,14 +138,6 @@ def _parse_propagation_styles(styles_str):
     styles = []
     for style in styles_str.split(","):
         style = style.strip().lower()
-        if style == "b3 single header":
-            deprecate(
-                'Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated',
-                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3\"' instead",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            style = PROPAGATION_STYLE_B3_SINGLE
         # None has no propagator so we pull it out
         if not style or style == _PROPAGATION_STYLE_NONE:
             continue
@@ -274,9 +262,11 @@ def _parse_global_tags(s):
 
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
+        # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
         "_trace_sample_rate": _ConfigItem(
             default=1.0,
-            envs=[("DD_TRACE_SAMPLE_RATE", float)],
+            # trace_sample_rate is placeholder, this code will be removed up after v3.0
+            envs=[("trace_sample_rate", float)],
         ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
@@ -324,32 +314,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    # Maps deprecated configuration attributes to their corresponding environment variable and
-    # internalized attribute name
-    _DEPRECATED_ATTRS = {
-        "http_tag_query_string": ("_http_tag_query_string", "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING"),
-        "trace_http_header_tags": ("_trace_http_header_tags", "DD_TRACE_HEADER_TAGS"),
-        "report_hostname": ("_report_hostname", "DD_TRACE_REPORT_HOSTNAME"),
-        "health_metrics_enabled": ("_health_metrics_enabled", "DD_TRACE_HEALTH_METRICS_ENABLED"),
-        "analytics_enabled": ("_analytics_enabled", "DD_TRACE_ANALYTICS_ENABLED"),
-        "client_ip_header": ("_client_ip_header", "DD_TRACE_CLIENT_IP_HEADER"),
-        "retrieve_client_ip": ("_retrieve_client_ip", "DD_TRACE_CLIENT_IP_ENABLED"),
-        "propagation_http_baggage_enabled": (
-            "_propagation_http_baggage_enabled",
-            "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED",
-        ),
-        "global_query_string_obfuscation_disabled": (
-            "_global_query_string_obfuscation_disabled",
-            'DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP=""',
-        ),
-        "trace_methods": ("_trace_methods", "DD_TRACE_METHODS"),
-        "ci_visibility_log_level": ("_ci_visibility_log_level", "DD_CIVISIBILITY_LOG_LEVEL"),
-        "test_session_name": ("_test_session_name", "DD_TEST_SESSION_NAME"),
-        "logs_injection": ("_logs_injection", "DD_LOGS_INJECTION"),
-        "http_server": ("_http_server", "DD_TRACE_HTTP_SERVER_ERROR_STATUSES"),
-        "http": ("_http", "DD_TRACE_HEADER_TAGS"),
-    }
-
     class _HTTPServerConfig(object):
         _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -388,14 +352,6 @@ class Config(object):
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
 
-        sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
-        if sample_rate is not None:
-            deprecate(
-                "DD_TRACE_SAMPLE_RATE is deprecated",
-                message="Please use DD_TRACE_SAMPLING_RULES instead.",
-                removal_version="3.0.0",
-            )
-
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
@@ -404,9 +360,6 @@ class Config(object):
 
         rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
         if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
-            # This warning will be logged when DD_TRACE_SAMPLE_RATE is set. This is intentional.
-            # Even though DD_TRACE_SAMPLE_RATE is treated as a global trace sampling rule, this configuration
-            # is deprecated. We should always encourage users to set DD_TRACE_SAMPLING_RULES instead.
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
                 "Tracer rate limiting is only applied to spans that match tracer sampling rules. "
@@ -424,13 +377,9 @@ class Config(object):
         )
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
-            deprecate(
-                "DD_TRACE_API_VERSION=v0.3 is deprecated",
-                message="Traces will be submitted to the v0.4/traces agent endpoint instead.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
+            log.error(
+                "Setting DD_TRACE_API_VERSION to ``v0.3`` is not supported. The default ``v0.5`` format will be used.",
             )
-            self._trace_api = "v0.4"
         self._trace_writer_buffer_size = _get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
         self._trace_writer_payload_size = _get_config(
             "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
@@ -454,18 +403,8 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # Master switch for turning on and off trace search by default
-        # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
-        # legacy environment variable. It should be removed in the future
-        self._analytics_enabled = _get_config(["DD_TRACE_ANALYTICS_ENABLED", "DD_ANALYTICS_ENABLED"], False, asbool)
-        if self._analytics_enabled:
-            deprecate(
-                "Datadog App Analytics is deprecated and will be removed in a future version. "
-                "App Analytics can be enabled via DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED "
-                "environment variables and ddtrace.config.analytics_enabled configuration. "
-                "These configurations will also be removed.",
-                category=DDTraceDeprecationWarning,
-            )
+        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
+        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
@@ -513,14 +452,6 @@ class Config(object):
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
-        if self._128_bit_trace_id_logging_enabled:
-            deprecate(
-                "Using DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED is deprecated.",
-                message="Log injection format is now configured automatically.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
         self._sampling_rules_file = _get_config("DD_SPAN_SAMPLING_RULES_FILE")
 
@@ -572,18 +503,7 @@ class Config(object):
             ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
-
-        legacy_client_tag_enabled = _get_config("DD_HTTP_CLIENT_TAG_QUERY_STRING")
-        if legacy_client_tag_enabled is None:
-            self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
-        else:
-            deprecate(
-                "DD_HTTP_CLIENT_TAG_QUERY_STRING is deprecated",
-                message="Please use DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING instead.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            self._http_client_tag_query_string = legacy_client_tag_enabled.lower()
+        self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
@@ -613,15 +533,8 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        self._span_aggregator_rlock = _get_config("DD_TRACE_SPAN_AGGREGATOR_RLOCK", True, asbool)
-        if self._span_aggregator_rlock is False:
-            deprecate(
-                "DD_TRACE_SPAN_AGGREGATOR_RLOCK is deprecated",
-                message="Soon the ddtrace library will only support using threading.Rlock to "
-                "aggregate and encode span data. If you need to disable the re-entrant lock and "
-                "revert to using threading.Lock, please contact Datadog support.",
-                removal_version="3.0.0",
-            )
+        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
+        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -640,24 +553,9 @@ class Config(object):
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
+        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
-        if name in self._DEPRECATED_ATTRS:
-            new_name, env_var = self._DEPRECATED_ATTRS[name]
-            deprecate(
-                f"ddtrace.config.{name} is deprecated",
-                message=f"Use the environment variable {env_var} instead. "
-                "This variable must be set before importing ddtrace.",
-                removal_version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-            if name == new_name:
-                raise RuntimeError(
-                    f"Circular mapping detected: deprecated attribute {name} "
-                    f"in {self._DEPRECATED_ATTRS} maps to a deprecated attribute {new_name}"
-                )
-            return getattr(self, new_name)
-
         if name in self._config:
             return self._config[name].value()
 
@@ -680,13 +578,6 @@ class Config(object):
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
-
-    def get_from(self, obj):
-        deprecate(
-            "ddtrace.config.get_from is deprecated",
-            message="Use the `config` attribute directly.",
-        )
-        self._get_from(obj)
 
     def _get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -731,36 +622,6 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
-
-    def trace_headers(self, whitelist):
-        """
-        Registers a set of headers to be traced at global level or integration level.
-        :param whitelist: the case-insensitive list of traced headers
-        :type whitelist: list of str or str
-        :return: self
-        :rtype: HttpConfig
-        """
-        deprecate(
-            "ddtrace.config.trace_headers is deprecated",
-            message="Use the environment variable DD_TRACE_HEADER_TAGS instead.",
-            removal_version="3.0.0",
-        )
-        self._http.trace_headers(whitelist)
-        return self
-
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
-        """
-        Returns whether or not the current header should be traced.
-        :param header_name: the header name
-        :type header_name: str
-        :rtype: bool
-        """
-        deprecate(
-            "ddtrace.config.header_is_traced is deprecated",
-            removal_version="3.0.0",
-        )
-        return self._http.header_is_traced(header_name)
 
     @cachedmethod()
     def _header_tag_name(self, header_name):
@@ -812,17 +673,6 @@ class Config(object):
             self._set_config_items([(key, value, "code")])
             return None
         else:
-            if key in self._DEPRECATED_ATTRS:
-                # replace deprecated attribute name with the new name
-                new_key, env_var = self._DEPRECATED_ATTRS[key]
-                deprecate(
-                    f"ddtrace.config.{key} is deprecated",
-                    message=f"Use the environment variable {env_var} instead. "
-                    "This variable must be set before importing ddtrace.",
-                    removal_version="3.0.0",
-                    category=DDTraceDeprecationWarning,
-                )
-                key = new_key
             return super(self.__class__, self).__setattr__(key, value)
 
     def _set_config_items(self, items):
@@ -933,14 +783,6 @@ class Config(object):
             pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
         return {k: v for k, v in pairs}
 
-    def enable_remote_configuration(self):
-        deprecate(
-            "ddtrace.config.enable_remote_configuration(...) is deprecated",
-            message="Use DD_TRACE_REMOTE_CONFIG_ENABLED instead.",
-            version="3.0.0",
-        )
-        self._enable_remote_configuration()
-
     def _enable_remote_configuration(self):
         # type: () -> None
         """Enable fetching configuration from Datadog."""
@@ -977,14 +819,6 @@ class Config(object):
         if isinstance(tags, list):
             return {tag["key"]: tag["value_glob"] for tag in tags}
         return tags
-
-    def convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
-        deprecate(
-            "ddtrace.config.convert_rc_trace_sampling_rules(...) is deprecated",
-            message="Use DD_REMOTE_CONFIGURATION_ENABLED instead.",
-            version="3.0.0",
-        )
-        return self._convert_rc_trace_sampling_rules(rc_rules)
 
     def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
         """Example of an incoming rule:

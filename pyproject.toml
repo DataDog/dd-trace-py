@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.7'", "setuptools-rust<2"]
+requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -63,6 +62,7 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
+"live-debugger" = "ddtrace.debugging._products.live_debugger"
 "remote-configuration" = "ddtrace.internal.remoteconfig.product"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
@@ -172,7 +172,6 @@ exclude-modules = '''
   | ddtrace.internal.datadog.profiling.ddup._ddup
   | ddtrace.internal.datadog.profiling.stack_v2._stack_v2
   # coverage has version-specific checks that prevent import
-  | ddtrace.internal.coverage.instrumentation_py3_7
   | ddtrace.internal.coverage.instrumentation_py3_8
   | ddtrace.internal.coverage.instrumentation_py3_10
   | ddtrace.internal.coverage.instrumentation_py3_11

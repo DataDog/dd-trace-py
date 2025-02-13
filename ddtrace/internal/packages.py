@@ -45,7 +45,7 @@ def get_distributions():
     return pkgs
 
 
-@callonce
+@cached(maxsize=1)
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     try:

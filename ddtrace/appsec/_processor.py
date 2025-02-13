@@ -4,6 +4,7 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
@@ -11,10 +12,14 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+
+
+if TYPE_CHECKING:
+    import ddtrace.appsec._ddwaf as ddwaf
+
 import weakref
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -35,6 +40,7 @@ from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -167,14 +173,17 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and not hasattr(self, "_ddwaf"):
-                self._ddwaf = ddwaf.DDWaf(
+                from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
+                import ddtrace.appsec._metrics as metrics  # noqa: E402
+
+                self.metrics = metrics
+                self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-            _set_waf_init_metric(self._ddwaf.info)
+                self.metrics._set_waf_init_metric(self._ddwaf.info)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
-            raise
         self._update_required()
 
     def _update_required(self):
@@ -193,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(new_rules)
-        _set_waf_updates_metric(self._ddwaf.info)
+        self.metrics._set_waf_updates_metric(self._ddwaf.info)
         self._update_required()
         return result
 
@@ -241,7 +250,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        _asm_request_context.add_context_callback(self.metrics._set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(
@@ -436,10 +445,3 @@ class AppSecSpanProcessor(SpanProcessor):
                     del self._span_to_waf_ctx[s]
                 except Exception:  # nosec B110
                     pass
-
-
-# load waf at the end only to avoid possible circular imports with gevent
-import ddtrace.appsec._ddwaf as ddwaf  # noqa: E402
-from ddtrace.appsec._metrics import _set_waf_init_metric  # noqa: E402
-from ddtrace.appsec._metrics import _set_waf_request_metrics  # noqa: E402
-from ddtrace.appsec._metrics import _set_waf_updates_metric  # noqa: E402

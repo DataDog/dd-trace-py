@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via ``ddtrace-run`` and ``import ddtrace.auto``.
