@@ -53,7 +53,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
@@ -109,6 +109,7 @@ class LLMObs(Service):
 
         forksafe.register(self._child_after_fork)
 
+        self._link_tracker = LinkTracker()
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
 
@@ -215,7 +216,7 @@ class LLMObs(Service):
         )
 
         span_links = span._get_ctx_item(SPAN_LINKS)
-        if isinstance(span_links, list):
+        if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event, is_ragas_integration_span
@@ -406,6 +407,55 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    def _record_object(self, span, obj, input_or_output):
+        if obj is None:
+            return
+        span_links = []
+        for span_link in self._link_tracker.get_span_links_from_object(obj):
+            try:
+                if span_link["attributes"]["from"] == "input" and input_or_output == "output":
+                    continue
+            except KeyError:
+                log.debug("failed to read span link: ", span_link)
+                continue
+            span_links.append(
+                {
+                    "trace_id": span_link["trace_id"],
+                    "span_id": span_link["span_id"],
+                    "attributes": {
+                        "from": span_link["attributes"]["from"],
+                        "to": input_or_output,
+                    },
+                }
+            )
+        self._tag_span_links(span, span_links)
+        self._link_tracker.add_span_links_to_object(
+            obj,
+            [
+                {
+                    "trace_id": self.export_span(span)["trace_id"],
+                    "span_id": self.export_span(span)["span_id"],
+                    "attributes": {
+                        "from": input_or_output,
+                    },
+                }
+            ],
+        )
+
+    def _tag_span_links(self, span, span_links):
+        if not span_links:
+            return
+        span_links = [
+            span_link
+            for span_link in span_links
+            if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
+            and span_link["trace_id"] == LLMObs.export_span(span)["trace_id"]
+        ]
+        current_span_links = span._get_ctx_item(SPAN_LINKS)
+        if current_span_links:
+            span_links = current_span_links + span_links
+        span._set_ctx_item(SPAN_LINKS, span_links)
 
     @classmethod
     def annotation_context(
