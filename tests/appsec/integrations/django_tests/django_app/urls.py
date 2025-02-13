@@ -2,7 +2,7 @@ import django
 from django.http import HttpResponse
 from django.urls import path
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.appsec.integrations.django_tests.django_app import views
 
 
@@ -47,6 +47,11 @@ urlpatterns = [
         name="sqli_http_request_parameter_name_post",
     ),
     handler(
+        "appsec/sqli_query_no_redacted/$",
+        views.sqli_query_no_redacted,
+        name="sqli_query_no_redacted",
+    ),
+    handler(
         "appsec/sqli_http_request_header_name/$",
         views.sqli_http_request_header_name,
         name="sqli_http_request_header_name",
@@ -73,6 +78,10 @@ urlpatterns = [
     handler("appsec/insecure-cookie/test_insecure/$", views.view_insecure_cookies_insecure),
     handler("appsec/insecure-cookie/test_secure/$", views.view_insecure_cookies_secure),
     handler("appsec/insecure-cookie/test_empty_cookie/$", views.view_insecure_cookies_empty),
+    handler("appsec/xss/$", views.xss_http_request_parameter_mark_safe),
+    handler("appsec/xss/secure/$", views.xss_secure),
+    handler("appsec/xss/safe/$", views.xss_http_request_parameter_template_safe),
+    handler("appsec/xss/autoscape/$", views.xss_http_request_parameter_autoscape),
     path(
         "appsec/sqli_http_path_parameter/<str:q_http_path_parameter>/",
         views.sqli_http_path_parameter,
@@ -81,4 +90,6 @@ urlpatterns = [
     handler("appsec/validate_querydict/$", views.validate_querydict, name="validate_querydict"),
     path("appsec/path-params/<int:year>/<str:month>/", views.path_params_view, name="path-params-view"),
     path("appsec/checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
+    path("appsec/stacktrace_leak/", views.stacktrace_leak_view),
+    path("appsec/stacktrace_leak_500/", views.stacktrace_leak_500_view),
 ]

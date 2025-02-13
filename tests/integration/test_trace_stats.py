@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
@@ -80,7 +80,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 assert config._trace_compute_stats is True
@@ -104,8 +104,8 @@ def test_apm_opt_out_compute_stats_and_configure():
     Ensure stats computation is disabled, but reported as enabled,
     if APM is opt-out.
     """
-    from ddtrace import tracer as t
     from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+    from ddtrace.trace import tracer as t
 
     # Test via `configure`
     assert not t._compute_stats
@@ -124,7 +124,7 @@ def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subproce
     env.update({"DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED": "true", "DD_APPSEC_ENABLED": "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 # the stats computation is disabled (completely, for both agent and tracer)
@@ -222,7 +222,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
 
 
 @pytest.mark.snapshot()

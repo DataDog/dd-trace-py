@@ -17,7 +17,6 @@ import os
 import wrapt
 from wrapt.importer import when_imported
 
-import ddtrace
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
@@ -149,12 +148,9 @@ def patch_conn(django, conn):
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        # Calling ddtrace.pin.Pin(...) with the `tracer` argument generates a deprecation warning.
-        # Remove this if statement when the `tracer` argument is removed
-        if pin.tracer is ddtrace.tracer:
-            pin = Pin(service, tags=tags)
-        else:
-            pin = Pin(service, tags=tags, tracer=pin.tracer)
+        tracer = pin.tracer
+        pin = Pin(service, tags=tags)
+        pin._tracer = tracer
 
         cursor = func(*args, **kwargs)
 
@@ -480,7 +476,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         "django.traced_get_response",
         remote_addr=request.META.get("REMOTE_ADDR"),
         headers=request_headers,
-        headers_case_sensitive=django.VERSION < (2, 2),
+        headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
         resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
@@ -697,6 +693,23 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 
 
 @trace_utils.with_traced_module
+def traced_technical_500_response(django, pin, func, instance, args, kwargs):
+    """
+    Wrapper for django's views.debug.technical_500_response
+    """
+    response = func(*args, **kwargs)
+    try:
+        request = get_argument_value(args, kwargs, 0, "request")
+        exc_type = get_argument_value(args, kwargs, 1, "exc_type")
+        exc_value = get_argument_value(args, kwargs, 2, "exc_value")
+        tb = get_argument_value(args, kwargs, 3, "tb")
+        core.dispatch("django.technical_500_response", (request, response, exc_type, exc_value, tb))
+    except Exception:
+        log.debug("Error while trying to trace Django technical 500 response", exc_info=True)
+    return response
+
+
+@trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
 
@@ -815,6 +828,53 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     return result_user
 
 
+@trace_utils.with_traced_module
+def traced_process_request(django, pin, func, instance, args, kwargs):
+    tags = {COMPONENT: config.django.integration_name}
+    with core.context_with_data(
+        "django.func.wrapped",
+        span_name="django.middleware",
+        resource="django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
+        tags=tags,
+        pin=pin,
+    ) as ctx, ctx.span:
+        core.dispatch(
+            "django.func.wrapped",
+            (
+                args,
+                kwargs,
+                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                ctx,
+                None,
+            ),
+        )
+        func(*args, **kwargs)
+        mode = asm_config._user_event_mode
+        if mode == "disabled":
+            return
+        try:
+            request = get_argument_value(args, kwargs, 0, "request")
+            if request:
+                if hasattr(request, "user") and hasattr(request.user, "_setup"):
+                    request.user._setup()
+                    request_user = request.user._wrapped
+                else:
+                    request_user = request.user
+                core.dispatch(
+                    "django.process_request",
+                    (
+                        request_user,
+                        mode,
+                        kwargs,
+                        pin,
+                        _DjangoUserInfoRetriever(request_user, credentials=kwargs),
+                        config.django,
+                    ),
+                )
+        except Exception:
+            log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+
+
 def unwrap_views(func, instance, args, kwargs):
     """
     Django channels uses path() and re_path() to route asgi applications. This broke our initial
@@ -867,6 +927,10 @@ def _patch(django):
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
 
+    @when_imported("django.contrib.auth.middleware")
+    def _(m):
+        trace_utils.wrap(m, "AuthenticationMiddleware.process_request", traced_process_request(django))
+
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
     # with the previous patching hook because of circular imports within `django.core.asgi`.
@@ -891,6 +955,9 @@ def _patch(django):
             trace_utils.wrap(m, "re_path", traced_urls_path(django))
 
     when_imported("django.views.generic.base")(lambda m: trace_utils.wrap(m, "View.as_view", traced_as_view(django)))
+    when_imported("django.views.debug")(
+        lambda m: trace_utils.wrap(m, "technical_500_response", traced_technical_500_response(django))
+    )
 
     @when_imported("channels.routing")
     def _(m):
@@ -935,6 +1002,7 @@ def _unpatch(django):
     trace_utils.unwrap(django.conf.urls, "url")
     trace_utils.unwrap(django.contrib.auth.login, "login")
     trace_utils.unwrap(django.contrib.auth.authenticate, "authenticate")
+    trace_utils.unwrap(django.view.debug.technical_500_response, "technical_500_response")
     if django.VERSION >= (2, 0, 0):
         trace_utils.unwrap(django.urls, "path")
         trace_utils.unwrap(django.urls, "re_path")

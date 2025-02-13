@@ -38,8 +38,8 @@ class TestPatching(SubprocessTestCase):
             _monkey.patch(module_dne=True)
 
         assert (
-            "integration module ddtrace.contrib.module_dne does not exist, module will not have tracing available"
-            in str(me.exception)
+            "integration module ddtrace.contrib.internal.module_dne.patch does not exist, "
+            "automatic instrumentation is disabled for this library" in str(me.exception)
         )
         assert "module_dne" not in _monkey._PATCHED_MODULES
 

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ASM: This introduces use of meta struct for appsec event reports. This will improve performances.
+    ASM will now require at least agent version 7.35.0 to work as expected.

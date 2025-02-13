@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    integrations: Removes deprecated interfaces from all integrations.

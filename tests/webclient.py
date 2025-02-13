@@ -2,9 +2,9 @@ import urllib.parse
 
 import requests
 
-from ddtrace._trace.context import Context
 from ddtrace.internal.utils.retry import retry
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
 from ddtrace.trace import TraceFilter
 
 

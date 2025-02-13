@@ -28,6 +28,9 @@
   redis:
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
+  valkey:
+    name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
+    alias: valkey
   kafka:
     name: registry.ddbuild.io/images/mirror/apache/kafka:3.8.0
     alias: kafka
@@ -54,6 +57,9 @@
   rediscluster:
     name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
     alias: rediscluster
+  valkeycluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: valkeycluster
   elasticsearch:
     name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
     alias: elasticsearch
@@ -77,3 +83,11 @@
   rabbitmq:
     name: registry.ddbuild.io/images/mirror/rabbitmq:3.12.7-management-alpine
     alias: rabbitmq
+  mysql:
+    name: registry.ddbuild.io/images/mirror/mysql:5.7
+    alias: mysql
+    variables:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_PASSWORD: test
+      MYSQL_USER: test
+      MYSQL_DATABASE: test

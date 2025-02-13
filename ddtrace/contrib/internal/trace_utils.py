@@ -28,6 +28,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -40,9 +41,9 @@ from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span  # noqa:F401
-    from ddtrace import Tracer  # noqa:F401
     from ddtrace.settings import IntegrationConfig  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -130,7 +131,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace._trace.span.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -257,7 +258,7 @@ def _store_request_headers(headers, span, integration_config):
     :param headers: All the request's http headers, will be filtered through the whitelist
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -271,7 +272,7 @@ def _store_response_headers(headers, span, integration_config):
     :param headers: All the response's http headers, will be filtered through the whitelist
     :type headers: dict or list
     :param span: The Span instance where tags will be stored
-    :type span: ddtrace.Span
+    :type span: ddtrace.trace.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
@@ -485,7 +486,7 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             span.set_tag_str(http.STATUS_CODE, str(status_code))
-            if config.http_server.is_error_code(int_status_code):
+            if config._http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
@@ -595,6 +596,9 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         # We have parsed a trace id from headers, and we do not already
         # have a context with the same trace id active
         tracer.context_provider.activate(context)
+        core.dispatch("http.activate_distributed_headers", (request_headers, context))
+
+        dispatch("distributed_context.activated", (context,))
 
 
 def _flatten(
@@ -639,6 +643,7 @@ def set_user(
     session_id=None,  # type: Optional[str]
     propagate=False,  # type bool
     span=None,  # type: Optional[Span]
+    may_block=True,  # type: bool
 ):
     # type: (...) -> None
     """Set user tags.
@@ -666,7 +671,7 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if asm_config._asm_enabled:
+        if may_block and asm_config._asm_enabled:
             exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
             if exc:
                 raise exc

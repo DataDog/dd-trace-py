@@ -7,13 +7,11 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PARAMETERS
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
@@ -24,7 +22,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -33,6 +30,7 @@ from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
 from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
+from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -60,7 +58,6 @@ def test_service_enable_proxy_default():
         assert llmobs_instance.tracer == dummy_tracer
         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
         assert run_llmobs_trace_filter(dummy_tracer) is not None
-
         llmobs_service.disable()
 
 
@@ -109,20 +106,6 @@ def test_service_enable_no_ml_app_specified():
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
-
-
-def test_service_enable_deprecated_ml_app_name(monkeypatch, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        monkeypatch.setenv("DD_LLMOBS_APP_NAME", "test_ml_app")
-        llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is True
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "running"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "running"
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "`DD_LLMOBS_APP_NAME` is deprecated. Use `DD_LLMOBS_ML_APP` instead."
-        )
-        llmobs_service.disable()
 
 
 def test_service_enable_already_enabled(mock_llmobs_logs):
@@ -356,31 +339,22 @@ def test_embedding_span(llmobs, llmobs_events):
 
 
 def test_annotate_no_active_span_logs_warning(llmobs, mock_llmobs_logs):
-    llmobs.annotate(parameters={"test": "test"})
+    llmobs.annotate(metadata={"test": "test"})
     mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
 
 
 def test_annotate_non_llm_span_logs_warning(llmobs, mock_llmobs_logs):
     dummy_tracer = DummyTracer()
     with dummy_tracer.trace("root") as non_llmobs_span:
-        llmobs.annotate(span=non_llmobs_span, parameters={"test": "test"})
+        llmobs.annotate(span=non_llmobs_span, metadata={"test": "test"})
         mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
 
 
 def test_annotate_finished_span_does_nothing(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         pass
-    llmobs.annotate(span=span, parameters={"test": "test"})
+    llmobs.annotate(span=span, metadata={"test": "test"})
     mock_llmobs_logs.warning.assert_called_once_with("Cannot annotate a finished span.")
-
-
-def test_annotate_parameters(llmobs, mock_llmobs_logs):
-    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        llmobs.annotate(span=span, parameters={"temperature": 0.9, "max_tokens": 50})
-        assert span._get_ctx_item(INPUT_PARAMETERS) == {"temperature": 0.9, "max_tokens": 50}
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "Setting parameters is deprecated, please set parameters and other metadata as tags instead."
-        )
 
 
 def test_annotate_metadata(llmobs):
@@ -389,11 +363,24 @@ def test_annotate_metadata(llmobs):
         assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
 
 
+def test_annotate_metadata_updates(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
+        llmobs.annotate(span=span, metadata={"temperature": 1, "logit_bias": [{"1": 2}]})
+        assert span._get_ctx_item(METADATA) == {
+            "temperature": 1,
+            "max_tokens": 20,
+            "top_k": 10,
+            "n": 3,
+            "logit_bias": [{"1": 2}],
+        }
+
+
 def test_annotate_metadata_wrong_type_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata="wrong_metadata")
         assert span._get_ctx_item(METADATA) is None
-        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary of string key-value pairs.")
+        mock_llmobs_logs.warning.assert_called_once_with("metadata must be a dictionary")
         mock_llmobs_logs.reset_mock()
 
 
@@ -408,7 +395,7 @@ def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
         llmobs.annotate(span=span, tags=12345)
         assert span._get_ctx_item(TAGS) is None
         mock_llmobs_logs.warning.assert_called_once_with(
-            "span_tags must be a dictionary of string key - primitive value pairs."
+            "span tags must be a dictionary of string key - primitive value pairs."
         )
 
 
@@ -655,6 +642,13 @@ def test_annotate_metrics(llmobs):
         assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
 
 
+def test_annotate_metrics_updates(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20})
+        llmobs.annotate(span=span, metrics={"input_tokens": 20, "total_tokens": 40})
+        assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
+
+
 def test_annotate_metrics_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, metrics=12345)
@@ -836,7 +830,7 @@ def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, moc
 def test_export_span_active_span_not_llmobs_span_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs._instance.tracer.trace("non_llmobs_span"):
         llmobs.export_span()
-    mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
@@ -1250,7 +1244,7 @@ def test_inject_distributed_headers_span_calls_httppropagator_inject(llmobs, moc
 
 
 def test_inject_distributed_headers_current_active_span_injected(llmobs, mock_llmobs_logs):
-    span = llmobs._instance.tracer.trace("test_span")
+    span = llmobs.workflow("test_span")
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.inject") as mock_inject:
         llmobs.inject_distributed_headers({}, span=None)
         assert mock_inject.call_count == 1
@@ -1275,23 +1269,23 @@ def test_activate_distributed_headers_calls_httppropagator_extract(llmobs, mock_
 
 def test_activate_distributed_headers_no_trace_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(span_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(span_id=123)
         llmobs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_span_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(trace_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(trace_id=123)
         llmobs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456")
+        dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
@@ -1302,7 +1296,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
 
 def test_activate_distributed_headers_activates_context(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456", meta={PROPAGATED_PARENT_ID_KEY: "789"})
+        dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
@@ -1388,7 +1382,8 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 
 def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluator):
     """Test that forking a process correctly recreates and restarts the EvaluatorRunner."""
-    with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
+    pytest.importorskip("ragas")
+    with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
             original_pid = llmobs_service._instance.tracer._pid
@@ -1468,7 +1463,9 @@ def test_llmobs_fork_submit_evaluation(monkeypatch):
 
 def test_llmobs_fork_evaluator_runner_run(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
-    monkeypatch.setenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
+    monkeypatch.setenv("DD_LLMOBS_EVALUATOR_INTERVAL", 5.0)
+    pytest.importorskip("ragas")
+    monkeypatch.setenv("DD_LLMOBS_EVALUATORS", "ragas_faithfulness")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
@@ -1759,7 +1756,7 @@ async def test_annotation_context_async_nested(llmobs):
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist():
     pytest.importorskip("ragas")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        with override_env(dict(_DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
+        with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
             dummy_tracer = DummyTracer()
             llmobs_service.enable(_tracer=dummy_tracer)
             llmobs_instance = llmobs_service._instance

@@ -92,7 +92,9 @@ class ElasticsearchPatchTest(TracerTestCase):
             # `custom_tag` is a custom tag that can be set via `Pin`.
             "custom_tag": "bar",
         }
-        Pin(tracer=self.tracer, tags=tags).onto(es.transport)
+        pin = Pin(tags=tags)
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
         self.create_index(es)
 
         patch()
@@ -225,7 +227,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        Pin(tracer=self.tracer).onto(es.transport)
+        pin = Pin()
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -253,7 +257,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        Pin(tracer=self.tracer).onto(es.transport)
+        pin = Pin()
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -286,7 +292,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert config.service == "mysvc"
 
         self.create_index(self.es)
-        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        pin = Pin(service="es")
+        pin._tracer = self.tracer
+        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
@@ -303,7 +311,9 @@ class ElasticsearchPatchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         self.create_index(self.es)
-        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        pin = Pin(service="es")
+        pin._tracer = self.tracer
+        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1

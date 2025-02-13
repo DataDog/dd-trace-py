@@ -1,15 +1,10 @@
 import os
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
-
+tracer._configure(trace_processors=[PingFilter()])
 
 ALLOWED_HOSTS = [
     "testserver",
@@ -45,7 +40,7 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            os.path.join(BASE_DIR, "templates"),
+            os.path.join(BASE_DIR, "django_app", "templates"),
         ],
         "APP_DIRS": True,
         "OPTIONS": {
