@@ -9,7 +9,6 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
-from ddtrace.appsec._iast._utils import _is_python_version_supported as python_supported_by_iast
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -17,6 +16,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
@@ -51,7 +51,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_1(param_str):
@@ -103,7 +103,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_getitem(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_2(param_str):
@@ -159,7 +159,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_3(param_str):
@@ -213,7 +213,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_values(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_4(param_str):
@@ -317,7 +317,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_6(param_str):
@@ -349,7 +349,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_metric(IAST.ENABLED) == 0.0
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def sqli_7():
@@ -415,7 +415,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def sqli_8():
@@ -479,7 +479,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert {VULN_SQL_INJECTION} == vulnerabilities
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter(self):
         @self.app.route("/sqli/parameter/", methods=["GET"])
         def sqli_9():
@@ -528,7 +528,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter_name_post(self):
         @self.app.route("/sqli/", methods=["POST"])
         def sqli_13():
@@ -586,7 +586,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_parameter_name_get(self):
         @self.app.route("/sqli/", methods=["GET"])
         def sqli_14():
@@ -644,7 +644,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_10():
@@ -710,7 +710,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body_complex_3_lvls(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
@@ -775,7 +775,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body_complex_3_lvls_and_list(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
@@ -840,7 +840,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body_complex_3_lvls_list_dict(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
@@ -907,7 +907,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body_complex_json_all_types_of_values(self):
         @self.app.route("/sqli/body/", methods=("POST",))
         def sqli_11():
@@ -1045,7 +1045,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_request_body_iast_and_appsec(self):
         """Verify IAST, Appsec and API security work correctly running at the same time"""
 
@@ -1098,7 +1098,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             list_metrics_logs = list(self._telemetry_writer._logs)
             assert len(list_metrics_logs) == 0
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_header_values_scrubbed(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_12(param_str):
@@ -1152,7 +1152,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
@@ -1192,7 +1192,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exlusions_location(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
@@ -1221,7 +1221,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exlusions_access_control(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
@@ -1250,7 +1250,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie(self):
         @self.app.route("/insecure_cookie/", methods=["GET", "POST"])
         def insecure_cookie():
@@ -1288,7 +1288,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie_empty(self):
         @self.app.route("/insecure_cookie_empty/", methods=["GET", "POST"])
         def insecure_cookie_empty():
@@ -1318,7 +1318,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             loaded = root_span.get_tag(IAST.JSON)
             assert loaded is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_http_only_cookie(self):
         @self.app.route("/no_http_only_cookie/", methods=["GET", "POST"])
         def no_http_only_cookie():
@@ -1356,7 +1356,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_http_only_cookie_empty(self):
         @self.app.route("/no_http_only_cookie_empty/", methods=["GET", "POST"])
         def no_http_only_cookie_empty():
@@ -1387,7 +1387,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             loaded = root_span.get_tag(IAST.JSON)
             assert loaded is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_samesite_cookie(self):
         @self.app.route("/no_samesite_cookie/", methods=["GET", "POST"])
         def no_samesite_cookie():
@@ -1425,7 +1425,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_samesite_cookie_empty(self):
         @self.app.route("/no_samesite_cookie_empty/", methods=["GET", "POST"])
         def no_samesite_cookie_empty():
@@ -1453,7 +1453,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             loaded = root_span.get_tag(IAST.JSON)
             assert loaded is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_cookie_secure(self):
         @self.app.route("/cookie_secure/", methods=["GET", "POST"])
         def cookie_secure():
@@ -1500,7 +1500,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4")
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
@@ -1531,7 +1531,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
         assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -1563,7 +1563,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -1595,7 +1595,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -1627,7 +1627,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_tag(IAST.JSON) is None
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
@@ -1653,7 +1653,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 # not all flask versions have r.text
                 assert resp.text == "select%20from%20table"
 
-    @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
         def test_sqli():
