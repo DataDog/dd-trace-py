@@ -84,7 +84,7 @@ build_base_venvs:
   retry: 2
   before_script:
     - !reference [.testrunner, before_script]
-    - pip install riot==0.20.1 "setuptools_scm[toml]>=4"
+    - pip install riot==0.20.1
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
