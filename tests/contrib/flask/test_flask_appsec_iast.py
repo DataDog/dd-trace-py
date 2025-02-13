@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -51,6 +52,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
+    @flaky(1735812000)
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
