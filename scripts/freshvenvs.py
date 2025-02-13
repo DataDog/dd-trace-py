@@ -18,8 +18,7 @@ from pip import _internal
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
-
-CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
+CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
 excluded = {"coverage"}
