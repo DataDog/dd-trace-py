@@ -14,7 +14,6 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     api_gateway_service_name,
     api_gateway_resource,
     method,
-    route,
     status_code,
     url,
     start,
@@ -53,11 +52,10 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
 
     # assert api gateway http meta
     assert aws_gateway_span.get_tag("http.method") == method
-    assert aws_gateway_span.get_tag("http.route") == route
     assert int(aws_gateway_span.get_tag("http.status_code")) == int(status_code)
     assert aws_gateway_span.get_tag("http.url") == url
 
-    # Assert that the http method, status code, and route match
+    # Assert that the http method and status code match
     assert aws_gateway_span.get_tag("http.method") == web_span.get_tag("http.method")
     assert aws_gateway_span.get_tag("http.status_code") == web_span.get_tag("http.status_code")
 

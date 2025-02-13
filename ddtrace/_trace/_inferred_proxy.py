@@ -67,7 +67,6 @@ def set_inferred_proxy_span_tags(span, proxy_context) -> Span:
 
     span.set_tag_str(http.METHOD, proxy_context["method"])
     span.set_tag_str(http.URL, f"{proxy_context['domain_name']}{proxy_context['path']}")
-    span.set_tag_str(http.ROUTE, proxy_context["path"])
     span.set_tag_str("stage", proxy_context["stage"])
 
     span.set_tag_str("_dd.inferred_span", "1")
