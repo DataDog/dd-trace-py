@@ -80,18 +80,28 @@ def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
     all_required_modules = set()
     for item in CONTRIB_ROOT.iterdir():
-        init_filepath = item / "__init__.py"
-        if os.path.isdir(item) and os.path.isfile(init_filepath):
-            with open(init_filepath, "r") as initfile:
-                initfile_content = initfile.read()
-            syntax_tree = ast.parse(initfile_content)
-            for node in syntax_tree.body:
-                if hasattr(node, "targets"):
-                    if node.targets[0].id == "required_modules":
-                        to_add = set()
-                        for mod in node.value.elts:
-                            to_add |= {mod.value, mod.value.split(".")[0]}
-                        all_required_modules |= to_add
+        print(f"DEBUG: Found path: {item}")
+        if not os.path.isdir(item):
+            print(f"DEBUG: Skipping {item} - not a directory")
+            continue
+
+        patch_filepath = item / "patch.py"
+        print(f"DEBUG: Looking for patch file at: {patch_filepath}")
+
+        if os.path.isfile(patch_filepath):
+            print(f"DEBUG: Found patch.py in: {item}")
+            with open(patch_filepath, "r") as patchfile:
+                patch_content = patchfile.read()
+
+            # Check if this patch file has a get_version function
+            if "def get_version()" in patch_content:
+                module_name = item.name
+                print(f"DEBUG: Found get_version() in {module_name}")
+                all_required_modules.add(module_name)
+            else:
+                print(f"DEBUG: No get_version() found in {module_name}")
+
+    print(f"DEBUG: Final all_required_modules: {all_required_modules}")
     return all_required_modules
 
 
