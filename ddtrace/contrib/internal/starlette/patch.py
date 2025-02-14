@@ -13,7 +13,6 @@ from wrapt import ObjectProxy
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -26,6 +25,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 from ddtrace.trace import Span  # noqa:F401
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -168,7 +168,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             break
 
     if request_spans:
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             from ddtrace.appsec._iast._patch import _iast_instrument_starlette_scope
 
             _iast_instrument_starlette_scope(scope)

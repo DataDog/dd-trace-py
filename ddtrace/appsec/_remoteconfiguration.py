@@ -7,7 +7,6 @@ from typing import Optional
 
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
@@ -72,7 +71,6 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
         load_common_appsec_modules()
 
-    forksafe.register(_forksafe_appsec_rc)
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
 
 
