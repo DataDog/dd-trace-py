@@ -44,8 +44,12 @@ class DDTelemetryLogHandler(logging.Handler):
                 )
 
     def _format_stack_trace(self, record: logging.LogRecord) -> Union[str, None]:
+        if record is None:
+            return None
+
         if record.exc_info is None:
             return None
+
         exc_type, exc_value, exc_traceback = record.exc_info
         if exc_traceback:
             tb = traceback.extract_tb(exc_traceback)
@@ -60,6 +64,7 @@ class DDTelemetryLogHandler(logging.Handler):
             if exc_type:
                 formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
+
         return None
 
     def _should_redact(self, filename: str) -> bool:
