@@ -4,8 +4,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
-from ddtrace.constants import SPAN_KIND
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
@@ -66,14 +64,12 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
 
 def set_inferred_proxy_span_tags(span, proxy_context) -> Span:
     span.set_tag_str(COMPONENT, supported_proxies[proxy_context["proxy_system_name"]]["component"])
-    span.set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
 
     span.set_tag_str(http.METHOD, proxy_context["method"])
     span.set_tag_str(http.URL, f"{proxy_context['domain_name']}{proxy_context['path']}")
-    span.set_tag_str(http.ROUTE, proxy_context["path"])
     span.set_tag_str("stage", proxy_context["stage"])
 
-    span.set_tag_str("_dd.inferred_span", "1")
+    span.set_metric("_dd.inferred_span", 1)
     return span
 
 
@@ -85,17 +81,11 @@ def extract_inferred_proxy_context(headers) -> Union[None, Dict[str, str]]:
     proxy_header_domain = str(_extract_header_value(POSSIBLE_PROXY_HEADER_DOMAIN, headers))
     proxy_header_stage = str(_extract_header_value(POSSIBLE_PROXY_HEADER_STAGE, headers))
 
-    # Exit if any of the required headers are not present
-    if (
-        not proxy_header_system
-        or not proxy_header_start_time_ms
-        or not proxy_header_path
-        or not proxy_header_httpmethod
-        or not proxy_header_domain
-        or not proxy_header_stage
-    ):
+    # Exit if start time header is not present
+    if proxy_header_start_time_ms is None:
         return None
 
+    # Exit if proxy header system name is not present or is a system we don't support
     if not (proxy_header_system and proxy_header_system in supported_proxies):
         log.debug(
             "Received headers to create inferred proxy span but headers include an unsupported proxy type", headers

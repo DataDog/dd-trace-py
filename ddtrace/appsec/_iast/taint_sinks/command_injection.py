@@ -3,7 +3,6 @@ from typing import Union
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -50,7 +49,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
 
-    if is_iast_request_enabled() and CommandInjection.has_quota():
+    if asm_config.is_iast_request_enabled and CommandInjection.has_quota():
         from .._taint_tracking.aspects import join_aspect
 
         if isinstance(shell_args, (list, tuple)):

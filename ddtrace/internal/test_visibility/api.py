@@ -118,20 +118,6 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def should_skip_quarantined_tests() -> bool:
-        log.debug("Checking if quarantined tests should be skipped")
-
-        should_skip = bool(
-            core.dispatch_with_results(
-                "test_visibility.session.should_skip_quarantined_tests"
-            ).should_skip_quarantined_tests.value
-        )
-        log.debug("Quarantined tests should be skipped: %s", should_skip)
-
-        return should_skip
-
-    @staticmethod
-    @_catch_and_log_exceptions
     def set_covered_lines_pct(coverage_pct: float):
         log.debug("Setting covered lines percentage for session to %s", coverage_pct)
 
@@ -198,6 +184,14 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
         )
         log.debug("Test %s is quarantined: %s", item_id, is_quarantined)
         return is_quarantined
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_disabled_test(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s is disabled", item_id)
+        is_disabled = bool(core.dispatch_with_results("test_visibility.test.is_disabled", (item_id,)).is_disabled.value)
+        log.debug("Test %s is disabled: %s", item_id, is_disabled)
+        return is_disabled
 
     class OverwriteAttributesArgs(NamedTuple):
         test_id: InternalTestId
