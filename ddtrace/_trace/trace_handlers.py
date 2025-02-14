@@ -736,9 +736,9 @@ def _on_botocore_bedrock_process_response(
     if metadata is not None:
         for k, v in metadata.items():
             if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
-                span.set_metric("bedrock.response{}".format(k), int(v))
+                span.set_metric("bedrock.response.{}".format(k), int(v))
             else:
-                span.set_tag_str("bedrock.response{}".format(k), str(v))
+                span.set_tag_str("bedrock.{}".format(k), str(v))
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()

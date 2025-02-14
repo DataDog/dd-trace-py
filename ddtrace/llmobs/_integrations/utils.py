@@ -128,7 +128,10 @@ def get_llmobs_metrics_tags(integration_name, span):
     output_tokens = span.get_metric("%s.response.usage.completion_tokens" % integration_name) or span.get_metric(
         "%s.response.usage.output_tokens" % integration_name
     )
-    total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name)
+    total_tokens = None
+    if input_tokens and output_tokens:
+        total_tokens = input_tokens + output_tokens
+    total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name) or total_tokens
 
     if input_tokens is not None:
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
