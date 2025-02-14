@@ -157,11 +157,7 @@ from cpython.ref cimport Py_DECREF
 cdef extern from "<pystate.h>":
     PyObject* _PyThread_CurrentFrames()
 
-IF PY_VERSION_HEX >= 0x30d0000:
-    cdef extern from "<internal/pycore_pystate.h>":
-        PyObject* _PyThread_CurrentExceptions()
-
-ELIF PY_VERSION_HEX >= 0x030b0000:
+IF 0x030b0000 <= PY_VERSION_HEX < 0x30d0000:
     cdef extern from "<pystate.h>":
         PyObject* _PyThread_CurrentExceptions()
 
@@ -221,8 +217,11 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     Py_DECREF(running_threads)
 
     IF PY_VERSION_HEX >= 0x030b0000:
-        cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
-        Py_DECREF(current_exceptions)
+        IF PY_VERSION_HEX >= 0x030d0000:
+            current_exceptions = sys._current_exceptions()
+        ELSE:
+            cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
+            Py_DECREF(current_exceptions)
 
         for thread_id, exc_info in current_exceptions.items():
             if exc_info is None:

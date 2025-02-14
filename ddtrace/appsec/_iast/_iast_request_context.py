@@ -29,8 +29,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal  # noqa:F401
 
-_IAST_CONTEXT: Literal["_iast_env"] = "_iast_env"
-
 
 class IASTEnvironment:
     """
@@ -50,17 +48,17 @@ class IASTEnvironment:
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
-    return core.get_item(_IAST_CONTEXT)
+    return core.get_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def in_iast_context() -> bool:
-    return core.get_item(_IAST_CONTEXT) is not None
+    return core.get_item(IAST.REQUEST_CONTEXT_KEY) is not None
 
 
 def start_iast_context():
     if asm_config._iast_enabled:
         create_propagation_context()
-        core.set_item(_IAST_CONTEXT, IASTEnvironment())
+        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
 
 
 def end_iast_context(span: Optional[Span] = None):
@@ -71,7 +69,7 @@ def end_iast_context(span: Optional[Span] = None):
 
 
 def finalize_iast_env(env: IASTEnvironment) -> None:
-    core.discard_item(_IAST_CONTEXT)
+    core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
@@ -118,13 +116,6 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("[IAST] Trying to set IAST reporter but no context is present")
 
 
-def is_iast_request_enabled() -> bool:
-    env = _get_iast_context()
-    if env:
-        return env.request_enabled
-    return False
-
-
 def _move_iast_data_to_root_span():
     return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
@@ -168,7 +159,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             existing_data = req_span.get_tag(IAST.JSON)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
-                    if not is_iast_request_enabled():
+                    if not asm_config.is_iast_request_enabled:
                         req_span.set_metric(IAST.ENABLED, 0.0)
                         end_iast_context(req_span)
                         oce.release_request()

@@ -2,6 +2,7 @@
 #define _DDTRACE_UTILS_H
 
 #include <Python.h>
+#include <assert.h>
 #include <stdlib.h>
 
 static inline uint64_t
@@ -71,6 +72,10 @@ random_range(uint64_t max)
                                                                                                                        \
     static inline void pfx##_array_grow(pfx##_array_t* arr, size_type newlen)                                          \
     {                                                                                                                  \
+        if (newlen > arr->size) {                                                                                      \
+            size_type t = p_alloc_nr(arr->size);                                                                       \
+            assert(t >= arr->size);                                                                                    \
+        }                                                                                                              \
         p_grow(arr->tab, newlen, &arr->size);                                                                          \
     }                                                                                                                  \
     static inline void pfx##_array_splice(                                                                             \

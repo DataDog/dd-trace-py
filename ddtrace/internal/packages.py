@@ -20,6 +20,8 @@ LOG = logging.getLogger(__name__)
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
+
 
 @callonce
 def get_distributions():
@@ -45,18 +47,21 @@ def get_distributions():
     return pkgs
 
 
-@cached(maxsize=1)
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    global _PACKAGE_DISTRIBUTIONS
+    if _PACKAGE_DISTRIBUTIONS is None:
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
 
-    # Prefer the official API if available, otherwise fallback to the vendored version
-    if hasattr(importlib_metadata, "packages_distributions"):
-        return importlib_metadata.packages_distributions()
-    return _packages_distributions()
+        # Prefer the official API if available, otherwise fallback to the vendored version
+        if hasattr(importlib_metadata, "packages_distributions"):
+            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+        else:
+            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+    return _PACKAGE_DISTRIBUTIONS
 
 
 @cached(maxsize=1024)
