@@ -618,17 +618,16 @@ class Experiment:
                 "Dataset must be pushed to Datadog before running the experiment."
             )
 
-        # 2) Create project + experiment if this hasn't been done yet
-        if not self._datadog_experiment_id:
-            project_id = self._get_or_create_project()  # your existing helper
-            self._datadog_project_id = project_id
+        project_id = self._get_or_create_project()  # your existing helper
+        self._datadog_project_id = project_id
             
-            experiment_id = self._create_experiment_in_datadog()  # your existing helper
-            self._datadog_experiment_id = experiment_id
+        experiment_id = self._create_experiment_in_datadog()  # your existing helper
+        self._datadog_experiment_id = experiment_id
 
         # 3) Now run the task and evaluations
         self.run_task(_jobs=jobs, raise_errors=raise_errors)
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
+        experiment_results.push()
         return experiment_results
 
     def run_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
@@ -852,7 +851,9 @@ class Experiment:
             print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
 
         self.has_evaluated = True
-        return ExperimentResults(self.dataset, self, self.outputs, evaluations)
+        experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
+        experiment_results.push()
+        return experiment_results
 
  
 
