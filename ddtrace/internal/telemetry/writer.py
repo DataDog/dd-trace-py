@@ -15,6 +15,8 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 import urllib.parse as parse
 
+from ddtrace.internal.logger import get_logger
+
 from ...internal import atexit
 from ...internal import forksafe
 from ...settings._inferred_base_service import detect_service
@@ -52,7 +54,7 @@ from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 _inferred_service = detect_service(sys.argv)
 
 
-log = getLogger(__name__)
+log = get_logger(__name__)
 
 
 class _TelemetryConfig:
