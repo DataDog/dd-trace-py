@@ -319,7 +319,6 @@ jobs:
           path: artifact.tar.gz
 
   finished:
-    name: Finished
     runs-on: ubuntu-latest
     needs: [parametric, system-tests]
     if: success() || failure()

@@ -49,7 +49,7 @@ jobs:
         run: hatch run +py=${{ matrix.python-version }} multiple_os_tests:test
   
   finished:
-    name: Finished
+    name: Multiple OS Tests Finished
     runs-on: ubuntu-latest
     needs: multiple_os_tests
     steps:
