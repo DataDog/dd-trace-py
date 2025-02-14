@@ -128,7 +128,6 @@ def override_global_config(values):
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_startup_logs_enabled",
-        "_propagate_service",
         "env",
         "version",
         "service",
@@ -138,7 +137,6 @@ def override_global_config(values):
         "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
-        "_subexec_sensitive_user_wildcards",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
         "_sampling_rules",
@@ -162,6 +160,7 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
+        "_llmobs_auto_span_linking_enabled",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
     ]
