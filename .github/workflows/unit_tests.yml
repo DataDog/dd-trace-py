@@ -38,6 +38,10 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: brew install coreutils
 
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: sudo apt-get install -y python3.13
+
       - name: Run tests
         run: hatch run +py=${{ matrix.python-version }} multiple_os_tests:test
   
