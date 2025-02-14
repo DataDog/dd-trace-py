@@ -296,7 +296,7 @@ class PymongoCore(object):
 
         # confirm query tag find with query criteria on name
         assert spans[-1].resource == 'find teams {"name": "?"}'
-        assert spans[-1].get_tag("mongodb.query") == "{'name': '?'}"
+        assert spans[-1].get_tag("mongodb.query") == '{"name": "?"}'
 
     def test_update_ot(self):
         """OpenTracing version of test_update."""
