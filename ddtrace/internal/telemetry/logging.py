@@ -1,6 +1,7 @@
 import logging
 import os
 import traceback
+from typing import Union
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
@@ -42,7 +43,7 @@ class DDTelemetryLogHandler(logging.Handler):
                     stack_trace=stack_trace,
                 )
 
-    def _format_stack_trace(self, record: logging.LogRecord) -> str | None:
+    def _format_stack_trace(self, record: logging.LogRecord) -> Union[str, None]:
         if record.exc_info is None:
             return None
         exc_type, exc_value, exc_traceback = record.exc_info
