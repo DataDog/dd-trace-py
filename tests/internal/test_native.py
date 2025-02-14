@@ -62,7 +62,7 @@ apm_configuration_default:
         # Import ddtrace to apply configuration
         from ddtrace import config
 
-        # Ensure enviornment variables takes precedence over local config and envars
+        # Ensure environment variables takes precedence over local config and envars
         if "DD_VERSION" in os.environ:
             assert config.version == "b", f"Expected DD_VERSION to be 'b' but got {config.version}"
         else:
