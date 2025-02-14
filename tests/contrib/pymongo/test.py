@@ -406,9 +406,9 @@ class PymongoCore(object):
 
         # Assert resource names and mongodb.query
         assert one_row_span.resource == 'find songs {"name": "?"}'
-        assert one_row_span.get_tag("mongodb.query") == "{\"name\": \"?\"}"
+        assert one_row_span.get_tag("mongodb.query") == '{"name": "?"}'
         assert two_row_span.resource == 'find songs {"artist": "?"}'
-        assert two_row_span.get_tag("mongodb.query") == "{\"artist\": \"?\"}"
+        assert two_row_span.get_tag("mongodb.query") == '{"artist": "?"}'
 
         assert one_row_span.name == "pymongo.cmd"
         assert one_row_span.get_metric("db.row_count") == 1
