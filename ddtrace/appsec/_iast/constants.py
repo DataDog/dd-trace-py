@@ -1,6 +1,7 @@
 import re
 from typing import Any
 from typing import Dict
+from typing import Literal
 
 
 VULN_INSECURE_HASHING_TYPE = "WEAK_HASH"
@@ -97,3 +98,4 @@ DBAPI_MYSQLDB = "mysqldb"
 DBAPI_PYMYSQL = "pymysql"
 DBAPI_MARIADB = "mariadb"
 DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MYSQLDB, DBAPI_MARIADB, DBAPI_PYMYSQL)
+IAST_CONTEXT: Literal["_iast_env"] = "_iast_env"
