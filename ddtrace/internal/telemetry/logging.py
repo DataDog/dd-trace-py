@@ -56,7 +56,8 @@ class DDTelemetryLogHandler(logging.Handler):
                     relative_filename = self._format_file_path(filename)
                     formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
                     formatted_tb.append(formatted_line)
-            formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
+            if exc_type:
+                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
         return None
 
