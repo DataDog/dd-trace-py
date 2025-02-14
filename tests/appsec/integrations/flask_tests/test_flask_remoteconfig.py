@@ -10,9 +10,9 @@ import uuid
 
 import pytest
 
-from ddtrace import tracer
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
+from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _multi_requests
@@ -270,7 +270,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
         _request_200(gunicorn_client, debug_mode=False)
 
 
-@pytest.mark.subprocess(ddtrace_run=True, check_logs=False, out=b"success")
+@pytest.mark.subprocess(ddtrace_run=True, err=None, out=b"success")
 def test_compatiblity_with_multiprocessing():
     import multiprocessing
     from multiprocessing import Array

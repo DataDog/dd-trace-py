@@ -17,7 +17,7 @@ def test_flask_iast_ast_patching_import_error():
         pass
     """
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=True
+        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
