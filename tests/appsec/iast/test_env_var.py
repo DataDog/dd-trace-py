@@ -21,7 +21,7 @@ def _run_python_file(*args, **kwargs):
         ret = subprocess.run(cmd, cwd=current_dir, env=kwargs["env"])
     else:
         ret = subprocess.run(cmd, cwd=current_dir)
-    assert ret.returncode == 0, "Return code is not 0, stderr: %s" % ret.stderr
+    assert ret.returncode == 0, "Return code is not 0, stderr: %s, stdout: %s" % (ret.stderr, ret.stdout)
 
 
 def test_iast_pytest_env_var_enables_right_import_even_with_var_undefined(capfd):
