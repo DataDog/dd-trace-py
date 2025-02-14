@@ -2,7 +2,6 @@ from typing import Callable
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -11,6 +10,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.settings.asm import config as asm_config
 
 from ._base import VulnerabilityBase
 
@@ -50,7 +50,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     if report_ssrf:
         _set_metric_iast_executed_sink(SSRF.vulnerability_type)
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
-        if is_iast_request_enabled() and SSRF.has_quota():
+        if asm_config.is_iast_request_enabled and SSRF.has_quota():
             try:
                 if is_pyobject_tainted(report_ssrf):
                     SSRF.report(evidence_value=report_ssrf)

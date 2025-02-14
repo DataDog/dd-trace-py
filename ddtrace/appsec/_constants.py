@@ -161,6 +161,7 @@ class IAST(metaclass=Constant_Class):
 
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
