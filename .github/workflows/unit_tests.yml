@@ -43,7 +43,7 @@ jobs:
         run: |
           sudo add-apt-repository ppa:deadsnakes/ppa
           sudo apt-get update
-          sudo apt-get install -y python3.13
+          sudo apt-get install -y python3.13 python3.13-dev
 
       - name: Run tests
         run: hatch run +py=${{ matrix.python-version }} multiple_os_tests:test
