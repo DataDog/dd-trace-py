@@ -8,7 +8,6 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
-from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
@@ -19,13 +18,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -64,6 +61,12 @@ class BaseLLMIntegration:
             self._log_pc_sampler = RateSampler(sample_rate=integration_config.log_prompt_completion_sample_rate)
             self.start_log_writer()
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+
+    @property
+    def span_linking_enabled(self) -> bool:
+        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false")) or asbool(
+            os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false")
+        )
 
     @property
     def metrics_enabled(self) -> bool:
@@ -132,21 +135,16 @@ class BaseLLMIntegration:
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
-            if span.get_tag(PROPAGATED_PARENT_ID_KEY) is None:
-                # For non-distributed traces or spans in the first service of a distributed trace,
-                # The LLMObs parent ID tag is not set at span start time. We need to manually set the parent ID tag now
-                # in these cases to avoid conflicting with the later propagated tags.
-                parent_id = _get_llmobs_parent_id(span) or "undefined"
-                span._set_ctx_item(PARENT_ID_KEY, str(parent_id))
-        telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_NAMESPACE.MLOBS,
-            name="span.start",
-            value=1,
-            tags=(
-                ("integration", self._integration_name),
-                ("autoinstrumented", "true"),
-            ),
-        )
+            LLMObs._instance._activate_llmobs_span(span)
+            telemetry_writer.add_count_metric(
+                namespace=TELEMETRY_NAMESPACE.MLOBS,
+                name="span.start",
+                value=1,
+                tags=(
+                    ("integration", self._integration_name),
+                    ("autoinstrumented", "true"),
+                ),
+            )
         return span
 
     @classmethod

@@ -55,6 +55,7 @@ microbenchmarks:
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_update_imported_dependencies"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -92,23 +93,10 @@ check-big-regressions:
 
 benchmark-serverless:
   stage: benchmarks
-  image: $SLS_CI_IMAGE
-  tags: ["arch:amd64"]
-  when: on_success
-  needs: [ "benchmark-serverless-trigger" ]
-  script:
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
-    - ./ci/check_trigger_status.sh
-  except:
-    - main  # fails on main - ideally it would succeed
-
-benchmark-serverless-trigger:
-  stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
     strategy: depend
   needs: []
-  allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL

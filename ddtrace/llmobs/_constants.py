@@ -13,7 +13,6 @@ MODEL_PROVIDER = "_ml_obs.meta.model_provider"
 INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
 INPUT_VALUE = "_ml_obs.meta.input.value"
-INPUT_PARAMETERS = "_ml_obs.meta.input.parameters"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
 OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
@@ -45,6 +44,8 @@ AGENTLESS_ENDPOINT = "api/v2/llmobs"
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
+
+ROOT_PARENT_ID = "undefined"
 
 # Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
 # Used to differentiate traces of Datadog-run operations vs user-application operations.

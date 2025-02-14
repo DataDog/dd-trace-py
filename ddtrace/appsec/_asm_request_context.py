@@ -12,14 +12,9 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._utils import add_context_log
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -27,6 +22,12 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
+
+
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         self.root = not in_asm_context()
         if self.root:
@@ -178,7 +179,7 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 def flush_waf_triggers(env: ASM_Environment) -> None:
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         current_span = tracer.current_span()
         if current_span is None:
@@ -493,8 +494,8 @@ def _on_wrapped_view(kwargs):
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
 
-    if _is_iast_enabled() and kwargs:
-        if not is_iast_request_enabled():
+    if asm_config._iast_enabled and kwargs:
+        if not asm_config.is_iast_request_enabled:
             return return_value
 
         _kwargs = {}

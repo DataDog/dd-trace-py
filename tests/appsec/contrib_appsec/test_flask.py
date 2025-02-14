@@ -37,7 +37,7 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = app
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin.override(self.app, tracer=self.tracer)
+        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()

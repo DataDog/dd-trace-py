@@ -4,13 +4,10 @@ import logging
 import os
 import pickle
 
-import mock
 import pytest
 
 import ddtrace
-from ddtrace import tracer as ddtracer
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_REJECT
@@ -43,6 +40,8 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _BaggageHeader
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import Context
+from ddtrace.trace import tracer as ddtracer
 from tests.contrib.fastapi.conftest import client as fastapi_client  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
@@ -87,10 +86,10 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace._trace.context import Context
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -117,8 +116,8 @@ def test_inject_128bit_trace_id_datadog():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
 def test_inject_128bit_trace_id_b3multi():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -139,8 +138,8 @@ def test_inject_128bit_trace_id_b3multi():
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
 def test_inject_128bit_trace_id_b3_single_header():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -161,8 +160,8 @@ def test_inject_128bit_trace_id_b3_single_header():
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
-    from ddtrace._trace.context import Context
     from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import Context
     from tests.utils import DummyTracer
 
     tracer = DummyTracer()  # noqa: F811
@@ -1822,7 +1821,7 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
-    # B3 single header
+    # B3
     (
         "valid_b3_single_header_simple",
         [PROPAGATION_STYLE_B3_SINGLE],
@@ -2487,7 +2486,7 @@ def test_propagation_extract_env(
     code = """
 import json
 import pickle
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = HTTPPropagator.extract({!r})
@@ -2640,7 +2639,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         ),
     ),
     # The trace_id from Datadog context will not align with the tracecontext primary context
-    # therefore we get a span link. B3 single headers are invalid so we won't see a trace of them.
+    # therefore we get a span link. B3 is invalid so we won't see a trace of them.
     # The b3 multi headers are missing a span_id, so we will skip creating a span link for it.
     (
         "all_headers_all_styles_do_not_create_span_link_for_context_w_out_span_id",
@@ -2995,7 +2994,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
         },
     ),
-    # B3 Single Header
+    # B3
     (
         "valid_b3_single_style",
         [PROPAGATION_STYLE_B3_SINGLE],
@@ -3295,7 +3294,7 @@ def test_propagation_inject(name, styles, context, expected_headers, run_python_
     code = """
 import json
 
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -3362,7 +3361,7 @@ def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
     code = """
 import json
 
-from ddtrace._trace.context import Context
+from ddtrace.trace import Context
 from ddtrace.propagation.http import HTTPPropagator
 
 context = Context(**{!r})
@@ -3385,29 +3384,6 @@ print(json.dumps(headers))
 
     result = json.loads(stdout.decode())
     assert result == expected_headers
-
-
-def test_llmobs_enabled_injects_llmobs_parent_id():
-    with override_global_config(dict(_llmobs_enabled=True)):
-        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
-            mock_llmobs_inject.assert_called_once_with(context)
-
-
-def test_llmobs_disabled_does_not_inject_parent_id():
-    with override_global_config(dict(_llmobs_enabled=False)):
-        with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-            context = Context(trace_id=1, span_id=2)
-            HTTPPropagator.inject(context, {})
-            mock_llmobs_inject.assert_not_called()
-
-
-def test_llmobs_parent_id_not_injected_by_default():
-    with mock.patch("ddtrace.llmobs._utils._inject_llmobs_parent_id") as mock_llmobs_inject:
-        context = Context(trace_id=1, span_id=2)
-        HTTPPropagator.inject(context, {})
-        mock_llmobs_inject.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -3546,3 +3522,19 @@ def test_baggage_malformedheader_extract(headers, expected_baggage):
 def test_http_propagator_baggage_extract(headers):
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "val1", "key2": "val2", "foo": "bar", "x": "y"}
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
+    parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
+)
+def test_opentracer_propagator_baggage_extract():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "http_ot_baggage_key1": "value1",
+    }
+    context = HTTPPropagator.extract(headers)
+    assert context._baggage == {"key1": "value1"}

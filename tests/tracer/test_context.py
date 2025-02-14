@@ -5,8 +5,8 @@ from typing import Optional  # noqa:F401
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 @pytest.mark.parametrize(
@@ -36,10 +36,6 @@ def test_eq(ctx1, ctx2):
         (
             Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
             Context(trace_id=1234, span_id=321, dd_origin="synthetics", sampling_priority=2),
-        ),
-        (
-            Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
-            Context(trace_id=123, span_id=3210, dd_origin="synthetics", sampling_priority=2),
         ),
         (
             Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),

@@ -44,6 +44,9 @@
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.limit": 250000,
       "openai.organization.ratelimit.tokens.remaining": 249979,
+      "openai.response.usage.completion_tokens": 12,
+      "openai.response.usage.prompt_tokens": 2,
+      "openai.response.usage.total_tokens": 14,
       "process_id": 24448
     },
     "duration": 17466000,

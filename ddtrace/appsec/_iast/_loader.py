@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from ._ast.ast_patching import astpatch_module
-from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)
 
-IS_IAST_ENABLED = _is_iast_enabled()
+IS_IAST_ENABLED = asm_config._iast_enabled
 
 
 def _exec_iast_patched_module(module_watchdog, module):

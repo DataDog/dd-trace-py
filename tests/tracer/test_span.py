@@ -10,7 +10,6 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace._trace.span import Span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -20,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -826,6 +826,25 @@ def test_manual_context_usage():
     span1.context.sampling_priority = 1
     assert span2.context.sampling_priority == 1
     assert span1.context.sampling_priority == 1
+
+
+def test_set_exc_info_with_str_override():
+    span = Span("span")
+
+    class CustomException(Exception):
+        def __str__(self):
+            raise Exception("A custom exception")
+
+    try:
+        raise CustomException()
+    except Exception:
+        type_, value_, traceback_ = sys.exc_info()
+        span.set_exc_info(type_, value_, traceback_)
+
+    span.finish()
+    assert span.get_tag(ERROR_MSG) == "CustomException"
+    assert span.get_tag(ERROR_STACK) is not None
+    assert span.get_tag(ERROR_TYPE) == "tests.tracer.test_span.CustomException"
 
 
 def test_set_exc_info_with_systemexit():
