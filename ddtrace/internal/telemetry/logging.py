@@ -58,6 +58,7 @@ class DDTelemetryLogHandler(logging.Handler):
                     formatted_tb.append(formatted_line)
             formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
+        return None
 
     def _should_redact(self, filename: str) -> bool:
         return "ddtrace" not in filename
