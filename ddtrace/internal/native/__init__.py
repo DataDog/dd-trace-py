@@ -4,6 +4,7 @@ from typing import Dict
 
 from ddtrace.internal.utils.formats import asbool
 
+from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
 
 
