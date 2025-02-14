@@ -16,7 +16,6 @@ from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.asm import ASMConfig
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
@@ -49,17 +48,17 @@ class IASTEnvironment:
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
-    return core.get_item(ASMConfig._iast_context)
+    return core.get_item(APPSEC.IAST_CONTEXT)
 
 
 def in_iast_context() -> bool:
-    return core.get_item(ASMConfig._iast_context) is not None
+    return core.get_item(APPSEC.IAST_CONTEXT) is not None
 
 
 def start_iast_context():
     if asm_config._iast_enabled:
         create_propagation_context()
-        core.set_item(ASMConfig._iast_context, IASTEnvironment())
+        core.set_item(APPSEC.IAST_CONTEXT, IASTEnvironment())
 
 
 def end_iast_context(span: Optional[Span] = None):
@@ -70,7 +69,7 @@ def end_iast_context(span: Optional[Span] = None):
 
 
 def finalize_iast_env(env: IASTEnvironment) -> None:
-    core.discard_item(ASMConfig._iast_context)
+    core.discard_item(APPSEC.IAST_CONTEXT)
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
