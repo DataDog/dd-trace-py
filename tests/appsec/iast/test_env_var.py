@@ -21,7 +21,7 @@ def _run_python_file(*args, **kwargs):
         ret = subprocess.run(cmd, cwd=current_dir, env=kwargs["env"])
     else:
         ret = subprocess.run(cmd, cwd=current_dir)
-    assert ret.returncode == 0, "Return code is not 0, stderr: %s, stdout: %s" % (ret.stderr, ret.stdout)
+    assert ret.returncode == 0
 
 
 def test_env_var_iast_enabled(capfd):
