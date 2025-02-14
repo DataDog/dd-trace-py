@@ -99,7 +99,9 @@ class VulnerabilityBase(Operation):
         vulnerability = Vulnerability(
             type=vulnerability_type,
             evidence=evidence,
-            location=Location(path=file_name, line=line_number, spanId=span_id, method=function_name, class_name=class_name),
+            location=Location(
+                path=file_name, line=line_number, spanId=span_id, method=function_name, class_name=class_name
+            ),
         )
         if report:
             report.vulnerabilities.add(vulnerability)
@@ -142,7 +144,9 @@ class VulnerabilityBase(Operation):
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="", dialect=dialect)
 
-            result = cls._prepare_report(cls.vulnerability_type, evidence, file_name, line_number, function_name, class_name)
+            result = cls._prepare_report(
+                cls.vulnerability_type, evidence, file_name, line_number, function_name, class_name
+            )
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
             # we need to restore the quota
             if not result:
