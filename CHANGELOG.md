@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.19.3
+
+
+### Bug Fixes
+
+- CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+- profiling: fix SystemError from the memory profiler returning NULL when collecting events
+
+
+---
+
 ## 2.19.2
 ### Bug Fixes
 

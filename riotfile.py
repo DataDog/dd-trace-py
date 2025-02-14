@@ -1271,7 +1271,7 @@ venv = Venv(
                     pys="3.8",
                     pkgs={
                         "requests": [
-                            "~=2.23.0",
+                            "~=2.22.0",
                             latest,
                         ],
                     },
@@ -2755,6 +2755,8 @@ venv = Venv(
                 Venv(
                     pys=["3.8"],
                     pkgs={"greenlet": "==3.1.0"},
+                    # Prevent segfaults from zope.interface c optimizations
+                    env={"PURE_PYTHON": "1"},
                 ),
                 # Python 3.9-3.12
                 Venv(
@@ -2866,28 +2868,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.11
+                # Python >= 3.11
                 Venv(
-                    pys="3.11",
-                    pkgs={"uwsgi": latest},
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==4.22.0", latest],
-                            },
-                        ),
-                        # Gevent
-                        Venv(
-                            env={
-                                "DD_PROFILE_TEST_GEVENT": "1",
-                            },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
-                        ),
-                    ],
-                ),
-                # Python 3.12
-                Venv(
-                    pys="3.12",
+                    pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
