@@ -1,4 +1,3 @@
-import ast
 from collections import defaultdict
 import datetime as dt
 from http.client import HTTPSConnection
@@ -17,6 +16,7 @@ from pip import _internal
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
+
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
@@ -80,28 +80,27 @@ def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
     all_required_modules = set()
     for item in CONTRIB_ROOT.iterdir():
-        print(f"DEBUG: Found path: {item}")
+        # print(f"DEBUG: Found path: {item}")
         if not os.path.isdir(item):
-            print(f"DEBUG: Skipping {item} - not a directory")
+            # print(f"DEBUG: Skipping {item} - not a directory")
             continue
 
         patch_filepath = item / "patch.py"
-        print(f"DEBUG: Looking for patch file at: {patch_filepath}")
+        # print(f"DEBUG: Looking for patch file at: {patch_filepath}")
 
         if os.path.isfile(patch_filepath):
-            print(f"DEBUG: Found patch.py in: {item}")
+            # print(f"DEBUG: Found patch.py in: {item}")
             with open(patch_filepath, "r") as patchfile:
                 patch_content = patchfile.read()
 
             # Check if this patch file has a get_version function
             if "def get_version()" in patch_content:
                 module_name = item.name
-                print(f"DEBUG: Found get_version() in {module_name}")
+                # print(f"DEBUG: Found get_version() in {module_name}")
                 all_required_modules.add(module_name)
-            else:
-                print(f"DEBUG: No get_version() found in {module_name}")
 
-    print(f"DEBUG: Final all_required_modules: {all_required_modules}")
+
+    # print(f"DEBUG: Final all_required_modules: {all_required_modules}")
     return all_required_modules
 
 
@@ -247,36 +246,41 @@ def _get_version_bounds(packages) -> dict:
     return bounds
 
 def output_outdated_packages(all_required_packages, envs, bounds):
-    print("DEBUG: Starting output_outdated_packages")
-    print(f"DEBUG: all_required_packages = {all_required_packages}")
-    print(f"DEBUG: envs = {envs}")
+    # print("DEBUG: Starting output_outdated_packages")
+    # print(f"DEBUG: all_required_packages = {all_required_packages}")
+    # print(f"DEBUG: envs = {envs}")
+    outdated_packages = []
 
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
         bounds[package] = (earliest, latest)
-        print(f"DEBUG: For package {package}, earliest={earliest}, latest={latest}")
+        # print(f"DEBUG: For package {package}, earliest={earliest}, latest={latest}")
 
     all_used_versions = defaultdict(set)
     for env in envs:
         versions_used = _get_package_versions_from(env, all_required_packages)
-        print(f"DEBUG: For env {env}, versions_used = {versions_used}")
+        # print(f"DEBUG: For env {env}, versions_used = {versions_used}")
         for pkg, version in versions_used:
             all_used_versions[pkg].add(version)
 
-    print(f"DEBUG: all_used_versions = {dict(all_used_versions)}")
+    # print(f"DEBUG: all_used_versions = {dict(all_used_versions)}")
 
     for package in all_required_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
-        print(f"DEBUG: For package {package}, ordered versions = {ordered}")
+        # print(f"DEBUG: For package {package}, ordered versions = {ordered}")
         if not ordered:
-            print(f"DEBUG: Skipping {package} - no versions found")
+            # print(f"DEBUG: Skipping {package} - no versions found")
             continue
         if not _versions_fully_cover_bounds(bounds[package], ordered):
-            print(f"{package}")
+            # print(f"{package} is out of date")
+            outdated_packages.append(package)
+
+    print(" ".join(outdated_packages))
+
 
 def generate_supported_versions(contrib_packages, all_used_versions, patched):
     for mod in mapping_module_to_package:
-        contrib_packages.remove(mod)
+        contrib_packages.discard(mod)
         contrib_packages.add(mapping_module_to_package[mod])
         patched[mapping_module_to_package[mod]] = _is_module_autoinstrumented(mod)
 
