@@ -39,7 +39,7 @@ class Profiler(object):
     """Run profiling while code is executed.
 
     Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
-    caught.
+    caught. Just add comment to trigger tests.
 
     """
 
