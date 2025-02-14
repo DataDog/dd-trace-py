@@ -1,11 +1,13 @@
 import os
-import sys
 from typing import Dict
 
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.logger import get_logger
 
 from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
+
+
+log = get_logger(__name__)
 
 
 def get_configuration_from_disk(debug_logs: bool = False) -> Dict[str, Dict[str, str]]:
@@ -29,9 +31,12 @@ def get_configuration_from_disk(debug_logs: bool = False) -> Dict[str, Dict[str,
 
     config = {}
     try:
-        config = {entry["name"]: entry for entry in configurator.get_configuration()}
+        for entry in configurator.get_configuration():
+            env = entry["name"]
+            if env not in entry or "source" == "fleet_stable_config":
+                # Ensure that the fleet stable configurations takes precedence over the local stable configurations
+                config[env] = entry
     except Exception as e:
         # No logger at this point, so we rely on good old print
-        if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):
-            print("Error reading configuration from disk, skipping: %s" % e, file=sys.stderr)
+        log.error("Failed to load configuration from disk, skipping: %s", str(e))
     return config
