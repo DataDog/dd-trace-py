@@ -19,7 +19,7 @@ for pkg in ${pkgs[*]}; do
     if [[ ${#RIOT_HASHES[@]} -eq 0 ]]; then
         echo "No riot hashes found for pattern: $VENV_NAME"
     else
-        # echo "VENV_NAME=$VENV_NAME" >> $GITHUB_ENV
+        echo "VENV_NAME=$VENV_NAME" >> $GITHUB_ENV
         for h in ${RIOT_HASHES[@]}; do
             echo "Removing riot lockfiles"
             rm ".riot/requirements/${h}.txt"
