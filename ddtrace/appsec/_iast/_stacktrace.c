@@ -35,27 +35,9 @@ GET_FILENAME(PyFrameObject* frame)
     return filename;
 }
 
-/* Use the public API to get the locals dictionary */
 static inline PyObject* GET_LOCALS(PyFrameObject* frame) {
     return PyFrame_GetLocals(frame);
 }
-
-#else
-#define GET_FRAME(tstate) tstate->frame
-#define GET_PREVIOUS(frame) frame->f_back
-#define GET_FILENAME(frame) ((PyObject*)(frame->f_code->co_filename))
-#define FRAME_DECREF(frame)
-#define FRAME_XDECREF(frame)
-#define FILENAME_DECREF(filename)
-#define FILENAME_XDECREF(filename)
-#define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
-#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
-/* See: https://bugs.python.org/issue44964 */
-#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
-#else
-#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
-#endif
-#endif
 
 static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
     PyCodeObject* code = PyFrame_GetCode(frame);
@@ -69,6 +51,28 @@ static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
     }
     return func;
 }
+
+#else
+#define GET_FRAME(tstate) tstate->frame
+#define GET_PREVIOUS(frame) frame->f_back
+#define GET_FILENAME(frame) ((PyObject*)(frame->f_code->co_filename))
+#define FRAME_DECREF(frame)
+#define FRAME_XDECREF(frame)
+#define FILENAME_DECREF(filename)
+#define FILENAME_XDECREF(filename)
+#define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
+static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
+    PyObject* func = frame->f_code->co_name;
+    Py_INCREF(func);
+    return func;
+}
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
+/* See: https://bugs.python.org/issue44964 */
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
+#else
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#endif
+#endif
 
 static inline PyObject* GET_CLASS(PyFrameObject* frame) {
     PyObject* locals = GET_LOCALS(frame);
