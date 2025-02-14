@@ -96,13 +96,15 @@ def test_slow_imports():
     blocklist = [
         "ddtrace.appsec._api_security.api_manager",
         "ddtrace.appsec._iast._ast.ast_patching",
+        "ddtrace.internal._file_queue",
         "ddtrace.internal.telemetry.telemetry_writer",
         "email.mime.application",
         "email.mime.multipart",
-        "logging.handlers",
-        "multiprocessing",
         "importlib.metadata",
         "importlib_metadata",
+        "logging.handlers",
+        "multiprocessing",
+        "secrets",
     ]
 
     class BlockListFinder:
@@ -114,6 +116,10 @@ def test_slow_imports():
 
     try:
         sys.meta_path.insert(0, BlockListFinder())
+
+        for mod in sys.modules.copy():
+            if mod.startswith("ddtrace") or mod in blocklist:
+                del sys.modules[mod]
 
         import ddtrace
         import ddtrace.contrib.internal.aws_lambda  # noqa:F401
