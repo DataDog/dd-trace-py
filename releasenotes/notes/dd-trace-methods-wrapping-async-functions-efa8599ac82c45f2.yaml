@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    tracing: This fix resolves an issue where asynchronous functions instrumented by `DD_TRACE_METHODS` ended their spans prematurely (right after coroutine creation).
-    The updated logic properly awaits the async call, ensuring the span remains open until the coroutine finishes.
+    tracing: Captures the execution of async functions traced via DD_TRACE_METHODS, not just coroutine creation.
