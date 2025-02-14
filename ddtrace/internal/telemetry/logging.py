@@ -32,7 +32,7 @@ class DDTelemetryLogHandler(logging.Handler):
                 else TELEMETRY_LOG_LEVEL.DEBUG
             )
             # Only collect telemetry for logs with a traceback
-            stack_trace = self._format_stack_trace(record.exc_info)
+            stack_trace = self._format_stack_trace(record)
             if stack_trace is not None:
                 # Report only exceptions with a stack trace
                 self.telemetry_writer.add_log(
@@ -42,10 +42,10 @@ class DDTelemetryLogHandler(logging.Handler):
                     stack_trace=stack_trace,
                 )
 
-    def _format_stack_trace(self, exc_info):
-        if exc_info is None:
+    def _format_stack_trace(self, record: logging.LogRecord) -> str | None:
+        if record.exc_info is None:
             return None
-        exc_type, exc_value, exc_traceback = exc_info
+        exc_type, exc_value, exc_traceback = record.exc_info
         if exc_traceback:
             tb = traceback.extract_tb(exc_traceback)
             formatted_tb = ["Traceback (most recent call last):"]
@@ -59,7 +59,7 @@ class DDTelemetryLogHandler(logging.Handler):
             formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
 
-    def _should_redact(self, filename):
+    def _should_redact(self, filename: str) -> bool:
         return "ddtrace" not in filename
 
     def _format_file_path(self, filename):
