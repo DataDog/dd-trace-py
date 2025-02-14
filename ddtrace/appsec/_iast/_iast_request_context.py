@@ -11,7 +11,6 @@ from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
-from ddtrace.appsec._iast.constants import IAST_CONTEXT
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
@@ -49,17 +48,17 @@ class IASTEnvironment:
 
 
 def _get_iast_context() -> Optional[IASTEnvironment]:
-    return core.get_item(IAST_CONTEXT)
+    return core.get_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def in_iast_context() -> bool:
-    return core.get_item(IAST_CONTEXT) is not None
+    return core.get_item(IAST.REQUEST_CONTEXT_KEY) is not None
 
 
 def start_iast_context():
     if asm_config._iast_enabled:
         create_propagation_context()
-        core.set_item(IAST_CONTEXT, IASTEnvironment())
+        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
 
 
 def end_iast_context(span: Optional[Span] = None):
@@ -70,7 +69,7 @@ def end_iast_context(span: Optional[Span] = None):
 
 
 def finalize_iast_env(env: IASTEnvironment) -> None:
-    core.discard_item(IAST_CONTEXT)
+    core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
