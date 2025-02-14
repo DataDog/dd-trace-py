@@ -71,7 +71,6 @@ class ASMConfig(Env):
     )
     _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
-    _iast_context = "_iast_env"
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
@@ -274,7 +273,7 @@ class ASMConfig(Env):
 
     @property
     def is_iast_request_enabled(self) -> bool:
-        env = core.get_item(self._iast_context)
+        env = core.get_item(APPSEC.IAST_CONTEXT)
         if env:
             return env.request_enabled
         return False
