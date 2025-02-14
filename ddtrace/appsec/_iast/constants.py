@@ -1,7 +1,6 @@
 import re
 from typing import Any
 from typing import Dict
-from typing import Literal
 
 
 VULN_INSECURE_HASHING_TYPE = "WEAK_HASH"
