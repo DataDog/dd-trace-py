@@ -13,13 +13,10 @@ from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
-from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
-from ddtrace.appsec._iast._patch_modules import patch_iast
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
