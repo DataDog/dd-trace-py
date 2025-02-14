@@ -1,3 +1,5 @@
+# this module must not load any other unsafe appsec module directly
+
 import logging
 import sys
 from typing import Any
@@ -5,6 +7,7 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
@@ -21,7 +24,6 @@ def parse_response_body(raw_body):
     import xmltodict
 
     from ddtrace.appsec import _asm_request_context
-    from ddtrace.appsec._constants import SPAN_DATA_NAMES
     from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
