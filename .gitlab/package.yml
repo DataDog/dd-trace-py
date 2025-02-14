@@ -3,7 +3,7 @@ download_ddtrace_artifacts:
   tags: [ "arch:amd64" ]
   stage: package
   script: |
-    if [ -z ${GH_TOKEN} ];
+    if [ -z ${GH_TOKEN} ]
     then
       aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
       gh auth login --with-token < token
