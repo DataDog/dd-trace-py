@@ -4,7 +4,6 @@ from typing import Text
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -82,6 +81,6 @@ class CodeInjection(VulnerabilityBase):
 def _iast_report_code_injection(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
-    if is_iast_request_enabled():
+    if asm_config.is_iast_request_enabled:
         if is_pyobject_tainted(code_string):
             CodeInjection.report(evidence_value=code_string)

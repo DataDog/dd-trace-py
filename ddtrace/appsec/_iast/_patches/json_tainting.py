@@ -4,7 +4,6 @@ from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-from .._iast_request_context import is_iast_request_enabled
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
@@ -42,7 +41,7 @@ def wrapped_loads(wrapped, instance, args, kwargs):
     from .._taint_utils import taint_structure
 
     obj = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         from .._taint_tracking._taint_objects import get_tainted_ranges
         from .._taint_tracking._taint_objects import taint_pyobject
 
