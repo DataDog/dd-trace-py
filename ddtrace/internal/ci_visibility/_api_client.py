@@ -22,6 +22,7 @@ from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -35,6 +36,8 @@ from ddtrace.internal.ci_visibility.telemetry.early_flake_detection import recor
 from ddtrace.internal.ci_visibility.telemetry.git import record_settings_response
 from ddtrace.internal.ci_visibility.telemetry.itr import SKIPPABLE_TESTS_TELEMETRY
 from ddtrace.internal.ci_visibility.telemetry.itr import record_skippable_count
+from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGEMENT_TELEMETRY
+from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -90,9 +93,19 @@ class EarlyFlakeDetectionSettings:
 
 
 @dataclasses.dataclass(frozen=True)
-class QuarantineSettings:
+class TestManagementSettings:
     enabled: bool = False
-    skip_quarantined_tests: bool = False
+
+    __test__ = False
+
+
+@dataclasses.dataclass(frozen=True)
+class TestProperties:
+    quarantined: bool = False
+    disabled: bool = False
+    attempt_to_fix: bool = False
+
+    __test__ = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -104,7 +117,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
-    quarantine: QuarantineSettings = dataclasses.field(default_factory=QuarantineSettings)
+    test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -384,11 +397,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
-            quarantine = QuarantineSettings(
-                enabled=attributes.get("quarantine", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_QUARANTINE")),
-                skip_quarantined_tests=attributes.get("quarantine", {}).get("skip_quarantined_tests", False)
-                or asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")),
+            test_management = TestManagementSettings(
+                enabled=attributes.get("test_management", {}).get("enabled", False)
+                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
             )
 
         except KeyError:
@@ -402,7 +413,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
             early_flake_detection=early_flake_detection,
-            quarantine=quarantine,
+            test_management=test_management,
         )
 
         record_settings_response(
@@ -412,7 +423,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
-            quarantine_enabled=api_settings.quarantine.enabled,
+            test_management_enabled=api_settings.test_management.enabled,
         )
 
         return api_settings
@@ -546,6 +557,68 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         record_early_flake_detection_tests_count(len(unique_test_ids))
 
         return unique_test_ids
+
+    def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
+        metric_names = APIRequestMetricNames(
+            count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
+            duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
+            response_bytes=TEST_MANAGEMENT_TELEMETRY.RESPONSE_BYTES.value,
+            error=TEST_MANAGEMENT_TELEMETRY.REQUEST_ERRORS.value,
+        )
+
+        test_properties: t.Dict[InternalTestId, TestProperties] = {}
+        payload = {
+            "data": {
+                "id": str(uuid4()),
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {
+                    "repository_url": self._git_data.repository_url,
+                },
+            }
+        }
+
+        try:
+            parsed_response = self._do_request_with_telemetry(
+                "POST", TEST_MANAGEMENT_TESTS_ENDPOINT, json.dumps(payload), metric_names
+            )
+        except Exception:  # noqa: E722
+            return None
+
+        if "errors" in parsed_response:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            log.debug("Test Management tests response contained an error")
+            return None
+
+        try:
+            modules = parsed_response["data"]["attributes"]["modules"]
+        except KeyError:
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        try:
+            for module_name, module_data in modules.items():
+                module_id = TestModuleId(module_name)
+                suites = module_data["suites"]
+                for suite_name, suite_data in suites.items():
+                    suite_id = TestSuiteId(module_id, suite_name)
+                    tests = suite_data["tests"]
+                    for test_name, test_data in tests.items():
+                        test_id = InternalTestId(suite_id, test_name)
+                        properties = test_data.get("properties", {})
+                        test_properties[test_id] = TestProperties(
+                            quarantined=properties.get("quarantined", False),
+                            disabled=properties.get("disabled", False),
+                            attempt_to_fix=properties.get("attempt_to_fix", False),
+                        )
+
+        except Exception:  # noqa: E722
+            log.debug("Failed to parse Test Management tests data", exc_info=True)
+            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            return None
+
+        record_test_management_tests_count(len(test_properties))
+
+        return test_properties
 
 
 class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):

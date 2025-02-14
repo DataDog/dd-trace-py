@@ -72,7 +72,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         elif self.efd_is_faulty_session():
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
 
-    def _set_quarantine_tags(self):
+    def _set_test_management_tags(self):
         self.set_tag(TEST_SESSION_QUARANTINE_ENABLED, True)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:

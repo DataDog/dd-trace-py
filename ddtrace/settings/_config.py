@@ -98,6 +98,107 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r")"
 )
 
+# All integration config names must be set here.
+# This allows users to set integration configs before an integration is patched.
+INTEGRATION_CONFIGS = frozenset(
+    {
+        "pyodbc",
+        "dramatiq",
+        "flask",
+        "google_generativeai",
+        "urllib3",
+        "subprocess",
+        "kafka",
+        "futures",
+        "unittest",
+        "falcon",
+        "langgraph",
+        "aioredis",
+        "test_visibility",
+        "redis",
+        "mako",
+        "sqlite3",
+        "aws_lambda",
+        "gevent",
+        "sanic",
+        "snowflake",
+        "pymemcache",
+        "azure_functions",
+        "protobuf",
+        "aiohttp_jinja2",
+        "pymongo",
+        "freezegun",
+        "vertica",
+        "rq_worker",
+        "elasticsearch",
+        "sqlalchemy",
+        "langchain",
+        "pymysql",
+        "psycopg",
+        "graphql",
+        "aiomysql",
+        "pyramid",
+        "dbapi2",
+        "vertexai",
+        "cherrypy",
+        "flask_cache",
+        "grpc",
+        "aiohttp_client",
+        "loguru",
+        "pytest",
+        "bottle",
+        "selenium",
+        "kombu",
+        "sqlite",
+        "structlog",
+        "celery",
+        "coverage",
+        "mysqldb",
+        "pynamodb",
+        "anthropic",
+        "aiopg",
+        "dogpile_cache",
+        "pylibmc",
+        "mongoengine",
+        "httpx",
+        "httplib",
+        "rq",
+        "jinja2",
+        "aredis",
+        "algoliasearch",
+        "asgi",
+        "tornado",
+        "avro",
+        "fastapi",
+        "consul",
+        "asyncio",
+        "requests",
+        "logbook",
+        "genai",
+        "openai",
+        "logging",
+        "cassandra",
+        "boto",
+        "mariadb",
+        "aiohttp",
+        "wsgi",
+        "botocore",
+        "rediscluster",
+        "asyncpg",
+        "django",
+        "aiobotocore",
+        "pytest_bdd",
+        "starlette",
+        "valkey",
+        "molten",
+        "mysql",
+        "grpc_server",
+        "grpc_client",
+        "grpc_aio_client",
+        "grpc_aio_server",
+    }
+)
+
 
 def _parse_propagation_styles(styles_str):
     # type: (str) -> Optional[List[str]]
@@ -568,6 +669,7 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", False, asbool)
+        self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
@@ -577,11 +679,13 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
-        if name not in self._integration_configs:
+        elif name in self._integration_configs:
+            return self._integration_configs[name]
+        elif name in INTEGRATION_CONFIGS:
+            # Allows for accessing integration configs before an integration is patched
             self._integration_configs[name] = IntegrationConfig(self, name)
-
-        return self._integration_configs[name]
+            return self._integration_configs[name]
+        raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
@@ -623,6 +727,12 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
+        if integration not in INTEGRATION_CONFIGS:
+            log.error(
+                "%s not found in INTEGRATION_CONFIGS, the following settings will be ignored: %s", integration, settings
+            )
+            return
+
         # DEV: Use `getattr()` to call our `__getattr__` helper
         existing = getattr(self, integration)
         settings = deepcopy(settings)
@@ -670,8 +780,9 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._integration_config.keys())
-        return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+        integrations = ", ".join(self._integration_configs.keys())
+        rc_configs = ", ".join(self._config.keys())
+        return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
     def _subscribe(self, items, handler):
         # type: (List[str], Callable[[Config, List[str]], None]) -> None

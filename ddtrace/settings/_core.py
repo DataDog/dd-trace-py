@@ -43,7 +43,7 @@ def get_config(
     if isinstance(envs, str):
         envs = [envs]
     val = None
-    # Get configurations from stable config
+    # Get configuration from stable config
     for env in envs:
         entry = STABLE_CONFIGS.get(env)
         if entry and (
@@ -55,8 +55,8 @@ def get_config(
                 val = modifier(val)
             if report_telemetry:
                 telemetry_writer.add_configuration(env, val, entry["source"])
-    # Get configurations from otel env vars
-    if val is None and otel_env and should_parse_otel_env(otel_env):
+    # Get configuration from otel env vars
+    if otel_env and should_parse_otel_env(otel_env):
         parsed_val = parse_otel_env(otel_env)
         if parsed_val is not None:
             val = parsed_val
@@ -65,7 +65,7 @@ def get_config(
             if report_telemetry:
                 raw_value = os.environ.get(otel_env, "").lower()
                 telemetry_writer.add_configuration(otel_env, raw_value, "env_var")
-    # Get configurations from datadog env vars
+    # Get configuration from datadog env vars
     if val is None:
         for env in envs:
             if env in os.environ:
@@ -75,7 +75,7 @@ def get_config(
                 if report_telemetry:
                     telemetry_writer.add_configuration(env, val, "env_var")
                 break
-    # Set configurations to default value
+    # Use default value to set configuration
     if val is None:
         val = default
         if report_telemetry:
