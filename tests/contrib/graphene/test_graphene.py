@@ -121,6 +121,7 @@ def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_
     query_string = '{ user(id: "999") }'
     result = schema.execute(query_string)
     assert result.errors
+    assert result.errors[0].extensions is not None
 
 
 @pytest.mark.snapshot(
