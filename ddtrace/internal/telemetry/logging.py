@@ -33,7 +33,7 @@ class DDTelemetryLogHandler(logging.Handler):
                 else TELEMETRY_LOG_LEVEL.DEBUG
             )
             # Only collect telemetry for logs with a traceback
-            stack_trace = self._format_stack_trace(record)
+            stack_trace = self._format_stack_trace(record.exc_info)
             if stack_trace is not None:
                 # Report only exceptions with a stack trace
                 self.telemetry_writer.add_log(
@@ -43,14 +43,11 @@ class DDTelemetryLogHandler(logging.Handler):
                     stack_trace=stack_trace,
                 )
 
-    def _format_stack_trace(self, record: logging.LogRecord) -> Union[str, None]:
-        if record is None:
+    def _format_stack_trace(self, exc_info: any) -> Union[str, None]:
+        if exc_info is None:
             return None
 
-        if record.exc_info is None:
-            return None
-
-        exc_type, exc_value, exc_traceback = record.exc_info
+        exc_type, exc_value, exc_traceback = exc_info
         if exc_traceback:
             tb = traceback.extract_tb(exc_traceback)
             formatted_tb = ["Traceback (most recent call last):"]
