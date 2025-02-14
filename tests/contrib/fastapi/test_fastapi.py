@@ -661,10 +661,9 @@ if __name__ == "__main__":
         {
             "endpoint": "/items/foo",
             "status_code": "200",
-            "http.route": "/items/{item_id}",
             "resource_suffix": "/items/{item_id}",
         },
-        {"endpoint": "/500", "status_code": "500", "http.route": "/500", "resource_suffix": "/500"},
+        {"endpoint": "/500", "status_code": "500", "resource_suffix": "/500"},
     ],
 )
 @pytest.mark.parametrize(
@@ -724,7 +723,6 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
                 api_gateway_service_name="local",
                 api_gateway_resource="GET /",
                 method="GET",
-                route="/",
                 status_code=test["status_code"],
                 url="local/",
                 start=1736973768,
