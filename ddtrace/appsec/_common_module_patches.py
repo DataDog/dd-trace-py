@@ -48,7 +48,7 @@ def patch_common_modules():
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
     try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
-    if asm_config._iast_enabled in os.environ:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
         from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 
