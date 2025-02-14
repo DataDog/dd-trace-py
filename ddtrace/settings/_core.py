@@ -8,10 +8,14 @@ from typing import Union  # noqa:F401
 from envier.env import EnvVariable
 from envier.env import _normalized
 
+from ddtrace.internal.native import get_configuration_from_disk
 from ddtrace.internal.telemetry import telemetry_writer
 
 from ._otel_remapper import parse_otel_env
 from ._otel_remapper import should_parse_otel_env
+
+
+STABLE_CONFIGS = get_configuration_from_disk()
 
 
 def report_telemetry(env: Any) -> None:
@@ -39,7 +43,20 @@ def get_config(
     if isinstance(envs, str):
         envs = [envs]
     val = None
-    if otel_env and should_parse_otel_env(otel_env):
+    # Get configurations from stable config
+    for env in envs:
+        entry = STABLE_CONFIGS.get(env)
+        if entry and (
+            entry["source"] == "fleet_stable_config"
+            or (entry["source"] == "local_stable_config" and entry["name"] not in list(os.environ.keys()))
+        ):
+            val = entry["value"]
+            if modifier:
+                val = modifier(val)
+            if report_telemetry:
+                telemetry_writer.add_configuration(env, val, entry["source"])
+    # Get configurations from otel env vars
+    if val is None and otel_env and should_parse_otel_env(otel_env):
         parsed_val = parse_otel_env(otel_env)
         if parsed_val is not None:
             val = parsed_val
@@ -48,7 +65,7 @@ def get_config(
             if report_telemetry:
                 raw_value = os.environ.get(otel_env, "").lower()
                 telemetry_writer.add_configuration(otel_env, raw_value, "env_var")
-
+    # Get configurations from datadog env vars
     if val is None:
         for env in envs:
             if env in os.environ:
@@ -58,7 +75,7 @@ def get_config(
                 if report_telemetry:
                     telemetry_writer.add_configuration(env, val, "env_var")
                 break
-
+    # Set configurations to default value
     if val is None:
         val = default
         if report_telemetry:
