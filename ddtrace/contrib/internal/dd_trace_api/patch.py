@@ -39,11 +39,7 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
             stub,
             fn_name,
             self.get_local("retval"),
-            **{
-                param: self.get_local(param)
-                for param in _params_for_fn(self, stub, fn_name)
-                if param != "self"
-            },
+            **{param: self.get_local(param) for param in _params_for_fn(self, stub, fn_name) if param != "self"},
         )
 
     def _handle_enter(self) -> None:
