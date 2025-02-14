@@ -574,7 +574,7 @@ test = [
 ]
 
 [[envs.multiple_os_tests.matrix]]
-python = ["3.13", "3.10", "3.8"]
+python = ["3.13", "3.12", "3.10", "3.8"]
 
 # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
 # across all supported versions
