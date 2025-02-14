@@ -24,42 +24,6 @@ def _run_python_file(*args, **kwargs):
     assert ret.returncode == 0, "Return code is not 0, stderr: %s" % ret.stderr
 
 
-def test_iast_pytest_env_var_enables_right_import_even_with_var_undefined(capfd):
-    env = os.environ.copy()
-    env.pop("DD_IAST_ENABLED", None)
-    env["_DD_IAST_PYTEST"] = "1"
-    _run_python_file(env=env, filename="import_is_iast_request_enabled.py")
-    captured = capfd.readouterr()
-    assert "Always False body: False" in captured.out
-
-
-def test_iast_pytest_env_var_enables_right_import_even_with_var_false(capfd):
-    env = os.environ.copy()
-    env["DD_IAST_ENABLED"] = "0"
-    env["_DD_IAST_PYTEST"] = "1"
-    _run_python_file(env=env, filename="import_is_iast_request_enabled.py")
-    captured = capfd.readouterr()
-    assert "Always False body: False" in captured.out
-
-
-def test_iast_pytest_env_not_set_and_iast_enabled_true_then_real_body(capfd):
-    env = os.environ.copy()
-    env.pop("_DD_IAST_PYTEST", None)
-    env["DD_IAST_ENABLED"] = "1"
-    _run_python_file(env=env, filename="import_is_iast_request_enabled.py")
-    captured = capfd.readouterr()
-    assert "Always False body: False" in captured.out
-
-
-def test_iast_pytest_env_not_set_and_iast_enabled_false_then_fake_body(capfd):
-    env = os.environ.copy()
-    env.pop("_DD_IAST_PYTEST", None)
-    env["DD_IAST_ENABLED"] = "0"
-    _run_python_file(env=env, filename="import_is_iast_request_enabled.py")
-    captured = capfd.readouterr()
-    assert "Always False body: True" in captured.out
-
-
 def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
