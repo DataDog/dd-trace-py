@@ -38,7 +38,6 @@ class DDTelemetryLogHandler(logging.Handler):
                 self.telemetry_writer.add_log(
                     telemetry_level,
                     record.msg,
-                    # Do we need to set this tag? Should we allow telemetry intake to infer this value?
                     tags={"lib_language": "python"},
                     stack_trace=stack_trace,
                 )
