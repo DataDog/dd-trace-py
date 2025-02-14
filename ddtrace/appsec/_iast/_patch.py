@@ -4,7 +4,6 @@ from typing import Text
 
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.internal.logger import get_logger
 
 from ._taint_utils import taint_structure
@@ -35,6 +34,7 @@ def set_module_unpatched(module_str: Text, default_attr: Text = "_datadog_patch"
 
 
 def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
+    from ddtrace.appsec._common_module_patches import wrap_object
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
