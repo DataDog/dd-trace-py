@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import http.client as httplib  # noqa: E402
 import itertools
-from logging import getLogger
 import os
 import sys
 import time
@@ -230,7 +229,7 @@ class TelemetryWriter(PeriodicService):
             if _TelemetryConfig.FORCE_START:
                 self._app_started()
             if _TelemetryConfig.LOG_COLLECTION_ENABLED:
-                getLogger("ddtrace").addHandler(DDTelemetryLogHandler(self))
+                get_logger("ddtrace").addHandler(DDTelemetryLogHandler(self))
 
     def enable(self):
         # type: () -> bool
