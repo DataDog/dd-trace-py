@@ -1,5 +1,6 @@
 from opentracing import ScopeManager  # noqa:F401
 
+from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 
 
@@ -7,7 +8,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 #    `context_provider` will just not be set and we'll get an `AttributeError` instead
 
 
-def get_context_provider_for_scope_manager(scope_manager):
+def get_context_provider_for_scope_manager(scope_manager: ScopeManager) -> BaseContextProvider:
     # type: (ScopeManager) -> BaseContextProvider
     """Returns the context_provider to use with a given scope_manager."""
 
@@ -17,8 +18,7 @@ def get_context_provider_for_scope_manager(scope_manager):
     return dd_context_provider
 
 
-def _patch_scope_manager(scope_manager, context_provider):
-    # type: (ScopeManager, BaseContextProvider) -> None
+def _patch_scope_manager(scope_manager: ScopeManager, context_provider: BaseContextProvider) -> None:
     """
     Patches a scope manager so that any time a span is activated
     it'll also activate the underlying ddcontext with the underlying
