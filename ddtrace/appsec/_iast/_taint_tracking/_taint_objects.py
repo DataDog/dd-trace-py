@@ -5,7 +5,6 @@ from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -17,13 +16,14 @@ from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_from_values
 from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
 
 
 def is_pyobject_tainted(pyobject: Any) -> bool:
-    if not is_iast_request_enabled():
+    if not asm_config.is_iast_request_enabled:
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
@@ -36,7 +36,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
-    if not is_iast_request_enabled():
+    if not asm_config.is_iast_request_enabled:
         return pyobject
 
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
@@ -68,7 +68,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
-    if not is_iast_request_enabled():
+    if not asm_config.is_iast_request_enabled:
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return False
@@ -81,7 +81,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 
 
 def get_tainted_ranges(pyobject: Any) -> Tuple:
-    if not is_iast_request_enabled():
+    if not asm_config.is_iast_request_enabled:
         return tuple()
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return tuple()
