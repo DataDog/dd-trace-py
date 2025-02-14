@@ -43,7 +43,7 @@ class DDTelemetryLogHandler(logging.Handler):
                     stack_trace=stack_trace,
                 )
 
-    def _format_stack_trace(self, exc_info: any) -> Union[str, None]:
+    def _format_stack_trace(self, exc_info) -> Union[str, None]:
         if exc_info is None:
             return None
 
