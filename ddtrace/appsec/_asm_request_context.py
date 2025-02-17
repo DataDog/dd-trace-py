@@ -26,13 +26,8 @@ from ddtrace.trace import Span
 
 
 if asm_config._iast_enabled:
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-else:
-
-    def is_iast_request_enabled() -> bool:
-        return False
 
 
 if TYPE_CHECKING:
@@ -500,7 +495,7 @@ def _on_wrapped_view(kwargs):
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
 
     if asm_config._iast_enabled and kwargs:
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             return return_value
 
         _kwargs = {}

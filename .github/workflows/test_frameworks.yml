@@ -44,6 +44,10 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -153,7 +157,7 @@ jobs:
             appsec: 0
     runs-on: ubuntu-latest
     needs: needs-run
-    timeout-minutes: 25
+    timeout-minutes: 15
     name: Django 5.0.7 (with ${{ matrix.suffix }})
     env:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
