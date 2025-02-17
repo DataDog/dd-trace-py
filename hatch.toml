@@ -186,7 +186,7 @@ DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
+CARGO_BUILD_JOBS = "12"
 
 ## ASM Django
 
@@ -202,6 +202,7 @@ dependencies = [
 
 [envs.appsec_threats_django.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -250,6 +251,7 @@ dependencies = [
 
 [envs.appsec_threats_flask.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -463,6 +465,7 @@ dependencies = [
 
 [envs.appsec_threats_fastapi.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
@@ -505,6 +508,7 @@ dependencies = [
 
 [envs.iast_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
 
@@ -538,6 +542,7 @@ dependencies = [
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 
 [envs.profiling_pytorch.scripts]
 test = [
@@ -564,6 +569,7 @@ dependencies = [
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
 CMAKE_BUILD_PARALLEL_LEVEL="6"
+CARGO_BUILD_JOBS = "6"
 
 [envs.multiple_os_tests.scripts]
 test = [
@@ -664,6 +670,7 @@ dependencies = [
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
 
 [envs.selenium.scripts]
 test = [
