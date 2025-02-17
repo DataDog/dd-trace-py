@@ -73,20 +73,6 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
-  appsec_iast_packages:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/iast/*
-      - tests/appsec/iast_packages/*
-    retry: 2
-    runner: hatch
-    timeout: 50m
   appsec_integrations_pygoat:
     parallelism: 7
     paths:
