@@ -299,30 +299,6 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## ASM appsec_iast_packages
-
-[envs.appsec_iast_packages]
-template = "appsec_iast_packages"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "astunparse",
-    "flask",
-    "virtualenv-clone"
-]
-
-[envs.appsec_iast_packages.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 _DD_APPSEC_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
-]
-
-[[envs.appsec_iast_packages.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
-
 ## ASM appsec_integrations_flask
 
 [envs.appsec_integrations_flask]
