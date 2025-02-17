@@ -543,7 +543,7 @@ class Span(object):
 
     def record_exception(
         self,
-        exception: Exception,
+        exception: BaseException,
         attributes: Optional[Dict[str, _JSONType]] = None,
         timestamp: Optional[int] = None,
         escaped=False,
@@ -553,7 +553,7 @@ class Span(object):
         If the exception is uncaught, :obj:`escaped` should be set :obj:`True`. It
         will tag the span with an error tuple.
 
-        :param Exception exception: the exception to record<
+        :param Exception exception: the exception to record
         :param dict attributes: optional attributes to add to the span event. It will override
             the base attributes if :obj:`attributes` contains existing keys.
         :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
