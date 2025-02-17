@@ -55,6 +55,7 @@ microbenchmarks:
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_update_imported_dependencies"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
