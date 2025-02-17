@@ -304,13 +304,11 @@ class FalconTestCase(FalconTestMixin):
                         "endpoint": "/200",
                         "status": 200,
                         "resource_name": "GET tests.contrib.falcon.app.resources.Resource200",
-                        "http.route": "/200",
                     },
                     {
                         "endpoint": "/exception",
                         "status": 500,
                         "resource_name": "GET tests.contrib.falcon.app.resources.ResourceException",
-                        "http.route": "/exception",
                     },
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
@@ -333,7 +331,6 @@ class FalconTestCase(FalconTestMixin):
                                 api_gateway_service_name="local",
                                 api_gateway_resource="GET /",
                                 method="GET",
-                                route="/",
                                 status_code=test_endpoint["status"],
                                 url="local/",
                                 start=1736973768.0,
