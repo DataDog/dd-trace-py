@@ -205,6 +205,7 @@ class CIVisibility(Service):
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
         self._service = service
+        self._is_user_provided_service = ddconfig._is_user_provided_service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
@@ -1000,6 +1001,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
+        is_user_provided_service=ddconfig._is_user_provided_service,
         test_command=discover_args.test_command,
         reject_duplicates=discover_args.reject_duplicates,
         test_framework=discover_args.test_framework,
