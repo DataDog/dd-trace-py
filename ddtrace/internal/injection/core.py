@@ -45,7 +45,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
     in the given code object. Injection is recursive, in case of nested code objects (e.g. inline functions).
     """
     code = injection_context.original_code
-    new_code, new_consts, new_linetable, new_exctable, seen_lines = _inject_invocation_nonrecursive(
+    new_code, new_consts, new_linetable, new_exctable, instrumented_lines = _inject_invocation_nonrecursive(
         injection_context, path, package
     )
 
@@ -55,7 +55,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
             new_consts[const_index], nested_lines = inject_invocation(
                 injection_context.transfer(nested_code), path, package
             )
-            seen_lines.extend(nested_lines)
+            instrumented_lines.extend(nested_lines)
 
     if sys.version_info >= (3, 11):
         code = code.replace(
@@ -75,7 +75,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
     return (
         code,
-        seen_lines,
+        instrumented_lines,
     )
 
 
@@ -196,7 +196,7 @@ def _inject_invocation_nonrecursive(
     hook_index = len(new_consts)
     new_consts.append(injection_context.hook)
 
-    seen_lines: list[int] = []
+    instrumented_lines: list[int] = []
     is_first_instrumented_module_line = code.co_name == "<module>"
 
     def append_instruction(opcode: int, extended_arg: int) -> bytearray:
@@ -235,7 +235,6 @@ def _inject_invocation_nonrecursive(
         line = line_starts.get(old_offset)
         if line is not None:
             injection_occurred = False
-            seen_lines.append(line)
             if old_offset in line_injection_offsets:
                 instructions = bytearray()
 
@@ -270,6 +269,7 @@ def _inject_invocation_nonrecursive(
 
                 offsets_map[old_offset] = len(instructions) // 2
                 injection_occurred = True
+                instrumented_lines.append(line)
                 new_code.extend(instructions)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
@@ -346,9 +346,6 @@ def _inject_invocation_nonrecursive(
         previous_previous_arg = previous_arg
         previous_arg = arg
 
-    # # Update line table for the last line we've seen.
-    # update_linetable(len(new_code) - previous_line_new_offset, previous_line - previous_previous_line)
-
     # Fixup the offsets.
     for old_offset, old_target in old_targets.items():
         new_offset = new_offsets[old_offset]
@@ -383,7 +380,7 @@ def _inject_invocation_nonrecursive(
         new_consts,
         _generate_adjusted_location_data(injection_context.original_code, offsets_map, extended_arg_offsets),
         exception_table,
-        seen_lines,
+        instrumented_lines,
     )
 
 
@@ -398,7 +395,8 @@ def _generate_adjusted_location_data(
     if is_python_3_10:
         return _generate_adjusted_location_data_3_10(code, offsets_map, extended_arg_offsets)
     elif is_python_3_11:
-        return _generate_adjusted_location_data_3_11(code, offsets_map, extended_arg_offsets)
+        test = _generate_adjusted_location_data_3_11(code, offsets_map, extended_arg_offsets)
+        return test
     else:
         raise NotImplementedError(f"Unsupported Python version: {sys.version_info}")
 
@@ -465,70 +463,68 @@ def _generate_adjusted_location_data_3_11(
     https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#format-of-the-locations-table
     """
     # DEV: We expect the original offsets in the trap_map
-    new_data = bytearray()
+    new_linetable = bytearray()
 
-    data = code.co_linetable
-    data_iter = iter(data)
+    orignal_linetable = code.co_linetable
+    linetable_iter = iter(orignal_linetable)
     ext_arg_offset_iter = iter(sorted(extended_arg_offsets))
     ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
     original_offset = 0
-    offset = 0
-
     while True:
         try:
             chunk = bytearray()
 
-            b = next(data_iter)
+            b = next(linetable_iter)
 
             chunk.append(b)
 
-            offset_delta = ((b & 7) + 1) << 1  # multiply by 2 because the length in the line table is in code units.
+            op_code_offset = ((b & 7) + 1) << 1  # multiply by 2 because the length in the line table is in code units.
             loc_code = (b >> 3) & 0xF
 
             # See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
             # meaning of the `loc_code` value.
             if loc_code == 14:
-                chunk.extend(_consume_signed_varint(data_iter))
+                chunk.extend(_consume_signed_varint(linetable_iter))
                 for _ in range(3):
-                    chunk.extend(_consume_varint(data_iter))
+                    chunk.extend(_consume_varint(linetable_iter))
             elif loc_code == 13:
-                chunk.extend(_consume_signed_varint(data_iter))
+                chunk.extend(_consume_signed_varint(linetable_iter))
             elif 10 <= loc_code <= 12:
                 for _ in range(2):
-                    chunk.append(next(data_iter))
+                    chunk.append(next(linetable_iter))
             elif 0 <= loc_code <= 9:
-                chunk.append(next(data_iter))
+                chunk.append(next(linetable_iter))
 
             if original_offset in offsets_map:
                 # No location info for the trap bytecode
                 injected_code_units_size = offsets_map[original_offset]
                 n, r = divmod(injected_code_units_size, 8)
                 for _ in range(n):
-                    chunk.append(0x80 | (0xF << 3) | 7)
+                    chunk.append(0x80 | 7)
+                    chunk.append(0x00)
                 if r:
-                    chunk.append(0x80 | (0xF << 3) | r - 1)
-                offset += injected_code_units_size << 1
+                    chunk.append(0x80 | r - 1)
+                    chunk.append(0x00)
 
             # Extend the line table record if we added any EXTENDED_ARGs
-            offset += offset_delta
-            if ext_arg_offset is not None and ext_arg_size is not None and original_offset >= ext_arg_offset:
-                # if ext_arg_offset is not None and offset > ext_arg_offset:
-                room = 7 - offset_delta
-                chunk[0] += min(room, t.cast(int, ext_arg_size))
-                if room < t.cast(int, ext_arg_size):
-                    chunk.append(0x80 | (0xF << 3) | t.cast(int, ext_arg_size) - room)
-                offset += ext_arg_size << 1
-
+            while ext_arg_offset is not None and ext_arg_size is not None and original_offset >= ext_arg_offset:
+                n, r = divmod(ext_arg_size, 8)
+                for _ in range(n):
+                    chunk.append(0x80 | 7)
+                    chunk.append(0x00)
+                if r:
+                    chunk.append(0x80 | r - 1)
+                    chunk.append(0x00)
                 ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
 
-            original_offset += offset_delta
+            original_offset += op_code_offset
 
-            new_data.extend(chunk)
+            new_linetable.extend(chunk)
         except StopIteration:
             break
 
-    return bytes(new_data)
+    return bytes(new_linetable)
 
 
 def _consume_varint(stream: t.Iterator[int]) -> bytes:

@@ -21,17 +21,19 @@ from ddtrace.internal.module import BaseModuleWatchdog
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
-_callback_lines: t.Dict[str, t.List[int]] = {}
+_callback_lines: t.Dict[str, set[int]] = {}
 _tracked_lines: t.Dict[str, t.List[int]] = {}
 
 
 def instrument_all_lines(func, callback: CallbackType) -> t.List[int]:
     code_to_instr = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-    if "__code__" not in dir(func):
+    if "__code__" not in dir(code_to_instr):
         return []
-    code = func.__code__
+    code = code_to_instr.__code__
 
-    injection_context = InjectionContext(code, callback, lambda _: [o for o, _ in dis.findlinestarts(code)])
+    injection_context = InjectionContext(
+        code, callback, lambda _s: [o for o, _ in dis.findlinestarts(_s.original_code)]
+    )
     new_code, seen_lines = inject_invocation(injection_context, code.co_filename, "package.py")
 
     code_to_instr.__code__ = new_code
@@ -44,8 +46,8 @@ def line_callback(*args):
     file_path = cb_info[1]
     global _callback_lines
     if file_path not in _callback_lines:
-        _callback_lines[file_path] = []
-    _callback_lines[file_path].append(line)
+        _callback_lines[file_path] = set()
+    _callback_lines[file_path].add(line)
 
 
 class InjectionWatchdog(BaseModuleWatchdog):
@@ -139,12 +141,16 @@ class InjectionWatchdog(BaseModuleWatchdog):
             lines_covered = set(seen_lines)
             diff = (lines_instrumented - lines_covered) | (lines_covered - lines_instrumented)
             total_diff += len(diff)
+            try:
+                path = str(Path(o).resolve().relative_to(CWD))
+            except:
+                path = ""
             log(
                 ("{:<%d} {:>5} {: 6.0f}%% {:>7}" % w).format(
-                    str(Path(o).resolve().relative_to(CWD)),
+                    path,
                     len(lines),
                     len(seen_lines) * 100.0 / len(lines) if lines else 0,
-                    str(diff),
+                    str(sorted(diff)),
                 )
             )
         if not total_lines:
@@ -185,10 +191,13 @@ class InjectionWatchdog(BaseModuleWatchdog):
             global _tracked_lines
             nb_instrumented_lines = instrument_all_lines(obj, callback=line_callback)
             if len(nb_instrumented_lines) != 0:
-                filename = obj.__code__.co_filename
+                if hasattr(obj, "__code__") is False:
+                    filename = obj.__wrapped__.__code__.co_filename
+                else:
+                    filename = obj.__code__.co_filename
                 if filename not in _tracked_lines:
                     _tracked_lines[filename] = []
-                _tracked_lines[obj.__code__.co_filename].extend(nb_instrumented_lines)
+                _tracked_lines[filename].extend(nb_instrumented_lines)
         elif isinstance(obj, type):
             # classes
             for candidate in obj.__dict__.keys():
