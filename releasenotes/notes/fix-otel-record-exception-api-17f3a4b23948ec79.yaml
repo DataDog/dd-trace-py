@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    tracing(otel-api): Ensures a call to otel-api record-exception sets
-    the span error metadata only if escaped is True.
+    opentelemetry: Ensures ``Span.record_exception(...)`` sets the span error metadata only if escaped is True.
