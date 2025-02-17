@@ -103,7 +103,7 @@ suites:
     runner: riot
     snapshot: true
   appsec_integrations_flask:
-    parallelism: 6
+    parallelism: 17
     paths:
       - '@bootstrap'
       - '@core'
@@ -118,7 +118,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 6
+    parallelism: 12
     paths:
       - '@bootstrap'
       - '@core'
