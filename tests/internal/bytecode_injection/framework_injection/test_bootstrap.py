@@ -28,7 +28,7 @@ def test_bytecode_injection_smoke():
 
     print(EXPL_FOLDER)
     sys.path.insert(0, str(EXPL_FOLDER))
-    import tests.internal.bytecode_injection.injection.preload  # noqa: F401
+    import tests.internal.bytecode_injection.framework_injection.preload  # noqa: F401
 
 
 @pytest.mark.subprocess(env=expl_env(), out=OUT)
@@ -57,6 +57,6 @@ def check_output_file(o):
 def test_bytecode_injection_file_output():
     from pathlib import Path
 
-    from tests.internal.bytecode_injection.injection._config import config
+    from tests.internal.bytecode_injection.framework_injection._config import config
 
     assert config.output_file == Path("expl.txt")

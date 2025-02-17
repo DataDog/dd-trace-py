@@ -7,7 +7,7 @@ import typing as t
 
 CallbackType = t.Callable[[t.Any], t.Any]
 
-assert (3, 10) <= sys.version_info < (3, 12)
+assert (3, 10) <= sys.version_info < (3, 12)  # nosec
 
 EXTENDED_ARG = dis.EXTENDED_ARG
 LOAD_CONST = dis.opmap["LOAD_CONST"]
@@ -395,8 +395,7 @@ def _generate_adjusted_location_data(
     if is_python_3_10:
         return _generate_adjusted_location_data_3_10(code, offsets_map, extended_arg_offsets)
     elif is_python_3_11:
-        test = _generate_adjusted_location_data_3_11(code, offsets_map, extended_arg_offsets)
-        return test
+        return _generate_adjusted_location_data_3_11(code, offsets_map, extended_arg_offsets)
     else:
         raise NotImplementedError(f"Unsupported Python version: {sys.version_info}")
 

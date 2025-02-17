@@ -5,8 +5,8 @@ import pytest
 
 
 if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
-    from ddtrace.internal.injection.core import InjectionContext
-    from ddtrace.internal.injection.core import inject_invocation
+    from ddtrace.internal.bytecode_injection.core import InjectionContext
+    from ddtrace.internal.bytecode_injection.core import inject_invocation
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),

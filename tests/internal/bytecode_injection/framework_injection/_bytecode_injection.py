@@ -13,10 +13,10 @@ from utils import from_editable_install
 from utils import is_ddtrace
 from utils import is_included
 
+from ddtrace.internal.bytecode_injection.core import CallbackType
+from ddtrace.internal.bytecode_injection.core import InjectionContext
+from ddtrace.internal.bytecode_injection.core import inject_invocation
 from ddtrace.internal.compat import Path
-from ddtrace.internal.injection.core import CallbackType
-from ddtrace.internal.injection.core import InjectionContext
-from ddtrace.internal.injection.core import inject_invocation
 from ddtrace.internal.module import BaseModuleWatchdog
 
 
