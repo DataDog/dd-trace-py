@@ -58,52 +58,24 @@ def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
     )
 
 
-"""
-On python >= 3,12, we are using sys.monitoring
-it will automatically records multiple times an error if
-it raised during tracing. Therefore we need additional
-logic to remove it
-"""
-if sys.version_info >= (3, 12):
+def _add_span_events(span: Span) -> None:
+    for event in span._exception_events.values():
+        span._events.append(event)
+    del span._meta["EXCEPTION_CB"]
 
-    def _add_span_events(span: Span) -> None:
-        if span.error == 1:
-            span._exception_events.popitem()
+
+def _conditionally_pop_span_events(span: Span) -> None:
+    if span.error == 1:
         for event in span._exception_events.values():
             span._events.append(event)
-        del span._meta["EXCEPTION_CB"]
-
-    def _conditionally_pop_span_events(span: Span) -> None:
-        if span.error == 1:
-            span._exception_events.popitem()
-            for event in span._exception_events.values():
-                span._events.append(event)
-        del span._meta["EXCEPTION_CB"]
-
-else:
-
-    def _add_span_events(span: Span) -> None:
-        for event in span._exception_events.values():
-            span._events.append(event)
-            print(event)
-        del span._meta["EXCEPTION_CB"]
-
-    def _conditionally_pop_span_events(span: Span) -> None:
-        if span.error == 1:
-            for event in span._exception_events.values():
-                span._events.append(event)
-        del span._meta["EXCEPTION_CB"]
-
-
-def _add_exception_event(exc, span: Span, span_event: SpanEvent):
-    span._add_exception_event(exc, span_event)
+    del span._meta["EXCEPTION_CB"]
 
 
 def _default_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
         exc, span, span_event = generated
-        _add_exception_event(exc, span, span_event)
+        span._add_exception_event(exc, span_event)
         span._add_on_finish_exception_cb(_add_span_events)
 
     if error_reporting_config._internal_logger:
@@ -117,7 +89,7 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
         exc, span, span_event = generated
-        _add_exception_event(exc, span, span_event)
+        span._add_exception_event(exc, span_event)
         span._add_on_finish_exception_cb(_conditionally_pop_span_events)
 
     if error_reporting_config._internal_logger:

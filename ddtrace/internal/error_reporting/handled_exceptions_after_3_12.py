@@ -31,10 +31,10 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     # Add conditions based on the requested checks
     if "all_user" in checks:
         conditions.append("is_user_code(file_path)")
-    if "all_third_party" in checks:
-        conditions.append("is_third_party(file_path)")
     if "modules" in checks:
         conditions.append("file_name in INSTRUMENTED_FILE_PATHS")
+    if "all_third_party" in checks:
+        conditions.append("(is_third_party(file_path) and 'ddtrace' not in file_name)")
 
     # Combine all conditions into a single expression
     logic = "'frozen' not in file_name and (" + " or ".join(conditions) + ")"
