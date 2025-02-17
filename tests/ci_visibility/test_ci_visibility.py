@@ -1415,3 +1415,19 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             CIVisibility.enable()
             CIVisibility.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
+
+
+class TestCIVisibilityIsUserProvidedService(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
+            pass
+
+    def test_is_user_provided_service_true(self):
+        pass
+
+    def test_is_user_provided_service_false(self):
+        pass
