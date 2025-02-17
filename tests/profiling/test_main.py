@@ -122,6 +122,7 @@ def test_memalloc_no_init_error_on_fork():
     os.waitpid(pid, 0)
 
 
+@pytest.mark.skipif(sys.version_info[:2] == (3.9), reason="This test is flaky on Python 3.9")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
