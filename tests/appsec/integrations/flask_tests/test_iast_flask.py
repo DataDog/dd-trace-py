@@ -18,6 +18,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
@@ -48,6 +49,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ):
             patch_sqlite_sqli()
+            patch_insecure_cookie()
             patch_header_injection()
             patch_xss_injection()
             patch_json()
