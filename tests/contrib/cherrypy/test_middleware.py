@@ -510,19 +510,16 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                     "endpoint": "/",
                     "status": 200,
                     "resource_name": "GET /",
-                    "http.route": "/",
                 },
                 {
                     "endpoint": "/fatal",
                     "status": 500,
                     "resource_name": "GET /fatal",
-                    "http.route": "/",
                 },
                 {
                     "endpoint": "/error",
                     "status": 500,
                     "resource_name": "GET /error",
-                    "http.route": "/",
                 },
             ]:
                 with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
@@ -544,7 +541,6 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
                                 api_gateway_service_name="local",
                                 api_gateway_resource="GET /",
                                 method="GET",
-                                route="/",
                                 status_code=test_endpoint["status"],
                                 url="local/",
                                 start=1736973768,

@@ -52,6 +52,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.settings._config import _JSONType
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -60,9 +61,14 @@ _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, str]] = None, time_unix_nano: Optional[int] = None):
+    def __init__(
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
+    ):
         self.name: str = name
-        self.attributes: Dict[str, str] = attributes or {}
+        if attributes is None:
+            self.attributes = {}
+        else:
+            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
@@ -74,7 +80,12 @@ class SpanEvent:
         return d
 
     def __str__(self):
-        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        """
+        Stringify and return value.
+        Attribute value can be either str, bool, int, float, or a list of these.
+        """
+
+        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
 
@@ -473,7 +484,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
         """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
@@ -520,8 +531,17 @@ class Span(object):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
+
+        try:
+            self._meta[ERROR_MSG] = str(exc_val)
+        except Exception:
+            # An exception can occur if a custom Exception overrides __str__
+            # If this happens str(exc_val) won't work, so best we can do is print the class name
+            # Otherwise, don't try to set an error message
+            if exc_val and hasattr(exc_val, "__class__"):
+                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+
         self._meta[ERROR_STACK] = tb
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
