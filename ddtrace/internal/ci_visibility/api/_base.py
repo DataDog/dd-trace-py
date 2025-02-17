@@ -238,6 +238,7 @@ class TestVisibilityItemBase(abc.ABC):
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
                 test.COMMAND: self._session_settings.test_command,
                 test.STATUS: self._status.value,  # Convert to a string at the last moment
+                test.IS_USER_PROVIDED_SERVICE: self._session_settings.is_user_provided_service,
             }
         )
 
