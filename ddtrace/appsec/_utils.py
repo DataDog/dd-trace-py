@@ -1,3 +1,5 @@
+# this module must not load any other unsafe appsec module directly
+
 import logging
 import sys
 from typing import Any

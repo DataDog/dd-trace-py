@@ -40,7 +40,9 @@ def get_version():
 
 def patch():
     # type: () -> List[str]
-    patched = []  # type: List[str]
+    if not asm_config._load_modules:
+        return []
+    patched: List[str] = []
     if not asm_config._asm_enabled:
         return patched
 
@@ -290,12 +292,15 @@ class SubprocessCmdLine(object):
         return str_res
 
 
-def unpatch():
-    # type: () -> None
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
+def unpatch() -> None:
+    import os  # nosec
+    import subprocess  # nosec
+
+    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+        try:
+            trace_utils.unwrap(obj, attr)
+        except AttributeError:
+            pass
 
     SubprocessCmdLine._clear_cache()
 
@@ -306,7 +311,7 @@ def unpatch():
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
 
         shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
@@ -328,6 +333,8 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
@@ -343,6 +350,8 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         mode, file, func_args, _, _ = args
         shellcmd = SubprocessCmdLine(func_args, shell=False)
@@ -368,8 +377,9 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
+
         cmd_args = args[0] if len(args) else kwargs["args"]
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
         is_shell = kwargs.get("shell", False)
@@ -395,8 +405,9 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
+
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:

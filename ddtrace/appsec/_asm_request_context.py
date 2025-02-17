@@ -25,6 +25,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+else:
+
+    def is_iast_request_enabled() -> bool:
+        return False
+
+
 if TYPE_CHECKING:
     from ddtrace.appsec._ddwaf import DDWaf_info
     from ddtrace.appsec._ddwaf import DDWaf_result
@@ -488,15 +496,12 @@ def _on_wrapped_view(kwargs):
             return_value[0] = callback_block
 
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
+    if not is_iast_request_enabled():
+        return return_value
 
-    if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+    if kwargs:
         from ddtrace.appsec._iast._taint_tracking import OriginType
         from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-        if not is_iast_request_enabled():
-            return return_value
 
         _kwargs = {}
         for k, v in kwargs.items():
@@ -508,26 +513,21 @@ def _on_wrapped_view(kwargs):
 
 
 def _on_set_request_tags(request, span, flask_config):
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
+    if not is_iast_request_enabled():
+        return
+    from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_utils import taint_structure
 
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import taint_structure
+    _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+    _set_metric_iast_instrumented_source(OriginType.COOKIE)
 
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        if not is_iast_request_enabled():
-            return
-
-        request.cookies = taint_structure(
-            request.cookies,
-            OriginType.COOKIE_NAME,
-            OriginType.COOKIE,
-            override_pyobject_tainted=True,
-        )
+    request.cookies = taint_structure(
+        request.cookies,
+        OriginType.COOKIE_NAME,
+        OriginType.COOKIE,
+        override_pyobject_tainted=True,
+    )
 
 
 def _on_pre_tracedrequest(ctx):

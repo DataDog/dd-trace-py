@@ -53,7 +53,6 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
     try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
-    try_wrap_function_wrapper("os", "system", wrapped_system_5542593D237084A7)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -78,8 +77,6 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     """
     wrapper for _io.BytesIO and _io.StringIO read function
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     result = original_read_callable(*args, **kwargs)
     if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -107,8 +104,6 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
@@ -198,8 +193,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
@@ -240,8 +233,6 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
     """
     command = args[0] if args else kwargs.get("command", None)
     if command is not None:
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
         if asm_config._iast_enabled and is_iast_request_enabled():
             from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 
