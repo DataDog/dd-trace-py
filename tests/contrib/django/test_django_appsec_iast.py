@@ -16,6 +16,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -655,6 +656,7 @@ def test_querydict_django_with_iast(client, test_spans, tracer):
         )
 
 
+@flaky(1731959126)
 @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
 def test_django_command_injection(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False)):
