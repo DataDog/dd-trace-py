@@ -5,6 +5,7 @@ import sys
 
 import requests
 
+
 PROJECT = ""
 GH_USERNAME = ""
 OS_USERNAME = ""
@@ -19,16 +20,19 @@ def run_command(command, check=True, cwd=None):
         print(result.stderr, file=sys.stderr)
     return result
 
+
 def get_current_git_branch(project_path):
     """Get the name of the current git branch."""
     result = run_command("git rev-parse --abbrev-ref HEAD", check=False, cwd=project_path)
     return result.stdout.strip()
+
 
 def create_git_branch(branch_name, project_path):
     """Step 0: Create a new git branch if not already on it."""
     current_branch = get_current_git_branch(project_path)
     if current_branch != branch_name:
         run_command(f"git checkout -b '{branch_name}'", cwd=project_path)
+
 
 def get_latest_dependency_version(package_name):
     """Step 1: Get the latest version of a package from PyPI."""
@@ -37,6 +41,7 @@ def get_latest_dependency_version(package_name):
     if response.status_code == 200:
         return response.json().get("info", {}).get("version")
     return None
+
 
 def modify_requirements_file(requirements_path, package_name, new_version):
     """Step 2: Modify the requirements.in file."""
@@ -51,14 +56,13 @@ def modify_requirements_file(requirements_path, package_name, new_version):
             else:
                 file.write(line)
 
+
 def run_bazel_commands(project_path):
     """Step 3: Run necessary Bazel commands."""
-    commands = [
-        "bzl run //:requirements.update",
-        "bzl run //:requirements_vendor"
-    ]
+    commands = ["bzl run //:requirements.update", "bzl run //:requirements_vendor"]
     for cmd in commands:
         run_command(cmd, cwd=project_path)
+
 
 def commit_and_push_changes(branch_name, package_name, project_path):
     """Step 4: Commit the changes and push to remote."""
@@ -79,7 +83,7 @@ def update_pr(branch_name, project_path):
     main_branch_name = "main"
     # update main branch
     run_command(f"git checkout {main_branch_name}", cwd=project_path)
-    run_command(f"git pull", cwd=project_path)
+    run_command("git pull", cwd=project_path)
     # checkout branch
     run_command(f"git checkout {branch_name}", cwd=project_path)
     # save git sha
@@ -113,8 +117,10 @@ def main():
     latest_version = get_latest_dependency_version(package_name)
     branch_name = "/".join((GH_USERNAME, partial_branch_name + latest_version))
 
-    # To decide wether if create or update the PR, check if the branch name exists in origin
-    branch_exists = run_command(f"git ls-remote --heads origin {branch_name}", check=False, cwd=project_path).returncode == 0
+    # To decide whether if create or update the PR, check if the branch name exists in origin
+    branch_exists = (
+        run_command(f"git ls-remote --heads origin {branch_name}", check=False, cwd=project_path).returncode == 0
+    )
     create_pr = not branch_exists
 
     if create_pr:
