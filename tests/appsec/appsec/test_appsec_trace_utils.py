@@ -235,6 +235,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert span.get_tag(user.ROLE)
             assert span.get_tag(user.SCOPE)
             assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
             assert is_blocked(span)
 
     def test_no_span_doesnt_raise(self):
