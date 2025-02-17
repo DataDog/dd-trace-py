@@ -44,7 +44,7 @@ class HandledExceptionReportingInjector:
 
     def instrument_module_conditionally(self, module_name: str):
         module = sys.modules[module_name]
-        if self._has_file(module) is False:
+        if self._has_file(module) is False or "ddtrace" in module_name:
             return
         module_path = Path(module.__file__).resolve()  # type: ignore
         if config._instrument_user_code and is_user_code(module_path):
