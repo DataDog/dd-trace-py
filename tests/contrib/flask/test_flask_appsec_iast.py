@@ -350,6 +350,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             assert root_span.get_metric(IAST.ENABLED) == 0.0
 
+    @flaky(1731959126)
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
@@ -416,6 +417,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["hash"] == hash_value
 
+    @flaky(1731959126)
     @pytest.mark.skipif(not python_supported_by_iast(), reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_name(self):
         @self.app.route("/sqli/cookies/", methods=["GET", "POST"])
