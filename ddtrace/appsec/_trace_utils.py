@@ -303,15 +303,18 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
 
+    This should be only called with set_user from the sdk API
+
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
     """
     if not asm_config._asm_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
         return
-
+    span = tracer.current_root_span()
+    if span:
+        span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, LOGIN_EVENTS_MODE.SDK)
     if should_block_user(tracer, userid):
-        span = tracer.current_root_span()
         if span:
             span.set_tag_str(user.ID, str(userid))
         _asm_request_context.block_request()
