@@ -9,7 +9,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
-from ddtrace.settings.error_reporting import _er_config
+from ddtrace.settings.error_reporting import config as error_reporting_config
 
 
 _internal_debug_logger = None
@@ -85,6 +85,7 @@ else:
     def _add_span_events(span: Span) -> None:
         for event in span._exception_events.values():
             span._events.append(event)
+            print(event)
         del span._meta["EXCEPTION_CB"]
 
     def _conditionally_pop_span_events(span: Span) -> None:
@@ -105,7 +106,7 @@ def _default_datadog_exc_callback(*args, exc=None):
         _add_exception_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_add_span_events)
 
-    if _er_config._internal_logger:
+    if error_reporting_config._internal_logger:
         logger = _get_logger()
         if not logger:
             return
@@ -119,7 +120,7 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
         _add_exception_event(exc, span, span_event)
         span._add_on_finish_exception_cb(_conditionally_pop_span_events)
 
-    if _er_config._internal_logger:
+    if error_reporting_config._internal_logger:
         logger = _get_logger()
         if not logger:
             return
@@ -127,10 +128,10 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
 
 
 def _get_logger():
-    if not _er_config._internal_logger:
+    if not error_reporting_config._internal_logger:
         return
 
-    _debug_logger_path: str = _er_config._internal_logger
+    _debug_logger_path: str = error_reporting_config._internal_logger
     logger_path, logger_name = _debug_logger_path.rsplit(".", 1)
     module = importlib.import_module(logger_path)
     return getattr(module, logger_name)
