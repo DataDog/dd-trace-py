@@ -1,7 +1,7 @@
 from functools import lru_cache as cached
 import hashlib
-import importlib
 import io
+import logging
 import sys
 import traceback
 
@@ -9,6 +9,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.error_reporting import config as error_reporting_config
 
 
@@ -71,18 +72,23 @@ def _conditionally_pop_span_events(span: Span) -> None:
     del span._meta["EXCEPTION_CB"]
 
 
+def _log_span_events(span: Span) -> None:
+    if error_reporting_config._internal_logger:
+        logger = _get_logger()
+        if not logger:
+            return
+        for error in span._exception_events.keys():
+            logger.exception(str(error), exc_info=(type(error), error, error.__traceback__))
+    del span._meta["EXCEPTION_LOG_CB"]
+
+
 def _default_datadog_exc_callback(*args, exc=None):
     generated = _generate_span_event(exc)
     if generated is not None:
         exc, span, span_event = generated
         span._add_exception_event(exc, span_event)
-        span._add_on_finish_exception_cb(_add_span_events)
-
-    if error_reporting_config._internal_logger:
-        logger = _get_logger()
-        if not logger:
-            return
-        logger.exception("Handled exception")
+        span._add_on_finish_exception_cb(_log_span_events, "EXCEPTION_LOG_CB")
+        span._add_on_finish_exception_cb(_add_span_events, "EXCEPTION_CB")
 
 
 def _unhandled_exc_datadog_exc_callback(*args, exc=None):
@@ -90,20 +96,11 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
     if generated is not None:
         exc, span, span_event = generated
         span._add_exception_event(exc, span_event)
-        span._add_on_finish_exception_cb(_conditionally_pop_span_events)
-
-    if error_reporting_config._internal_logger:
-        logger = _get_logger()
-        if not logger:
-            return
-        logger.exception("Handled exception")
+        span._add_on_finish_exception_cb(_log_span_events, "EXCEPTION_LOG_CB")
+        span._add_on_finish_exception_cb(_conditionally_pop_span_events, "EXCEPTION_CB")
 
 
+@callonce
 def _get_logger():
-    if not error_reporting_config._internal_logger:
-        return
-
-    _debug_logger_path: str = error_reporting_config._internal_logger
-    logger_path, logger_name = _debug_logger_path.rsplit(".", 1)
-    module = importlib.import_module(logger_path)
-    return getattr(module, logger_name)
+    logger_name: str = error_reporting_config._internal_logger
+    return logging.getLogger(logger_name)
