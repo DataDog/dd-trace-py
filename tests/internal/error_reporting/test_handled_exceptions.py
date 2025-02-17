@@ -324,12 +324,9 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         assert value == "<except_f><except_module_f><except_submodule_1>"
         self.assert_span_count(1)
-        if sys.version_info[:2] >= (3, 12):
-            self.spans[0].assert_span_event_count(7)
-        elif sys.version_info[:2] == (3, 11):
-            self.spans[0].assert_span_event_count(30)
-        else:
-            self.spans[0].assert_span_event_count(23)
+        self.spans[0].assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
+        )
 
     @run_in_subprocess(
         env_overrides=dict(
