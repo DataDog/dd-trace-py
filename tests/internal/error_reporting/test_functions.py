@@ -1,3 +1,6 @@
+import asyncio
+
+
 def test_basic_try_except_f(value):
     try:
         raise ValueError("auto caught error")
@@ -28,6 +31,25 @@ def test_handled_same_error_multiple_times_f(value):
     except Exception:
         value = 10
 
+    return value
+
+
+async def test_sync_error_f(value):
+    task = asyncio.create_task(test_async_error_f(value))
+    try:
+        raise ValueError("this is a sync error")
+    except ValueError:
+        value += "<sync_error>"
+    value += await task
+    return value
+
+
+async def test_async_error_f(value):
+    await asyncio.sleep(1)
+    try:
+        raise ValueError("this is an async error")
+    except ValueError:
+        value += "<async_error>"
     return value
 
 
