@@ -143,7 +143,7 @@ class InjectionWatchdog(BaseModuleWatchdog):
             total_diff += len(diff)
             try:
                 path = str(Path(o).resolve().relative_to(CWD))
-            except:
+            except Exception:
                 path = ""
             log(
                 ("{:<%d} {:>5} {: 6.0f}%% {:>7}" % w).format(
