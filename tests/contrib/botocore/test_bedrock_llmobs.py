@@ -80,8 +80,16 @@ def mock_llmobs_span_writer():
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(span, n_output, message=False):
-        prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
-        completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
+        prompt_tokens = span.get_metric("bedrock.response.usage.prompt_tokens")
+        completion_tokens = span.get_metric("bedrock.response.usage.completion_tokens")
+        token_metrics = {}
+        if prompt_tokens is not None:
+            token_metrics["input_tokens"] = prompt_tokens
+        if completion_tokens is not None:
+            token_metrics["output_tokens"] = completion_tokens
+        if prompt_tokens is not None and completion_tokens is not None:
+            token_metrics["total_tokens"] = prompt_tokens + completion_tokens
+
         expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
@@ -95,11 +103,7 @@ class TestLLMObsBedrock:
             input_messages=expected_input,
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
-            token_metrics={
-                "input_tokens": prompt_tokens,
-                "output_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-            },
+            token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
