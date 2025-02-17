@@ -3,15 +3,15 @@ import sys
 import types
 from types import ModuleType
 
-from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
 from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
 from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
+from ddtrace.internal.injection.core import CallbackType
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
-from ddtrace.settings.error_reporting import _er_config
+from ddtrace.settings.error_reporting import config
 
 
 assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)
@@ -47,9 +47,9 @@ class HandledExceptionReportingInjector:
         if self._has_file(module) is False:
             return
         module_path = Path(module.__file__).resolve()  # type: ignore
-        if _er_config._instrument_user_code and is_user_code(module_path):
+        if config._instrument_user_code and is_user_code(module_path):
             self._instrument_module(module_name)
-        elif _er_config._instrument_third_party_code and is_third_party(module_path):
+        elif config._instrument_third_party_code and is_third_party(module_path):
             self._instrument_module(module_name)
         else:
             for enabled_module in self._configured_modules:
@@ -111,11 +111,11 @@ class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
 
     def after_install(self):
         global _injector
-        if _er_config._report_after_unhandled is False:
-            _injector = HandledExceptionReportingInjector(_er_config._configured_modules)
+        if config._report_after_unhandled is False:
+            _injector = HandledExceptionReportingInjector(config._configured_modules)
         else:
             _injector = HandledExceptionReportingInjector(
-                _er_config._configured_modules, _unhandled_exc_datadog_exc_callback
+                config._configured_modules, _unhandled_exc_datadog_exc_callback
             )
 
         # There might be modules that are already loaded at the time of installation, so we need to instrument them

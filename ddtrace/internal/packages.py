@@ -15,11 +15,6 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.third_party import config as tp_config
 
 
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:
-    import importlib_metadata  # type: ignore[no-redef]
-
 LOG = logging.getLogger(__name__)
 
 
@@ -32,6 +27,11 @@ _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
     pkgs = set()
     for dist in importlib_metadata.distributions():
         # Get the root path of all files in a distribution
@@ -49,11 +49,18 @@ def get_distributions():
 
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
-    # Prefer the official API if available, otherwise fallback to the vendored version
-    if hasattr(importlib_metadata, "packages_distributions"):
-        _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-    else:
-        _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+    global _PACKAGE_DISTRIBUTIONS
+    if _PACKAGE_DISTRIBUTIONS is None:
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
+
+        # Prefer the official API if available, otherwise fallback to the vendored version
+        if hasattr(importlib_metadata, "packages_distributions"):
+            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+        else:
+            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
 
 
@@ -61,6 +68,10 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
 
     names: t.List[str] = []
     pkgs = get_package_distributions()
@@ -91,6 +102,11 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
     try:
         return importlib_metadata.version(name)
     except Exception:
@@ -135,9 +151,14 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
+    try:
+        import importlib.metadata as metadata
+    except ImportError:
+        import importlib_metadata as metadata  # type: ignore[no-redef]
+
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: importlib_metadata.PackagePath):
+    def is_namespace(f: metadata.PackagePath):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -160,7 +181,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in importlib_metadata.distributions():
+        for dist in metadata.distributions():
             if dist is not None and dist.files is not None:
                 d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
                 for f in dist.files:
@@ -260,6 +281,11 @@ def _(path: str) -> bool:
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
         importlib_metadata.distribution(name)
     except importlib_metadata.PackageNotFoundError:
         return False
@@ -281,6 +307,11 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):

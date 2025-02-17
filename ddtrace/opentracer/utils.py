@@ -18,7 +18,7 @@ def get_context_provider_for_scope_manager(scope_manager):
     if scope_manager_type == "AsyncioScopeManager":
         import ddtrace.contrib.asyncio
 
-        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
+        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: ignore
     else:
         from ddtrace._trace.provider import DefaultContextProvider
 

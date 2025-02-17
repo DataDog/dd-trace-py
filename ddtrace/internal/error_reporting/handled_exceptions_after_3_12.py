@@ -10,7 +10,7 @@ from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_cal
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
-from ddtrace.settings.error_reporting import _er_config
+from ddtrace.settings.error_reporting import config
 
 
 assert sys.version_info >= (3, 12)
@@ -45,9 +45,9 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
 
 
 checks = {
-    "all_user" if _er_config._instrument_user_code else None,
-    "all_third_party" if _er_config._instrument_third_party_code else None,
-    "modules" if (not _er_config._configured_modules) is False else None,
+    "all_user" if config._instrument_user_code else None,
+    "all_third_party" if config._instrument_third_party_code else None,
+    "modules" if (not config._configured_modules) is False else None,
 } - {None}
 _should_report_exception = create_should_report_exception_optimized(checks)
 
@@ -71,26 +71,26 @@ def _install_sys_monitoring_reporting():
             _unhandled_exc_datadog_exc_callback(exc=exception)
         return True
 
-    sys.monitoring.use_tool_id(_er_config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
-    if _er_config._report_after_unhandled:
+    sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
+    if config._report_after_unhandled:
         sys.monitoring.register_callback(
-            _er_config.HANDLED_EXCEPTIONS_MONITORING_ID,
+            config.HANDLED_EXCEPTIONS_MONITORING_ID,
             sys.monitoring.events.EXCEPTION_HANDLED,
             _exc_after_unhandled_event_handler,
         )
     else:
         sys.monitoring.register_callback(
-            _er_config.HANDLED_EXCEPTIONS_MONITORING_ID,
+            config.HANDLED_EXCEPTIONS_MONITORING_ID,
             sys.monitoring.events.EXCEPTION_HANDLED,
             _exc_default_event_handler,
         )
 
-    sys.monitoring.set_events(_er_config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     _instrumented_modules: set[str] = set()
-    _configured_modules: list[str] = _er_config._configured_modules
+    _configured_modules: list[str] = config._configured_modules
 
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         if len(configured_modules) == 0:

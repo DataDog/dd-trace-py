@@ -3,9 +3,9 @@ import sys
 from types import CodeType
 import typing as t
 
-from ..bytecode_injection.core import CallbackType
-from ..bytecode_injection.core import InjectionContext
-from ..bytecode_injection.core import inject_invocation
+from ..injection.core import CallbackType
+from ..injection.core import InjectionContext
+from ..injection.core import inject_invocation
 from .hook import _default_datadog_exc_callback
 
 

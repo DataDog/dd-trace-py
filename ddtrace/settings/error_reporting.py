@@ -45,7 +45,7 @@ class ErrorReportingConfig(Env):
     _instrument_user_code = False
     _instrument_third_party_code = False
     _configured_modules: list[str] = list()
-    _enabled = False
+    enabled = False
 
     def _init_scope(self):
         if self.enable_handled_exceptions_reporting is True:
@@ -57,13 +57,13 @@ class ErrorReportingConfig(Env):
             self._instrument_third_party_code = self._enable_handled_exceptions_reporting_third_party
 
 
-_er_config = ErrorReportingConfig()
+config = ErrorReportingConfig()
 if (
-    (not _er_config._modules_to_report) is False
-    or _er_config.enable_handled_exceptions_reporting
-    or _er_config._enable_handled_exceptions_reporting_user_code
-    or _er_config._enable_handled_exceptions_reporting_third_party
+    (not config._modules_to_report) is False
+    or config.enable_handled_exceptions_reporting
+    or config._enable_handled_exceptions_reporting_user_code
+    or config._enable_handled_exceptions_reporting_third_party
 ):
-    _er_config._enabled = True
-    _er_config._init_scope()
-    _report_telemetry(_er_config)
+    config.enabled = True
+    config._init_scope()
+    _report_telemetry(config)
