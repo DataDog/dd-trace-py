@@ -4,6 +4,27 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.1
+
+
+### Bug Fixes
+
+- aiohttp: Adds the environment variable `DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK` to address a potential memory leak in the aiohttp integration. When set to true, this flag may cause streamed response span timing to be inaccurate. The flag defaults to false.
+
+- ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable. SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+
+- span: Fix issue where spans weren't being handled correctly and were not being sent when using a custom Exception class that raises an exception in <span class="title-ref">\_\_str\_\_</span>.
+
+- Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
+
+- profiling: fixes an issue where the profiler unnecessarily outputs log messages when it was unable to record a lock acquire event.
+
+- ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled,  
+  which could create an ImportError exception on Windows.
+
+
+---
+
 ## 2.19.3
 
 
