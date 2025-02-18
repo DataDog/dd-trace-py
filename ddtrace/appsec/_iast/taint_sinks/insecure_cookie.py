@@ -21,19 +21,16 @@ from ._base import VulnerabilityBase
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
     scrub_evidence = False
-    skip_location = True
 
 
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
-    skip_location = True
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
-    skip_location = True
 
 
 def get_version() -> Text:
@@ -51,9 +48,19 @@ def patch():
     if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_insecure_cookies_patch"):
         return
 
+
+    @when_imported("django.http.response")
+    def _(m):
+        try_wrap_function_wrapper(m, "HttpResponseBase.set_cookie", _iast_response_cookies)
+
+
     @when_imported("flask")
     def _(m):
-        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_flask_response_cookies)
+        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
+
+    @when_imported("starlette.responses")
+    def _(m):
+        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
 
     _set_metric_iast_instrumented_sink(VULN_INSECURE_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_HTTPONLY_COOKIE)
@@ -62,17 +69,26 @@ def patch():
 
 def unpatch():
     try_unwrap("flask", "Response.set_cookie")
+    try_unwrap("starlette.responses", "Response.set_cookie")
+    try_unwrap("django.http.response", "HttpResponseBase.set_cookie")
 
     set_module_unpatched("flask", default_attr="_datadog_insecure_cookies_patch")
     set_module_unpatched("django", default_attr="_datadog_insecure_cookies_patch")
     set_module_unpatched("fastapi", default_attr="_datadog_insecure_cookies_patch")
 
 
-def _iast_flask_response_cookies(wrapped, instance, args, kwargs):
+def _iast_response_cookies(wrapped, instance, args, kwargs):
+    cookie_key = ""
+    cookie_value = ""
     if len(args) > 1:
         cookie_key = args[0]
         cookie_value = args[1]
-        if cookie_key and cookie_value and asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    elif len(kwargs.keys()) > 0:
+        cookie_key = kwargs.get("key")
+        cookie_value = kwargs.get("value")
+
+    if cookie_value and cookie_key:
+        if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
             if kwargs.get("secure") is not True:
                 _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
                 InsecureCookie.report(evidence_value=cookie_key)
@@ -81,7 +97,7 @@ def _iast_flask_response_cookies(wrapped, instance, args, kwargs):
                 NoHttpOnlyCookie.report(evidence_value=cookie_key)
 
             samesite = kwargs.get("samesite", "").lower()
-            if samesite.startswith("strict") or samesite.startswith("lax"):
+            if not samesite.startswith("strict") and not samesite.startswith("lax"):
                 _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
                 NoSameSite.report(evidence_value=cookie_key)
     return wrapped(*args, **kwargs)

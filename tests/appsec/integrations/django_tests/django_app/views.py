@@ -256,6 +256,8 @@ def view_with_exception(request):
 
 def view_insecure_cookies_insecure(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie
     res.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
     return res
 
@@ -282,6 +284,8 @@ def view_insecure_cookies_two_insecure_one_secure(request):
 
 def view_insecure_cookies_insecure_special_chars(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie_special_characters
     res.set_cookie("insecure", "cookie?()43jfM;;;===value", secure=False, httponly=True, samesite="Strict")
     return res
 

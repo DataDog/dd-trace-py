@@ -817,10 +817,11 @@ def test_django_insecure_cookie(client, test_spans, tracer):
     vulnerability = loaded["vulnerabilities"][0]
     assert vulnerability["type"] == VULN_INSECURE_COOKIE
     assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-    assert "path" not in vulnerability["location"].keys()
-    assert "line" not in vulnerability["location"].keys()
     assert vulnerability["location"]["spanId"]
     assert vulnerability["hash"]
+    line, hash_value = get_line_and_hash("test_django_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE)
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["path"] == TEST_FILE
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -884,10 +885,11 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     vulnerability = loaded["vulnerabilities"][0]
     assert vulnerability["type"] == VULN_INSECURE_COOKIE
     assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-    assert "path" not in vulnerability["location"].keys()
-    assert "line" not in vulnerability["location"].keys()
     assert vulnerability["location"]["spanId"]
     assert vulnerability["hash"]
+    line, hash_value = get_line_and_hash("test_django_insecure_cookie_special_characters", VULN_INSECURE_COOKIE, filename=TEST_FILE)
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["path"] == TEST_FILE
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
