@@ -1,11 +1,20 @@
 import json
 import os
 
+import pytest
+
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+
+
+@pytest.fixture
+def patched_futures():
+    patch_futures()
+    yield
+    unpatch_futures()
 
 
 def test_inject_llmobs_parent_id_no_llmobs_span(llmobs):
@@ -271,8 +280,7 @@ print(json.dumps(headers))
         assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
 
 
-def test_threading_submit_propagation(llmobs, llmobs_events):
-    patch_futures()
+def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
     import concurrent.futures
 
     def fn():
@@ -293,11 +301,9 @@ def test_threading_submit_propagation(llmobs, llmobs_events):
             executor_thread_span = span
     assert main_thread_span["parent_id"] == ROOT_PARENT_ID
     assert executor_thread_span["parent_id"] == main_thread_span["span_id"]
-    unpatch_futures()
 
 
-def test_threading_map_propagation(llmobs, llmobs_events):
-    patch_futures()
+def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
     import concurrent.futures
 
     def fn(value):
@@ -318,4 +324,3 @@ def test_threading_map_propagation(llmobs, llmobs_events):
     assert main_thread_span["parent_id"] == ROOT_PARENT_ID
     assert executor_thread_spans[0]["parent_id"] == main_thread_span["span_id"]
     assert executor_thread_spans[1]["parent_id"] == main_thread_span["span_id"]
-    unpatch_futures()
