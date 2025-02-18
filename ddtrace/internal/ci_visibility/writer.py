@@ -2,7 +2,6 @@ from http.client import RemoteDisconnected
 import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict
 from typing import Optional  # noqa:F401
 
 import ddtrace
@@ -38,14 +37,11 @@ from .telemetry.payload import record_endpoint_payload_request_error
 from .telemetry.payload import record_endpoint_payload_request_time
 
 
-
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
 
     from ddtrace.internal.utils.http import Response  # noqa:F401
-
-
-ALL_TEST_EVENT_TYPES = (SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST)
 
 
 class CIVisibilityEventClient(WriterClientBase):
@@ -58,17 +54,15 @@ class CIVisibilityEventClient(WriterClientBase):
                 "env": os.getenv("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
+                "_dd.test.is_user_provided_service": config._is_user_provided_service,
             },
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
 
-    def set_tags(self, tags: Dict[str, str], event_types=ALL_TEST_EVENT_TYPES):
-        if isinstance(self.encoder, CIVisibilityEncoderV01):
-            for event_type in event_types:
-                self.encoder.set_metadata(event_type, tags)
-
     def set_test_session_name(self, test_session_name: str) -> None:
-        self.set_tags({TEST_SESSION_NAME: test_session_name})
+        if isinstance(self.encoder, CIVisibilityEncoderV01):
+            for event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
+                self.encoder.set_metadata(event_type, {TEST_SESSION_NAME: test_session_name})
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
