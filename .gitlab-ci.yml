@@ -53,7 +53,6 @@ macrobenchmarks:
   needs: [ ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
-    strategy: depend
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
