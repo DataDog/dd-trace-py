@@ -6,9 +6,7 @@ def init_handled_exceptions_reporting():
         return
 
     if sys.version_info < (3, 12):
-        from ddtrace.internal.error_reporting.handled_exceptions_before_3_12 import (
-            _install_bytecode_injection_reporting,
-        )
+        from ddtrace.internal.errortracker.handled_exceptions_before_3_12 import _install_bytecode_injection_reporting
 
         """
         For python3.10 and python3.11, handled exceptions reporting is based on bytecode injection.

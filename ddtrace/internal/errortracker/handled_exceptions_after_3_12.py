@@ -5,18 +5,17 @@ from types import ModuleType
 from typing import Callable
 
 from ddtrace.internal.compat import Path
-from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
-from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
+from ddtrace.internal.errortracker.hook import _default_datadog_exc_callback
+from ddtrace.internal.errortracker.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.packages import filename_to_package  # noqa: F401
+from ddtrace.internal.packages import is_stdlib  # noqa: F401
 from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.settings.error_reporting import config
 
 
-assert sys.version_info >= (3, 12)
-
 INSTRUMENTED_FILE_PATHS = []
-
 
 """
 sys.monitoring reports EVERY handled exceptions, including python internal ones.
@@ -30,20 +29,24 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     """
     Generate a precompiled version of `should_report_exception` that is as fast as static logic.
     """
-    conditions = []
+    logic = ""
+    if len(checks) == 0:
+        logic = "'frozen' not in file_name and is_stdlib(file_path) is False and 'ddtrace' not in file_name"
+    elif "modules" in checks:
+        logic = "file_name in INSTRUMENTED_FILE_PATHS"
+    else:
+        logic = "'frozen' not in file_name"
+        conditions = []
+        if "all_user" in checks:
+            conditions.append("is_user_code(file_path)")
+        if "all_third_party" in checks:
+            conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
+        logic += " and (" + " or ".join(conditions) + ")"
 
-    if "all_user" in checks:
-        conditions.append("is_user_code(file_path)")
-    if "modules" in checks:
-        conditions.append("file_name in INSTRUMENTED_FILE_PATHS")
-    if "all_third_party" in checks:
-        conditions.append("(is_third_party(file_path) and 'ddtrace' not in file_name)")
-
-    joined_conditions = " or ".join(conditions)
-    logic = f"'frozen' not in file_name and ({joined_conditions}))"
-
-    namespace = {}
-    exec(f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace)
+    namespace = {}  # type: ignore
+    exec(
+        f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace
+    )  # nosec
     return namespace["_should_report_exception"]
 
 

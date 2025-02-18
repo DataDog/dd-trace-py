@@ -5,16 +5,15 @@ from types import ModuleType
 
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
-from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
-from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
-from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
+from ddtrace.internal.errortracker.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
+from ddtrace.internal.errortracker.hook import _default_datadog_exc_callback
+from ddtrace.internal.errortracker.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
 from ddtrace.settings.error_reporting import config
 
-
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)  # nosec
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
 
@@ -42,9 +41,11 @@ class HandledExceptionReportingInjector:
         if self._has_file(module) is False or "ddtrace" in module_name:
             return
         module_path = Path(module.__file__).resolve()  # type: ignore
-        if (config._instrument_user_code and is_user_code(module_path)) or (
-            config._instrument_third_party_code and is_third_party(module_path)
-        ):
+        if (
+            (config.enable_handled_exceptions_reporting and is_stdlib(module_path) is False)
+            or config._instrument_user_code
+            and is_user_code(module_path)
+        ) or (config._instrument_third_party_code and is_third_party(module_path)):
             self._instrument_module(module_name)
         else:
             for enabled_module in self._configured_modules:
