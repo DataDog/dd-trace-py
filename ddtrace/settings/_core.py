@@ -35,7 +35,7 @@ def get_config(
     modifier: Optional[Callable[[Any], Any]] = None,
     otel_env: Optional[str] = None,
     report_telemetry=True,
-):
+) -> Any:
     if isinstance(envs, str):
         envs = [envs]
     val = None

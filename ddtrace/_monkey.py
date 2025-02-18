@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace import config
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
@@ -12,7 +13,6 @@ from ddtrace.settings.asm import config as asm_config
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
