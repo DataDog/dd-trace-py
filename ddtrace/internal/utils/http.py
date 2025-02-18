@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
@@ -27,22 +28,23 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
-from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
 
 
-ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
+if TYPE_CHECKING:
+    import http.client as httplib
+
+    from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+    ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
+    Connector = Callable[[], ContextManager[httplib.HTTPConnection]]
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
-
-
-Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
-
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +139,7 @@ def connector(url, **kwargs):
 
     @contextmanager
     def _connector_context():
-        # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
+        # type: () -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -276,8 +278,9 @@ class Response(object):
         )
 
 
-def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT):
     """Return an HTTP connection to the given URL."""
+    # type: (str, float) -> ConnectionType
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
     path = parsed.path or "/"

@@ -1,4 +1,5 @@
-from ddtrace.internal.compat import httplib
+import http.client as httplib
+
 from ddtrace.internal.compat import parse
 from ddtrace.internal.runtime import container
 

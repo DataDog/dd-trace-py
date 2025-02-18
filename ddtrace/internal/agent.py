@@ -1,15 +1,13 @@
 import json
 import os
 import socket
+from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.logger import get_logger
 
-from .http import HTTPConnection
-from .http import HTTPSConnection
-from .uds import UDSHTTPConnection
 from .utils.http import get_connection
 
 
@@ -19,7 +17,12 @@ DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
 DEFAULT_UNIX_DSD_PATH = "/var/run/datadog/dsd.socket"
 DEFAULT_STATS_PORT = 8125
 
-ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
+if TYPE_CHECKING:
+    from .http import HTTPConnection
+    from .http import HTTPSConnection
+    from .uds import UDSHTTPConnection
+
+    ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 T = TypeVar("T")
 

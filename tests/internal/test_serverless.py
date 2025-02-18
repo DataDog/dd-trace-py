@@ -99,6 +99,7 @@ def test_slow_imports():
         "ddtrace.internal.telemetry.telemetry_writer",
         "email.mime.application",
         "email.mime.multipart",
+        "http.client",
         "logging.handlers",
         "multiprocessing",
         "importlib.metadata",
@@ -114,6 +115,10 @@ def test_slow_imports():
 
     try:
         sys.meta_path.insert(0, BlockListFinder())
+
+        for mod in sys.modules.copy():
+            if mod.startswith("ddtrace") or mod in blocklist:
+                del sys.modules[mod]
 
         import ddtrace
         import ddtrace.contrib.internal.aws_lambda  # noqa:F401

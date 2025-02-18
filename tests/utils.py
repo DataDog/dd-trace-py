@@ -2,7 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import dataclasses
 import datetime as dt
-from http.client import RemoteDisconnected
+import http.client as httplib
 import inspect
 import json
 import os
@@ -23,7 +23,6 @@ from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -1095,7 +1094,7 @@ def snapshot_context(
             while r is None and time.time() - attempt_start < 60:
                 try:
                     r = conn.getresponse()
-                except RemoteDisconnected:
+                except httplib.RemoteDisconnected:
                     time.sleep(1)
             if r is None:
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)

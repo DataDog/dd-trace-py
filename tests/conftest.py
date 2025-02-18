@@ -2,6 +2,7 @@ import ast
 import base64
 import contextlib
 import functools
+import http.client as httplib
 import importlib
 from itertools import product
 import json
@@ -28,7 +29,6 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient

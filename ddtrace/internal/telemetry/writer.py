@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import http.client as httplib  # noqa: E402
 import itertools
 import os
 import sys
@@ -113,7 +112,8 @@ class _TelemetryClient:
     def url(self):
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
-    def send_event(self, request: Dict) -> Optional[httplib.HTTPResponse]:
+    def send_event(self, request: Dict):
+        # type: (Dict) -> Optional[httplib.HTTPResponse]
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None

@@ -1,6 +1,7 @@
 import base64
 import datetime
 import hashlib
+import http.client as httplib
 import json
 import os
 import signal
@@ -10,7 +11,6 @@ import uuid
 
 import pytest
 
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server

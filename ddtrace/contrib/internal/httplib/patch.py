@@ -1,4 +1,5 @@
 import functools
+import http.client as httplib
 import os
 import sys
 
@@ -11,7 +12,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT

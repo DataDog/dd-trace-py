@@ -1,4 +1,5 @@
 import atexit
+import http.client as httplib
 import json
 from typing import List  # noqa:F401
 
@@ -11,7 +12,6 @@ except ImportError:
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 

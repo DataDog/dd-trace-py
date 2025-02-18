@@ -1,4 +1,5 @@
 import atexit
+import http.client as httplib
 from typing import Any
 from typing import Dict
 from typing import List
@@ -17,7 +18,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
