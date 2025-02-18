@@ -1,8 +1,6 @@
 stages:
   - package
-  - tests-gen
-  - tests-trigger
-  - quality-gate
+  - tests
   - shared-pipeline
   - benchmarks
   - macrobenchmarks
@@ -26,10 +24,11 @@ include:
   - local: ".gitlab/testrunner.yml"
 
 tests-gen:
-  stage: tests-gen
+  stage: tests
   extends: .testrunner
   script:
     - pip install riot==0.20.1
+    - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -37,13 +36,27 @@ tests-gen:
       - .gitlab/tests-gen.yml
 
 run-tests-trigger:
- stage: tests-trigger
+ stage: tests
  needs: [ tests-gen ]
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+
+check_new_flaky_tests:
+  stage: tests
+  needs: ["run-tests-trigger"]
+  extends: .testrunner
+  script:
+    - export DD_SITE=datadoghq.com
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - datadog-ci gate evaluate
+  except:
+    - main
+    - '[0-9].[0-9]*'
+    - 'mq-working-branch**'
 
 requirements_json_test:
   rules:
@@ -75,6 +88,9 @@ onboarding_tests_k8s_injection:
         SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_UDS, K8S_LIB_INJECTION_NO_AC, K8S_LIB_INJECTION_NO_AC_UDS]
         K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
 
+deploy_to_reliability_env:
+  needs: []
+
 deploy_to_di_backend:manual:
   stage: shared-pipeline
   rules:
@@ -92,15 +108,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
-check_new_flaky_tests:
-  stage: quality-gate
-  extends: .testrunner
-  script:
-    - export DD_SITE=datadoghq.com
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
-    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
-    - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'
