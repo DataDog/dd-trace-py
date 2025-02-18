@@ -219,7 +219,7 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
-assert len(ddtrace_logger.handlers) == 2
+assert len(ddtrace_logger.handlers) == 3
 assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[1].maxBytes == 200000
 assert ddtrace_logger.handlers[1].backupCount == 1
@@ -232,7 +232,7 @@ import logging
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.WARN
-assert len(ddtrace_logger.handlers) == 2
+assert len(ddtrace_logger.handlers) == 3
 assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[1].maxBytes == 200000
 assert ddtrace_logger.handlers[1].backupCount == 1
@@ -334,7 +334,7 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 2
+assert len(ddtrace_logger.handlers) == 3
 assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[1].maxBytes == 10
 assert ddtrace_logger.handlers[1].backupCount == 1
@@ -361,7 +361,7 @@ import os
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 2
+assert len(ddtrace_logger.handlers) == 3
 assert isinstance(ddtrace_logger.handlers[1], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[1].maxBytes == 10
 assert ddtrace_logger.handlers[1].backupCount == 1
