@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 
@@ -10,7 +11,9 @@ from ._native import PyConfigurator
 log = get_logger(__name__)
 
 
-def get_configuration_from_disk(debug_logs: bool = False) -> Dict[str, Dict[str, str]]:
+def get_configuration_from_disk(
+    debug_logs: bool = False,
+) -> Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, str]]]:
     """
     Retrieves the tracer configuration from disk. Calls the PyConfigurator object
     to read the configuration from the disk using the libdatadog shared library
@@ -29,14 +32,18 @@ def get_configuration_from_disk(debug_logs: bool = False) -> Dict[str, Dict[str,
     if managed_file_override:
         configurator.set_managed_file_override(managed_file_override)
 
-    config = {}
+    fleet_config = {}
+    local_config = {}
     try:
         for entry in configurator.get_configuration():
             env = entry["name"]
-            if env not in entry or "source" == "fleet_stable_config":
-                # Ensure that the fleet stable configurations takes precedence over the local stable configurations
-                config[env] = entry
+            if entry["source"] == "fleet_stable_config":
+                fleet_config[env] = entry
+            elif entry["source"] == "local_stable_config":
+                local_config[env] = entry
+            else:
+                log.error("Unknown configuration source: %s, for %s", entry["source"], env)
     except Exception as e:
         # No logger at this point, so we rely on good old print
         log.error("Failed to load configuration from disk, skipping: %s", str(e))
-    return config
+    return fleet_config, local_config
