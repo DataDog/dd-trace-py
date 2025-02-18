@@ -5,6 +5,7 @@ import wrapt
 
 from ddtrace.internal.logger import get_logger
 
+import inspect
 
 log = get_logger(__name__)
 
@@ -78,8 +79,6 @@ def trace_method(module, method_name):
 
 
 def trace_wrapper(wrapped, instance, args, kwargs):
-    import inspect
-
     from ddtrace.trace import tracer
 
     resource = wrapped.__name__
