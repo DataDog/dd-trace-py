@@ -37,7 +37,7 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
         conditions.append("(is_third_party(file_path) and 'ddtrace' not in file_name)")
 
     joined_conditions = " or ".join(conditions)
-    logic = f"'frozen' not in file_name and ({joined_conditions}))"
+    logic = f"'frozen' not in file_name and ({joined_conditions})"
 
     namespace = {}  # type: ignore
     exec(
