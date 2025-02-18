@@ -71,7 +71,7 @@ if profiling_config.enabled:
 if error_reporting_config.enabled:
     log.debug("handled exceptions reporting enabled via environment variable")
     try:
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
     except Exception:
         log.error("failed to enable handled exceptions reporting", exc_info=True)
 

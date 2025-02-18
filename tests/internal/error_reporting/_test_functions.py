@@ -14,10 +14,10 @@ def test_basic_multiple_except_f(a, value):
         if a == 0:
             raise ValueError("auto value caught error")
         else:
-            raise Exception("auto caught error")
+            raise RuntimeError("auto caught error")
     except ValueError:
         value += 10
-    except Exception as _:
+    except RuntimeError as _:
         value += 5
     return value
 
