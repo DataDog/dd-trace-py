@@ -118,10 +118,9 @@ def test_path_traversal(module, function, iast_context_defaults):
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
 
+    path = "path_{}_{}".format(module, function)
     getattr(mod, "path_{}_{}".format(module, function))(tainted_string)
-    line, hash_value = get_line_and_hash(
-        "path_{}_{}".format(module, function), VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH
-    )
+    line, hash_value = get_line_and_hash(path, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
 
     data = _get_iast_data()
     vulnerability = data["vulnerabilities"][0]
@@ -129,6 +128,8 @@ def test_path_traversal(module, function, iast_context_defaults):
     assert vulnerability["type"] == VULN_PATH_TRAVERSAL
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == path
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
     assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": file_path}]
     assert "value" not in vulnerability["evidence"].keys()
