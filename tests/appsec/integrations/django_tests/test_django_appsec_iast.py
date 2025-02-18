@@ -891,7 +891,9 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
     assert vulnerability["location"]["spanId"]
     assert vulnerability["hash"]
-    line, hash_value = get_line_and_hash("test_django_insecure_cookie_special_characters", VULN_INSECURE_COOKIE, filename=TEST_FILE)
+    line, hash_value = get_line_and_hash(
+        "test_django_insecure_cookie_special_characters", VULN_INSECURE_COOKIE, filename=TEST_FILE
+    )
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
 

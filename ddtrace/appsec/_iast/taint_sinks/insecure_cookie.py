@@ -48,11 +48,9 @@ def patch():
     if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_insecure_cookies_patch"):
         return
 
-
     @when_imported("django.http.response")
     def _(m):
         try_wrap_function_wrapper(m, "HttpResponseBase.set_cookie", _iast_response_cookies)
-
 
     @when_imported("flask")
     def _(m):

@@ -1362,7 +1362,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert "class_name" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
-            line, hash_value = get_line_and_hash("test_flask_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH)
+            line, hash_value = get_line_and_hash(
+                "test_flask_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+            )
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
@@ -1429,7 +1431,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
-            line, hash_value = get_line_and_hash("test_flask_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH)
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+            )
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
@@ -1498,7 +1502,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert "method" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
-            line, hash_value = get_line_and_hash("test_flask_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH)
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+            )
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
 

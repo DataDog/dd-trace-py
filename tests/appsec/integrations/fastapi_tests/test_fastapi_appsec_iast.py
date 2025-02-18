@@ -28,10 +28,10 @@ from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_XSS
-from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
-from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
+from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
+from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
 from tests.utils import override_env
@@ -709,7 +709,7 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-        
+
         # label test_fastapi_insecure_cookie
         response.set_cookie(key="insecure", value=query_params, secure=False, httponly=True, samesite="strict")
 
@@ -733,7 +733,9 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
         assert vulnerability["type"] == VULN_INSECURE_COOKIE
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
-        line, hash_value = get_line_and_hash("test_fastapi_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH)
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+        )
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
@@ -792,7 +794,7 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-        
+
         # label test_fastapi_no_http_only_cookie
         response.set_cookie(key="insecure", value=query_params, secure=True, httponly=False, samesite="strict")
 
@@ -816,7 +818,9 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
         assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
-        line, hash_value = get_line_and_hash("test_fastapi_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH)
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+        )
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
@@ -873,7 +877,7 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
-        
+
         # label test_fastapi_no_samesite_cookie
         response.set_cookie(key="insecure", value=query_params, secure=True, httponly=True, samesite="none")
 
@@ -897,9 +901,12 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
         assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
-        line, hash_value = get_line_and_hash("test_fastapi_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH)
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+        )
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+
 
 def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/header_injection/")
