@@ -34,17 +34,8 @@ def log_filter(record: logging.LogRecord) -> bool:
     Function used to determine if a log record should be outputted or not (True = output, False = skip).
 
     This function will:
-      - Log all records with a level of ERROR or higher with telemetry
       - Rate limit log records based on the logger name, record level, filename, and line number
     """
-    if record.levelno >= logging.ERROR:
-        # avoid circular import
-        from ddtrace.internal import telemetry
-
-        # currently we only have one error code
-        full_file_name = os.path.join(record.pathname, record.filename)
-        telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
-
     logger = logging.getLogger(record.name)
 
     # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
