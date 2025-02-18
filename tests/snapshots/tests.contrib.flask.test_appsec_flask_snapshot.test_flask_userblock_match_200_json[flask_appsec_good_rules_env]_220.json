@@ -11,7 +11,6 @@
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.user.collection_mode": "sdk",
-      "_dd.appsec.usr.id": "111111",
       "_dd.appsec.waf.version": "1.22.0",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
