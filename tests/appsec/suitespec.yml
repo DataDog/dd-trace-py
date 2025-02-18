@@ -39,7 +39,6 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
-    pattern: appsec_iast$
     retry: 2
     runner: hatch
     services:
