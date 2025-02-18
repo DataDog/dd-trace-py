@@ -92,7 +92,7 @@ exclude = '''
 
 [tool.black]
 line-length = 120
-target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
@@ -130,6 +130,7 @@ exclude = '''
 '''
 
 [tool.pyright]
+reportArgumentType = "information"
 exclude = [
   "**/__pycache__",
   ".git",

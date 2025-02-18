@@ -1,3 +1,4 @@
+schema-version: v1
 rulesets:
   - python-best-practices:
     rules:
@@ -6,7 +7,10 @@ rulesets:
           - "**"
       max-function-lines:
         ignore:
-          - "tests/ci_visibility/api/fake_runner_*.py"
+          - tests/ci_visibility/api/fake_runner_*.py
       nested-blocks:
+        ignore:
+          - "**"
+      no-silent-exception:
         ignore:
           - "**"
