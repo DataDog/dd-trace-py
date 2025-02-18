@@ -1,9 +1,13 @@
+stages:
+  - test
+  - report
+
 variables:
   MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
-  stage: benchmarks
+  stage: test
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -60,7 +64,7 @@ microbenchmarks:
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
-  stage: benchmarks-report
+  stage: report
   when: always
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -78,7 +82,7 @@ benchmarks-pr-comment:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
 check-big-regressions:
-  stage: benchmarks-report
+  stage: report
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -92,7 +96,7 @@ check-big-regressions:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
 benchmark-serverless:
-  stage: benchmarks
+  stage: test
   trigger:
     project: DataDog/serverless-tools
     strategy: depend

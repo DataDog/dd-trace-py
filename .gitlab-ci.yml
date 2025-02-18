@@ -3,8 +3,6 @@ stages:
   - tests
   - shared-pipeline
   - benchmarks
-  - macrobenchmarks
-  - benchmarks-report
   - release
 
 variables:
@@ -17,9 +15,7 @@ default:
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
-  - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
 
@@ -43,6 +39,24 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+   
+microbenchmarks:
+  stage: benchmarks
+  needs: [ ]
+  trigger:
+    include: .gitlab/benchmarks.yml
+    strategy: depend
+   
+macrobenchmarks:
+  stage: benchmarks
+  needs: [ ]
+  trigger:
+    include: .gitlab/macrobenchmarks.yml
+    strategy: depend
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
 
 check_new_flaky_tests:
   stage: tests
