@@ -687,6 +687,8 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         }
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "test_route"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["hash"] == hash_value
 
 
@@ -940,6 +942,8 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert vulnerability["hash"] == hash_value
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "header_injection"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["location"]["spanId"]
 
 
