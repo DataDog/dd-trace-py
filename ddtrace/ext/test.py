@@ -87,8 +87,6 @@ ITR_FORCED_RUN = "test.itr.forced_run"
 # Test Session Name
 TEST_SESSION_NAME = "test_session.name"
 
-IS_USER_PROVIDED_SERVICE = "_dd.test.is_user_provided_service"
-
 
 class Status(Enum):
     PASS = "pass"

@@ -63,7 +63,6 @@ class TestVisibilitySessionSettings:
     suite_operation_name: str
     test_operation_name: str
     workspace_path: Path
-    is_user_provided_service: bool = False
     is_unsupported_ci: bool = False
     reject_duplicates: bool = True
     itr_enabled: bool = False
@@ -136,7 +135,6 @@ class TestVisibilityItemBase(abc.ABC):
         self._session_settings: TestVisibilitySessionSettings = session_settings
         self._tracer: Tracer = session_settings.tracer
         self._service: str = session_settings.test_service
-        self._is_user_provided_service: bool = session_settings.is_user_provided_service
         self._operation_name: str = operation_name
         self._resource: Optional[str] = resource if resource is not None else operation_name
 
@@ -238,7 +236,6 @@ class TestVisibilityItemBase(abc.ABC):
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
                 test.COMMAND: self._session_settings.test_command,
                 test.STATUS: self._status.value,  # Convert to a string at the last moment
-                test.IS_USER_PROVIDED_SERVICE: self._session_settings.is_user_provided_service,
             }
         )
 
