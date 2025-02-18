@@ -28,8 +28,6 @@
       "bedrock.response.choices.1.text": " A large language model (LLM) chain refers",
       "bedrock.response.duration": "597",
       "bedrock.response.id": "2501c28f-0a40-49ec-9b59-5d58313c05f3",
-      "bedrock.usage.completion_tokens": "20",
-      "bedrock.usage.prompt_tokens": "40",
       "language": "python",
       "runtime-id": "e2468c635ce44f8788acce3e9e569237"
     },
@@ -37,6 +35,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 20,
+      "bedrock.response.usage.prompt_tokens": 40,
       "process_id": 21816
     },
     "duration": 980170000,
