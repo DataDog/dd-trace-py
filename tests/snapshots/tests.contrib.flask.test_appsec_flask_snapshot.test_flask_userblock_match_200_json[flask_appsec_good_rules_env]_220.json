@@ -11,6 +11,7 @@
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.user.collection_mode": "sdk",
+      "_dd.appsec.usr.id": "111111",
       "_dd.appsec.waf.version": "1.22.0",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
@@ -32,7 +33,8 @@
       "language": "python",
       "network.client.ip": "127.0.0.1",
       "runtime-id": "fb2ca5c86850486981c575def356a1bc",
-      "span.kind": "server"
+      "span.kind": "server",
+      "usr.id": "111111"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
