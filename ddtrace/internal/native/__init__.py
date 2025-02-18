@@ -2,13 +2,8 @@ import os
 from typing import Dict
 from typing import Tuple
 
-from ddtrace.internal.logger import get_logger
-
 from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
-
-
-log = get_logger(__name__)
 
 
 def get_configuration_from_disk(
@@ -37,13 +32,14 @@ def get_configuration_from_disk(
     try:
         for entry in configurator.get_configuration():
             env = entry["name"]
-            if entry["source"] == "fleet_stable_config":
+            source = entry["source"]
+            if source == "fleet_stable_config":
                 fleet_config[env] = entry
-            elif entry["source"] == "local_stable_config":
+            elif source == "local_stable_config":
                 local_config[env] = entry
             else:
-                log.error("Unknown configuration source: %s, for %s", entry["source"], env)
+                print(f"Unknown configuration source: {source}, for {env}")
     except Exception as e:
         # No logger at this point, so we rely on good old print
-        log.error("Failed to load configuration from disk, skipping: %s", str(e))
+        print(f"Failed to load configuration from disk, skipping: {e}")
     return fleet_config, local_config
