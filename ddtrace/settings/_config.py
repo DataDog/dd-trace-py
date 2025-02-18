@@ -429,6 +429,7 @@ class Config(object):
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
             from ddtrace.internal._file_queue import File_Queue
+
             self._extra_services_queue = File_Queue()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
