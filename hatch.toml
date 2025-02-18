@@ -416,6 +416,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "python-multipart",
     "jinja2",
     "httpx<0.28.0",
     "anyio{matrix:anyio:}",
