@@ -1,5 +1,6 @@
+# this module must not load any other unsafe appsec module directly
+
 from ddtrace.internal import core
-from ddtrace.settings.asm import config as asm_config
 
 
 _APPSEC_TO_BE_LOADED = True
@@ -28,7 +29,9 @@ def load_iast():
 
 def load_common_appsec_modules():
     """Lazily load the common module patches."""
-    if (asm_config._ep_enabled and asm_config._asm_enabled) or asm_config._iast_enabled:
+    from ddtrace.settings.asm import config as asm_config
+
+    if asm_config._load_modules:
         from ddtrace.appsec._common_module_patches import patch_common_modules
 
         patch_common_modules()

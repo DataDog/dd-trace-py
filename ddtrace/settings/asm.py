@@ -2,6 +2,7 @@ import os
 import os.path
 from platform import machine
 from platform import system
+import sys
 from typing import List
 from typing import Optional
 
@@ -16,6 +17,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._core import report_telemetry as _report_telemetry
 from ddtrace.vendor.debtcollector import deprecate
@@ -244,19 +246,30 @@ class ASMConfig(Env):
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
         + r"?\d+)?)|(X\'[0-9A-Fa-f]+\')|(B\'[01]+\'))$",
     )
+    _bypass_instrumentation_for_waf = False
+
+    # IAST supported on python 3.6 to 3.13 and never on windows
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
+        sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    )
 
     def __init__(self):
         super().__init__()
-        # Is one click available?
-        self._eval_asm_can_be_enabled()
-        # Only for deprecation phase
-        if self._automatic_login_events_mode and APPSEC.AUTO_USER_INSTRUMENTATION_MODE not in os.environ:
-            self._auto_user_instrumentation_local_mode = self._automatic_login_events_mode
-        if not self._asm_libddwaf_available:
+        if not self._iast_supported:
+            self._iast_enabled = False
+        if not self._asm_libddwaf_available or in_aws_lambda():
             self._asm_enabled = False
             self._asm_can_be_enabled = False
             self._iast_enabled = False
             self._api_security_enabled = False
+            self._ep_enabled = False
+            self._auto_user_instrumentation_enabled = False
+            self._auto_user_instrumentation_local_mode = LOGIN_EVENTS_MODE.DISABLED
+            self._load_modules = False
+            self._asm_rc_enabled = False
+        else:
+            # Is one click available?
+            self._eval_asm_can_be_enabled()
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
@@ -264,6 +277,10 @@ class ASMConfig(Env):
 
     def _eval_asm_can_be_enabled(self):
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._load_modules: bool = bool(
+            self._iast_enabled or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
+        )
+        self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
 
     @property
     def _api_security_feature_active(self) -> bool:

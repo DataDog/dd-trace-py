@@ -1,8 +1,9 @@
 from typing import Dict
 from typing import Optional
 
+from ddtrace.settings.asm import config as asm_config
+
 from ..._constants import IAST_SPAN_TAGS
-from .. import _is_iast_enabled
 from .. import oce
 from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_metric_iast_executed_sink
@@ -36,7 +37,7 @@ class NoSameSite(VulnerabilityBase):
 def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
-    if _is_iast_enabled() and is_iast_request_enabled():
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             for cookie_key, cookie_value in cookies.items():
                 lvalue = cookie_value.lower().replace(" ", "")

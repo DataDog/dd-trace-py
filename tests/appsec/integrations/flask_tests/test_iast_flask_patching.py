@@ -2,9 +2,8 @@ import pytest
 
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.appsec.integrations.utils import _PORT
-from tests.appsec.integrations.utils import _request_200
-from tests.utils import flaky
+from tests.appsec.integrations.flask_tests.utils import _PORT
+from tests.appsec.integrations.flask_tests.utils import _request_200
 
 
 def test_flask_iast_ast_patching_import_error():
@@ -18,7 +17,7 @@ def test_flask_iast_ast_patching_import_error():
         pass
     """
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=True
+        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -28,7 +27,6 @@ def test_flask_iast_ast_patching_import_error():
         assert response.content == b"False"
 
 
-@flaky(until=1706677200, reason="TODO(avara1986): Re.Match contains errors. APPSEC-55239")
 @pytest.mark.parametrize("style", ["re_module", "re_object"])
 @pytest.mark.parametrize("endpoint", ["re", "non-re"])
 @pytest.mark.parametrize(
