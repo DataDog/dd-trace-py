@@ -137,6 +137,7 @@ asyncio.run(main())
     assert status == 0, err
     assert out == b""
 
+
 @pytest.mark.snapshot()
 def test_ddtrace_run_trace_methods_async_nested(ddtrace_run_python_code_in_subprocess):
     """
