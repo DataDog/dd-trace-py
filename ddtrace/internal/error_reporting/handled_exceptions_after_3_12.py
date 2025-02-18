@@ -13,10 +13,7 @@ from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.settings.error_reporting import config
 
 
-assert sys.version_info >= (3, 12)
-
 INSTRUMENTED_FILE_PATHS = []
-
 
 """
 sys.monitoring reports EVERY handled exceptions, including python internal ones.
@@ -42,8 +39,10 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     joined_conditions = " or ".join(conditions)
     logic = f"'frozen' not in file_name and ({joined_conditions}))"
 
-    namespace = {}
-    exec(f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace)
+    namespace = {}  # type: ignore
+    exec(
+        f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace
+    )  # nosec
     return namespace["_should_report_exception"]
 
 

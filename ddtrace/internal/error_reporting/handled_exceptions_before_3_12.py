@@ -14,8 +14,6 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.settings.error_reporting import config
 
 
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)  # nosec
-
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
 
 
