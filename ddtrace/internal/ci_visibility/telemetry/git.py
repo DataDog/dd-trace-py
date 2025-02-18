@@ -71,7 +71,7 @@ def record_settings_response(
         ", require_git=%s"
         ", itr_enabled=%s"
         ", flaky_test_retries_enabled=%s"
-        ", early_flake_detection_enabled=%s",
+        ", early_flake_detection_enabled=%s"
         ", test_management_enabled=%s",
         coverage_enabled,
         skipping_enabled,

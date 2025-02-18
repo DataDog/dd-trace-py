@@ -88,6 +88,9 @@ onboarding_tests_k8s_injection:
         SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_UDS, K8S_LIB_INJECTION_NO_AC, K8S_LIB_INJECTION_NO_AC_UDS]
         K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
 
+deploy_to_reliability_env:
+  needs: []
+
 deploy_to_di_backend:manual:
   stage: shared-pipeline
   rules:
