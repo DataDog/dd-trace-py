@@ -298,7 +298,7 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer: Tracer, userid: str, mode: str) -> None:
+def block_request_if_user_blocked(tracer: Tracer, userid: str, mode: str = "sdk") -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
@@ -307,6 +307,7 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str, mode: str) -> Non
 
     :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
+    :param mode: the mode of the login event ("sdk" by default, "auto" to simulate auto instrumentation)
     """
     if not asm_config._asm_enabled:
         log.warning("should_block_user call requires ASM to be enabled")
