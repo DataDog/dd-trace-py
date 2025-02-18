@@ -1,3 +1,4 @@
+import inspect
 from typing import List
 from typing import Tuple
 
@@ -5,7 +6,6 @@ import wrapt
 
 from ddtrace.internal.logger import get_logger
 
-import inspect
 
 log = get_logger(__name__)
 
