@@ -18,6 +18,7 @@ include:
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/benchmarks/serverless.yml"
 
 tests-gen:
   stage: tests
@@ -44,14 +45,14 @@ microbenchmarks:
   stage: benchmarks
   needs: [ ]
   trigger:
-    include: .gitlab/benchmarks.yml
+    include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
    
 macrobenchmarks:
   stage: benchmarks
   needs: [ ]
   trigger:
-    include: .gitlab/macrobenchmarks.yml
+    include: .gitlab/benchmarks/macrobenchmarks.yml
     strategy: depend
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

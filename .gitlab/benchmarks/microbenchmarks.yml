@@ -4,7 +4,6 @@ stages:
 
 variables:
   MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
-  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
   stage: test
@@ -94,20 +93,3 @@ check-big-regressions:
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
-
-benchmark-serverless:
-  stage: test
-  trigger:
-    project: DataDog/serverless-tools
-    strategy: depend
-  needs: []
-  variables:
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
-    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
-    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
-    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
