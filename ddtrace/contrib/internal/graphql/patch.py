@@ -355,8 +355,8 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
         if error_extension_fields is not None:
             extensions = _validate_error_extensions(error, error_extension_fields)
             if extensions:
-                attributes["extensions"] = extensions
-
+                for key in extensions:
+                    attributes[f"extensions.{key}"] = extensions[key]
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,
