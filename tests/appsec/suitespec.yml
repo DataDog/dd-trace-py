@@ -132,6 +132,21 @@ suites:
     services:
       - testagent
     timeout: 30m
+  appsec_integrations_fastapi:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/fastapi_tests/*
+    retry: 2
+    runner: hatch
+    services:
+      - testagent
+    timeout: 40m
   appsec_threats_django:
     parallelism: 12
     paths:
