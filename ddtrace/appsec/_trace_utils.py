@@ -298,7 +298,7 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
+def block_request_if_user_blocked(tracer: Tracer, userid: str, mode: str) -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
@@ -314,7 +314,17 @@ def block_request_if_user_blocked(tracer: Tracer, userid: str) -> None:
     span = tracer.current_root_span()
     if span:
         root_span = span._local_root or span
-        root_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, LOGIN_EVENTS_MODE.SDK)
+        if mode == LOGIN_EVENTS_MODE.SDK:
+            root_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, LOGIN_EVENTS_MODE.SDK)
+        else:
+            if mode == LOGIN_EVENTS_MODE.AUTO:
+                mode = asm_config._user_event_mode
+            if mode == LOGIN_EVENTS_MODE.DISABLED:
+                return
+            if mode == LOGIN_EVENTS_MODE.ANON:
+                userid = _hash_user_id(str(userid))
+            root_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+            root_span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(userid))
         root_span.set_tag_str(user.ID, str(userid))
     if should_block_user(tracer, userid):
         _asm_request_context.block_request()
