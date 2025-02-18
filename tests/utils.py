@@ -1208,8 +1208,12 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    # Remove all keys with the value None from env, None is used to unset an environment variable
+    cleaned_env = {env: val for env, val in kwargs.pop("env", {}).items() if val is not None}
     close_fds = sys.platform != "win32"
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
+    subp = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, env=cleaned_env, **kwargs
+    )
     try:
         stdout, stderr = subp.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:

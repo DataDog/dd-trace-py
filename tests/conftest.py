@@ -337,11 +337,7 @@ def run_function_from_file(item, params=None):
             env[key] = value
 
     if params is not None:
-        for k, v in params.items():
-            if v is not None:
-                env[k] = v
-            else:
-                env.pop(k, None)
+        env.update(params)
 
     expected_status = marker.kwargs.get("status", 0)
     expected_out = marker.kwargs.get("out", "")
