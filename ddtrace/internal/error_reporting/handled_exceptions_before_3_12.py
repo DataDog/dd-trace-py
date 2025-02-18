@@ -3,18 +3,18 @@ import sys
 import types
 from types import ModuleType
 
+from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
 from ddtrace.internal.error_reporting.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
 from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
-from ddtrace.internal.injection.core import CallbackType
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
 from ddtrace.settings.error_reporting import config
 
 
-assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)
+assert sys.version_info >= (3, 10) and sys.version_info < (3, 12)  # nosec
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
 
@@ -33,11 +33,6 @@ class HandledExceptionReportingInjector:
         self._configured_modules = configured_modules
         self._callback = callback or _default_datadog_exc_callback
 
-    def backfill(self):
-        existing_modules = set(sys.modules.keys())
-        for module_name in existing_modules:
-            self.instrument_module_conditionally(module_name)
-
     @cached(maxsize=256)
     def _has_file(self, module) -> bool:
         return hasattr(module, "__file__") and module.__file__ is not None
@@ -47,9 +42,9 @@ class HandledExceptionReportingInjector:
         if self._has_file(module) is False or "ddtrace" in module_name:
             return
         module_path = Path(module.__file__).resolve()  # type: ignore
-        if config._instrument_user_code and is_user_code(module_path):
-            self._instrument_module(module_name)
-        elif config._instrument_third_party_code and is_third_party(module_path):
+        if (config._instrument_user_code and is_user_code(module_path)) or (
+            config._instrument_third_party_code and is_third_party(module_path)
+        ):
             self._instrument_module(module_name)
         else:
             for enabled_module in self._configured_modules:
@@ -65,6 +60,7 @@ class HandledExceptionReportingInjector:
         mod = sys.modules[module_name]
         names = dir(mod)
 
+        # Iterate through the attributes of a modules
         for name in names:
             if name in mod.__dict__:
                 obj = mod.__dict__[name]
@@ -76,19 +72,21 @@ class HandledExceptionReportingInjector:
                     self._instrument_obj(obj)
 
     def _instrument_obj(self, obj):
+        # Prevent infinite recursion
         self._instrumented_obj.add(hash(obj))
+
+        # Instrument only functions of the module
         if (
             type(obj) in (types.FunctionType, types.MethodType, staticmethod)
             and hasattr(obj, "__name__")
             and not self._is_reserved(obj.__name__)
         ):
             _inject_handled_exception_reporting(obj, callback=self._callback)
-        elif type(obj) is type:
-            # classes
+        elif isinstance(obj, type):
+            # Instrument classes
             for candidate in obj.__dict__.keys():
                 if (
                     type(obj.__dict__[candidate]) in INSTRUMENTABLE_TYPES
-                    and not self._is_reserved(candidate)
                     and hash(obj.__dict__[candidate]) not in self._instrumented_obj
                 ):
                     self._instrument_obj(obj.__dict__[candidate])
@@ -98,6 +96,13 @@ class HandledExceptionReportingInjector:
 
 
 _injector: HandledExceptionReportingInjector | None = None
+
+"""
+__main__module is never imported, therefore we can instrument
+its function only after the def code is executed. This is a helper
+function in case a client really need to instrument its main file.
+This is also the reason why _injector is a global object
+"""
 
 
 def instrument_main() -> None:
@@ -111,6 +116,8 @@ class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
 
     def after_install(self):
         global _injector
+
+        # Init injector
         if config._report_after_unhandled is False:
             _injector = HandledExceptionReportingInjector(config._configured_modules)
         else:

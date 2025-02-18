@@ -19,8 +19,8 @@ skipif_bytecode_injection_not_supported = pytest.mark.skipif(
 class ErrorTestCases(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_basic_try_except(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_basic_try_except_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_basic_try_except_f
 
         value = 0
 
@@ -40,8 +40,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_basic_multiple_except(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_basic_multiple_except_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_basic_multiple_except_f
 
         value = 0
 
@@ -60,13 +60,13 @@ class ErrorTestCases(TracerTestCase):
         )
         self.spans[1].assert_span_event_count(1)
         self.spans[1].assert_span_event_attributes(
-            0, {"exception.type": "builtins.Exception", "exception.message": "auto caught error"}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
         )
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_handled_same_error_multiple_times(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_handled_same_error_multiple_times_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_handled_same_error_multiple_times_f
 
         value = 0
 
@@ -86,8 +86,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_reraise_handled_error(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_reraise_handled_error_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_reraise_handled_error_f
 
         value = 0
 
@@ -112,8 +112,8 @@ class ErrorTestCases(TracerTestCase):
     def test_async_error(self):
         import asyncio
 
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_sync_error_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_sync_error_f
 
         value = ""
 
@@ -140,7 +140,7 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_module_scoped_reporting(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
         from tests.internal.error_reporting.module.sample_module import module_func
         from tests.internal.error_reporting.module.submodule.sample_submodule_1 import submodule_1
         from tests.internal.error_reporting.module.submodule.sample_submodule_2 import submodule_2
@@ -172,7 +172,7 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_narrowed_scoped_reporting(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
         from tests.internal.error_reporting.module.submodule.sample_submodule_1 import submodule_1
         from tests.internal.error_reporting.module.submodule.sample_submodule_2 import submodule_2
 
@@ -205,8 +205,8 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_report_after_unhandled_without_raise(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401s
-        from tests.internal.error_reporting.test_functions import test_report_after_unhandled_without_raise_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401s
+        from tests.internal.error_reporting._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
 
@@ -228,8 +228,8 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_report_after_unhandled_with_raise(self):
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
-        from tests.internal.error_reporting.test_functions import test_report_after_unhandled_without_raise_f
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.error_reporting._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
 
@@ -257,8 +257,8 @@ class ErrorTestCases(TracerTestCase):
 class UserCodeErrorTestCases(TracerTestCase):
     @pytest.fixture(scope="class", autouse=True)
     def load_user_code(self):
-        from tests.internal.error_reporting.test_functions import main_user_code_string
-        from tests.internal.error_reporting.test_functions import module_user_code_string
+        from tests.internal.error_reporting._test_functions import main_user_code_string
+        from tests.internal.error_reporting._test_functions import module_user_code_string
 
         temp_dir = tempfile.TemporaryDirectory()
         base_path = pathlib.Path(temp_dir.name)
@@ -282,7 +282,7 @@ class UserCodeErrorTestCases(TracerTestCase):
     def test_user_code_reporting(self):
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
@@ -311,7 +311,7 @@ class UserCodeErrorTestCases(TracerTestCase):
     def test_user_code_reporting_with_third_party(self):
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
@@ -336,7 +336,7 @@ class UserCodeErrorTestCases(TracerTestCase):
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions  # noqa: F401
+        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
