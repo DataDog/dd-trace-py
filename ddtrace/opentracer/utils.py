@@ -9,7 +9,6 @@ from ddtrace._trace.provider import DefaultContextProvider
 
 
 def get_context_provider_for_scope_manager(scope_manager: ScopeManager) -> BaseContextProvider:
-    # type: (ScopeManager) -> BaseContextProvider
     """Returns the context_provider to use with a given scope_manager."""
 
     dd_context_provider = DefaultContextProvider()
