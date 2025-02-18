@@ -10,6 +10,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Bug Fixes
 
 - ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable. 
+
 - SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
 
 - Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
