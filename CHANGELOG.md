@@ -10,11 +10,12 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ### Bug Fixes
 
 - ASM
-    - Ensure that no module from ASM are loaded when ASM is disabled or unavailable. SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
-    - Resolve an issue where IAST modules could be loaded, even if disabled, which could create an ImportError exception on Windows.
+    - Ensure that no module from ASM are loaded when ASM is disabled or unavailable.
 
  - Code Security
     - Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
+    - SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+    - Resolve an issue where IAST modules could be loaded, even if disabled, which could create an ImportError exception on Windows.
 
 - Profiling
     - Fixes an issue where the profiler unnecessarily outputs log messages when it was unable to record a lock acquire event. 
