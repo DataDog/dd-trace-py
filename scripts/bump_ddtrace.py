@@ -12,6 +12,7 @@ GH_USERNAME = ""
 OS_USERNAME = ""
 
 
+PROJECT_MAIN_BRANCH_NAME = "main"
 PARTIAL_BRANCH_NAME = "bump-ddtrace-to-"
 PACKAGE_NAME = "ddtrace"
 
@@ -92,14 +93,13 @@ def create_bump_pr(branch_name, project_path, requirements_path, latest_version,
         run_command(f"{OPEN_CMD} https://github.com/DataDog/{project}/pull/new/{branch_name}")
     except Exception:
         run_command("git reset --hard HEAD", cwd=project_path)
-        run_command("git checkout main", cwd=project_path)
+        run_command(f"git checkout {PROJECT_MAIN_BRANCH_NAME}", cwd=project_path)
         run_command(f"git branch -D {branch_name}", cwd=project_path)
 
 
 def update_pr(branch_name, project_path):
-    main_branch_name = "main"
     # update main branch
-    run_command(f"git checkout {main_branch_name}", cwd=project_path)
+    run_command(f"git checkout {PROJECT_MAIN_BRANCH_NAME}", cwd=project_path)
     run_command("git pull", cwd=project_path)
     # checkout branch
     run_command(f"git checkout {branch_name}", cwd=project_path)
@@ -108,12 +108,12 @@ def update_pr(branch_name, project_path):
     cherry_pick_success = False
     try:
         # reset branch to main_branch
-        run_command(f"git reset --hard {main_branch_name}", cwd=project_path)
+        run_command(f"git reset --hard {PROJECT_MAIN_BRANCH_NAME}", cwd=project_path)
         # cherry-pick commit, this will fail if there are conflicts, that's OK
         result = run_command(f"git cherry-pick {git_sha}", check=False, cwd=project_path)
         if "conflict" in result.stdout.lower() or "conflict" in result.stderr.lower():
             # reset requirement_* files to main state
-            run_command(f"git checkout {main_branch_name} -- requirements_*", cwd=project_path)
+            run_command(f"git checkout {PROJECT_MAIN_BRANCH_NAME} -- requirements_*", cwd=project_path)
             # run bazel commands
             run_bazel_commands(project_path, only_vendor=True)
             # add new changes
