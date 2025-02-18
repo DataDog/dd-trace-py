@@ -44,7 +44,7 @@ class ErrorReportingConfig(Env):
 
     _instrument_user_code = False
     _instrument_third_party_code = False
-    _configured_modules: list[str] = list()
+    _configured_modules: t.List[str] = list()
     enabled = False
 
     def _init_scope(self):
