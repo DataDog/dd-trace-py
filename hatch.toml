@@ -281,6 +281,58 @@ flask = ["~=2.3"]
 python = ["3.8", "3.11", "3.13"]
 flask = ["~=3.0"]
 
+## ASM IAST module
+
+[envs.appsec_iast]
+template = "appsec_iast"
+dependencies = [
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "astunparse",
+    "simplejson",
+    "SQLAlchemy==2.0.22",
+    "psycopg2-binary~=2.9.9",
+    "pymysql",
+    "mysqlclient==2.1.1",
+    "grpcio",
+    "mysqlclient==2.1.1",
+]
+
+[envs.appsec_iast.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast/",
+]
+
+[[envs.appsec_iast.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+## ASM IAST memcheck
+
+[envs.appsec_iast_memcheck]
+template = "appsec_iast_memcheck"
+dependencies = [
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "psycopg2-binary~=2.9.9",
+    "pytest-memray"
+]
+
+[envs.appsec_iast_memcheck.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -v -s --no-cov --memray --stacks=35 tests/appsec/iast_memcheck/",
+]
+
+[[envs.appsec_iast_memcheck.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
