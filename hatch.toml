@@ -287,6 +287,7 @@ flask = ["~=3.0"]
 template = "appsec_iast"
 dependencies = [
     "pytest",
+    "hypothesis",
     "requests",
     "urllib3",
     "pycryptodome",
@@ -317,6 +318,7 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 template = "appsec_iast_memcheck"
 dependencies = [
     "pytest",
+    "hypothesis",
     "requests",
     "urllib3",
     "pycryptodome",
@@ -329,7 +331,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "python -v -s --memray --stacks=35 tests/appsec/iast_memcheck/",
+    "python --memray --stacks=35 tests/appsec/iast_memcheck/",
 ]
 
 [[envs.appsec_iast_memcheck.matrix]]
