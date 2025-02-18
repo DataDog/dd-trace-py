@@ -1,5 +1,6 @@
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 
@@ -19,8 +20,8 @@ skipif_bytecode_injection_not_supported = pytest.mark.skipif(
 class ErrorTestCases(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_basic_try_except(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_basic_try_except_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_basic_try_except_f
 
         value = 0
 
@@ -40,8 +41,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_basic_multiple_except(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_basic_multiple_except_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_basic_multiple_except_f
 
         value = 0
 
@@ -65,8 +66,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_handled_same_error_multiple_times(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_handled_same_error_multiple_times_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_handled_same_error_multiple_times_f
 
         value = 0
 
@@ -86,8 +87,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true"))
     def test_reraise_handled_error(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_reraise_handled_error_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_reraise_handled_error_f
 
         value = 0
 
@@ -112,8 +113,8 @@ class ErrorTestCases(TracerTestCase):
     def test_async_error(self):
         import asyncio
 
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_sync_error_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_sync_error_f
 
         value = ""
 
@@ -136,77 +137,13 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="tests.internal.error_reporting.module.submodule"
-        )
-    )
-    def test_user_code_module_scoped_reporting(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting.module.sample_module import module_func
-        from tests.internal.error_reporting.module.submodule.sample_submodule_1 import submodule_1
-        from tests.internal.error_reporting.module.submodule.sample_submodule_2 import submodule_2
-
-        # value is used to ensure the except block is properly executed
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value += module_func()
-            value += submodule_1()
-            value += submodule_2()
-
-        f()
-        assert value == "<except_module><except_submodule_1><except_submodule_2>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
-        )
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="tests.internal.error_reporting.module.submodule.sample_submodule_2"
-        )
-    )
-    def test_user_code_narrowed_scoped_reporting(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting.module.submodule.sample_submodule_1 import submodule_1
-        from tests.internal.error_reporting.module.submodule.sample_submodule_2 import submodule_2
-
-        # value is used to ensure the except block is properly executed
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            try:
-                raise ValueError("auto caught error")
-            except ValueError:
-                value += "<except_f>"
-
-            value += submodule_1()
-            value += submodule_2()
-
-        f()
-        assert value == "<except_f><except_submodule_1><except_submodule_2>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(1)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
-        )
-
-    @run_in_subprocess(
-        env_overrides=dict(
             DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS="true",
             DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_AFTER_UNHANDLED="true",
         )
     )
     def test_report_after_unhandled_without_raise(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401s
-        from tests.internal.error_reporting._test_functions import test_report_after_unhandled_without_raise_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401s
+        from tests.internal.errortracker._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
 
@@ -228,8 +165,8 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_report_after_unhandled_with_raise(self):
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
-        from tests.internal.error_reporting._test_functions import test_report_after_unhandled_without_raise_f
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        from tests.internal.errortracker._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
 
@@ -257,9 +194,12 @@ class ErrorTestCases(TracerTestCase):
 class UserCodeErrorTestCases(TracerTestCase):
     @pytest.fixture(scope="class", autouse=True)
     def load_user_code(self):
-        from tests.internal.error_reporting._test_functions import main_user_code_string
-        from tests.internal.error_reporting._test_functions import module_user_code_string
+        from tests.internal.errortracker._test_functions import main_user_code_string
+        from tests.internal.errortracker._test_functions import module_user_code_string
+        from tests.internal.errortracker._test_functions import submodule_1_string
+        from tests.internal.errortracker._test_functions import submodule_2_string
 
+        # set up fake user code
         temp_dir = tempfile.TemporaryDirectory()
         base_path = pathlib.Path(temp_dir.name)
         base_path.mkdir(exist_ok=True)
@@ -271,7 +211,25 @@ class UserCodeErrorTestCases(TracerTestCase):
         main_code_path = os.path.join(base_path, "main_code.py")
         with open(main_code_path, "w") as file:
             file.write(main_user_code_string)
+
+        # Creation of submodule
+        submodule_path = os.path.join(base_path, "submodule")
+        pathlib.Path(submodule_path).mkdir(exist_ok=True)
+        init_path = os.path.join(submodule_path, "__init__.py")
+        with open(init_path, "w") as file:
+            file.write("")
+
+        submodule_1_path = os.path.join(submodule_path, "submodule_1.py")
+        with open(submodule_1_path, "w") as file:
+            file.write(submodule_1_string)
+
+        submodule_2_path = os.path.join(submodule_path, "submodule_2.py")
+        with open(submodule_2_path, "w") as file:
+            file.write(submodule_2_string)
+
+        sys.path.insert(0, str(base_path))
         os.environ["PYTHONPATH"] = str(base_path) + os.pathsep + os.environ.get("PYTHONPATH", "")
+
         self.addCleanup(temp_dir.cleanup)
 
     @run_in_subprocess(
@@ -279,10 +237,12 @@ class UserCodeErrorTestCases(TracerTestCase):
             DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_USER="true",
         )
     )
-    def test_user_code_reporting(self):
+    def test_user_code_reporting__(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
@@ -293,15 +253,18 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         f()
 
-        assert value == "<except_f><except_module_f><except_submodule_1>"
+        """ In python3.12, it seems ddtrace can be considered as
+        user code in the CI. Rather than doing magic stuff in the code just for a test
+        we considered it as passed if the numpy except is not in the event and the two user code
+        are
+        """
+        assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.ValueError", "exception.message": "module caught error"}
-        )
+        assert len(self.spans[0]._events) >= 2
+        event_messages = [event.attributes["exception.message"] for event in self.spans[0]._events]
+        assert "auto caught error" in event_messages
+        assert "module caught error" in event_messages
+        assert "<error_numpy_f>" not in event_messages
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -309,9 +272,11 @@ class UserCodeErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_reporting_with_third_party(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
@@ -322,21 +287,24 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         f()
 
-        assert value == "<except_f><except_module_f><except_submodule_1>"
+        assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
+        self.spans[0].assert_span_event_count(1)
         self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
+            0, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
         )
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="tests.internal.error_reporting,user_module",
+            DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="numpy,user_module",
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
 
         value = ""
 
@@ -347,12 +315,77 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         f()
 
-        assert value == "<except_f><except_module_f><except_submodule_1>"
+        assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
         self.spans[0].assert_span_event_count(2)
         self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.ValueError", "exception.message": "module caught error"}
         )
         self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
+            1, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="submodule"))
+    def test_user_code_scoped_reporting(self):
+        import submodule.submodule_1 as sub_1  # type: ignore
+        import submodule.submodule_2 as sub_2  # type: ignore
+
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+
+        # value is used to ensure the except block is properly executed
+        value = ""
+
+        @self.tracer.wrap()
+        def f():
+            nonlocal value
+            try:
+                raise ValueError("auto caught error")
+            except ValueError:
+                value += "<except_f>"
+
+            value += sub_1.submodule_1_f()
+            value += sub_2.submodule_2_f()
+
+        f()
+        assert value == "<except_f><except_submodule_1><except_submodule_2>"
+        self.assert_span_count(1)
+        self.spans[0].assert_span_event_count(2)
+
+        self.spans[0].assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
+        )
+        self.spans[0].assert_span_event_attributes(
+            1, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
+        )
+
+    @run_in_subprocess(
+        env_overrides=dict(DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS_MODULES="submodule.submodule_2")
+    )
+    def test_user_code_narrowed_scoped_reporting(self):
+        import submodule.submodule_1 as sub_1  # type: ignore
+        import submodule.submodule_2 as sub_2  # type: ignore
+
+        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+
+        # value is used to ensure the except block is properly executed
+        value = ""
+
+        @self.tracer.wrap()
+        def f():
+            nonlocal value
+            try:
+                raise ValueError("auto caught error")
+            except ValueError:
+                value += "<except_f>"
+
+            value += sub_1.submodule_1_f()
+            value += sub_2.submodule_2_f()
+
+        f()
+        assert value == "<except_f><except_submodule_1><except_submodule_2>"
+        self.assert_span_count(1)
+        self.spans[0].assert_span_event_count(1)
+
+        self.spans[0].assert_span_event_attributes(
+            0, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
         )

@@ -11,19 +11,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 def get_context_provider_for_scope_manager(scope_manager: ScopeManager) -> BaseContextProvider:
     """Returns the context_provider to use with a given scope_manager."""
 
-    scope_manager_type = type(scope_manager).__name__
-
-    # avoid having to import scope managers which may not be compatible
-    # with the version of python being used
-    if scope_manager_type == "AsyncioScopeManager":
-        import ddtrace.contrib.asyncio
-
-        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: ignore
-    else:
-        from ddtrace._trace.provider import DefaultContextProvider
-
-        dd_context_provider = DefaultContextProvider()
-
+    dd_context_provider = DefaultContextProvider()
     _patch_scope_manager(scope_manager, dd_context_provider)
 
     return dd_context_provider

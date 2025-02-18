@@ -17,12 +17,8 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 class ErrorReportingConfig(Env):
     __prefix__ = "dd_trace"
     enable_handled_exceptions_reporting = Env.var(bool, "experimental_reported_handled_exceptions", default=False)
-    _enable_handled_exceptions_reporting_user_code = Env.var(
-        bool, "experimental_reported_handled_exceptions_user", default=False
-    )
-    _enable_handled_exceptions_reporting_third_party = Env.var(
-        bool, "experimental_reported_handled_exceptions_third_party", default=False
-    )
+    _instrument_user_code = Env.var(bool, "experimental_reported_handled_exceptions_user", default=False)
+    _instrument_third_party_code = Env.var(bool, "experimental_reported_handled_exceptions_third_party", default=False)
     _modules_to_report = Env.var(
         list, "experimental_reported_handled_exceptions_modules", parser=parse_modules, default=[]
     )
@@ -42,28 +38,17 @@ class ErrorReportingConfig(Env):
         """
         HANDLED_EXCEPTIONS_MONITORING_ID = 3
 
-    _instrument_user_code = False
-    _instrument_third_party_code = False
-    _configured_modules: list[str] = list()
+    _configured_modules: t.List[str] = list()
     enabled = False
-
-    def _init_scope(self):
-        if self.enable_handled_exceptions_reporting is True:
-            self._instrument_user_code = True
-            self._instrument_third_party_code = True
-        else:
-            self._configured_modules = self._modules_to_report
-            self._instrument_user_code = self._enable_handled_exceptions_reporting_user_code
-            self._instrument_third_party_code = self._enable_handled_exceptions_reporting_third_party
 
 
 config = ErrorReportingConfig()
 if (
     (not config._modules_to_report) is False
     or config.enable_handled_exceptions_reporting
-    or config._enable_handled_exceptions_reporting_user_code
-    or config._enable_handled_exceptions_reporting_third_party
+    or config._instrument_user_code
+    or config._instrument_third_party_code
 ):
+    config._configured_modules = config._modules_to_report
     config.enabled = True
-    config._init_scope()
     _report_telemetry(config)

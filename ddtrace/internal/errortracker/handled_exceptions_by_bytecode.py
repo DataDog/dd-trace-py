@@ -54,9 +54,12 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
         if offset in lines_offsets:
             injection_indexes.add(offset)
 
-    def inject_next_offset(offset: int):
+    def inject_next_offset_start_of_line(offset: int):
         while offset not in lines_offsets:
             offset += 2
+            if offset > lines_offsets[-1]:
+                offset = lines_offsets[-1]
+                break
         injection_indexes.add(offset)
 
     def first_offset_not_matching(start: int, *opcodes: int):
@@ -77,10 +80,13 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
         if idx in potential_marks:
             if current_opcode == DUP_TOP:
                 if co_code[idx + 2] == LOAD_GLOBAL and co_code[idx + 4] == JUMP_IF_NOT_EXC_MATCH:
-                    inject_next_offset(idx + 6)
+                    inject_next_offset_start_of_line(idx + 6)
 
             elif current_opcode == POP_TOP:
-                inject_next_offset(first_offset_not_matching(idx, POP_TOP))
+                # an except block is always the first opcode of a line
+                # while finally has the same structure but has no line
+                if idx in lines_offsets:
+                    inject_next_offset_start_of_line(first_offset_not_matching(idx, POP_TOP))
             continue
 
         if current_opcode == SETUP_FINALLY:

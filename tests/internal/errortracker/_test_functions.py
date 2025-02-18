@@ -85,10 +85,30 @@ def module_user_code():
     return value
 """
 
+submodule_1_string = """
+def submodule_1_f():
+    value = ""
+    try:
+        raise RuntimeError("<error_function_submodule_1>")
+    except Exception:
+        value += "<except_submodule_1>"
+    return value
+"""
+
+submodule_2_string = """
+def submodule_2_f():
+    value = ""
+    try:
+        raise ValueError("<error_function_submodule_2>")
+    except Exception:
+        value += "<except_submodule_2>"
+    return value
+"""
+
 main_user_code_string = """
 def main_user_code(value):
     from user_module import module_user_code
-    from tests.internal.error_reporting.module.submodule.sample_submodule_1 import submodule_1
+    import numpy
 
     try:
         raise ValueError("auto caught error")
@@ -96,6 +116,6 @@ def main_user_code(value):
         value += "<except_f>"
 
     value += module_user_code()
-    value += submodule_1()
+    value += numpy.numpy_f()
     return value
 """
