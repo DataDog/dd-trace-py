@@ -18,17 +18,20 @@ assert sys.version_info >= (3, 12)
 INSTRUMENTED_FILE_PATHS = []
 
 
+"""
+sys.monitoring reports EVERY handled exceptions, including python internal ones.
+Therefore we need to filter based on the file_name/file_path. If this check is called
+many times (it is the case), it becomes costly. Therefore create should_report will create
+a function that only checks what is needed
+"""
+
+
 def create_should_report_exception_optimized(checks: set[str | None]) -> Callable[[str, Path], bool]:
     """
     Generate a precompiled version of `should_report_exception` that is as fast as static logic.
-
-    :param checks: Set of checks to include (e.g., 'user', 'module', 'stdlib', 'thirdparty').
-    :return: A callable function that evaluates the required checks.
     """
-    # Start with the common frozen check
     conditions = []
 
-    # Add conditions based on the requested checks
     if "all_user" in checks:
         conditions.append("is_user_code(file_path)")
     if "modules" in checks:
@@ -36,9 +39,9 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     if "all_third_party" in checks:
         conditions.append("(is_third_party(file_path) and 'ddtrace' not in file_name)")
 
-    # Combine all conditions into a single expression
-    logic = "'frozen' not in file_name and (" + " or ".join(conditions) + ")"
-    # Dynamically define the function using `exec`
+    joined_conditions = " or ".join(conditions)
+    logic = f"'frozen' not in file_name and ({joined_conditions}))"
+
     namespace = {}
     exec(f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace)
     return namespace["_should_report_exception"]
@@ -52,14 +55,15 @@ checks = {
 _should_report_exception = create_should_report_exception_optimized(checks)
 
 
-@cached(maxsize=2048)
+@cached(maxsize=4096)
 def cached_should_report_exception(file_name: str):
     file_path = Path(file_name).resolve()
     return _should_report_exception(file_name, file_path)
 
 
 def _install_sys_monitoring_reporting():
-    MonitorHandledExceptionReportingWatchdog.install()
+    if (not config._configured_modules) is False:
+        MonitorHandledExceptionReportingWatchdog.install()
 
     def _exc_default_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
         if cached_should_report_exception(code.co_filename):
@@ -72,6 +76,8 @@ def _install_sys_monitoring_reporting():
         return True
 
     sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
+
+    # Report handled exception only if an unhandled exceptions occurred
     if config._report_after_unhandled:
         sys.monitoring.register_callback(
             config.HANDLED_EXCEPTIONS_MONITORING_ID,
@@ -79,6 +85,7 @@ def _install_sys_monitoring_reporting():
             _exc_after_unhandled_event_handler,
         )
     else:
+        # Report every handled exceptions
         sys.monitoring.register_callback(
             config.HANDLED_EXCEPTIONS_MONITORING_ID,
             sys.monitoring.events.EXCEPTION_HANDLED,
@@ -92,18 +99,18 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     _instrumented_modules: set[str] = set()
     _configured_modules: list[str] = config._configured_modules
 
+    """
+    With sys.monitoring, we cannot instrument modules, directly.
+    Here, we add the path of the files we want to instrument.
+    """
+
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
-        if len(configured_modules) == 0:
-            return
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
                 INSTRUMENTED_FILE_PATHS.append(module.__file__)
                 break
 
     def after_import(self, module: ModuleType):
-        if len(self._configured_modules) == 0:
-            return
-
         module_name = module.__name__
         if module_name in self._instrumented_modules:
             return
@@ -111,8 +118,6 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
         self.conditionally_instrument_module(self._configured_modules, module_name, module)
 
     def after_install(self):
-        if len(self._configured_modules) == 0:
-            return
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.
         existing_modules = set(sys.modules.keys())

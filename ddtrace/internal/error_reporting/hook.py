@@ -13,11 +13,14 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.settings.error_reporting import config as error_reporting_config
 
 
-_internal_debug_logger = None
 _error_tuple_info = (None, None, None)
 
+"""Most of the overhead of automatic reporting is added by traceback formatting
+Cache was added to try to be faster is the same error is reported several times
+"""
 
-@cached(maxsize=4096)
+
+@cached(maxsize=8192)
 def _get_formatted_traceback(tb_hash):
     exc_type, exc_val, exc_tb = _error_tuple_info
     buff = io.StringIO()
@@ -38,8 +41,11 @@ def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
         if not exc:
             return None
 
+    # store the information globally so the cached function can access it
+    # passing this information as function arguments would be less efficient
     _error_tuple_info = type(exc), exc, exc.__traceback__  # type: ignore
 
+    # compute a hash of a traceback for caching purpose
     tb_list = traceback.extract_tb(_error_tuple_info[2])
     tb_str = "".join(f"{frame.filename}:{frame.lineno}:{frame.name}" for frame in tb_list)
     tb_hash = hashlib.sha256(tb_str.encode()).hexdigest()
@@ -59,10 +65,24 @@ def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
     )
 
 
+"""
+If the same error is handled/risen multiple times, we want
+to report only one span events. Therefore, we do not add directly
+a span event for every handled exceptions, we store them and add them
+at the end. The below functions are implemented in that sense
+"""
+
+
 def _add_span_events(span: Span) -> None:
     for event in span._exception_events.values():
         span._events.append(event)
     del span._meta["EXCEPTION_CB"]
+
+
+"""
+This function drops all the span events if no unhandled
+exception occurred.
+"""
 
 
 def _conditionally_pop_span_events(span: Span) -> None:
@@ -72,6 +92,7 @@ def _conditionally_pop_span_events(span: Span) -> None:
     del span._meta["EXCEPTION_CB"]
 
 
+# Will be removed when error track is on
 def _log_span_events(span: Span) -> None:
     if error_reporting_config._internal_logger:
         logger = _get_logger()
