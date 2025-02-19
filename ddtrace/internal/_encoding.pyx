@@ -742,9 +742,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if ret != 0:
                 return ret
             
-            if (span.start_ns < MIN_START_NS) {
+            if (span.start_ns < MIN_START_NS):
                 span.start_ns = MIN_START_NS
-            }
+            
             ret = pack_number(&self.pk, span.start_ns)
             if ret != 0:
                 return ret
@@ -893,9 +893,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
 
         _ = span.start_ns
-        if (span.start_ns < MIN_START_NS) {
+        if (span.start_ns < MIN_START_NS):
             span.start_ns = MIN_START_NS
-        }
+        
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0:
             return ret
