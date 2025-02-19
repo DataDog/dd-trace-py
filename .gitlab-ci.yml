@@ -1,9 +1,6 @@
 stages:
   - package
   - tests
-  - shared-pipeline
-  - benchmarks
-  - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -13,12 +10,8 @@ default:
   interruptible: true
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/package.yml"
-  - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/benchmarks/serverless.yml"
 
 tests-gen:
   stage: tests
@@ -40,24 +33,6 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
-   
-microbenchmarks:
-  stage: benchmarks
-  needs: [ ]
-  trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
-    strategy: depend
-   
-macrobenchmarks:
-  stage: benchmarks
-  needs: [ ]
-  trigger:
-    include: .gitlab/benchmarks/macrobenchmarks.yml
-  allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: always
-    - when: manual
 
 check_new_flaky_tests:
   stage: tests
@@ -79,47 +54,4 @@ requirements_json_test:
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
-
-package-oci:
-  needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
-
-onboarding_tests_installer:
-  parallel:
-    matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
-
-onboarding_tests_k8s_injection:
-  parallel:
-    matrix:
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django, ]
-        SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_UDS, K8S_LIB_INJECTION_NO_AC, K8S_LIB_INJECTION_NO_AC_UDS, K8S_LIB_INJECTION_PROFILING_DISABLED, K8S_LIB_INJECTION_PROFILING_ENABLED, K8S_LIB_INJECTION_PROFILING_OVERRIDE]
-        K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
-
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django-gunicorn, dd-lib-python-init-test-django-gunicorn-alpine, dd-lib-python-init-test-django-unsupported-package-force, dd-lib-python-init-test-django-uvicorn, dd-lib-python-init-test-protobuf-old ]
-        SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_PROFILING_ENABLED]
-        K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
-
-      - WEBLOG_VARIANT: [dd-lib-python-init-test-django-preinstalled]
-        SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_UDS, K8S_LIB_INJECTION_NO_AC, K8S_LIB_INJECTION_NO_AC_UDS]
-        K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
-
-deploy_to_reliability_env:
-  needs: []
-
-deploy_to_di_backend:manual:
-  stage: shared-pipeline
-  rules:
-    - when: manual
-      allow_failure: true
-  trigger:
-    project: DataDog/debugger-demos
-    branch: main
-  variables:
-    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PACKAGE_JOB: build
 
