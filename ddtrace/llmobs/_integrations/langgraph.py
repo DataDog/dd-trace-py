@@ -98,7 +98,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = [
                 {
                     "span_id": str(graph_span.span_id) or "undefined",
-                    "trace_id": "{:x}".format(graph_caller_span.trace_id),
+                    "trace_id": format_trace_id(graph_span.trace_id),
                     "attributes": {"from": "output", "to": "output"},
                 }
             ]

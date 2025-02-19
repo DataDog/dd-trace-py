@@ -168,8 +168,6 @@ class BaseLLMIntegration:
             "ddtags": tags,
         }
         if span is not None:
-            # FIXME: this is a temporary workaround until we figure out why 128 bit trace IDs are stored as decimals.
-            # log["dd.trace_id"] = str(span.trace_id)
             log["dd.trace_id"] = format_trace_id(span.trace_id)
             log["dd.span_id"] = str(span.span_id)
         log.update(attrs)
