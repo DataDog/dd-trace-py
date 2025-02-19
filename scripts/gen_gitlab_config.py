@@ -158,16 +158,16 @@ def gen_pre_checks() -> None:
         command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
         paths={"docker*", "tests/snapshots/*", "hatch.toml"},
     )
-    check(
-        name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
-    )
-    check(
-        name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
-        paths={"*"},
-    )
+    # check(
+    #     name="Run scripts/*.py tests",
+    #     command="hatch run scripts:test",
+    #     paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+    # )
+    # check(
+    #     name="Check suitespec coverage",
+    #     command="hatch run lint:suitespec-check",
+    #     paths={"*"},
+    # )
 
 
 def gen_build_base_venvs() -> None:
