@@ -12,9 +12,10 @@ def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
     cmd = []
     if "no_ddtracerun" not in kwargs:
-        cmd += ["python", "-m", "ddtrace.commands.ddtrace_run", "python"]
+        cmd += ["python", "-m", "ddtrace.commands.ddtrace_run"]
 
     cmd += [
+       "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
     env = _build_env(kwargs.get("env"))

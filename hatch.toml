@@ -307,7 +307,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/iast/}",
+    "DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest {args:tests/appsec/iast/}",
 ]
 
 [[envs.appsec_iast_default.matrix]]
@@ -333,7 +333,7 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest --memray --stacks=35 -vvv {args:tests/appsec/iast_memcheck/}",
+    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
 ]
 
 [[envs.appsec_iast_memcheck.matrix]]
