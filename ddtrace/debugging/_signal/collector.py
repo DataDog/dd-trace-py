@@ -49,6 +49,8 @@ class SignalCollector(object):
             meter.increment("skip", tags={"cause": "cond_error", "probe_id": signal.probe.probe_id})
         elif signal.state is SignalState.SKIP_RATE:
             meter.increment("skip", tags={"cause": "rate", "probe_id": signal.probe.probe_id})
+        elif signal.state is SignalState.SKIP_BUDGET:
+            meter.increment("skip", tags={"cause": "budget", "probe_id": signal.probe.probe_id})
         elif signal.state is SignalState.DONE:
             meter.increment("signal", tags={"probe_id": signal.probe.probe_id})
 

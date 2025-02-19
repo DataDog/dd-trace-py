@@ -22,7 +22,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -831,7 +830,7 @@ def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, moc
 def test_export_span_active_span_not_llmobs_span_raises_warning(llmobs, mock_llmobs_logs):
     with llmobs._instance.tracer.trace("non_llmobs_span"):
         llmobs.export_span()
-    mock_llmobs_logs.warning.assert_called_once_with("Span must be an LLMObs-generated span.")
+    mock_llmobs_logs.warning.assert_called_once_with("No span provided and no active LLMObs-generated span found.")
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
@@ -1245,7 +1244,7 @@ def test_inject_distributed_headers_span_calls_httppropagator_inject(llmobs, moc
 
 
 def test_inject_distributed_headers_current_active_span_injected(llmobs, mock_llmobs_logs):
-    span = llmobs._instance.tracer.trace("test_span")
+    span = llmobs.workflow("test_span")
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.inject") as mock_inject:
         llmobs.inject_distributed_headers({}, span=None)
         assert mock_inject.call_count == 1
@@ -1270,23 +1269,23 @@ def test_activate_distributed_headers_calls_httppropagator_extract(llmobs, mock_
 
 def test_activate_distributed_headers_no_trace_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(span_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(span_id=123)
         llmobs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_span_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        mock_extract.return_value = Context(trace_id="123", meta={PROPAGATED_PARENT_ID_KEY: "123"})
+        mock_extract.return_value = Context(trace_id=123)
         llmobs.activate_distributed_headers({})
         assert mock_extract.call_count == 1
-        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace ID or span ID from request headers.")
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to extract trace/span ID from request headers.")
 
 
 def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456")
+        dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
@@ -1297,7 +1296,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
 
 def test_activate_distributed_headers_activates_context(llmobs, mock_llmobs_logs):
     with mock.patch("ddtrace.llmobs._llmobs.HTTPPropagator.extract") as mock_extract:
-        dummy_context = Context(trace_id="123", span_id="456", meta={PROPAGATED_PARENT_ID_KEY: "789"})
+        dummy_context = Context(trace_id=123, span_id=456)
         mock_extract.return_value = dummy_context
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})

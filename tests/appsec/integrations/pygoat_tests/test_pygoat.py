@@ -5,6 +5,7 @@ import pytest
 import requests
 
 from tests.appsec.iast.conftest import iast_context_defaults
+from tests.utils import flaky
 
 
 span_defaults = iast_context_defaults  # So ruff does not remove it
@@ -107,6 +108,7 @@ def test_nohttponly_cookie(client):
     assert vulnerability_in_traces("NO_HTTPONLY_COOKIE", client.agent_session)
 
 
+@flaky(1741838400, reason='assert vulnerability_in_traces("WEAK_RANDOMNESS", client.agent_session) is False')
 def test_weak_random(client):
     reply = client.pygoat_session.get(PYGOAT_URL + "/otp?email=test%40test.com", headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200

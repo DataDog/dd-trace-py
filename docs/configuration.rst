@@ -120,7 +120,7 @@ Traces
 
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
-     default: False
+     default: True
      
      description: |
          This configuration enables the generation of 128 bit trace ids.
@@ -928,3 +928,9 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+
+
+Live Debugging
+--------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig

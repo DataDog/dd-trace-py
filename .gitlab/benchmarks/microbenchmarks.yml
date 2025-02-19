@@ -1,9 +1,12 @@
+stages:
+  - test
+  - report
+
 variables:
   MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
-  SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
 
 .benchmarks:
-  stage: benchmarks
+  stage: test
   when: on_success
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -55,11 +58,12 @@ microbenchmarks:
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_update_imported_dependencies"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
-  stage: benchmarks-report
+  stage: report
   when: always
   script:
     - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -77,7 +81,7 @@ benchmarks-pr-comment:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
 check-big-regressions:
-  stage: benchmarks-report
+  stage: report
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -89,34 +93,3 @@ check-big-regressions:
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
-
-benchmark-serverless:
-  stage: benchmarks
-  image: $SLS_CI_IMAGE
-  tags: ["arch:amd64"]
-  when: on_success
-  needs: [ "benchmark-serverless-trigger" ]
-  allow_failure: true
-  script:
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
-    - ./ci/check_trigger_status.sh
-  except:
-    - main  # fails on main - ideally it would succeed
-
-benchmark-serverless-trigger:
-  stage: benchmarks
-  trigger:
-    project: DataDog/serverless-tools
-    strategy: depend
-  needs: []
-  allow_failure: true
-  variables:
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
-    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
-    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
-    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
