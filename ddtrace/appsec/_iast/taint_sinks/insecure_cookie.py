@@ -13,7 +13,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.settings.asm import config as asm_config
-
+from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ._base import VulnerabilityBase
 
 
@@ -76,26 +76,31 @@ def unpatch():
 
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):
-    cookie_key = ""
-    cookie_value = ""
-    if len(args) > 1:
-        cookie_key = args[0]
-        cookie_value = args[1]
-    elif len(kwargs.keys()) > 0:
-        cookie_key = kwargs.get("key")
-        cookie_value = kwargs.get("value")
+    try:
+        cookie_key = ""
+        cookie_value = ""
+        if len(args) > 1:
+            cookie_key = args[0]
+            cookie_value = args[1]
+        elif len(kwargs.keys()) > 0:
+            cookie_key = kwargs.get("key")
+            cookie_value = kwargs.get("value")
 
-    if cookie_value and cookie_key:
-        if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-            if kwargs.get("secure") is not True:
-                _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
-                InsecureCookie.report(evidence_value=cookie_key)
-            if kwargs.get("httponly") is not True:
-                _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
-                NoHttpOnlyCookie.report(evidence_value=cookie_key)
+        if cookie_value and cookie_key:
+            if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+                if kwargs.get("secure") is not True:
+                    _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
+                    InsecureCookie.report(evidence_value=cookie_key)
+                if kwargs.get("httponly") is not True:
+                    _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
+                    NoHttpOnlyCookie.report(evidence_value=cookie_key)
 
-            samesite = kwargs.get("samesite", "").lower()
-            if not samesite.startswith("strict") and not samesite.startswith("lax"):
-                _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
-                NoSameSite.report(evidence_value=cookie_key)
+                samesite = kwargs.get("samesite", "")
+                if samesite:
+                    samesite = samesite.lower()
+                    if not samesite.startswith("strict") and not samesite.startswith("lax"):
+                        _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
+                        NoSameSite.report(evidence_value=cookie_key)
+    except Exception as e:
+        iast_taint_log_error("[IAST] error in asm_check_cookies. {}".format(e))
     return wrapped(*args, **kwargs)
