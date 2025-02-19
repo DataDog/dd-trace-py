@@ -118,7 +118,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_true(self):
         # ensure distributed tracing works when APM is opted out
-        with self.override_global_config(dict(_appsec_standalone_enabled=True, _asm_enabled=True)):
+        with self.override_global_config(dict(_apm_tracing_enabled=False, _asm_enabled=True)):
             assert asm_config._apm_opt_out
             self.tracer.enabled = False
             cfg = config._get_from(self.session)
@@ -145,7 +145,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_false(self):
         # ensure distributed tracing doesn't works when APM is disabled but not opted out
-        with self.override_global_config(dict(_appsec_standalone_enabled=False, _asm_enabled=True)):
+        with self.override_global_config(dict(_apm_tracing_enabled=True, _asm_enabled=True)):
             assert not asm_config._apm_opt_out
             self.tracer.enabled = False
 

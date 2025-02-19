@@ -241,9 +241,9 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+        # When apm tracing is not enabled, only distributed traces with the `_dd.p.appsec` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if asm_config._appsec_standalone_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
+        if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
@@ -359,8 +359,8 @@ class _DatadogMultiHeader:
             if meta:
                 meta = validate_sampling_decision(meta)
 
-            if asm_config._appsec_standalone_enabled:
-                # When in appsec standalone mode, only distributed traces with the `_dd.p.appsec` tag
+            if not asm_config._apm_tracing_enabled:
+                # When apm tracing is not enabled, only distributed traces with the `_dd.p.appsec` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.
                 if not meta or APPSEC.PROPAGATION_HEADER not in meta:
