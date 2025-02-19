@@ -8,37 +8,50 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Deprecation Notes
 
-  - tracing: Deprecates the following constants in `ddtrace.constants` module:
-      - ANALYTICS\_SAMPLE\_RATE\_KEY
-      - SAMPLE\_RATE\_METRIC\_KEY
-      - SAMPLING\_PRIORITY\_KEY
-      - SAMPLING\_AGENT\_DECISION
-      - SAMPLING\_RULE\_DECISION
-      - SAMPLING\_LIMIT\_DECISION
-      - ORIGIN\_KEY
-      - USER\_ID\_KEY
-      - HOSTNAME\_KEY
-      - RUNTIME\_FAMILY
-      - BASE\_SERVICE\_KEY
-      - SPAN\_MEASURED\_KEY
-      - KEEP\_SPANS\_RATE\_KEY
-      - MULTIPLE\_IP\_HEADERS
-      - CONFIG\_ENDPOINT\_ENV
-      - CONFIG\_ENDPOINT\_RETRIES\_ENV
-      - CONFIG\_ENDPOINT\_TIMEOUT\_ENV
-  - tracing: Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
-      - http, use `DD_TRACE_HEADER_TAGS` environment variable instead.
-      - http\_server, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
-      - trace\_headers, this attribute is internal to the tracer.
-      - header\_is\_traced, this attribute is internal to the tracer.
-      - convert\_rc\_trace\_sampling\_rules, this attribute is internal to the tracer.
-      - enable\_remote\_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
-      - get\_from, use `ddtrace.trace.Pin` to set instance level configurations.
+- tracing: Deprecates the following constants in `ddtrace.constants` module:
+  - ANALYTICS_SAMPLE_RATE_KEY
+  - SAMPLE_RATE_METRIC_KEY
+  - SAMPLING_PRIORITY_KEY
+  - SAMPLING_AGENT_DECISION
+  - SAMPLING_RULE_DECISION
+  - SAMPLING_LIMIT_DECISION
+  - ORIGIN_KEY
+  - USER_ID_KEY
+  - HOSTNAME_KEY
+  - RUNTIME_FAMILY
+  - BASE_SERVICE_KEY
+  - SPAN_MEASURED_KEY
+  - KEEP_SPANS_RATE_KEY
+  - MULTIPLE_IP_HEADERS
+  - CONFIG_ENDPOINT_ENV
+  - CONFIG_ENDPOINT_RETRIES_ENV
+  - CONFIG_ENDPOINT_TIMEOUT_ENV
+- tracing: Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
+  - http, use `DD_TRACE_HEADER_TAGS` environment variable instead.
+  - http_server, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
+  - trace_headers, this attribute is internal to the tracer.
+  - header_is_traced, this attribute is internal to the tracer.
+  - convert_rc_trace_sampling_rules, this attribute is internal to the tracer.
+  - enable_remote_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
+  - get_from, use `ddtrace.trace.Pin` to set instance level configurations.
+
+### Bug Fixes
+
+- ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable. SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+
+- Code security (IAST): This fix resolves an issue where the usage of <span class="title-ref">callonce</span> decorator could trigger an import loop
+
+- Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
+
+- internal: Fix performance overhead of Python distribution parsing for internal telemetry.
+
+- ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled,  
+  which could create an ImportError exception on Windows.
 
 ### Other Changes
 
-  - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
-  - cassandra,cherrypy,flask\_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+- tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
+- cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
 
 ---
 
