@@ -5,7 +5,6 @@ import pytest
 import requests
 
 from tests.appsec.iast.conftest import iast_context_defaults
-from tests.utils import flaky
 
 
 span_defaults = iast_context_defaults  # So ruff does not remove it

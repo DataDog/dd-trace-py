@@ -9,11 +9,12 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
+
 from ._base import VulnerabilityBase
 
 
