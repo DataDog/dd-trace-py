@@ -149,10 +149,6 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh INTEGRATIONS
 
-      - name: Run CROSSED_TRACING_LIBRARIES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh CROSSED_TRACING_LIBRARIES
-
       - name: Run PROFILING
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: |

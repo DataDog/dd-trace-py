@@ -25,7 +25,7 @@ def test_flask_instrumented_metrics(telemetry_writer):
     metrics_result = telemetry_writer._namespace._metrics_data
     metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
 
-    assert len(metrics_source_tags_result) == 8
+    assert len(metrics_source_tags_result) == 11
     assert VULN_PATH_TRAVERSAL in metrics_source_tags_result
     assert origin_to_str(OriginType.HEADER_NAME) in metrics_source_tags_result
     assert origin_to_str(OriginType.HEADER) in metrics_source_tags_result
@@ -34,6 +34,9 @@ def test_flask_instrumented_metrics(telemetry_writer):
     assert origin_to_str(OriginType.PATH_PARAMETER) in metrics_source_tags_result
     assert origin_to_str(OriginType.QUERY) in metrics_source_tags_result
     assert origin_to_str(OriginType.BODY) in metrics_source_tags_result
+    assert origin_to_str(OriginType.COOKIE) in metrics_source_tags_result
+    assert origin_to_str(OriginType.COOKIE_NAME) in metrics_source_tags_result
+    assert origin_to_str(OriginType.PARAMETER_NAME) in metrics_source_tags_result
 
 
 def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):

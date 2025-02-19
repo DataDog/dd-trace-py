@@ -4,22 +4,15 @@ import functools
 from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace.appsec._iast import _is_iast_enabled
-from ddtrace.appsec._iast._iast_request_context import in_iast_context
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
 from ddtrace.appsec._iast._patch import _patched_dictionary
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
-
-from ._iast_request_context import is_iast_request_enabled
-from ._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.settings.asm import config as asm_config
 
 
 MessageMapContainer = None
@@ -47,7 +40,7 @@ def _on_set_http_meta_iast(
     response_headers,
     response_cookies,
 ):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
 
         if response_cookies:
@@ -56,8 +49,14 @@ def _on_set_http_meta_iast(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if _is_iast_enabled() and in_iast_context():
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
+            from ddtrace.appsec._iast._taint_tracking import OriginType
+            from ddtrace.appsec._iast._taint_tracking import origin_to_str
+            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
                 source_name=origin_to_str(OriginType.QUERY),
@@ -75,7 +74,9 @@ def _on_request_init(wrapped, instance, args, kwargs):
 
 
 def _on_flask_patch(flask_version):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+
         try_wrap_function_wrapper(
             "werkzeug.datastructures",
             "Headers.items",
@@ -129,17 +130,28 @@ def _on_flask_patch(flask_version):
             )
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
+        # Instrumented on _on_set_request_tags_iast
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if _is_iast_enabled() and args and in_iast_context():
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and args and is_iast_request_enabled():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
 
 
 def _on_django_patch():
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         try:
+            from ddtrace.appsec._iast._taint_tracking import OriginType
+
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -162,11 +174,18 @@ def _on_django_patch():
 
 
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
-    # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
+    # If IAST is enabled and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
-    if _is_iast_enabled() and fn_args and isinstance(fn_args[0], first_arg_expected_type):
-        if not in_iast_context():
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
+        if not is_iast_request_enabled():
             return
+
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+        from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking import origin_to_str
+        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
         http_req = fn_args[0]
 
@@ -230,6 +249,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 
 def _custom_protobuf_getattribute(self, name):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
     ret = type(self).__saved_getattr(self, name)
     if isinstance(ret, (str, bytes, bytearray)):
         ret = taint_pyobject(
@@ -272,36 +294,44 @@ def _patch_protobuf_class(cls):
 
 
 def _on_grpc_response(message):
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         msg_cls = type(message)
         _patch_protobuf_class(msg_cls)
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if _is_iast_enabled():
-        if not is_iast_request_enabled():
-            for key, value in wrapped(*args, **kwargs):
-                yield key, value
-        else:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        try:
+            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
                 new_value = taint_pyobject(
                     pyobject=value, source_name=key, source_value=value, source_origin=origins[1]
                 )
                 yield new_key, new_value
-
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
     else:
         for key, value in wrapped(*args, **kwargs):
             yield key, value
 
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
-    value = wrapped(*args, **kwargs)
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 
-    if _is_iast_enabled() and is_iast_request_enabled():
+    value = wrapped(*args, **kwargs)
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
+            from ._taint_tracking import is_pyobject_tainted
+            from ._taint_tracking import taint_pyobject
+
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
+                from ddtrace.appsec._iast._taint_tracking import OriginType
+
                 if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
                     origin = OriginType.COOKIE
                 return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
@@ -310,7 +340,37 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     return value
 
 
+def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    value = wrapped(*args, **kwargs)
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        try:
+            from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+            from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+
+            res = []
+            for element in value:
+                if not is_pyobject_tainted(element):
+                    res.append(
+                        taint_pyobject(
+                            pyobject=element,
+                            source_name=element,
+                            source_value=element,
+                            source_origin=origin,
+                        )
+                    )
+                else:
+                    res.append(element)
+            return res
+        except Exception:
+            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+    return value
+
+
 def _on_iast_fastapi_patch():
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+
     # Cookies sources
     try_wrap_function_wrapper(
         "starlette.requests",
@@ -367,3 +427,36 @@ def _on_iast_fastapi_patch():
 
     # Instrumented on _iast_starlette_scope_taint
     _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+
+def _on_pre_tracedrequest_iast(ctx):
+    current_span = ctx.span
+    _on_set_request_tags_iast(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
+
+
+def _on_set_request_tags_iast(request, span, flask_config):
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+
+    if asm_config._iast_enabled and is_iast_request_enabled():
+        from ddtrace.appsec._iast._taint_tracking import OriginType
+
+        request.cookies = taint_structure(
+            request.cookies,
+            OriginType.COOKIE_NAME,
+            OriginType.COOKIE,
+            override_pyobject_tainted=True,
+        )
+
+        request.args = taint_structure(
+            request.args,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )
+
+        request.form = taint_structure(
+            request.form,
+            OriginType.PARAMETER_NAME,
+            OriginType.PARAMETER,
+            override_pyobject_tainted=True,
+        )

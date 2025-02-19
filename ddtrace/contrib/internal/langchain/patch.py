@@ -26,7 +26,7 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.appsec._iast import _is_iast_enabled
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -677,7 +677,7 @@ def traced_chain_call(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             for k, v in final_outputs.items():
                 span.set_tag_str("langchain.response.outputs.%s" % k, integration.trunc(str(v)))
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             taint_outputs(instance, inputs, final_outputs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -1345,7 +1345,7 @@ def patch():
     if PATCH_LANGCHAIN_V0 or langchain_community:
         _patch_embeddings_and_vectorstores()
 
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
         def wrap_output_parser(module, parser):
@@ -1406,8 +1406,8 @@ def unpatch():
 
 def taint_outputs(instance, inputs, outputs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     try:
         ranges = None
@@ -1429,8 +1429,8 @@ def taint_outputs(instance, inputs, outputs):
 
 def taint_parser_output(func, instance, args, kwargs):
     from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 
     result = func(*args, **kwargs)
     try:

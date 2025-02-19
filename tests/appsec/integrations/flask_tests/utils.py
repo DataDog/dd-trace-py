@@ -2,6 +2,9 @@ from multiprocessing.pool import ThreadPool
 import time
 
 
+_PORT = 8040
+
+
 def _multi_requests(client, url="/", debug_mode=False):
     if debug_mode:
         results = [
@@ -45,9 +48,6 @@ def _request_200(
             previous = False
         time.sleep(sleep_time * pow(8, id_try / max_retries))
     raise AssertionError("request_200 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
-
-
-_PORT = 8040
 
 
 def _request(client, url="/"):

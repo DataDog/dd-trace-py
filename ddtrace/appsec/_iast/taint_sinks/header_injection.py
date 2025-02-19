@@ -2,22 +2,20 @@ from typing import Text
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._common_module_patches import try_unwrap
+from ..._constants import IAST_SPAN_TAGS
+from .. import oce
+from .._iast_request_context import is_iast_request_enabled
+from .._metrics import _set_metric_iast_instrumented_sink
+from .._metrics import increment_iast_span_metric
+from .._patch import set_and_check_module_is_patched
+from .._patch import set_module_unpatched
+from .._patch import try_wrap_function_wrapper
+from ..constants import HEADER_NAME_VALUE_SEPARATOR
+from ..constants import VULN_HEADER_INJECTION
 from ._base import VulnerabilityBase
 
 
@@ -99,7 +97,9 @@ class HeaderInjection(VulnerabilityBase):
 
 
 def _iast_report_header_injection(headers_args) -> None:
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+    from .._metrics import _set_metric_iast_executed_sink
+    from .._taint_tracking import is_pyobject_tainted
+    from .._taint_tracking.aspects import add_aspect
 
     header_name, header_value = headers_args
     for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:

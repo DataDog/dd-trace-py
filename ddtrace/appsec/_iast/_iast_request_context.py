@@ -6,18 +6,23 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import _is_iast_enabled
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
+from ddtrace.appsec._iast._handlers import _on_django_patch
+from ddtrace.appsec._iast._handlers import _on_flask_patch
+from ddtrace.appsec._iast._handlers import _on_grpc_response
+from ddtrace.appsec._iast._handlers import _on_request_init
+from ddtrace.appsec._iast._handlers import _on_set_http_meta_iast
+from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
-from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -57,12 +62,16 @@ def in_iast_context() -> bool:
 
 
 def start_iast_context():
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
+        from ._taint_tracking import create_context as create_propagation_context
+
         create_propagation_context()
         core.set_item(_IAST_CONTEXT, IASTEnvironment())
 
 
 def end_iast_context(span: Optional[Span] = None):
+    from ._taint_tracking import reset_context as reset_propagation_context
+
     env = _get_iast_context()
     if env is not None and env.span is span:
         finalize_iast_env(env)
@@ -104,7 +113,7 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("[IAST] Trying to set IAST reporter but no context is present")
 
 
-def is_iast_request_enabled():
+def is_iast_request_enabled() -> bool:
     env = _get_iast_context()
     if env:
         return env.request_enabled
@@ -150,7 +159,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             else:
                 req_span = ctx.get_item("req_span")
 
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             existing_data = req_span.get_tag(IAST.JSON)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
@@ -173,7 +182,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
 
 def _iast_start_request(span=None, *args, **kwargs):
     try:
-        if _is_iast_enabled():
+        if asm_config._iast_enabled:
             start_iast_context()
             request_iast_enabled = False
             if oce.acquire_request(span):
@@ -181,3 +190,22 @@ def _iast_start_request(span=None, *args, **kwargs):
             set_iast_request_enabled(request_iast_enabled)
     except Exception:
         log.debug("[IAST] Error starting IAST context", exc_info=True)
+
+
+def _on_grpc_server_response(message):
+    _on_grpc_response(message)
+
+
+def iast_listen():
+    core.on("grpc.client.response.message", _on_grpc_response)
+    core.on("grpc.server.response.message", _on_grpc_server_response)
+
+    core.on("set_http_meta_for_asm", _on_set_http_meta_iast)
+    core.on("django.patch", _on_django_patch)
+    core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
+    core.on("django.func.wrapped", _on_django_func_wrapped)
+    core.on("flask.patch", _on_flask_patch)
+    core.on("flask.request_init", _on_request_init)
+
+    core.on("context.ended.wsgi.__call__", _iast_end_request)
+    core.on("context.ended.asgi.__call__", _iast_end_request)
