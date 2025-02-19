@@ -13,7 +13,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._config_telemtry import report_telemetry as _report_telemetry
 
 
 logger = get_logger(__name__)

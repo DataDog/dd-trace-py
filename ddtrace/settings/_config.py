@@ -37,7 +37,6 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
-from ._otel_remapper import validate_otel_envs
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -460,6 +459,8 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
+        from ._config_telemetry import validate_otel_envs
+
         validate_otel_envs()
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG

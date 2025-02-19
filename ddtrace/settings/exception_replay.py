@@ -1,6 +1,6 @@
 from envier import En
 
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._config_telemtry import report_telemetry as _report_telemetry
 
 
 class ExceptionReplayConfig(En):
