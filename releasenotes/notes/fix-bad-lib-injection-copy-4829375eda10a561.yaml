@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Address partial library copy failures causing failed application startups in k8s.
