@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
