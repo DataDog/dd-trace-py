@@ -904,6 +904,8 @@ class LLMObs(Service):
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
                                     If not set, the current time will be used.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
