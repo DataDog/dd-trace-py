@@ -18,11 +18,8 @@ def _run_python_file(*args, **kwargs):
         "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
-    if "env" in kwargs:
-        env = _build_env(kwargs["env"])
-        ret = subprocess.run(cmd, cwd=current_dir, env=env)
-    else:
-        ret = subprocess.run(cmd, cwd=current_dir)
+    env = _build_env(kwargs.get("env"))
+    ret = subprocess.run(cmd, cwd=current_dir, env=env)
 
     assert ret.returncode == 0
 
