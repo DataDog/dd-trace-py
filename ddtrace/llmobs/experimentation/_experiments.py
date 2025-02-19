@@ -2,7 +2,6 @@ import csv
 import concurrent.futures
 from enum import Enum
 from functools import wraps
-import hashlib
 import inspect
 import json
 import os
@@ -11,7 +10,6 @@ import traceback
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import quote
 import uuid
-import shutil
 
 from .._utils import HTTPResponse
 from .._utils import http_request
@@ -110,6 +108,7 @@ class Dataset:
                 f"No data provided, pulling dataset '{name}' from Datadog..."
             )
             pulled_dataset = self.pull(name)
+            print(pulled_dataset._datadog_dataset_id)
             self._data = pulled_dataset._data
             self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
             self._version = pulled_dataset._datadog_dataset_version
@@ -260,7 +259,7 @@ class Dataset:
         """Push the dataset to Datadog and refresh with pulled data.
 
         Args:
-            overwrite: If True, overwrite the dataset if it already exists. If False, create a new version.
+            overwrite: If True, overwrite the dataset if it already exists. If False, create a new version. This is ignored if the dataset does not exist.
         """
         _validate_init()
 
@@ -1421,6 +1420,6 @@ class ProgressReporter:
             if self.error_count > 0:
                 error_rate = (self.error_count / self.total) * 100
                 print(f"{Color.RED}⚠️  Completed with {self.error_count} errors ({error_rate:.1f}%){Color.RESET}")
-                print(f"{Color.DIM}   Set raise_errors=True to see full error traces{Color.RESET}")
+                print(f"{Color.DIM}   Set .run(raise_errors=True) to halt and see full error traces{Color.RESET}")
             else:
                 print(f"{Color.GREEN}✓ Completed successfully{Color.RESET}")
