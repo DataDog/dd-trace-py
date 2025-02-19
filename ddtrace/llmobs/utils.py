@@ -1,4 +1,5 @@
 from re import match
+from hashlib import sha1
 from typing import Dict, Tuple, Optional
 from typing import List
 from typing import Union
@@ -38,8 +39,8 @@ class Prompt:
     """
     name: str
     version: Optional[str]
-    prompt_template_id: int
-    prompt_instance_id: int
+    prompt_template_id: str
+    prompt_instance_id: str
     template: Optional[List[Tuple[str, str]]]
     variables: Optional[Dict[str, str]]
     example_variables: Optional[List[str]]
@@ -65,8 +66,8 @@ class Prompt:
         # Default values
         template = template or []
         variables = variables or {}
-        example_variables = example_variables or []
-        constraint_variables = constraint_variables or []
+        example_variables = example_variables or ["example"]
+        constraint_variables = constraint_variables or ["constraint"]
         rag_context_variables = rag_context_variables or ["context"]
         rag_query_variables = rag_query_variables or ["question"]
         version = version or "1.0.0"
@@ -79,12 +80,6 @@ class Prompt:
         # Accept simple string templates
         if isinstance(template, str):
             template = [("user", template)]
-
-        self.prompt_template_id = hash(name)
-        self.prompt_instance_id = hash(
-            (name, version, tuple(template), tuple(variables.keys()), tuple(variables.values()),
-             tuple(example_variables), tuple(constraint_variables),
-             tuple(rag_context_variables), tuple(rag_query_variables)))
 
         self.version = version
         self.template = template
@@ -108,14 +103,31 @@ class Prompt:
             "rag_query_variables": self.rag_query_variables,
         }
 
-    def regenerate_ids(self, ml_app: str):
-        self.prompt_instance_id = hash((ml_app, self.name, self.version, tuple(self.template), tuple(self.variables.keys()), tuple(self.variables.values()), tuple(self.example_variables), tuple(self.constraint_variables), tuple(self.rag_context_variables), tuple(self.rag_query_variables)))
-        self.prompt_template_id = hash((ml_app, self.name))
-        pass
+    def generate_ids(self, ml_app=""):
+        """
+        Generates prompt_template_id and prompt_instance_id based on the prompt attributes.
+        The prompt_template_id is a sha-1 hash of the prompt name and ml_app
+        The prompt_instance_id is a sha-1 hash of all prompt attributes.
+        """
+        name = str(self.name)
+        version = str(self.version)
+        template = str(self.template)
+        variables = str(self.variables)
+        example_variables = str(self.example_variables)
+        constraint_variables = str(self.constraint_variables)
+        rag_context_variables = str(self.rag_context_variables)
+        rag_query_variables = str(self.rag_query_variables)
+
+        template_id_str = f"[{ml_app}]{name}"
+        instance_id_str = f"[{ml_app}]{name}{version}{template}{variables}{example_variables}{constraint_variables}{rag_context_variables}{rag_query_variables}"
+
+        self.prompt_template_id = sha1(template_id_str.encode()).hexdigest()
+        self.prompt_instance_id = sha1(instance_id_str.encode()).hexdigest()
 
     def validate(self):
         errors = []
-
+        prompt_template_id = self.prompt_template_id
+        prompt_instance_id = self.prompt_instance_id
         name = self.name
         version = self.version
         template = self.template
@@ -124,6 +136,16 @@ class Prompt:
         constraint_variables = self.constraint_variables
         rag_context_variables = self.rag_context_variables
         rag_query_variables = self.rag_query_variables
+
+
+        if prompt_template_id is None:
+            self.generate_ids()
+        elif not isinstance(prompt_template_id, str):
+            errors.append("Prompt template id must be a string.")
+        if prompt_instance_id is None:
+            self.generate_ids()
+        elif not isinstance(prompt_instance_id, str):
+            errors.append("Prompt instance id must be a string.")
 
         if name is None:
             errors.append("Prompt name of type String is mandatory.")
@@ -172,6 +194,8 @@ class Prompt:
 
         if errors:
             raise TypeError("\n".join(errors))
+
+        return errors
 
 
 class Messages:
