@@ -201,7 +201,7 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "_dd": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
+            "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
         }
         session_id = _get_session_id(span)
         if session_id is not None:

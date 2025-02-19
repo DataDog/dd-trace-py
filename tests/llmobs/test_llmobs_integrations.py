@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from tests.utils import DummyTracer
 
@@ -152,7 +153,7 @@ def test_log_enqueues_log_writer(mock_log_writer, mock_integration_config):
             "status": "level",
             "ddtags": mock.ANY,
             "dd.span_id": str(span.span_id),
-            "dd.trace_id": "{:x}".format(span.trace_id),
+            "dd.trace_id": format_trace_id(span.trace_id),
             "DummyKey": "DummyValue",
         }
     )

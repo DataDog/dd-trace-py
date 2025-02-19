@@ -18,6 +18,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._log_writer import V2LogWriter
 from ddtrace.settings import IntegrationConfig
@@ -169,7 +170,7 @@ class BaseLLMIntegration:
         if span is not None:
             # FIXME: this is a temporary workaround until we figure out why 128 bit trace IDs are stored as decimals.
             # log["dd.trace_id"] = str(span.trace_id)
-            log["dd.trace_id"] = "{:x}".format(span.trace_id)
+            log["dd.trace_id"] = format_trace_id(span.trace_id)
             log["dd.span_id"] = str(span.span_id)
         log.update(attrs)
         self._log_writer.enqueue(log)  # type: ignore[arg-type]
