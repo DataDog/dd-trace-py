@@ -27,10 +27,4 @@ suites:
     snapshot: true
     services:
       - localstack
-    variables:
-      SERVICES: "${SERVICES- }"
-      DEBUG: "${DEBUG- }"
-      LAMBDA_EXECUTOR: "local"
-      KINESIS_ERROR_PROBABILITY: "${KINESIS_ERROR_PROBABILITY- }"
-      DOCKER_HOST: "unix:///var/run/docker.sock"
 
