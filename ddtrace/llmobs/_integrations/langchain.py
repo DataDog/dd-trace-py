@@ -121,9 +121,9 @@ class LangChainIntegration(BaseLLMIntegration):
         if parent_instance is None or not _is_chain_instance(parent_instance):
             return
 
-        spans: Dict[int, Span] = getattr(parent_instance, "_spans", {})
+        spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
-        setattr(parent_instance, "_spans", spans)
+        setattr(parent_instance, "_datadog_spans", spans)
 
     def _llmobs_set_tags(
         self,
@@ -223,7 +223,7 @@ class LangChainIntegration(BaseLLMIntegration):
         curr_step = flatmap_chain_steps[0]
         prev_traced_step_idx = -1
 
-        chain_spans = getattr(parent_langchain_instance, "_spans", {})
+        chain_spans = getattr(parent_langchain_instance, "_datadog_spans", {})
 
         while id(curr_step) != id(instance) and not (
             isinstance(curr_step, list) and any(id(sub_step) == id(instance) for sub_step in curr_step)
@@ -339,8 +339,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if not _is_chain_instance(instance):
             return
 
-        if hasattr(instance, "_spans"):
-            delattr(instance, "_spans")
+        if hasattr(instance, "_datadog_spans"):
+            delattr(instance, "_datadog_spans")
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
