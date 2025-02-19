@@ -311,6 +311,14 @@ class TraceMiddleware:
             except BlockingException as e:
                 set_blocked(e.args[0])
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+            except BaseException as exception:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if exception.__class__.__name__ == "BaseExceptionGroup":
+                    for exc in exception.exceptions:
+                        if isinstance(exc, BlockingException):
+                            set_blocked(exc.args[0])
+                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                raise
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
