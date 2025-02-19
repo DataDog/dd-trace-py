@@ -416,6 +416,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "python-multipart",
     "jinja2",
     "httpx<0.28.0",
     "anyio{matrix:anyio:}",
@@ -554,9 +555,9 @@ test = [
 [[envs.profiling_pytorch.matrix]]
 python = ["3.12"]
 
-## Unit Tests
+## Multiple OS tests
 
-[envs.ddtrace_unit_tests]
+[envs.multiple_os_tests]
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -565,13 +566,13 @@ dependencies = [
     "flask",
 ]
 
-[envs.ddtrace_unit_tests.env-vars]
+[envs.multiple_os_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
 CMAKE_BUILD_PARALLEL_LEVEL="6"
 CARGO_BUILD_JOBS = "6"
 
-[envs.ddtrace_unit_tests.scripts]
+[envs.multiple_os_tests.scripts]
 test = [
     "uname -a",
     "pip freeze",
@@ -579,8 +580,8 @@ test = [
     "python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
 ]
 
-[[envs.ddtrace_unit_tests.matrix]]
-python = ["3.12", "3.10"]
+[[envs.multiple_os_tests.matrix]]
+python = ["3.13", "3.12", "3.10", "3.8"]
 
 # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
 # across all supported versions
