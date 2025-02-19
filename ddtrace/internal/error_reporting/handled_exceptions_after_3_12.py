@@ -29,21 +29,20 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     """
     Generate a precompiled version of `should_report_exception` that is as fast as static logic.
     """
-    conditions = []
-
-    if "all_user" in checks:
-        conditions.append("is_user_code(file_path)")
-    if "modules" in checks:
-        conditions.append("file_name in INSTRUMENTED_FILE_PATHS")
-    if "all_third_party" in checks:
-        conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
-
-    logic = "'frozen' not in file_name"
-    if len(conditions) != 0:
-        logic += " and (" + " or ".join(conditions) + ")"
+    logic = ""
+    if len(checks) == 0:
+        logic = "'frozen' not in file_name and is_stdlib(file_path) is False and 'ddtrace' not in file_name"
+    elif "modules" in checks:
+        logic = "file_name in INSTRUMENTED_FILE_PATHS"
     else:
-        logic += " and is_stdlib(file_path) is False and 'ddtrace' not in file_name"
-
+        logic = "'frozen' not in file_name"
+        conditions = []
+        if "all_user" in checks:
+            conditions.append("is_user_code(file_path)")
+        if "all_third_party" in checks:
+            conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
+        logic += " and (" + " or ".join(conditions) + ")"
+    print(logic)
     namespace = {}  # type: ignore
     exec(
         f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace

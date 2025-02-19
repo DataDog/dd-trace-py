@@ -199,9 +199,6 @@ class UserCodeErrorTestCases(TracerTestCase):
         from tests.internal.error_reporting._test_functions import submodule_1_string
         from tests.internal.error_reporting._test_functions import submodule_2_string
 
-        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
-
         # set up fake user code
         temp_dir = tempfile.TemporaryDirectory()
         base_path = pathlib.Path(temp_dir.name)
@@ -241,6 +238,8 @@ class UserCodeErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_reporting(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
         import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
@@ -270,6 +269,8 @@ class UserCodeErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_reporting_with_third_party(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
         import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
@@ -296,6 +297,8 @@ class UserCodeErrorTestCases(TracerTestCase):
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
         import ddtrace.internal.error_reporting.handled_exceptions_reporting  # noqa: F401
