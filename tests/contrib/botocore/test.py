@@ -1741,7 +1741,7 @@ class BotocoreTest(TracerTestCase):
             lamb.create_function(
                 FunctionName="ironmaiden",
                 Runtime="python3.8",
-                Role="test-iam-role",
+                Role="arn:aws:iam::000000000000:test-iam-role",
                 Handler="lambda_function.lambda_handler",
                 Code={
                     "ZipFile": get_zip_lambda(),
@@ -1783,7 +1783,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="black-sabbath",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1825,7 +1825,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1860,7 +1860,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1891,7 +1891,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1922,7 +1922,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1953,7 +1953,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
@@ -1984,7 +1984,7 @@ class BotocoreTest(TracerTestCase):
         lamb.create_function(
             FunctionName="guns-and-roses",
             Runtime="python3.8",
-            Role="test-iam-role",
+            Role="arn:aws:iam::000000000000:test-iam-role",
             Handler="lambda_function.lambda_handler",
             Code={
                 "ZipFile": get_zip_lambda(),
