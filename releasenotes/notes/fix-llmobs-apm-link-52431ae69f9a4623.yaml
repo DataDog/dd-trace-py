@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where trace id's for LLM Observability spans were always being converted to hex values which broke
+       the APM link for 64-bit trace ids. Now, trace IDs are only converted to 128-bit hexadecimal when they exceed the maximum 64-bit decimal value
+

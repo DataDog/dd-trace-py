@@ -30,6 +30,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
@@ -191,7 +192,7 @@ class LLMObs(Service):
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
         llmobs_span_event = {
-            "trace_id": "{:x}".format(span.trace_id),
+            "trace_id": format_trace_id(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -560,7 +561,7 @@ class LLMObs(Service):
             if span.span_type != SpanTypes.LLM:
                 log.warning("Span must be an LLMObs-generated span.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
         except (TypeError, AttributeError):
             log.warning("Failed to export span. Span must be a valid Span object.")
             return None
