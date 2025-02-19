@@ -11,72 +11,74 @@ import traceback
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import quote
 import uuid
+import shutil
 
-from ._utils import HTTPResponse
-from ._utils import http_request
+from .._utils import HTTPResponse
+from .._utils import http_request
 
-from .decorators import agent
-from ._llmobs import LLMObs  
+from ..decorators import agent
+from .._llmobs import LLMObs  
 
 from ddtrace.context import Context
 
 import ddtrace
 from ddtrace import patch_all
 
-# patch_all() # TODO: remove this comment if it messes with dist tracing, right now it's needed because it overrides integrations_enabled
-
+# TODO: Clean up this, move logic to init
 DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
 if DD_SITE == "datadoghq.com":
     BASE_URL = f"https://api.{DD_SITE}"
 else:
     BASE_URL = f"https://{DD_SITE}"
 
-LLMObs.enable(
-    ml_app="experiment-jonathan",
-    integrations_enabled=True,
-    agentless_enabled=True,
-    site=os.getenv("DD_SITE"),
-    api_key=os.getenv("DD_API_KEY"),
-)
 
 IS_INITIALIZED = False
-ENV_ML_APP = None
 ENV_PROJECT_NAME = None
 ENV_SITE = None
 ENV_API_KEY = None
 ENV_APPLICATION_KEY = None
+ML_APP = "dne"
 
-def init(project_name: str,  api_key: str = None, application_key: str = None, ml_app: str = "experiments", site: str = "datadoghq.com") -> None:
+
+def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, application_key: str = None) -> None:
     """Initialize an experiment environment.
 
     Args:
         project_name: Name of the project
+        site: Datadog site
         api_key: Datadog API key
         application_key: Datadog application key
-        ml_app: Name of the ML app
-        site: Datadog site
     """
 
-    global IS_INITIALIZED
-    if IS_INITIALIZED:
-        raise ValueError("Experiment environment already initialized, please call init() only once")
-    else:
+    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_SITE, ENV_API_KEY, ENV_APPLICATION_KEY
+    if api_key is None:
+        api_key = os.getenv("DD_API_KEY")
         if api_key is None:
-            api_key = os.getenv("DD_API_KEY")
-            if api_key is None:
-                raise ValueError("DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(api_key=...)")
+            raise ValueError("DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(...api_key=...)")
+        
+    if application_key is None:
+        application_key = os.getenv("DD_APPLICATION_KEY")
         if application_key is None:
-            application_key = os.getenv("DD_APPLICATION_KEY")
-            if application_key is None:
-                raise ValueError("DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(application_key=...)")
+            raise ValueError("DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)")
 
-        ENV_ML_APP = ml_app
+
+    if IS_INITIALIZED is False:
+        LLMObs.enable(
+            ml_app=ML_APP,
+            integrations_enabled=True,
+            agentless_enabled=True,
+            site=site,
+            api_key=api_key,
+        )
         ENV_PROJECT_NAME = project_name
         ENV_SITE = site
         ENV_API_KEY = api_key
         ENV_APPLICATION_KEY = application_key
         IS_INITIALIZED = True
 
+def _validate_init() -> None:
+    if IS_INITIALIZED is False:
+        raise ValueError("Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions")
 
 class Dataset:
     """A container for LLM experiment data that can be pushed to and retrieved from Datadog.
@@ -160,24 +162,26 @@ class Dataset:
                 raise ValueError("All rows must have the same keys.")
 
     @classmethod
-    def pull(cls, name: str) -> "Dataset":
+    def pull(cls, name: str, version: int = None) -> "Dataset":
         """Create a dataset from a dataset hosted in Datadog.
 
         Args:
             name: Name of the dataset to retrieve from Datadog
+            version: Version of the dataset to retrieve from Datadog
 
         Returns:
             Dataset: A new Dataset instance populated with the records from Datadog
 
         Raises:
-            ValueError: If the dataset is not found
+            ValueError: If the dataset is not found or if the specified version doesn't exist
             Exception: If there are HTTP errors during the request
         """
+        _validate_init()
         # Get dataset ID
         encoded_name = quote(name)
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-        resp = exp_http_request("GET", url)
         
+        resp = exp_http_request("GET", url)
         response_data = resp.json()
         datasets = response_data.get("data", [])
 
@@ -186,12 +190,48 @@ class Dataset:
 
         dataset_id = datasets[0]["id"]
         dataset_version = datasets[0]["attributes"]["current_version"]
-        
+
+        # If version specified, verify it exists
+        if version is not None:
+            versions_url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/versions"
+            try:
+                versions_resp = exp_http_request("GET", versions_url)
+                versions_data = versions_resp.json()
+                available_versions = [v["attributes"]["version_number"] for v in versions_data.get("data", [])]
+                
+                if not available_versions:
+                    raise ValueError(f"No versions found for dataset '{name}'")
+                
+                if version not in available_versions:
+                    versions_str = ", ".join(str(v) for v in sorted(available_versions))
+                    raise ValueError(
+                        f"Version {version} not found for dataset '{name}'. "
+                        f"Available versions: {versions_str}"
+                    )
+                dataset_version = version
+            except ValueError as e:
+                if "404" in str(e):
+                    raise ValueError(f"Dataset '{name}' not found") from e
+                raise
 
         # Get dataset records
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = exp_http_request("GET", url)
-        records_data = resp.json()
+        if version is not None:
+            url += f"?filter[version]={version}"
+        
+        try:
+            resp = exp_http_request("GET", url)
+            records_data = resp.json()
+        except ValueError as e:
+            if "404" in str(e):
+                if version is not None:
+                    versions_str = ", ".join(str(v) for v in sorted(available_versions))
+                    raise ValueError(
+                        f"Version {version} not found for dataset '{name}'. "
+                        f"Available versions: {versions_str}"
+                    ) from e
+                raise ValueError(f"Dataset '{name}' not found") from e
+            raise
 
         if not records_data.get("data", []):
             raise ValueError(f"Dataset '{name}' does not contain any records.")
@@ -216,20 +256,63 @@ class Dataset:
         dataset._datadog_dataset_version = dataset_version
         return dataset
 
-    def push(self, chunk_size: int = 300) -> None:
+    def push(self, overwrite: bool = False) -> None:
         """Push the dataset to Datadog and refresh with pulled data.
 
         Args:
-            chunk_size: Number of records to upload in each chunk. Defaults to 300.
+            overwrite: If True, overwrite the dataset if it already exists. If False, create a new version.
         """
-        # Check if dataset exists
+        _validate_init()
+
+        chunk_size: int = 300
+
+        # First check if dataset exists
         encoded_name = quote(self.name)
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
         resp = exp_http_request("GET", url)
-        response_data = resp.json()
-        datasets = response_data.get("data", [])
+        existing_dataset = resp.json().get("data", [])
 
-        if not datasets:
+        if existing_dataset and overwrite:
+            # Use existing dataset ID
+            dataset_id = existing_dataset[0]["id"]
+            self._datadog_dataset_id = dataset_id
+            self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
+
+            # Get existing records to map record IDs
+            url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+            resp = exp_http_request("GET", url)
+            existing_records = resp.json().get("data", [])
+            
+            # Update records in chunks
+            total_records = len(self._data)
+            chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
+            total_chunks = len(chunks)
+
+            show_progress = total_records > chunk_size
+            if show_progress:
+                _print_progress_bar(0, total_chunks, prefix='Updating:', suffix='Complete')
+
+            for i, chunk in enumerate(chunks):
+                for record, existing in zip(chunk, existing_records[i*chunk_size:(i+1)*chunk_size]):
+                    record_id = existing["id"]
+                    payload = {
+                        "data": {
+                            "type": "datasets",
+                            "attributes": {
+                                "input": record["input"],
+                                "expected_output": record["expected_output"],
+                                "metadata": {k: v for k, v in record.items() 
+                                           if k not in ["input", "expected_output", "record_id"]}
+                            }
+                        }
+                    }
+                    url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/{record_id}"
+                    resp = exp_http_request("PATCH", url, body=json.dumps(payload).encode("utf-8"))
+
+                if show_progress:
+                    _print_progress_bar(i + 1, total_chunks, prefix='Updating:', suffix='Complete')
+
+        else:
             # Create new dataset
             dataset_payload = {
                 "data": {
@@ -237,7 +320,6 @@ class Dataset:
                     "attributes": {
                         "name": self.name,
                         "description": self.description,
-                        "metadata": {"team": "ml-obs"},
                     },
                 }
             }
@@ -248,39 +330,34 @@ class Dataset:
             dataset_id = response_data["data"]["id"]
             self._datadog_dataset_id = dataset_id
             self._datadog_dataset_version = 0
-        else:
-            # Dataset exists, raise error
-            raise ValueError(
-                f"Dataset '{self.name}' already exists. Dataset versioning will be supported in a future release. "
-                "Please use a different name for your dataset."
-            )
 
-        # Split records into chunks and upload
-        total_records = len(self._data)
-        chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
-        total_chunks = len(chunks)
+            # Split records into chunks and upload
+            total_records = len(self._data)
+            chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
+            total_chunks = len(chunks)
 
-        # Only show progress bar for large datasets
-        show_progress = total_records > chunk_size
-        if show_progress:
-            _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
-
-        for i, chunk in enumerate(chunks):
-            records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk}}}
-            url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-            resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
-            
+            # Only show progress bar for large datasets
+            show_progress = total_records > chunk_size
             if show_progress:
-                _print_progress_bar(i + 1, total_chunks, prefix='Uploading:', suffix='Complete')
+                _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
 
-        # Pull the dataset to get all record IDs and metadata
-        pulled_dataset = self.pull(self.name)
-        self._data = pulled_dataset._data
-        self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
-        self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
+            for i, chunk in enumerate(chunks):
+                records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk}}}
+                url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+                resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
+                
+                if show_progress:
+                    _print_progress_bar(i + 1, total_chunks, prefix='Uploading:', suffix='Complete')
 
-        # Print url to the dataset in Datadog
-        print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n")
+            time.sleep(1) # Sleep to allow for processing after ingestion.
+            # Pull the dataset to get all record IDs and metadata
+            pulled_dataset = self.pull(self.name)
+            self._data = pulled_dataset._data
+            self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+            self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
+
+            # Print url to the dataset in Datadog
+            print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n")
 
     @classmethod
     def from_csv(
@@ -463,52 +540,50 @@ class Dataset:
 
 
 class Experiment:
-    """Manages the execution and evaluation of LLM tasks on a dataset.
+    """Manages the execution and evaluation of experiment tasks on a dataset.
 
-    This class handles running tasks against datasets, applying evaluators,
+    This class handles running experiment tasks against datasets, applying evaluators,
     and collecting results for analysis.
 
     Attributes:
         name (str): Name of the experiment
-        task (Callable): Function that processes each dataset record
+        experiment_task (Callable): Function that processes each dataset record
         dataset (Dataset): Dataset to run the experiment on
-        evaluators (List[Callable]): Functions that evaluate task outputs
+        evaluators (List[Callable]): Functions that evaluate experiment task outputs
         tags (List[str]): Tags for organizing experiments
-        project_name (str): Name of the project this experiment belongs to
         description (str): Description of the experiment
         metadata (Dict[str, Any]): Additional metadata for the experiment
-        config (Optional[Dict[str, Any]]): Configuration for the task
+        config (Optional[Dict[str, Any]]): Configuration for the experiment task
         has_run (bool): Whether the experiment has been executed
         has_evaluated (bool): Whether the evaluations have been performed
-        outputs (List[Dict]): Outputs after running the task
+        outputs (List[Dict]): Outputs after running the experiment task
         evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
     def __init__(
         self,
         name: str,
-        task: Callable,
+        experiment_task: Callable,
         dataset: Dataset,
         evaluators: List[Callable],
         tags: List[str] = [],
-        project_name: str = "-",
         description: str = "",
         metadata: Dict[str, Any] = {},
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.name = name
-        self.task = task
+        self.experiment_task = experiment_task
         self.dataset = dataset
         self.evaluators = evaluators
         self.tags = tags
-        self.project_name = project_name
+        self.project_name = ENV_PROJECT_NAME
         self.description = description
         self.metadata = metadata
         self.config = config
 
-        # Make sure the task is decorated with @task
-        if not hasattr(self.task, "_is_task"):
-            raise TypeError("Task function must be decorated with @task decorator.")
+        # Make sure the experiment task is decorated with @experiment_task
+        if not hasattr(self.experiment_task, "_is_experiment_task"):
+            raise TypeError("Experiment task function must be decorated with @experiment_task decorator.")
 
         # Make sure every evaluator is decorated with @evaluator
         for evaluator_func in self.evaluators:
@@ -544,7 +619,6 @@ class Experiment:
                     "attributes": {
                         "name": self.project_name,
                         "description": "",
-                        "metadata": {"team": "ml-obs"},
                     },
                 }
             }
@@ -607,41 +681,52 @@ class Experiment:
         raise_errors: bool = True,
     ) -> "ExperimentResults":
         """
-        Execute the task and evaluations, returning the results.
+        Execute the experiment task and evaluations, returning the results.
         Here, we guarantee an experiment is created first,
-        so run_task() can tag traces with the real experiment ID.
+        so run_experiment_task() can tag traces with the real experiment ID.
         """
-        print("Running experiment...")
+        _validate_init()
+         # Use color formatting for the header
+        print(f"\n{Color.BOLD}Running experiment{Color.RESET}")
+        print(f"  Project: {Color.CYAN}{self.project_name}{Color.RESET}")
+        print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}\n")
+        
         # 1) Make sure the dataset is pushed
         if not self.dataset._datadog_dataset_id:
             raise ValueError(
                 "Dataset must be pushed to Datadog before running the experiment."
             )
+        
 
         project_id = self._get_or_create_project()  # your existing helper
         self._datadog_project_id = project_id
+
             
         experiment_id = self._create_experiment_in_datadog()  # your existing helper
         self._datadog_experiment_id = experiment_id
 
-        # 3) Now run the task and evaluations
-        self.run_task(_jobs=jobs, raise_errors=raise_errors)
+
+        # 3) Now run the experimenttask and evaluations
+        self.run_experiment_task(_jobs=jobs, raise_errors=raise_errors)
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
-        experiment_results.push()
         return experiment_results
 
-    def run_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
+    def run_experiment_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
         """
-        Execute the task function on the dataset concurrently using ThreadPoolExecutor.map,
+        Execute the experiment task function on the dataset concurrently using ThreadPoolExecutor.map,
         updating progress via _print_progress_bar and processing more rows in parallel.
         """
+        _validate_init()
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
         total_rows = len(self.dataset)
 
+        progress = ProgressReporter(total_rows, desc="Processing")
+        outputs_buffer = []
+        
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(name=self.task.__name__) as span:
+            with LLMObs._experiment(name=self.experiment_task.__name__) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
@@ -652,10 +737,10 @@ class Experiment:
 
                 try:
                     
-                    if getattr(self.task, "_accepts_config", False):
-                        output = self.task(input_data, self.config)
+                    if getattr(self.experiment_task, "_accepts_config", False):
+                        output = self.experiment_task(input_data, self.config)
                     else:
-                        output = self.task(input_data)
+                        output = self.experiment_task(input_data)
 
                     LLMObs.annotate(
                         span,
@@ -728,50 +813,25 @@ class Experiment:
                         }
                     }
 
-        outputs_buffer = []
-        completed = 0
-        error_count = 0
-
-
         # Using ThreadPoolExecutor.map to process rows concurrently
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
-            # executor.map returns results in order, so we iterate and update our progress
             for result in executor.map(process_row, list(enumerate(self.dataset))):
                 outputs_buffer.append(result)
-                completed += 1
-                _print_progress_bar(completed, total_rows, prefix="Processing:", suffix="Complete")
-
-        # Check for errors and raise if required
-        error_count = 0
-        for idx, output_data in enumerate(outputs_buffer):
-            if output_data["error"]["message"]:
-                error_count += 1
-                if raise_errors:
-                    raise ExperimentTaskError(
-                        output_data["error"]["message"],
-                        idx,
-                        output_data["error"]["type"]
-                    )
+                progress.update(error=result["error"]["message"] is not None)
+        
         self.outputs = outputs_buffer
         self.has_run = True
-
         LLMObs.flush()
-
-        error_rate = (error_count / total_rows) * 100
+        
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
-        print(f"Task completed with {error_count} errors ({error_rate:.2f}% error rate)")
-        if error_count > 0:
-            print(
-                "If you'd like to halt execution on errors and see the full traceback, "
-                "set `raise_errors=True` when running the experiment."
-            )
 
     def run_evaluations(
         self,
         evaluators: Optional[List[Callable]] = None,
         raise_errors: bool = False
     ) -> "ExperimentResults":
+        _validate_init()
         """Run evaluators on the outputs and return ExperimentResults.
         
         Args:
@@ -782,10 +842,10 @@ class Experiment:
             ExperimentResults: A new ExperimentResults instance with the evaluation results.
         
         Raises:
-            ValueError: If task has not been run yet
+            ValueError: If experiment task has not been run yet
         """
         if not self.has_run:
-            raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
+            raise ValueError("Experiment task has not been run yet. Please call run_experiment_task() before run_evaluations().")
 
         # Use provided evaluators or fall back to experiment's evaluators
         evaluators_to_use = evaluators if evaluators is not None else self.evaluators
@@ -797,10 +857,8 @@ class Experiment:
 
         evaluations = []
         total_rows = len(self.outputs)
-        completed = 0
-        error_count = 0
-
-        _print_progress_bar(0, total_rows, prefix='Evaluating:', suffix='Complete')
+        
+        progress = ProgressReporter(total_rows, desc="Evaluating")
 
         for idx, output_data in enumerate(self.outputs):
             output = output_data["output"]
@@ -819,7 +877,6 @@ class Experiment:
                         "error": None
                     }
                 except Exception as e:
-                    error_count += 1
                     evaluations_dict[evaluator.__name__] = {
                         "value": None,
                         "error": {
@@ -836,23 +893,12 @@ class Experiment:
                 "idx": idx,
                 "evaluations": evaluations_dict
             })
-
-            completed += 1
-            _print_progress_bar(completed, total_rows, prefix='Evaluating:', suffix='Complete')
-
-        if len(evaluators_to_use) > 0:
-            error_rate = (error_count / (total_rows * len(evaluators_to_use))) * 100
-        else:
-            error_rate = 0
-
-        print(f"Evaluation completed with {error_count} errors ({error_rate:.2f}% error rate)")
-
-        if error_count > 0:
-            print("If you'd like to halt execution on errors and see the full traceback, set `raise_errors=True` when running the experiment.")
+            
+            progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
         self.has_evaluated = True
         experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
-        experiment_results.push()
+        experiment_results._push_evals()
         return experiment_results
 
  
@@ -866,14 +912,14 @@ class ExperimentResults:
     Attributes:
         dataset (Dataset): The dataset used in the experiment
         experiment (Experiment): The experiment that generated these results
-        outputs (List[Dict]): Outputs after running the task
+        outputs (List[Dict]): Outputs after running the experiment task
         evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
     def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict]) -> None:
         self.dataset = dataset
         self.experiment = experiment
-        self.outputs = outputs  # List of outputs from run_task
+        self.outputs = outputs  # List of outputs from run_experiment_task
         self.evaluations = evaluations  # List of evaluations from run_evaluations
         self.merged_results = self._merge_results()  # Merged outputs and evaluations
 
@@ -984,12 +1030,10 @@ class ExperimentResults:
         
         return final_df
 
-    def push(self, chunk_size: int = 300) -> None:
-        """
-        Push the experiment results to Datadog, without re-creating the project/experiment.
-        Assumes self.experiment._datadog_experiment_id and self.experiment._datadog_project_id
-        have already been set in Experiment.run().
-        """
+    def _push_evals(self, chunk_size: int = 300) -> None:
+        """Push the experiment evaluations to Datadog."""
+        _validate_init()
+        
         # Ensure the dataset is hosted in Datadog
         if not self.experiment.dataset._datadog_dataset_id:
             raise ValueError(
@@ -1078,12 +1122,6 @@ class ExperimentResults:
                         "label": metric_payload_name,
                         "score_value" if metric_type == "score" else "categorical_value": metric_value,
                         "error": metric_payload_value["error"],
-                        # "join_on": {
-                        #     "span": {
-                        #         "trace_id": str(trace_id),
-                        #         "span_id": str(span_id),
-                        #     },
-                        # }
                     }
 
                     metrics.append(metric)
@@ -1104,7 +1142,9 @@ class ExperimentResults:
                     chunk_idx + 1, total_chunks, prefix='Uploading:', suffix='Complete'
                 )
 
-        print(f"\nExperiment '{experiment_name}' results pushed to Datadog.\n")
+        # Print completion message with link
+        print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
+        print(f"{Color.BLUE}  {BASE_URL}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
 
     def export_to_jsonl(self, file_path):
         """
@@ -1165,10 +1205,10 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
     return resp
 
 
-def task(func):
-    if func.__name__ == "task":
-        raise ValueError("Function name 'task' is reserved. Please use a different name for your task function.")
-        
+def experiment_task(func):
+    if func.__name__ == "experiment_task":
+        raise ValueError("Function name 'experiment_task' is reserved. Please use a different name for your experiment task function.")
+    
     @wraps(func)
     def wrapper(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> Any:
         # Call the original function with or without config
@@ -1179,10 +1219,10 @@ def task(func):
     sig = inspect.signature(func)
     params = sig.parameters
     if 'input' not in params:
-        raise TypeError("Task function must have an 'input' parameter.")
+        raise TypeError("Experiment task function must have an 'input' parameter.")
     # Set attribute to indicate whether the function accepts config
     wrapper._accepts_config = 'config' in params
-    wrapper._is_task = True  # Set attribute to indicate decoration
+    wrapper._is_experiment_task = True  # Set attribute to indicate decoration
     return wrapper
 
 
@@ -1215,8 +1255,172 @@ class DatasetFileError(Exception):
 
 
 class ExperimentTaskError(Exception):
-    """Exception raised when a task fails during experiment execution."""
+    """Exception raised when an experiment task fails during experiment execution."""
     def __init__(self, message: str, row_idx: int, original_error: Exception = None):
-        self.row_idx = row_idx
+        self.row_idx = row_id
         self.original_error = original_error
         super().__init__(message)
+
+class Color:
+    """ANSI color codes for terminal output."""
+    GREY = "\033[90m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[95m"
+    CYAN = "\033[96m"
+    WHITE = "\033[97m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+class Spinner:
+    """Animated spinner patterns."""
+    DOTS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    ARROW = ["▹▹▹▹▹", "▸▹▹▹▹", "▹▸▹▹▹", "▹▹▸▹▹", "▹▹▹▸▹", "▹▹▹▹▸"]
+    
+class ProgressState(Enum):
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+
+class ProgressReporter:
+    """Enhanced progress reporter with animations and color."""
+    
+    def __init__(self, total: int, desc: str = "", width: int = None):
+        self.total = total
+        self.current = 0
+        self.start_time = time.time()
+        self.desc = desc
+        self.error_count = 0
+        self._last_len = 0
+        self._last_update = self.start_time
+        self._spinner_idx = 0
+        self._state = ProgressState.RUNNING
+        
+        # Auto-detect terminal width if not specified
+        if width is None:
+            try:
+                terminal_width = os.get_terminal_size().columns
+                self.width = min(40, terminal_width - 50)  # Leave room for stats
+            except OSError:
+                self.width = 40  # Fallback if terminal size can't be detected
+        else:
+            self.width = width
+            
+    def update(self, advance: int = 1, error: bool = False) -> None:
+        """Update progress with optional error tracking."""
+        self.current += advance
+        if error:
+            self.error_count += 1
+            self._state = ProgressState.ERROR
+        
+        # Throttle updates to max 15 per second
+        now = time.time()
+        if now - self._last_update < 0.066 and self.current < self.total:
+            return
+            
+        self._last_update = now
+        self._spinner_idx = (self._spinner_idx + 1) % len(Spinner.DOTS)
+        self._print_progress()
+    
+    def _format_time(self, seconds: float) -> str:
+        """Format time in a human-readable way."""
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        minutes = int(seconds / 60)
+        seconds = seconds % 60
+        if minutes < 60:
+            return f"{minutes}m {int(seconds)}s"
+        hours = int(minutes / 60)
+        minutes = minutes % 60
+        return f"{hours}h {minutes}m"
+    
+    def _format_speed(self) -> str:
+        """Calculate and format processing speed."""
+        elapsed = time.time() - self.start_time
+        if elapsed == 0:
+            return "0/s"
+        speed = self.current / elapsed
+        if speed >= 100:
+            return f"{speed:.0f}/s"
+        return f"{speed:.1f}/s"
+    
+    def _get_gradient_color(self, progress: float) -> str:
+        """Return a color based on progress and state."""
+        if self._state == ProgressState.ERROR:
+            return Color.RED
+        elif progress >= 1:
+            return Color.GREEN
+        else:
+            return Color.BLUE
+            
+    def _print_progress(self) -> None:
+        """Print the progress bar and statistics with color and animation."""
+        elapsed = time.time() - self.start_time
+        
+        # Calculate times and progress
+        progress = self.current / self.total
+        if self.current == 0:
+            eta = 0
+        else:
+            speed = self.current / elapsed
+            remaining_items = self.total - self.current
+            eta = remaining_items / speed if speed > 0 else 0
+        
+        # Get color theme based on state
+        color = self._get_gradient_color(progress)
+        
+        # Build animated progress bar
+        filled_width = int(self.width * progress)
+        if progress < 1:
+            # Show animated gradient effect at progress point
+            bar = "█" * (filled_width - 1)
+            if filled_width > 0:
+                bar += "█"  # Pulse effect at progress point
+            bar += "░" * (self.width - filled_width)
+        else:
+            bar = "█" * self.width
+        
+        # Format statistics
+        percent = f"{progress * 100:.1f}%"
+        counts = f"{self.current}/{self.total}"
+        speed = self._format_speed()
+        elapsed_str = self._format_time(elapsed)
+        eta_str = self._format_time(eta)
+        
+        # Build error indicator if needed
+        if self.error_count > 0:
+            error_str = f" {Color.RED}({self.error_count} errors){Color.RESET}"
+        else:
+            error_str = ""
+        
+        # Get spinner frame
+        spinner = Spinner.DOTS[self._spinner_idx] if progress < 1 else "✓"
+        
+        # Construct status line with color
+        status = (
+            f"\r{spinner} {Color.BOLD}{self.desc}{Color.RESET} "
+            f"{color}|{bar}|{Color.RESET} "
+            f"{Color.BOLD}{percent}{Color.RESET} • "
+            f"{counts}{error_str} • "
+            f"{Color.DIM}{speed} • {elapsed_str}<{eta_str}{Color.RESET}"
+        )
+        
+        # Clear previous line if needed
+        if self._last_len > len(status):
+            print("\r" + " " * self._last_len, end="")
+        
+        print(status, end="")
+        self._last_len = len(status)
+        
+        # Print final status on completion
+        if self.current >= self.total:
+            print()
+            if self.error_count > 0:
+                error_rate = (self.error_count / self.total) * 100
+                print(f"{Color.RED}⚠️  Completed with {self.error_count} errors ({error_rate:.1f}%){Color.RESET}")
+                print(f"{Color.DIM}   Set raise_errors=True to see full error traces{Color.RESET}")
+            else:
+                print(f"{Color.GREEN}✓ Completed successfully{Color.RESET}")
