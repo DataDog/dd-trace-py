@@ -14,7 +14,6 @@ from typing import Union  # noqa:F401
 from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._trace.pin import Pin
@@ -37,7 +36,6 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
-from ._otel_remapper import validate_otel_envs
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -460,6 +458,8 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
+        from ._telemetry import validate_otel_envs
+
         validate_otel_envs()
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
@@ -524,8 +524,6 @@ class Config(object):
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
-
-        self._is_user_provided_service = self.service is not None
 
         self._inferred_base_service = detect_service(sys.argv)
 
@@ -815,6 +813,8 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
+                from ddtrace.internal.telemetry import telemetry_writer
+
                 telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 

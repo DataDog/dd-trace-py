@@ -8,7 +8,7 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 from ddtrace.version import get_version
 
 
