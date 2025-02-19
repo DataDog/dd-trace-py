@@ -91,3 +91,6 @@
       MYSQL_PASSWORD: test
       MYSQL_USER: test
       MYSQL_DATABASE: test
+  localstack:
+    name: localstack/localstack:1.4.0
+    alias: localstack
