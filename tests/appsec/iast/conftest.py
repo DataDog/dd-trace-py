@@ -184,7 +184,7 @@ def configuration_endpoint():
             response = conn.getresponse()
             result = Response.from_http_response(response)
             status = result.status
-        except ConnectionError:
+        except (ConnectionError, PermissionError):
             pass
         retries += 1
 
