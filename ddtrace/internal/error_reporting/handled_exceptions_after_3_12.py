@@ -42,7 +42,7 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
         if "all_third_party" in checks:
             conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
         logic += " and (" + " or ".join(conditions) + ")"
-    print(logic)
+
     namespace = {}  # type: ignore
     exec(
         f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace
