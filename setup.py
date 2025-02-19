@@ -646,7 +646,7 @@ setup(
         "build_rust": build_rust,
         "clean": CleanLibraries,
     },
-    setup_requires=["setuptools_scm[toml]>=4", "cython==3.0.11", "cmake>=3.24.2,<3.28", "setuptools-rust"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
     + cythonize(
         [
