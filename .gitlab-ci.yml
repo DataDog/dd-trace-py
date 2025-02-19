@@ -13,7 +13,7 @@ default:
   interruptible: true
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include-wip/stanistan/smarter-oom-fix/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
@@ -40,14 +40,14 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
-   
+
 microbenchmarks:
   stage: benchmarks
   needs: [ ]
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
-   
+
 macrobenchmarks:
   stage: benchmarks
   needs: [ ]
