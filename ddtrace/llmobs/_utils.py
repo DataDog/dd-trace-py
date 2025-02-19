@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
@@ -16,14 +15,31 @@ from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.utils import Prompt
 from ddtrace.trace import Span
 
+
 log = get_logger(__name__)
+
+
+class LinkTracker:
+    def __init__(self, object_span_links=None):
+        self._object_span_links = object_span_links or {}
+
+    def get_object_id(self, obj):
+        return f"{type(obj).__name__}_{id(obj)}"
+
+    def add_span_links_to_object(self, obj, span_links):
+        obj_id = self.get_object_id(obj)
+        if obj_id not in self._object_span_links:
+            self._object_span_links[obj_id] = []
+        self._object_span_links[obj_id] += span_links
+
+    def get_span_links_from_object(self, obj):
+        return self._object_span_links.get(self.get_object_id(obj), [])
+
 
 class AnnotationContext:
     def __init__(self, _register_annotator, _deregister_annotator):
@@ -58,18 +74,6 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
             return parent
         parent = parent._parent
     return None
-
-
-def _get_llmobs_parent_id(span: Span) -> Optional[str]:
-    """Return the span ID of the nearest LLMObs-type span in the span's ancestor tree.
-    In priority order: manually set parent ID tag, nearest LLMObs ancestor, local root's propagated parent ID tag.
-    """
-    if span._get_ctx_item(PARENT_ID_KEY):
-        return span._get_ctx_item(PARENT_ID_KEY)
-    nearest_llmobs_ancestor = _get_nearest_llmobs_ancestor(span)
-    if nearest_llmobs_ancestor:
-        return str(nearest_llmobs_ancestor.span_id)
-    return span.get_tag(PROPAGATED_PARENT_ID_KEY)
 
 
 def _get_span_name(span: Span) -> str:
@@ -116,10 +120,7 @@ def _get_ml_app(span: Span) -> str:
 
 
 def _get_session_id(span: Span) -> Optional[str]:
-    """
-    Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor.
-    Default to the span's trace ID.
-    """
+    """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
     session_id = span._get_ctx_item(SESSION_ID)
     if session_id:
         return session_id
@@ -130,23 +131,6 @@ def _get_session_id(span: Span) -> Optional[str]:
             return session_id
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
     return session_id
-
-
-def _inject_llmobs_parent_id(span_context):
-    """Inject the LLMObs parent ID into the span context for reconnecting distributed LLMObs traces."""
-    span = ddtrace.tracer.current_span()
-    if span is None:
-        log.warning("No active span to inject LLMObs parent ID info.")
-        return
-    if span.context is not span_context:
-        log.warning("The current active span and span_context do not match. Not injecting LLMObs parent ID.")
-        return
-
-    if span.span_type == SpanTypes.LLM:
-        llmobs_parent_id = str(span.span_id)
-    else:
-        llmobs_parent_id = _get_llmobs_parent_id(span)
-    span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id or "undefined"
 
 
 def _unserializable_default_repr(obj):
