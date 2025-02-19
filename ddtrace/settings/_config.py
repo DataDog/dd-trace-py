@@ -1,4 +1,5 @@
 from copy import deepcopy
+import enum
 import json
 import os
 import re
@@ -418,6 +419,15 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=asbool,
         ),
     }
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_LOGS_INJECTION = 1 << 13
+    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
+    APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
 class Config(object):
@@ -924,7 +934,7 @@ class Config(object):
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
         flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
         tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
-        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub, capabilities=Capabilities)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
