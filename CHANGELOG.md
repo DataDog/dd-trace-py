@@ -4,6 +4,187 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.0.0
+
+### New Features
+
+- valkey: adds automatic instrumentation of the Valkey package. Thank you \[AhmadMasry\](<https://github.com/AhmadMasry>)!
+- Removes code and tests related to Python 3.7, breaking the library's compatibility with this Python version.
+
+- Code Security (IAST): This introduces Code Security support to PyMySQL and MySQLDB integrations.
+
+- openai: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13.
+
+- Code Security (IAST): XSS detection for Django applications and Jinja2 (Flask and FastAPI applications), which will be displayed on your DataDog Vulnerability Explorer dashboard. See the [Application Vulnerability Management](https://docs.datadoghq.com/security/application_security/vulnerability_management/) documentation for more information about this feature.
+
+- ASM: This introduces use of meta struct for appsec event reports. This will improve performances. ASM will now require at least agent version 7.35.0 to work as expected.
+
+- LLM Observability: This introduces an integration with the [RAGAS](https://docs.ragas.io/en/stable/) evaluation framework to continuously monitor  
+  the performance of context-augmented LLM generations in production.
+
+  The integration supports evaluating LLM inferences with the following RAGAS metrics:
+
+  - [Faithfulness](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/): measures if the LLM response is faithful to the provided context.
+  - [Answer Relevancy](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/): measures how relevant the LLM response is to the user input.
+  - [Context Precision](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/): measures how effectively the context is used in the generated response.
+
+  To learn more, see the [LLM Observability evaluations guide](https://docs.datadoghq.com/llm_observability/submit_evaluations/).
+
+- Code Security: Implement the detection of the Stacktrace-Leak vulnerability for Django, Flask and FastAPI.
+### Upgrade Notes
+
+- langchain: Removes the <span class="title-ref">langchain.tokens.total_cost</span> span metric for OpenAI calls.  
+  For continued cost estimation of OpenAI calls, enable [LLM Observability](https://docs.datadoghq.com/llm_observability/).
+
+- tracing: Drops support for multiple Tracer instances in the same process. Use `ddtrace.trace.tracer` to access the global tracer instance.
+
+- langchain: Removes prompt-completion log sampling from the LangChain integration. To continue logging prompt completions,  
+  enable LLM Observability.
+
+- langchain: Removes integration metrics from the LangChain integration. To continue tracking operational metrics from the  
+  OpenAI integration, enable LLM Observability or use trace metrics instead.
+
+- configurations: Drops support for deprecated tracing configurations. The following configurations are no longer supported:  
+  - DD_TRACE_SAMPLE_RATE, use DD_TRACE_SAMPLING_RULES instead.
+  - DD_TRACE_API_VERSION=v0.3, the default `v0.5` version is used instead.
+  - DD_ANALYTICS_ENABLED, Datadog Analytics is no longer supported.
+  - DD_TRACE_ANALYTICS_ENABLED, Datadog Analytics is no longer supported.
+  - DD_HTTP_CLIENT_TAG_QUERY_STRING, DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING should be used instead.
+  - DD_TRACE_SPAN_AGGREGATOR_RLOCK, disabling the span aggregator rlock is no longer supported.
+
+- tracing: Removes support for overriding the global tracer in `ddtrace.trace.Pin`
+
+- openai: Removes prompt-completion log sampling from the OpenAI integration. To continue logging prompt completions,  
+  enable LLM Observability.
+
+- openai: Removes integration metrics from the OpenAI integration. To continue tracking operational metrics from the  
+  OpenAI integration, enable LLM Observability or use trace metrics instead.
+
+- tracer: Removes deprecated parameters from `Tracer.configure(...)` method and removes the `Tracer.sampler` attribute.
+
+- tracing: Drops support for multiple tracer instances, `ddtrace.trace.Tracer` can not be reinitialized.
+
+- span: Removes the deprecated `Span.sampled` property
+
+- sampling: Drops support for configuring sampling rules using functions and regex in the `ddtrace.tracer.sampler.rules[].choose_matcher(...)` method and removes the `timestamp_ns` parameter from `ddtrace.internal.rate_limiter.RateLimiter.is_allowed()`.
+
+- configurations: Drops support for configuring `DD_TRACE_METHODS` with the '\[\]' notation. Ensure DD_TRACE_METHODS use the ':' notation instead".
+
+- opentracing: Removes the deprecated `ddtracer` parameter from `ddtrace.opentracer.tracer.Tracer()`.
+- CI Visibility: Official release of the new version of the pytest plugin, introducing the following features:  
+  - [Auto Test Retries](https://docs.datadoghq.com/tests/flaky_test_management/auto_test_retries)
+  - [Early Flake Detection](https://docs.datadoghq.com/tests/flaky_test_management/early_flake_detection)
+  - Improved coverage collection for [Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis) (formerly Intelligent Test Runner), using an internal collection method instead of [coverage.py](https://github.com/nedbat/coveragepy), with improved dependency discovery.
+
+  **NOTE:** this new version of the plugin introduces breaking changes:  
+  - `module`, `suite`, and `test` names are now parsed from the `item.nodeid` attribute
+  - test names now include the class for class-based tests
+  - Test skipping by Test Impact Analysis (formerly Intelligent Test Runner) is now done at the suite level, instead of at the test level
+
+  A beta version of the plugin had been available since v2.18.0, and could be enabled via the `DD_PYTEST_USE_NEW_PLUGIN_BETA` environment variable. The new version is now the default, and the environment variable is not used anymore.
+
+- openai: Drops tracing and LLM Observability support for OpenAI 0.x versions.  
+  To maintain support, upgrade to `openai>=1.0`.
+
+- langchain: removed tracing support for `langchain.chains.base.Chains`. To maintain support, migrate to using Langchain's LCEL instead.
+
+- langchain: Drops tracing and LLM Observability support for Langchain v0.0.x versions.
+
+- Bumps libdatadog dependency to v15.0.0.
+
+- LLM Observability: support for the deprecated environment variable `DD_LLMOBS_APP_NAME` has been removed.
+
+- propagation: Setting `DD_TRACE_PROPAGATION_STYLE` to `b3 single header` is no longer supported. Use `b3` instead.
+
+- integrations: Removes deprecated interfaces from all integrations.
+
+- LLM Observability: Removes the deprecated `parameters` argument from `LLMObs annotate()`. Use `metadata` instead.
+
+- aws_lambda: Drops support for `aws_lambda<=6.105.0`.
+### Deprecation Notes
+
+- tracing: Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
+
+- tracing: Deprecates the following constants in `ddtrace.constants` module:
+  - ANALYTICS_SAMPLE_RATE_KEY
+  - SAMPLE_RATE_METRIC_KEY
+  - SAMPLING_PRIORITY_KEY
+  - SAMPLING_AGENT_DECISION
+  - SAMPLING_RULE_DECISION
+  - SAMPLING_LIMIT_DECISION
+  - ORIGIN_KEY
+  - USER_ID_KEY
+  - HOSTNAME_KEY
+  - RUNTIME_FAMILY
+  - BASE_SERVICE_KEY
+  - SPAN_MEASURED_KEY
+  - KEEP_SPANS_RATE_KEY
+  - MULTIPLE_IP_HEADERS
+  - CONFIG_ENDPOINT_ENV
+  - CONFIG_ENDPOINT_RETRIES_ENV
+  - CONFIG_ENDPOINT_TIMEOUT_ENV
+
+- tracing: Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
+  - http, use `DD_TRACE_HEADER_TAGS` environment variable instead.
+  - http_server, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
+  - trace_headers, this attribute is internal to the tracer.
+  - header_is_traced, this attribute is internal to the tracer.
+  - convert_rc_trace_sampling_rules, this attribute is internal to the tracer.
+  - enable_remote_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
+  - get_from, use `ddtrace.trace.Pin` to set instance level configurations.
+
+- LLM Observability: The <span class="title-ref">\_DD_LLMOBS_EVALUATORS</span> environment variable is deprecated and will be removed in ddtrace 3.0.0.  
+  As an alternative to <span class="title-ref">\_DD_LLMOBS_EVALUATORS</span>, you can use <span class="title-ref">DD_LLMOBS_EVALUATORS</span> instead. To migrate, replace <span class="title-ref">\_DD_LLMOBS_EVALUATORS</span> with <span class="title-ref">DD_LLMOBS_EVALUATORS</span>.
+
+- LLM Observability: The <span class="title-ref">\_DD_LLMOBS_EVALUATOR_SAMPLING_RULES</span> environment variable is deprecated and will be removed in ddtrace 3.0.0.  
+  As an alternative to <span class="title-ref">\_DD_LLMOBS_EVALUATOR_SAMPLING_RULES</span>, you can use <span class="title-ref">DD_LLMOBS_EVALUATOR_SAMPLING_RULES</span> instead. To migrate, replace <span class="title-ref">\_DD_LLMOBS_EVALUATOR_SAMPLING_RULES</span> with <span class="title-ref">DD_LLMOBS_EVALUATOR_SAMPLING_RULES</span>.
+
+- ASM: deprecated env var DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING is now removed. Please use the new env var DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE instead.
+
+- configurations: Removes deprecated attributes from `ddtrace.config`.
+### Bug Fixes
+
+- ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable. SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+- internal: Fix performance overhead of Python distribution parsing for internal telemetry.
+
+- aiohttp: Adds the environment variable `DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK` to address a potential memory leak in the aiohttp integration. When set to true, this flag may cause streamed response span timing to be inaccurate. The flag defaults to false.
+- logging: Resolves an an unneeded info log being logged on process exit due to a forksafe hook being unregistered that was never registered to begin with.
+
+- LLM Observability: This fix resolves an issue where successive calls to `LLMObs.annotate()` on the same span caused  
+  overwriting of metrics, metadata, and prompt dictionaries. Now, calling `LLMObs.annotate()` will merge new metrics/metadata/prompt values with any existing ones.
+
+- profiling: fixes an issue on arm64 macOS where the profiler was not able to find native extension modules to enable the following features: `DD_PROFILING_TIMELINE_ENABLED` and `DD_PROFILING_STACK_V2_ENABLED`.
+
+- CI Visibility: fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+
+- Code security (IAST): This fix resolves an issue where the usage of <span class="title-ref">callonce</span> decorator could trigger an import loop
+
+- LLM Observability: This fix resolves an issue where spans were being enqueued to an inactive evaluator runner which caused noisy logs  
+  related to the evaluator runner buffer being full.
+
+- LLM Observability: Resolves an issue where explicitly only using `LLMObs.enable()` to configure LLM Observability without environment variables would not automatically propagate distributed tracing headers.
+
+- LLM Observability: This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+
+- openai: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+
+- LLM Observability: This fix resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError.
+
+- vertexai: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+
+- ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled,  
+  which could create an ImportError exception on Windows.
+
+- profiling: fix SystemError from the memory profiler returning NULL when collecting events
+### Other Changes
+
+- tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
+- cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+- tracing: Removes the deprecated tracing modules and constants from the `ddtrace` package.
+
+
+---
+
 ## 2.20.2
 
 
