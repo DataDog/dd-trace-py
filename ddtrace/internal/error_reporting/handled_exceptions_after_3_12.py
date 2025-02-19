@@ -8,6 +8,8 @@ from ddtrace.internal.compat import Path
 from ddtrace.internal.error_reporting.hook import _default_datadog_exc_callback
 from ddtrace.internal.error_reporting.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.packages import filename_to_package  # noqa: F401
+from ddtrace.internal.packages import is_stdlib  # noqa: F401
 from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.settings.error_reporting import config
@@ -34,10 +36,13 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     if "modules" in checks:
         conditions.append("file_name in INSTRUMENTED_FILE_PATHS")
     if "all_third_party" in checks:
-        conditions.append("(is_third_party(file_path) and 'ddtrace' not in file_name)")
+        conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
 
-    joined_conditions = " or ".join(conditions)
-    logic = f"'frozen' not in file_name and ({joined_conditions})"
+    logic = "'frozen' not in file_name"
+    if len(conditions) != 0:
+        logic += " and (" + " or ".join(conditions) + ")"
+    else:
+        logic += " and is_stdlib(file_path) is False and 'ddtrace' not in file_name"
 
     namespace = {}  # type: ignore
     exec(
