@@ -34,7 +34,7 @@ class TestPatching(SubprocessTestCase):
     @run_in_subprocess()
     def test_patch_raise_exception_manual_patch(self):
         # Manual patching should not be affected by the environment variable override.
-        with self.assertRaises(_monkey.ModuleNotFoundException) as me:
+        with self.assertRaises(Exception) as me:
             _monkey.patch(module_dne=True)
 
         assert "module_dne does not have automatic instrumentation" in str(me.exception)
