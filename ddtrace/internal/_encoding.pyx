@@ -24,9 +24,9 @@ from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
 
-
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
+cdef int MIN_START_NS = 946684800
 
 
 cdef extern from "Python.h":
@@ -741,6 +741,10 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             ret = pack_bytes(&self.pk, <char *> b"start", 5)
             if ret != 0:
                 return ret
+            
+            if (span.start_ns < MIN_START_NS) {
+                span.start_ns = MIN_START_NS
+            }
             ret = pack_number(&self.pk, span.start_ns)
             if ret != 0:
                 return ret
@@ -889,6 +893,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
 
         _ = span.start_ns
+        if (span.start_ns < MIN_START_NS) {
+            span.start_ns = MIN_START_NS
+        }
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0:
             return ret
