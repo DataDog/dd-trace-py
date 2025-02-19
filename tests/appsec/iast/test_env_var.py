@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from ...utils import _build_env
 from .conftest import CONFIG_SERVER_PORT
 
 
@@ -18,9 +19,11 @@ def _run_python_file(*args, **kwargs):
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
     if "env" in kwargs:
-        ret = subprocess.run(cmd, cwd=current_dir, env=kwargs["env"])
+        env = _build_env(kwargs["env"])
+        ret = subprocess.run(cmd, cwd=current_dir, env=env)
     else:
         ret = subprocess.run(cmd, cwd=current_dir)
+
     assert ret.returncode == 0
 
 
