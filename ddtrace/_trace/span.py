@@ -129,6 +129,8 @@ class Span(object):
         "_links",
         "_events",
         "__weakref__",
+        "min_start",
+        "max_start",
     ]
 
     def __init__(
@@ -193,6 +195,8 @@ class Span(object):
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self.min_start: int = 946684800 # 1-1-2000
+        self.max_start: int = 32503679999 # 12-31-2999
         self.duration_ns: Optional[int] = None
 
         if trace_id is not None:
@@ -250,7 +254,13 @@ class Span(object):
 
     @start.setter
     def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
+        breakpoint()
+        if int(value * 1e9) < self.min_start: # todo: log output?
+            self.start_ns = self.min_start
+        elif int(value * 1e9) > self.max_start:
+            self.start_ns = self.max_start
+        else:
+            self.start_ns = int(value * 1e9)
 
     @property
     def resource(self) -> str:
