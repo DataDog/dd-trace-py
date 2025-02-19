@@ -1,3 +1,4 @@
+from io import StringIO
 import os
 import re
 import sys
@@ -339,13 +340,13 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
         }
 
         if error.__traceback__:
-            stacktrace = "\n".join(
-                traceback.format_exception(
-                    type(error), error, error.__traceback__, limit=config._span_traceback_max_size
-                )
-            )
-            attributes["stacktrace"] = stacktrace
-            span.set_tag_str(ERROR_STACK, stacktrace)
+            exc_type, exc_val, exc_tb = type(error), error, error.__traceback__
+            buff = StringIO()
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
+            tb = buff.getvalue()
+
+            attributes["stacktrace"] = tb
+            span.set_tag_str(ERROR_STACK, tb)
 
         if error.path is not None:
             path = ",".join([str(path_obj) for path_obj in error.path])
