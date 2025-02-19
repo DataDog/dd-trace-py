@@ -48,10 +48,3 @@ check_new_flaky_tests:
     - '[0-9].[0-9]*'
     - 'mq-working-branch**'
 
-requirements_json_test:
-  rules:
-    - when: on_success
-  variables:
-    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
-    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
-
