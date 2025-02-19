@@ -482,6 +482,7 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
+        {"name": "_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
@@ -887,4 +888,4 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]
+    assert tags == [["config_opentelemetry:otel_logs_exporter"]]

@@ -9,6 +9,9 @@ from envier import Env
 
 from ddtrace.internal.telemetry import telemetry_writer
 
+from ._otel_remapper import parse_otel_env
+from ._otel_remapper import should_parse_otel_env
+
 
 class Config(Env):
     """Env-based configuration sub-class for automatic telemetry reporting."""
@@ -47,21 +50,35 @@ def get_config(
     envs: Union[str, List[str]],
     default: Any = None,
     modifier: Optional[Callable[[Any], Any]] = None,
+    otel_env: Optional[str] = None,
     report_telemetry=True,
 ):
     if isinstance(envs, str):
         envs = [envs]
-    val = default
-    source = "default"
-    effective_env = envs[0]
-    for env in envs:
-        if env in os.environ:
-            val = os.environ[env]
+    val = None
+    if otel_env and should_parse_otel_env(otel_env):
+        parsed_val = parse_otel_env(otel_env)
+        if parsed_val is not None:
+            val = parsed_val
             if modifier:
                 val = modifier(val)
-            source = "env_var"
-            effective_env = env
-            break
-    if report_telemetry:
-        telemetry_writer.add_configuration(effective_env, val, source)
+            if report_telemetry:
+                raw_value = os.environ.get(otel_env, "").lower()
+                telemetry_writer.add_configuration(otel_env, raw_value, "env_var")
+
+    if val is None:
+        for env in envs:
+            if env in os.environ:
+                val = os.environ[env]
+                if modifier:
+                    val = modifier(val)
+                if report_telemetry:
+                    telemetry_writer.add_configuration(env, val, "env_var")
+                break
+
+    if val is None:
+        val = default
+        if report_telemetry:
+            telemetry_writer.add_configuration(envs[0], val, "default")
+
     return val
