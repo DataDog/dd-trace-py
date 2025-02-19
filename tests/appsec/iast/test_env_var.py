@@ -12,10 +12,9 @@ def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
     cmd = []
     if "no_ddtracerun" not in kwargs:
-        cmd += ["ddtrace-run", "-d"]
+        cmd += ["python", "-m", "ddtrace.commands.ddtrace_run", "python"]
 
     cmd += [
-        "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
     env = _build_env(kwargs.get("env"))
@@ -55,23 +54,27 @@ def test_env_var_iast_unset(monkeypatch, capfd):
 @pytest.mark.parametrize(
     "env_vars",
     [
-        {"DD_IAST_ENABLED": "true"},
+        {"DD_IAST_ENABLED": "true", "DD_TRACE_DEBUG": "1"},
         {
             "DD_IAST_ENABLED": "true",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
             "_DD_CONFIG_ENDPOINT_TIMEOUT": "5",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
@@ -91,27 +94,35 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     "env_vars",
     [
         {},
-        {"DD_IAST_ENABLED": "false"},
+        {
+            "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
+        },
         {
             "DD_IAST_ENABLED": "true",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
             "_DD_CONFIG_ENDPOINT_TIMEOUT": "2",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
