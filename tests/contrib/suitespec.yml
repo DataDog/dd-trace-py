@@ -15,3 +15,7 @@ suites:
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
     runner: riot
+    services:
+      - mariadb
+    variables:
+      - 
