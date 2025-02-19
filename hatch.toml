@@ -295,7 +295,7 @@ dependencies = [
     "cryptography",
     "astunparse",
     "simplejson",
-    "SQLAlchemy==2.0.22",
+    "SQLAlchemy",
     "psycopg2-binary~=2.9.9",
     "pymysql",
     "mysqlclient==2.1.1",

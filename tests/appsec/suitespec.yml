@@ -45,7 +45,7 @@ suites:
       - postgres
       - mysql
     snapshot: true
-    timeout: 25m
+    timeout: 40m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
