@@ -481,7 +481,6 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
     def setUp(self):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
-
         super(TracerTestCase, self).setUp()
 
     def tearDown(self):

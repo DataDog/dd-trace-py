@@ -54,7 +54,7 @@ class CIVisibilityEventClient(WriterClientBase):
                 "env": os.getenv("_CI_DD_ENV", config.env),
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
-                "_dd.ci.is_user_provided_service": config._is_user_provided_service,
+                "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
             },
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
