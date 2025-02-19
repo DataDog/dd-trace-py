@@ -28,6 +28,7 @@ def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
@@ -38,6 +39,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "false"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
@@ -46,6 +48,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
 
 def test_env_var_iast_unset(monkeypatch, capfd):
     # type: (...) -> None
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file()
     captured = capfd.readouterr()
     assert "hi" in captured.out
@@ -149,6 +152,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
@@ -161,6 +165,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
@@ -173,6 +178,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
@@ -251,6 +257,7 @@ def test_env_var__configure_wrong(monkeypatch, capfd):
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
     env["DD_IAST_ENABLED"] = iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
     # Test with env var unset
     del env["DD_IAST_ENABLED"]
@@ -263,6 +270,7 @@ def test_env_var__configure_right(monkeypatch, capfd):
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
     env["DD_IAST_ENABLED"] = iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
     # Test with env var unset
     del env["DD_IAST_ENABLED"]
@@ -280,6 +288,7 @@ def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
     # Test that ``tracer.configure`` takes precedence over env var value
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = _iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(_iast_enabled, env=env, filename="main_configure.py", no_ddtracerun=True, returncode=0)
     captured = capfd.readouterr()
     assert f"IAST env var: {_iast_enabled.capitalize()}" in captured.out
