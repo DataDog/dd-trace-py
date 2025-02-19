@@ -17,5 +17,3 @@ suites:
     runner: riot
     services:
       - mariadb
-    variables:
-      - 
