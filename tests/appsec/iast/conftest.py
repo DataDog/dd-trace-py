@@ -175,7 +175,7 @@ def configuration_endpoint():
         ]
         try:
             process = subprocess.Popen(cmd, cwd=current_dir)
-            time.sleep(0.2)
+            time.sleep(0.9)
 
             url = f"http://localhost:{CONFIG_SERVER_PORT}/"
             conn = get_connection(url)
@@ -184,7 +184,7 @@ def configuration_endpoint():
             response = conn.getresponse()
             result = Response.from_http_response(response)
             status = result.status
-        except (ConnectionError, PermissionError):
+        except (OSError, ConnectionError, PermissionError):
             pass
         retries += 1
 

@@ -15,7 +15,7 @@ def _run_python_file(*args, **kwargs):
         cmd += ["python", "-m", "ddtrace.commands.ddtrace_run"]
 
     cmd += [
-       "python",
+        "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
     env = _build_env(kwargs.get("env"))
