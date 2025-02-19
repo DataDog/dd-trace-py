@@ -3,8 +3,6 @@ stages:
   - tests
   - shared-pipeline
   - benchmarks
-  - macrobenchmarks
-  - benchmarks-report
   - release
 
 variables:
@@ -17,11 +15,10 @@ default:
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
-  - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/benchmarks/serverless.yml"
 
 tests-gen:
   stage: tests
@@ -43,6 +40,24 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+   
+microbenchmarks:
+  stage: benchmarks
+  needs: [ ]
+  trigger:
+    include: .gitlab/benchmarks/microbenchmarks.yml
+    strategy: depend
+   
+macrobenchmarks:
+  stage: benchmarks
+  needs: [ ]
+  trigger:
+    include: .gitlab/benchmarks/macrobenchmarks.yml
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
 
 check_new_flaky_tests:
   stage: tests
@@ -87,6 +102,9 @@ onboarding_tests_k8s_injection:
       - WEBLOG_VARIANT: [dd-lib-python-init-test-django-preinstalled]
         SCENARIO: [K8S_LIB_INJECTION, K8S_LIB_INJECTION_UDS, K8S_LIB_INJECTION_NO_AC, K8S_LIB_INJECTION_NO_AC_UDS]
         K8S_CLUSTER_VERSION: ['7.56.2', '7.59.0']
+
+deploy_to_reliability_env:
+  needs: []
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline

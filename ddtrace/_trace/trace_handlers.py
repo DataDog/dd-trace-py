@@ -688,8 +688,10 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
-    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
-    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+    if input_token_count:
+        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
+    if output_token_count:
+        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
 
 
 def _propagate_context(ctx, headers):
@@ -733,7 +735,10 @@ def _on_botocore_bedrock_process_response(
     integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
-            span.set_tag_str("bedrock.{}".format(k), str(v))
+            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
+                span.set_metric("bedrock.response.{}".format(k), int(v))
+            else:
+                span.set_tag_str("bedrock.{}".format(k), str(v))
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
