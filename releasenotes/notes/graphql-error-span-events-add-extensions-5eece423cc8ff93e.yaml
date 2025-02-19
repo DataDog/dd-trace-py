@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    graphql: Adds user-provided extensions to graphql error span events through the `DD_TRACE_GRAPHQL_ERROR_EXTENSIONS` environment variable. This is disabled by default; when set it allows users to capture their extensions.

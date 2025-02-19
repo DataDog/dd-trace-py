@@ -169,7 +169,6 @@ class TraceBottleDistributedTest(TracerTestCase):
             api_gateway_service_name="local",
             api_gateway_resource="GET /",
             method="GET",
-            route="/",
             status_code=200,
             url="local/",
             start=1736973768,

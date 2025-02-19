@@ -8,11 +8,6 @@ import tests.appsec.rules as rules
 from tests.utils import override_global_config
 
 
-def _aux_appsec_prepare_tracer(tracer, asm_enabled=True):
-    # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._configure(api_version="v0.4")
-
-
 def get_response_body(response):
     return response.text
 
@@ -39,7 +34,6 @@ def test_core_callback_request_body(fastapi_application, client, tracer, test_sp
 
     with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_SRB)):
         # disable callback
-        _aux_appsec_prepare_tracer(tracer, asm_enabled=True)
         # test if asgi middleware is ok without any callback registered
         core.reset_listeners(event_id="asgi.request.parse.body")
         resp = client.post(
@@ -50,7 +44,6 @@ def test_core_callback_request_body(fastapi_application, client, tracer, test_sp
         assert resp.status_code == 200
         assert get_response_body(resp) == '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}'
     with override_global_config(dict(_asm_enabled=True)):
-        _aux_appsec_prepare_tracer(tracer)
         resp = client.post(
             "/index.html?args=test",
             data=payload,

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fix performance overhead of Python distribution parsing for internal telemetry.

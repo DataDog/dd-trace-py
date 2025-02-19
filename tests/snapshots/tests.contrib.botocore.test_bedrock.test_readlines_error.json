@@ -20,8 +20,6 @@
       "bedrock.request.top_p": "1.0",
       "bedrock.response.duration": "1686",
       "bedrock.response.id": "491ad1a3-45d8-4d84-b92c-eb8e79cc79d3",
-      "bedrock.usage.completion_tokens": "60",
-      "bedrock.usage.prompt_tokens": "10",
       "error.message": "test",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/botocore/services/bedrock.py\", line 51, in readlines\n    formatted_response = _extract_response(self._datadog_span, self._body[0])\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]_botocore_pytest-randomly_vcrpy/lib/python3.10/site-packages/mock/mock.py\", line 1178, in __call__\n    return _mock_self._mock_call(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]_botocore_pytest-randomly_vcrpy/lib/python3.10/site-packages/mock/mock.py\", line 1182, in _mock_call\n    return _mock_self._execute_mock_call(*args, **kwargs)\n  File \"/Users/yun.kim/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py3105_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_moto[all]_botocore_pytest-randomly_vcrpy/lib/python3.10/site-packages/mock/mock.py\", line 1239, in _execute_mock_call\n    raise effect\nException: test\n",
       "error.type": "builtins.Exception",
@@ -32,6 +30,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 60,
+      "bedrock.response.usage.prompt_tokens": 10,
       "process_id": 42139
     },
     "duration": 3064000,

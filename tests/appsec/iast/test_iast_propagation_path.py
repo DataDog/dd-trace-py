@@ -23,6 +23,8 @@ def _assert_vulnerability(data, value_parts, file_line_label):
     line, hash_value = get_line_and_hash(file_line_label, VULN_PATH_TRAVERSAL, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == file_line_label
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 

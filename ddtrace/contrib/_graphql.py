@@ -35,6 +35,12 @@ Global Configuration
    Enabling instrumentation for resolvers will produce a ``graphql.resolve`` span for every graphql field.
    For complex graphql queries this could produce large traces.
 
+.. py:data:: ddtrace.config.graphql["_error_extensions"]
+
+   Enable setting user-provided error extensions on span events for graphql errors.
+
+   Default: ``None``
+
 
 To configure the graphql integration using the
 ``Pin`` API::

@@ -7,12 +7,14 @@ from importlib.util import find_spec
 from pathlib import Path
 import sys
 from types import CodeType
+from types import FunctionType
 from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.wrapping.context import WrappingContext
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -699,3 +701,29 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._import_exception_hooks.add((cond, hook))
+
+
+class LazyWrappingContext(WrappingContext):
+    def __return__(self, value: t.Any) -> t.Any:
+        # Update the global (i.e. the module) scope with the local scope of the
+        # wrapped function.
+        self.__frame__.f_globals.update(self.__frame__.f_locals)
+
+        return super().__return__(value)
+
+
+def lazy(f: t.Callable[[], None]) -> None:
+    LazyWrappingContext(t.cast(FunctionType, f)).wrap()
+
+    _globals = sys._getframe(1).f_globals
+
+    def __getattr__(name: str) -> t.Any:
+        f()
+        try:
+            return _globals[name]
+        except KeyError:
+            h = AttributeError(f"module {_globals['__name__']!r} has no attribute {name!r}")
+            h.__suppress_context__ = True
+            raise h
+
+    _globals["__getattr__"] = __getattr__

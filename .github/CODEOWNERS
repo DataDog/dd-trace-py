@@ -188,3 +188,6 @@ tests/opentelemetry/                               @DataDog/apm-sdk-api-python
 tests/tracer/                                      @DataDog/apm-sdk-api-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+
+# Serverless
+tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless

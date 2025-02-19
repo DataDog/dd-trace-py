@@ -48,7 +48,7 @@ oce = OverheadControl()
 def ddtrace_iast_flask_patch():
     """
     Patch the code inside the Flask main app source code file (typically "app.py") so
-    IAST/Custom Code propagation works also for the functions and methods defined inside it.
+    Runtime Code Analysis (IAST) works also for the functions and methods defined inside it.
     This must be called on the top level or inside the `if __name__ == "__main__"`
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.

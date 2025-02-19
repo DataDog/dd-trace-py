@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where the Gemini and Vertex AI integrations were not properly
+    submitting spans for streamed responses in the case that the generator is not fully consumed. 

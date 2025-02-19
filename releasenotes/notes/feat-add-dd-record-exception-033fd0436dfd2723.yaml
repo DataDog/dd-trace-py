@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Introduces a record_exception method that adds an exception to a Span as a span event.
+    Refer to [Span.record_exception](https://ddtrace.readthedocs.io/en/stable/api.html#ddtrace.trace.Span.record_exception) 
+    for more details.

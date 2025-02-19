@@ -169,7 +169,7 @@ def record_event_finished_test(
         ", is_rum=%s"
         ", browser_driver=%s"
         ", is_benchmark=%s"
-        ", is_quarantined=%s",
+        ", is_quarantined=%s"
         ", is_disabled=%s",
         test_framework,
         is_new,
@@ -178,6 +178,7 @@ def record_event_finished_test(
         is_rum,
         browser_driver,
         is_benchmark,
+        is_quarantined,
         is_disabled,
     )
 

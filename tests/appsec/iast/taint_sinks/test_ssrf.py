@@ -53,6 +53,8 @@ def _check_report(tainted_path, label):
     line, hash_value = get_line_and_hash(label, VULN_SSRF, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == label
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 

@@ -7,3 +7,4 @@
     - ulimit -c unlimited
     - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+  retry: 2

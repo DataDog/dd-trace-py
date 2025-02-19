@@ -51,4 +51,6 @@ def test_openai_llm_appsec_iast_cmdi(iast_context_defaults):  # noqa: F811
     line, hash_value = get_line_and_hash("test_openai_llm_appsec_iast_cmdi", VULN_CMDI, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == "patch_langchain"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value

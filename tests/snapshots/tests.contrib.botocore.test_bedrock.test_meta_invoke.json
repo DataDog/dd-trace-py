@@ -22,8 +22,6 @@
       "bedrock.response.choices.0.text": "\\n\\n\"Lorem ipsum\" is a commonly used phrase in the graphic design and publishing industries. It refers to a piece of pretend tex...",
       "bedrock.response.duration": "1686",
       "bedrock.response.id": "491ad1a3-45d8-4d84-b92c-eb8e79cc79d3",
-      "bedrock.usage.completion_tokens": "60",
-      "bedrock.usage.prompt_tokens": "10",
       "language": "python",
       "runtime-id": "63a32fa9ed86471383f1355fba7356d8"
     },
@@ -31,6 +29,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 60,
+      "bedrock.response.usage.prompt_tokens": 10,
       "process_id": 10703
     },
     "duration": 2120703000,

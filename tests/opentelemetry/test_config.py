@@ -72,9 +72,8 @@ def test_dd_otel_mixed_env_configuration():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
-    err=b"Following style not supported by ddtrace: jaegar.\n"
-    b"Setting OTEL_TRACES_EXPORTER to otlp is not supported by ddtrace, "
-    b"this configuration will be ignored.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, "
+    b"this configuration will be ignored.\nFollowing style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
@@ -185,8 +184,7 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n"
-    b"OpenTelemetry configuration OTEL_TRACES_SAMPLER_ARG is not supported by Datadog.\n",
+    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
     from ddtrace import config
@@ -230,7 +228,7 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
 
 
 @pytest.mark.subprocess(
-    env={"otel_LOGS_EXPORTER": "console"},
+    env={"OTEL_LOGS_EXPORTER": "console"},
     err=b"Setting OTEL_LOGS_EXPORTER to console is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_logs_exporter_configuration_unsupported():

@@ -7,7 +7,8 @@ if [ -z "$CI_COMMIT_SHA" ]; then
 fi
 
 RUN_ID=$(gh run ls --repo DataDog/dd-trace-py --commit=$CI_COMMIT_SHA --workflow=build_deploy.yml --json databaseId --jq "first (.[]) | .databaseId")
-if [ -n "$RUN_ID" ]; then
+if [ -z "$RUN_ID" ]; then
+  echo "No RUN_ID found waiting for job to start"
   # The job has not started yet. Give it time to start
   sleep 180 # 3 minutes
 

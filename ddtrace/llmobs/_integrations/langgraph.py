@@ -3,8 +3,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -17,7 +17,6 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Span
-from ddtrace.trace import tracer
 
 
 class LangGraphIntegration(BaseLLMIntegration):
@@ -67,9 +66,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         graph_span = (
-            tracer.current_span()
+            LLMObs._instance._current_span()
         )  # we're running between nodes, so the current span should be the pregel graph
-        if graph_span is None or graph_span.span_type != SpanTypes.LLM:
+        if graph_span is None:
             return
 
         if not more_tasks:

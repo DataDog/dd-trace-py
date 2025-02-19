@@ -3,7 +3,7 @@ set -eux
 
 # DEV: unless it's built with editable, following sphinx-build fails
 if [ -z ${CIRCLECI+x} ]; then
-  CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) pip install -v -e .
+  CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) CARGO_BUILD_JOBS=$(nproc) pip install -v -e .
 fi
 
 if [[ "$(uname)" == "Darwin" ]]; then

@@ -811,7 +811,6 @@ async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app
                     api_gateway_service_name="local",
                     api_gateway_resource="GET /",
                     method="GET",
-                    route="/",
                     status_code=app_type["status_code"],
                     url="local/",
                     start=1736973768,

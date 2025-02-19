@@ -72,7 +72,9 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     @taint_sink_deduplication
-    def _prepare_report(cls, vulnerability_type, evidence, file_name, line_number):
+    def _prepare_report(
+        cls, vulnerability_type, evidence, file_name, line_number, function_name="", class_name=""
+    ) -> bool:
         if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
@@ -98,7 +100,9 @@ class VulnerabilityBase(Operation):
         vulnerability = Vulnerability(
             type=vulnerability_type,
             evidence=evidence,
-            location=Location(path=file_name, line=line_number, spanId=span_id),
+            location=Location(
+                path=file_name, line=line_number, spanId=span_id, method=function_name, class_name=class_name
+            ),
         )
         if report:
             report.vulnerabilities.add(vulnerability)
@@ -117,6 +121,8 @@ class VulnerabilityBase(Operation):
         if cls.acquire_quota():
             file_name = None
             line_number = None
+            function_name = None
+            class_name = None
 
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
@@ -124,7 +130,7 @@ class VulnerabilityBase(Operation):
                 if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
                     return None
 
-                file_name, line_number = frame_info
+                file_name, line_number, function_name, class_name = frame_info
 
                 # Remove CWD prefix
                 if file_name.startswith(CWD):
@@ -139,7 +145,9 @@ class VulnerabilityBase(Operation):
                 log.debug("Unexpected evidence_value type: %s", type(evidence_value))
                 evidence = Evidence(value="", dialect=dialect)
 
-            result = cls._prepare_report(cls.vulnerability_type, evidence, file_name, line_number)
+            result = cls._prepare_report(
+                cls.vulnerability_type, evidence, file_name, line_number, function_name, class_name
+            )
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
             # we need to restore the quota
             if not result:
