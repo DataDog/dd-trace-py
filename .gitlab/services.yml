@@ -92,7 +92,7 @@
       MYSQL_USER: test
       MYSQL_DATABASE: test
   localstack:
-    name: localstack/localstack:1.4.0
+    name: registry.ddbuild.io/images/mirror/localstack:2.0.0
     alias: localstack
     variables:
       SERVICES: "${SERVICES- }"
