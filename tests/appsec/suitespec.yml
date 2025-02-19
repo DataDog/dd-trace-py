@@ -26,7 +26,7 @@ suites:
     retry: 2
     runner: riot
     snapshot: true
-  appsec_iast:
+  appsec_iast_default:
     env:
       TEST_POSTGRES_HOST: postgres
       TEST_MYSQL_HOST: mysql

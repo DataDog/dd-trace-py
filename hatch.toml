@@ -283,8 +283,8 @@ flask = ["~=3.0"]
 
 ## ASM IAST module
 
-[envs.appsec_iast]
-template = "appsec_iast"
+[envs.appsec_iast_default]
+template = "appsec_iast_default"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -303,14 +303,14 @@ dependencies = [
     "mysqlclient==2.1.1",
 ]
 
-[envs.appsec_iast.scripts]
+[envs.appsec_iast_default.scripts]
 test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/iast/}",
 ]
 
-[[envs.appsec_iast.matrix]]
+[[envs.appsec_iast_default.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM IAST memcheck
