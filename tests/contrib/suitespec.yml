@@ -1,17 +1,27 @@
 ---
 components:
-  mariadb:
-    - ddtrace/contrib/_mariadb.py
-    - ddtrace/contrib/internal/mariadb/*
+  botocore:
+    - ddtrace/contrib/_botocore.py
+    - ddtrace/contrib/internal/botocore/*
+    - ddtrace/contrib/_boto.py
+    - ddtrace/contrib/internal/boto/*
+    - ddtrace/contrib/_aiobotocore.py
+    - ddtrace/contrib/internal/aiobotocore/*
 suites:
-  mariadb:
+  botocore:
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
       - '@contrib'
       - '@tracing'
-      - '@dbapi'
-      - '@mariadb'
-      - tests/contrib/mariadb/*
-      - tests/snapshots/tests.contrib.mariadb.*
+      - '@llmobs'
+      - '@botocore'
+      - '@llmobs'
+      - '@datastreams'
+      - tests/contrib/botocore/*
+      - tests/contrib/boto/*
+      - tests/snapshots/tests.contrib.botocore*
+    pattern: ^botocore$
     runner: riot
+    snapshot: true

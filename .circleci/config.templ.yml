@@ -435,15 +435,6 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
   asyncpg:
     <<: *machine_executor
     steps:
@@ -477,6 +468,15 @@ jobs:
     steps:
       - run_test:
           pattern: 'consul'
+
+  mariadb:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: 'mariadb$'
+          snapshot: true
+          docker_services: "mariadb"
 
   mysqlconnector:
     <<: *contrib_job
