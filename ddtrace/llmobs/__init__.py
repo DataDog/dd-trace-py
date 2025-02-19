@@ -7,10 +7,5 @@ To start the service manually, invoke the ``enable`` method::
 """
 from ._llmobs import LLMObs
 
-from ._experiments import Dataset
-from ._experiments import Experiment
-from ._experiments import task
-from ._experiments import evaluator
 
-
-__all__ = ["LLMObs", "Dataset", "Experiment", "task", "evaluator"]
+__all__ = ["LLMObs"]
