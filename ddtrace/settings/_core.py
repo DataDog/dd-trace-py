@@ -7,6 +7,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.native import get_configuration_from_disk
 
+from ._otel_remapper import hiding_otel_config
 from ._otel_remapper import parse_otel_env
 
 

@@ -41,6 +41,7 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
+from .logging import DDTelemetryLogHandler
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
@@ -234,6 +235,8 @@ class TelemetryWriter(PeriodicService):
             # Force app started for unit tests
             if _TelemetryConfig.FORCE_START:
                 self._app_started()
+            if _TelemetryConfig.LOG_COLLECTION_ENABLED:
+                get_logger("ddtrace").addHandler(DDTelemetryLogHandler(self))
 
     def enable(self):
         # type: () -> bool
@@ -516,6 +519,7 @@ class TelemetryWriter(PeriodicService):
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
+            # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):

@@ -17,8 +17,6 @@
       "bedrock.request.prompt": "Hello World!",
       "bedrock.response.duration": "311",
       "bedrock.response.id": "1fd884e0-c9e8-44fa-b736-d31e2f607d54",
-      "bedrock.usage.completion_tokens": "",
-      "bedrock.usage.prompt_tokens": "3",
       "language": "python",
       "runtime-id": "a7bb6456241740dea419398d37aa13d2"
     },
@@ -27,6 +25,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "bedrock.response.embedding_length": 1536,
+      "bedrock.response.usage.prompt_tokens": 3,
       "process_id": 60939
     },
     "duration": 6739000,
