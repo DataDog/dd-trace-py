@@ -22,7 +22,6 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
     - aiohttp: Adds the environment variable `DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK` to address a potential memory leak in the aiohttp integration. When set to true, this flag may cause streamed response span timing to be inaccurate. The flag defaults to false.
     - span: Fix issue where spans weren't being handled correctly and were not being sent when using a custom Exception class that raises an exception in ``__str__``.
 
-gi
 ---
 
 ## 2.21.0
