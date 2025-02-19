@@ -151,14 +151,6 @@ def validate_otel_envs():
             telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
 
 
-def should_parse_otel_env(otel_env):
-    dd_env, _ = ENV_VAR_MAPPINGS[otel_env]
-    if otel_env in os.environ and dd_env in os.environ:
-        _hiding_otel_config(otel_env, dd_env)
-        return False
-    return otel_env in os.environ
-
-
 def parse_otel_env(otel_env: str) -> Optional[str]:
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
     raw_value = os.environ.get(otel_env, "")
@@ -172,7 +164,7 @@ def parse_otel_env(otel_env: str) -> Optional[str]:
     return mapped_value
 
 
-def _hiding_otel_config(otel_env, dd_env):
+def hiding_otel_config(otel_env, dd_env):
     log.debug(
         "Datadog configuration %s is already set. OpenTelemetry configuration will be ignored: %s=%s",
         dd_env,
