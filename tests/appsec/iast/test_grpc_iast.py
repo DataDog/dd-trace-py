@@ -11,7 +11,6 @@ from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloStub
 from tests.utils import override_config
 from tests.utils import override_env
-from tests.utils import override_global_config
 
 from .conftest import iast_context
 
