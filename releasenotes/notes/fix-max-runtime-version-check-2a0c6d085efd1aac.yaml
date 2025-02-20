@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue with the check of the maximum runtime version supported.
