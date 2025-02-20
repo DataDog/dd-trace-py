@@ -51,6 +51,8 @@ class IAST_Aspects(bm.Scenario):
                 yield _
                 _end_iast_context_and_oce()
         else:
+            func = getattr(functions, self.function_name)
+                
             def _(loops):
                 for _ in range(loops):
                     func()
