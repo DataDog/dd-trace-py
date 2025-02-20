@@ -23,8 +23,6 @@
       "bedrock.response.choices.0.text": "\\nDatadog is a monitoring and analytics platform that helps businesses track and optimize their digital infrastructure. It provi...",
       "bedrock.response.duration": "1804",
       "bedrock.response.id": "a4b0a846-cd84-41b5-a567-1bf5e341c30c",
-      "bedrock.usage.completion_tokens": "51",
-      "bedrock.usage.prompt_tokens": "18",
       "language": "python",
       "runtime-id": "13983704e2404c4a911b0cc558662a8f"
     },
@@ -32,6 +30,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 51,
+      "bedrock.response.usage.prompt_tokens": 18,
       "process_id": 14088
     },
     "duration": 2185710000,

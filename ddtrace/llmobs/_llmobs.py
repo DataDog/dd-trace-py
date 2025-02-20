@@ -290,6 +290,8 @@ class LLMObs(Service):
         core.reset_listeners("trace.span_finish", self._on_span_finish)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
+        core.reset_listeners("threading.submit", self._current_trace_context)
+        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
 
         forksafe.unregister(self._child_after_fork)
 
@@ -373,6 +375,8 @@ class LLMObs(Service):
         core.on("trace.span_finish", cls._instance._on_span_finish)
         core.on("http.span_inject", cls._inject_llmobs_context)
         core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
+        core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
+        core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -961,6 +965,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -977,6 +982,8 @@ class LLMObs(Service):
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
                                     If not set, the current time will be used.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
@@ -1068,6 +1075,14 @@ class LLMObs(Service):
             "ml_app": ml_app,
             "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
         }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
 
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 
