@@ -1454,12 +1454,18 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
+@flaky(
+    1742502871,
+    reason=(
+        "This test fails when the entire test suite runs, but not when you run it in isolation. "
+        "It looks like it fails because the cache call doesn't return two cache spans."
+    ),
+)
 @pytest.mark.django_db
 def test_cached_template(client, test_spans):
     # make the first request so that the view is cached
     response = client.get("/cached-template/")
     assert response.status_code == 200
-
     # check the first call for a non-cached view
     spans = list(test_spans.filter_spans(name="django.cache"))
     assert len(spans) == 2
