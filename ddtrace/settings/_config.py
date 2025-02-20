@@ -536,6 +536,11 @@ class Config(object):
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
+        # If the service equals inferred base service, leave inferred base service unset. Otherwise we 
+        # will get side effects.
+        if self.service == self._inferred_base_service:
+            self._inferred_base_service = None
+
         self._extra_services = set()
         self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
