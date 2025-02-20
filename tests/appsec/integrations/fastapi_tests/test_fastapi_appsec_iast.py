@@ -683,6 +683,8 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         }
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "test_route"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["hash"] == hash_value
 
 
@@ -928,6 +930,8 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert vulnerability["hash"] == hash_value
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "header_injection"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["location"]["spanId"]
 
 
@@ -1003,10 +1007,6 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
 
     with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         patch_iast({"xss": True})
-        from jinja2.filters import FILTERS
-        from jinja2.filters import do_mark_safe
-
-        FILTERS["safe"] = do_mark_safe
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/index.html?iast_queryparam=test1234",

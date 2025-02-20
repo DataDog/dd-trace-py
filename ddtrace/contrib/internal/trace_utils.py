@@ -28,6 +28,7 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.compat import parse
+from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -595,6 +596,9 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         # We have parsed a trace id from headers, and we do not already
         # have a context with the same trace id active
         tracer.context_provider.activate(context)
+        core.dispatch("http.activate_distributed_headers", (request_headers, context))
+
+        dispatch("distributed_context.activated", (context,))
 
 
 def _flatten(
@@ -640,6 +644,7 @@ def set_user(
     propagate=False,  # type bool
     span=None,  # type: Optional[Span]
     may_block=True,  # type: bool
+    mode="sdk",  # type: str
 ):
     # type: (...) -> None
     """Set user tags.
@@ -667,8 +672,8 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if may_block and asm_config._asm_enabled:
-            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
+        if (may_block or mode == "auto") and asm_config._asm_enabled:
+            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id, mode]).block_user.exception
             if exc:
                 raise exc
 

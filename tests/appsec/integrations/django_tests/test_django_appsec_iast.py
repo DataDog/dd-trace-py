@@ -168,7 +168,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
+def test_django_sqli_http_request_parameter(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
         test_spans,
@@ -302,6 +302,46 @@ def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer
             {
                 "redacted": True,
             },
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_query_no_redacted(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_query_no_redacted/?q=sqlite_master",
+    )
+
+    vuln_type = "SQL_INJECTION"
+
+    assert response.status_code == 200
+    assert response.content == b"OK"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("sqli_query_no_redacted", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "q",
+            "origin": "http.request.parameter",
+            "value": "sqlite_master",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT * FROM "},
+            {"source": 0, "value": "sqlite_master"},
+            {"value": " ORDER BY name"},
         ]
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
@@ -510,6 +550,8 @@ def test_django_sqli_http_cookies_name(client, test_spans, tracer):
     line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", VULN_SQL_INJECTION, filename=TEST_FILE)
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == "sqli_http_request_cookie_name"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 
@@ -567,6 +609,8 @@ def test_django_sqli_http_cookies_value(client, test_spans, tracer):
     line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", VULN_SQL_INJECTION, filename=TEST_FILE)
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
+    assert vulnerability["location"]["method"] == "sqli_http_request_cookie_value"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 

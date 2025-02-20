@@ -420,7 +420,7 @@ import ddtrace.settings.exception_replay
             "value": str(file),
         },
         {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
-        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TELEMETRY_HEARTBEAT_INTERVAL", "origin": "default", "value": 60},
@@ -439,6 +439,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
+        {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
@@ -470,6 +471,7 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
+        {"name": "_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
@@ -875,4 +877,4 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]
+    assert tags == [["config_opentelemetry:otel_logs_exporter"]]

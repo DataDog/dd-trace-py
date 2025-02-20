@@ -1,0 +1,74 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are a helpful assistant"},
+      {"role": "user", "content": "Hello"}], "model": "deepseek-chat"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '140'
+      content-type:
+      - application/json
+      host:
+      - api.deepseek.com
+      user-agent:
+      - OpenAI/Python 1.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.0.0
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.deepseek.com/chat/completions
+  response:
+    content: "{\n  \"id\": \"chatcmpl-9lnJM4Cu2pXlrjd8dkJsqO5xwHtBS\",\n  \"object\":
+      \"chat.completion\",\n  \"created\": 1721177996,\n  \"model\": \"deepseek-chat\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": \"Hello! How can I assist you today?\"\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+      \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
+      96,\n    \"total_tokens\": 116\n  },\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 90fe1a5a1b0b41a1-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '111'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 10 Feb 2025 18:18:40 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - HWWAFSESID=899f6b5fd0e0dc8327; path=/
+      - HWWAFSESTIME=1739211514942; path=/
+      - __cf_bm=0HVZHDAUJ7IqnvyRIHQssD121ThIRadgV0i1IEUbzfM-1739211520-1.0.1.1-nOBP3Sr4cS9kPm.dI4BqFE1JCG28_Ubddvad190eHnfyTJrZ725QdsDGrtJUrjJc8DgO9DFXSb1jToa0SwRHjA;
+        path=/; expires=Mon, 10-Feb-25 18:48:40 GMT; domain=.deepseek.com; HttpOnly;
+        Secure; SameSite=None
+      access-control-allow-credentials:
+      - 'true'
+      cf-cache-status:
+      - DYNAMIC
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - origin, access-control-request-method, access-control-request-headers
+      x-content-type-options:
+      - nosniff
+      x-ds-trace-id:
+      - c33eab0fc6380551336de9df6cef08be
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

@@ -3,7 +3,6 @@ from typing import Text
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -64,7 +63,15 @@ def patch():
     )
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
-    _set_metric_iast_instrumented_sink(VULN_XSS)
+    # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch
+    # function executes. Therefore, we update the in-memory object with the newly patched version.
+    try:
+        from jinja2.filters import FILTERS
+        from jinja2.filters import do_mark_safe
+
+        FILTERS["safe"] = do_mark_safe
+    except (ImportError, KeyError):
+        pass
 
 
 def unpatch():
@@ -91,6 +98,6 @@ def _iast_jinja2_xss(wrapped, instance, args, kwargs):
 def _iast_report_xss(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, XSS.vulnerability_type)
     _set_metric_iast_executed_sink(XSS.vulnerability_type)
-    if is_iast_request_enabled():
+    if asm_config.is_iast_request_enabled:
         if is_pyobject_tainted(code_string):
             XSS.report(evidence_value=code_string)

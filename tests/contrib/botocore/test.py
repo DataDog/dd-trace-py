@@ -24,6 +24,7 @@ import pytest
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.utils_botocore import span_tags
+from tests.utils import flaky
 from tests.utils import get_128_bit_trace_id_from_headers
 
 
@@ -64,6 +65,7 @@ snapshot_ignores = [
     "meta.aws.response.body.HTTPHeaders.content-length",
     "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
     "meta.error.stack",
+    "meta.aws.response.body.HTTPHeaders.x-amz-crc32",
 ]
 
 
@@ -4075,6 +4077,7 @@ class BotocoreTest(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
+    @flaky(1741838400, reason="span mismatch on 'service': got 'dd-trace-py' which does not match expected 'aws.sqs'")
     def test_aws_payload_tagging_s3_invalid_config(self):
         with self.override_config(
             "botocore",
@@ -4092,6 +4095,57 @@ class BotocoreTest(TracerTestCase):
             self.reset()
             with pytest.raises(Exception):
                 s3.list_objects(bucket="mybucket")
+
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @pytest.mark.skipif(
+        PYTHON_VERSION_INFO < (3, 8),
+        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
+    )
+    @mock_dynamodb
+    def test_dynamodb_payload_tagging(self):
+        with self.override_config(
+            "botocore",
+            dict(payload_tagging_request="all", payload_tagging_response="all", payload_tagging_services="s3,dynamodb"),
+        ):
+            ddb = self.session.create_client("dynamodb", region_name="us-west-2")
+            pin = Pin(service=self.TEST_SERVICE)
+            pin._tracer = self.tracer
+            pin.onto(ddb)
+
+            with self.override_config("botocore", dict(instrument_internals=True)):
+                ddb.create_table(
+                    TableName="foobar",
+                    AttributeDefinitions=[{"AttributeName": "myattr", "AttributeType": "S"}],
+                    KeySchema=[{"AttributeName": "myattr", "KeyType": "HASH"}],
+                    BillingMode="PAY_PER_REQUEST",
+                )
+                ddb.put_item(TableName="foobar", Item={"myattr": {"S": "baz"}})
+                ddb.get_item(TableName="foobar", Key={"myattr": {"S": "baz"}})
+
+            spans = self.get_spans()
+            assert spans
+            span = spans[0]
+            assert len(spans) == 6
+            assert_is_measured(span)
+            assert span.get_tag("aws.operation") == "CreateTable"
+            assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
+            assert_span_http_status_code(span, 200)
+            assert span.service == "test-botocore-tracing.dynamodb"
+            assert span.resource == "dynamodb.createtable"
+
+            span = spans[1]
+            assert span.name == "botocore.parsers.parse"
+            assert span.get_tag("component") == "botocore"
+            assert span.get_tag("span.kind"), "client"
+            assert span.service == "test-botocore-tracing.dynamodb"
+            assert span.resource == "botocore.parsers.parse"
+
+            span = spans[2]
+            assert span.get_tag("aws.operation") == "PutItem"
+            # Since the dynamodb_primary_key_names_for_tables isn't configured, we
+            # cannot create span pointers for this item.
+            assert not span._links
 
     @pytest.mark.skip(reason="broken during period of skipping on main branch")
     @pytest.mark.snapshot(ignores=snapshot_ignores)
