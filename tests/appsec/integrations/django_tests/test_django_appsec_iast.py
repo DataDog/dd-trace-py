@@ -134,7 +134,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
-        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
+        dict(_iast_enabled=True, _iast_deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         response = _aux_appsec_get_root_span_with_exception(
             client,
@@ -699,7 +699,7 @@ def test_django_sqli_http_body(client, test_spans, tracer, payload, content_type
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
-        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
+        dict(_iast_enabled=True, _iast_deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         root_span, response = _aux_appsec_get_root_span(
             client,

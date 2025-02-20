@@ -995,7 +995,9 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
             content=_load_text_stacktrace(),
         )
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/stacktrace_leak/",
