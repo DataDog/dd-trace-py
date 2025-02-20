@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from ...utils import _build_env
 from .conftest import CONFIG_SERVER_PORT
 
 
@@ -11,16 +12,15 @@ def _run_python_file(*args, **kwargs):
     current_dir = os.path.dirname(__file__)
     cmd = []
     if "no_ddtracerun" not in kwargs:
-        cmd += ["ddtrace-run", "-d"]
+        cmd += ["python", "-m", "ddtrace.commands.ddtrace_run"]
 
     cmd += [
         "python",
         os.path.join(current_dir, "fixtures", "integration", kwargs.get("filename", "main.py")),
     ] + list(args)
-    if "env" in kwargs:
-        ret = subprocess.run(cmd, cwd=current_dir, env=kwargs["env"])
-    else:
-        ret = subprocess.run(cmd, cwd=current_dir)
+    env = _build_env(kwargs.get("env"))
+    ret = subprocess.run(cmd, cwd=current_dir, env=env)
+
     assert ret.returncode == 0
 
 
@@ -28,6 +28,7 @@ def test_env_var_iast_enabled(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
@@ -38,6 +39,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "false"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
@@ -46,7 +48,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
 
 def test_env_var_iast_unset(monkeypatch, capfd):
     # type: (...) -> None
-    _run_python_file()
+    _run_python_file(env={"DD_TRACE_DEBUG": "true"})
     captured = capfd.readouterr()
     assert "hi" in captured.out
     assert "IAST enabled" not in captured.err
@@ -55,23 +57,27 @@ def test_env_var_iast_unset(monkeypatch, capfd):
 @pytest.mark.parametrize(
     "env_vars",
     [
-        {"DD_IAST_ENABLED": "true"},
+        {"DD_IAST_ENABLED": "true", "DD_TRACE_DEBUG": "1"},
         {
             "DD_IAST_ENABLED": "true",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
             "_DD_CONFIG_ENDPOINT_TIMEOUT": "5",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
@@ -91,27 +97,35 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     "env_vars",
     [
         {},
-        {"DD_IAST_ENABLED": "false"},
+        {
+            "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
+        },
         {
             "DD_IAST_ENABLED": "true",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
             "DD_IAST_ENABLED": "false",
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_ENABLED_TIMEOUT",
             "_DD_CONFIG_ENDPOINT_TIMEOUT": "2",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/IAST_DISABLED",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
         {
+            "DD_TRACE_DEBUG": "1",
             "_DD_CONFIG_ENDPOINT": f"http://localhost:{CONFIG_SERVER_PORT}/",
             "_DD_CONFIG_ENDPOINT_RETRIES": "10",
         },
@@ -137,6 +151,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
@@ -149,6 +164,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
@@ -161,6 +177,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = "true"
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
     assert "IAST enabled" in captured.err
@@ -239,6 +256,7 @@ def test_env_var__configure_wrong(monkeypatch, capfd):
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
     env["DD_IAST_ENABLED"] = iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     assert_configure_wrong(monkeypatch, capfd, iast_enabled, env)
     # Test with env var unset
     del env["DD_IAST_ENABLED"]
@@ -251,6 +269,7 @@ def test_env_var__configure_right(monkeypatch, capfd):
     iast_enabled = "false"
     # Test with DD_IAST_ENABLED = "false"
     env["DD_IAST_ENABLED"] = iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     assert_configure_right_disabled(monkeypatch, capfd, iast_enabled, env)
     # Test with env var unset
     del env["DD_IAST_ENABLED"]
@@ -268,6 +287,7 @@ def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
     # Test that ``tracer.configure`` takes precedence over env var value
     env = os.environ.copy()
     env["DD_IAST_ENABLED"] = _iast_enabled
+    env["DD_TRACE_DEBUG"] = "true"
     _run_python_file(_iast_enabled, env=env, filename="main_configure.py", no_ddtracerun=True, returncode=0)
     captured = capfd.readouterr()
     assert f"IAST env var: {_iast_enabled.capitalize()}" in captured.out

@@ -1,8 +1,11 @@
+stages:
+  - test
+
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
 
 .macrobenchmarks:
-  stage: macrobenchmarks
+  stage: test
   needs: []
   tags: ["runner:apm-k8s-same-cpu"]
   timeout: 1h
@@ -14,14 +17,7 @@ variables:
       - runner_system_failure
       - scheduler_failure
       - api_failure
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: always
-    - when: manual
-    ## Next step, enable:
-    # - if: $CI_COMMIT_REF_NAME == "main"
-    #   when: always
-  # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
+  when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
     git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
