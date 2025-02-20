@@ -277,6 +277,7 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
     env["DD_SITE"] = "datadoghq.com"
+    env["DD_APPSEC_RASP_ENABLED"] = "False"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
@@ -321,7 +322,7 @@ import ddtrace.settings.exception_replay
             "[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(?:\\.[\\w.+\\/=-]+)?|[\\-]"
             "{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
-        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
         {
             "name": "DD_APPSEC_SCA_ENABLED",
