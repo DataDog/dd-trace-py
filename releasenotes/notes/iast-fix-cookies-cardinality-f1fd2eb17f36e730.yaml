@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Code Security (IAST): In some applications, unique cookie names are used per request, leading to a high 
+    number of unique cookie vulnerabilities. This fix improves detection accuracy by identifying the vulnerability 
+    at the `set_cookies` function and adding more context. **Warning:** This change updates the vulnerability hash,
+    meaning that if it was previously silenced in the web dashboard, it may reappear as a new vulnerability.

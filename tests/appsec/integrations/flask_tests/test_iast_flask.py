@@ -18,6 +18,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
@@ -48,6 +49,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ):
             patch_sqlite_sqli()
+            patch_insecure_cookie()
             patch_header_injection()
             patch_xss_injection()
             patch_json()
@@ -1333,6 +1335,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_insecure_cookie
             resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
             return resp
 
@@ -1354,12 +1358,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_INSECURE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
-            assert "method" not in vulnerability["location"].keys()
-            assert "class_name" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
+            assert "class_name" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie_empty(self):
@@ -1399,6 +1406,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_http_only_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=False, samesite="Strict")
             return resp
 
@@ -1420,10 +1429,13 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_http_only_cookie_empty(self):
@@ -1464,6 +1476,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_samesite_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
             return resp
 
@@ -1485,12 +1499,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
-            assert "method" not in vulnerability["location"].keys()
-            assert "class_name" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_samesite_cookie_empty(self):

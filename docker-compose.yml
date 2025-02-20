@@ -199,6 +199,7 @@ services:
             - "127.0.0.1:8321:8321"
         environment:
             - DD_IAST_ENABLED=true
+            - _DD_IAST_DEBUG=true
             - DD_IAST_REQUEST_SAMPLING=100
             - DD_IAST_VULNERABILITIES_PER_REQUEST=100
             - DD_REMOTE_CONFIGURATION_ENABLED=true
