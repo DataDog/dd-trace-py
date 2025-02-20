@@ -539,30 +539,30 @@ class Dataset:
 
 
 class Experiment:
-    """Manages the execution and evaluation of experiment tasks on a dataset.
+    """Manages the execution and evaluation of tasks on a dataset.
 
-    This class handles running experiment tasks against datasets, applying evaluators,
+    This class handles running tasks against datasets, applying evaluators,
     and collecting results for analysis.
 
     Attributes:
         name (str): Name of the experiment
-        experiment_task (Callable): Function that processes each dataset record
+        task (Callable): Function that processes each dataset record
         dataset (Dataset): Dataset to run the experiment on
-        evaluators (List[Callable]): Functions that evaluate experiment task outputs
+        evaluators (List[Callable]): Functions that evaluate task outputs
         tags (List[str]): Tags for organizing experiments
         description (str): Description of the experiment
         metadata (Dict[str, Any]): Additional metadata for the experiment
-        config (Optional[Dict[str, Any]]): Configuration for the experiment task
+        config (Optional[Dict[str, Any]]): Configuration for the task
         has_run (bool): Whether the experiment has been executed
         has_evaluated (bool): Whether the evaluations have been performed
-        outputs (List[Dict]): Outputs after running the experiment task
+        outputs (List[Dict]): Outputs after running the task
         evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
     def __init__(
         self,
         name: str,
-        experiment_task: Callable,
+        task: Callable,
         dataset: Dataset,
         evaluators: List[Callable],
         tags: List[str] = [],
@@ -571,7 +571,7 @@ class Experiment:
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.name = name
-        self.experiment_task = experiment_task
+        self.task = task
         self.dataset = dataset
         self.evaluators = evaluators
         self.tags = tags
@@ -580,9 +580,9 @@ class Experiment:
         self.metadata = metadata
         self.config = config
 
-        # Make sure the experiment task is decorated with @experiment_task
-        if not hasattr(self.experiment_task, "_is_experiment_task"):
-            raise TypeError("Experiment task function must be decorated with @experiment_task decorator.")
+        # Make sure the task is decorated with @task
+        if not hasattr(self.task, "_is_task"):
+            raise TypeError("Task function must be decorated with @task decorator.")
 
         # Make sure every evaluator is decorated with @evaluator
         for evaluator_func in self.evaluators:
@@ -680,9 +680,9 @@ class Experiment:
         raise_errors: bool = True,
     ) -> "ExperimentResults":
         """
-        Execute the experiment task and evaluations, returning the results.
+        Execute the task and evaluations, returning the results.
         Here, we guarantee an experiment is created first,
-        so run_experiment_task() can tag traces with the real experiment ID.
+        so run_task() can tag traces with the real experiment ID.
         """
         _validate_init()
          # Use color formatting for the header
@@ -706,13 +706,13 @@ class Experiment:
 
 
         # 3) Now run the experimenttask and evaluations
-        self.run_experiment_task(_jobs=jobs, raise_errors=raise_errors)
+        self.run_task(_jobs=jobs, raise_errors=raise_errors)
         experiment_results = self.run_evaluations(raise_errors=raise_errors)
         return experiment_results
 
-    def run_experiment_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
+    def run_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
         """
-        Execute the experiment task function on the dataset concurrently using ThreadPoolExecutor.map,
+        Execute the task function on the dataset concurrently using ThreadPoolExecutor.map,
         updating progress via _print_progress_bar and processing more rows in parallel.
         """
         _validate_init()
@@ -725,7 +725,7 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(name=self.experiment_task.__name__) as span:
+            with LLMObs._experiment(name=self.task.__name__) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
@@ -736,10 +736,10 @@ class Experiment:
 
                 try:
                     
-                    if getattr(self.experiment_task, "_accepts_config", False):
-                        output = self.experiment_task(input_data, self.config)
+                    if getattr(self.task, "_accepts_config", False):
+                        output = self.task(input_data, self.config)
                     else:
-                        output = self.experiment_task(input_data)
+                        output = self.task(input_data)
 
                     LLMObs.annotate(
                         span,
@@ -841,10 +841,10 @@ class Experiment:
             ExperimentResults: A new ExperimentResults instance with the evaluation results.
         
         Raises:
-            ValueError: If experiment task has not been run yet
+            ValueError: If task has not been run yet
         """
         if not self.has_run:
-            raise ValueError("Experiment task has not been run yet. Please call run_experiment_task() before run_evaluations().")
+            raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
         # Use provided evaluators or fall back to experiment's evaluators
         evaluators_to_use = evaluators if evaluators is not None else self.evaluators
@@ -911,14 +911,14 @@ class ExperimentResults:
     Attributes:
         dataset (Dataset): The dataset used in the experiment
         experiment (Experiment): The experiment that generated these results
-        outputs (List[Dict]): Outputs after running the experiment task
+        outputs (List[Dict]): Outputs after running the task
         evaluations (List[Dict]): Evaluation results after running evaluators
     """
 
     def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict]) -> None:
         self.dataset = dataset
         self.experiment = experiment
-        self.outputs = outputs  # List of outputs from run_experiment_task
+        self.outputs = outputs  # List of outputs from run_task
         self.evaluations = evaluations  # List of evaluations from run_evaluations
         self.merged_results = self._merge_results()  # Merged outputs and evaluations
 
@@ -1204,10 +1204,9 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
     return resp
 
 
-def experiment_task(func):
-    if func.__name__ == "experiment_task":
-        raise ValueError("Function name 'experiment_task' is reserved. Please use a different name for your experiment task function.")
-    
+def task(func):
+    if func.__name__ == "task":
+        raise ValueError("Function name 'task' is reserved. Please use a different name for your task function.")
     @wraps(func)
     def wrapper(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> Any:
         # Call the original function with or without config
@@ -1218,10 +1217,10 @@ def experiment_task(func):
     sig = inspect.signature(func)
     params = sig.parameters
     if 'input' not in params:
-        raise TypeError("Experiment task function must have an 'input' parameter.")
+        raise TypeError("Task function must have an 'input' parameter.")
     # Set attribute to indicate whether the function accepts config
     wrapper._accepts_config = 'config' in params
-    wrapper._is_experiment_task = True  # Set attribute to indicate decoration
+    wrapper._is_task = True  # Set attribute to indicate decoration
     return wrapper
 
 
@@ -1254,7 +1253,7 @@ class DatasetFileError(Exception):
 
 
 class ExperimentTaskError(Exception):
-    """Exception raised when an experiment task fails during experiment execution."""
+    """Exception raised when a task fails during experiment execution."""
     def __init__(self, message: str, row_idx: int, original_error: Exception = None):
         self.row_idx = row_id
         self.original_error = original_error
