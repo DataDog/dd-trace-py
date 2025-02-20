@@ -848,6 +848,29 @@ class TestSpan(Span):
                     self, key, self._metrics[key], value
                 )
 
+    def assert_span_event_count(self, count):
+        """Assert this span has the expected number of span_events"""
+        assert len(self._events) == count, "Span count {0} != {1}".format(len(self._events), count)
+
+    def assert_span_event_attributes(self, event_idx, attrs):
+        """
+        Assertion method to ensure this span's span event match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_span_event(0, {"exception.type": "builtins.RuntimeError"})
+
+        :param event_idx: id of the span event
+        :type event_idx: integer
+        """
+        span_event_attrs = self._events[event_idx].attributes
+        for name, value in attrs.items():
+            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
+            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
+                span_event_attrs, name, span_event_attrs[name], value
+            )
+
 
 class TracerSpanContainer(TestSpanContainer):
     """
@@ -1208,6 +1231,11 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    if "env" in kwargs:
+        # Remove all keys with the value None from env, None is used to unset an environment variable
+        env = kwargs.pop("env")
+        cleaned_env = {env: val for env, val in env.items() if val is not None}
+        kwargs["env"] = cleaned_env
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
