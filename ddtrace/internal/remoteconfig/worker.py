@@ -1,4 +1,6 @@
+import enum
 import os
+from typing import Iterable  # noqa:F401
 from typing import Set  # noqa:F401
 
 from ddtrace.internal import agent
@@ -139,7 +141,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
         return self._client.update_product_callback(product, callback)
 
     def register(
-        self, product: str, pubsub_instance: PubSub, skip_enabled: bool = False, restart_on_fork: bool = False
+        self,
+        product: str,
+        pubsub_instance: PubSub,
+        skip_enabled: bool = False,
+        restart_on_fork: bool = False,
+        capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
         try:
             # By enabling on registration we ensure we start the RCM client only
@@ -148,6 +155,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self.enable()
 
             self._client.register_product(product, pubsub_instance)
+            self._client.add_capabilities(capabilities)
             if not self._client.is_subscriber_running(pubsub_instance):
                 pubsub_instance.start_subscriber()
 

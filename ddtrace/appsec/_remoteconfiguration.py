@@ -6,6 +6,7 @@ from typing import Mapping
 from typing import Optional
 
 from ddtrace.appsec._capabilities import _asm_feature_is_required
+from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -59,7 +60,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     )
 
     if _asm_feature_is_required():
-        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()])
 
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
