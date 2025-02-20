@@ -84,7 +84,6 @@ class VulnerabilityBase(Operation):
         *args,
         **kwargs,
     ) -> bool:
-        print("_prepare_report!!")
         if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
@@ -128,14 +127,9 @@ class VulnerabilityBase(Operation):
     def _compute_file_line(cls) -> Tuple[Optional[Text], Optional[int], Optional[Text], Optional[Text]]:
         file_name = line_number = function_name = class_name = None
 
-        if getattr(cls, "skip_location", False):
-            if cls.is_not_reported(cls.vulnerability_type, 0):
-                return None, None, None, None
-            return file_name, line_number, function_name, class_name
-
         frame_info = get_info_frame(CWD)
         if not frame_info or frame_info[0] in ("", -1):
-            return None, None, None, None
+            return file_name, line_number, function_name, class_name
 
         file_name, line_number, function_name, class_name = frame_info
 
@@ -173,10 +167,16 @@ class VulnerabilityBase(Operation):
     def report(cls, evidence_value: Text = "", dialect: Optional[Text] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if cls.acquire_quota():
-            file_name, line_number, function_name, class_name = cls._compute_file_line()
-            if file_name is None:
-                cls.increment_quota()
-                return
+            file_name = line_number = function_name = class_name = None
+
+            if getattr(cls, "skip_location", False):
+                if not cls.is_not_reported(cls.vulnerability_type, 0):
+                    return
+            else:
+                file_name, line_number, function_name, class_name = cls._compute_file_line()
+                if file_name is None:
+                    cls.increment_quota()
+                    return
 
             # Evidence is a string in weak cipher, weak hash and weak randomness
             result = cls._create_evidence_and_report(
