@@ -10,7 +10,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Set
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
@@ -223,12 +222,6 @@ class Tracer(object):
 
         # globally set tags
         self._tags = config.tags.copy()
-
-        # collection of services seen, used for runtime metrics tags
-        # a buffer for service info so we don't perpetually send the same things
-        self._services: Set[str] = set()
-        if config.service:
-            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -635,13 +628,6 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-
-        # Assume that the services of the child are not necessarily a subset of those
-        # of the parent.
-        self._services = set()
-        if config.service:
-            self._services.add(config.service)
-
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
@@ -831,10 +817,6 @@ class Tracer(object):
 
         if activate:
             self.context_provider.activate(span)
-
-        # update set of services handled by tracer
-        if service and service not in self._services and self._is_span_internal(span):
-            self._services.add(service)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
