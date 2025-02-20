@@ -9,10 +9,10 @@ from typing import Set
 from typing import cast
 
 from ddtrace.debugging._function.discovery import FullyNamed
-from ddtrace.internal.injection import HookInfoType
-from ddtrace.internal.injection import HookType
-from ddtrace.internal.injection import eject_hooks
-from ddtrace.internal.injection import inject_hooks
+from ddtrace.internal.bytecode_injection import HookInfoType
+from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection import eject_hooks
+from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping.context import ContextWrappedFunction
 from ddtrace.internal.wrapping.context import WrappingContext
 

@@ -9,8 +9,7 @@ from typing import Tuple  # noqa:F401
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
-
-from .compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 
 
 HookType = Callable[[Any], Any]
