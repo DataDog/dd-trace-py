@@ -37,10 +37,7 @@ class TestPatching(SubprocessTestCase):
         with self.assertRaises(_monkey.ModuleNotFoundException) as me:
             _monkey.patch(module_dne=True)
 
-        assert (
-            "integration module ddtrace.contrib.internal.module_dne.patch does not exist, "
-            "automatic instrumentation is disabled for this library" in str(me.exception)
-        )
+        assert "module_dne does not have automatic instrumentation" in str(me.exception)
         assert "module_dne" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
