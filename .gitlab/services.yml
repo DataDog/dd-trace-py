@@ -91,3 +91,11 @@
       MYSQL_PASSWORD: test
       MYSQL_USER: test
       MYSQL_DATABASE: test
+  mariadb:
+    name: mariadb:lts
+    alias: mariadb
+    variables:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_PASSWORD: test
+      MYSQL_USER: test
+      MYSQL_DATABASE: test
