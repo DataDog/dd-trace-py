@@ -65,7 +65,7 @@ class _TelemetryConfig:
     VERSION: str = _get_config("DD_VERSION", "", report_telemetry=False)
     AGENTLESS_MODE: bool = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool, report_telemetry=False)
     DEBUG: bool = _get_config("DD_TRACE_DEBUG", False, asbool, report_telemetry=False)
-    HEARTBEAT_INTERVAL: int = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, int, report_telemetry=False)
+    HEARTBEAT_INTERVAL: float = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float, report_telemetry=False)
     TELEMETRY_ENABLED: bool = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
     DEPENDENCY_COLLECTION: bool = _get_config(
         "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool, report_telemetry=False
