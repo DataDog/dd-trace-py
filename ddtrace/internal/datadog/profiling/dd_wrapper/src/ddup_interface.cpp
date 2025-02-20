@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
+#include <unordered_map>
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
