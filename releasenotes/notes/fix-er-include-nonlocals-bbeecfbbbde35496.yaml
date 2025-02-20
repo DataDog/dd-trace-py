@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    exception replay: include missing nonlocal variables in snapshot log messages.
