@@ -525,6 +525,8 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
+        self._is_user_provided_service = self.service is not None
+
         self._inferred_base_service = detect_service(sys.argv)
 
         if self.service is None and in_gcp_function():
