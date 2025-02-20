@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes non-LLM message inputs and outputs to be rendered as json rather than Python strings.
