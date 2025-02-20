@@ -41,17 +41,18 @@ class IAST_Aspects(bm.Scenario):
         if self.iast_enabled:
             with override_env({"DD_IAST_ENABLED": "True"}):
                 _start_iast_context_and_oce()
+                
+                func = getattr(functions, self.function_name)
 
-        def _(loops):
-            for _ in range(loops):
-                if self.iast_enabled:
-                    with override_env({"DD_IAST_ENABLED": "True"}):
-                        getattr(functions, self.function_name)()
-
-                else:
-                    getattr(functions, self.function_name)()
-
-        yield _
-        if self.iast_enabled:
-            with override_env({"DD_IAST_ENABLED": "True"}):
+                def _(loops):
+                    for _ in range(loops):
+                        func()
+        
+                yield _
                 _end_iast_context_and_oce()
+        else:
+            def _(loops):
+                for _ in range(loops):
+                    func()
+    
+            yield _
