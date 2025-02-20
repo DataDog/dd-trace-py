@@ -8,7 +8,11 @@
 #include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h> // getpid
+#endif
 #include <vector>
 
 using namespace Datadog;
@@ -73,17 +77,17 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
 
     std::vector<ddog_prof_Exporter_File> files_to_send = { {
-      .name = to_slice("auto.pprof"),
-      .file = ddog_Vec_U8_as_slice(&encoded->buffer),
+      to_slice("auto.pprof"),
+      ddog_Vec_U8_as_slice(&encoded->buffer),
     } };
 
     // DEV: This function is called with the profile_lock held, and the following
     // function call acquires lock on CodeProvenance.
     std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
-    if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
+    if (json_str_opt.has_value() && !json_str_opt.value().empty()) {
         files_to_send.push_back({
-          .name = to_slice("code-provenance.json"),
-          .file = to_byte_slice(json_str_opt.value()),
+          to_slice("code-provenance.json"),
+          to_byte_slice(json_str_opt.value()),
         });
     }
 
@@ -92,16 +96,15 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                        encoded->start,
                                        encoded->end,
                                        ddog_prof_Exporter_Slice_File_empty(),
-                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
-                                         .len = static_cast<uintptr_t>(files_to_send.size()) },
+                                       { reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
+                                         static_cast<uintptr_t>(files_to_send.size()) },
                                        nullptr,
                                        encoded->endpoints_stats,
                                        nullptr,
                                        nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
-    if (build_res.tag ==
-        DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
