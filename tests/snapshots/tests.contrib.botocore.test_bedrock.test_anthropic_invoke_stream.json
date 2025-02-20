@@ -24,8 +24,6 @@
       "bedrock.response.choices.0.text": "",
       "bedrock.response.duration": "266",
       "bedrock.response.id": "710b14d5-164f-460d-bfc6-d3b31e794691",
-      "bedrock.usage.completion_tokens": "4",
-      "bedrock.usage.prompt_tokens": "25",
       "language": "python",
       "runtime-id": "5e8e1855ea8f4eefaa631b5691eb5e62"
     },
@@ -33,6 +31,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 4,
+      "bedrock.response.usage.prompt_tokens": 25,
       "process_id": 13707
     },
     "duration": 624710000,

@@ -2,8 +2,7 @@
 
 import importlib
 import sys
-
-import mock
+from unittest import mock
 
 import ddtrace.appsec._iast._loader
 import ddtrace.bootstrap.preload

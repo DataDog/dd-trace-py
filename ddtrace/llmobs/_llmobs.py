@@ -30,6 +30,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
@@ -57,6 +58,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
+from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
@@ -112,6 +114,7 @@ class LLMObs(Service):
 
         forksafe.register(self._child_after_fork)
 
+        self._link_tracker = LinkTracker()
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
 
@@ -189,7 +192,7 @@ class LLMObs(Service):
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
         llmobs_span_event = {
-            "trace_id": "{:x}".format(span.trace_id),
+            "trace_id": format_trace_id(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -198,7 +201,7 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "_dd": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
+            "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -208,7 +211,7 @@ class LLMObs(Service):
         llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
 
         span_links = span._get_ctx_item(SPAN_LINKS)
-        if isinstance(span_links, list):
+        if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event
@@ -288,6 +291,8 @@ class LLMObs(Service):
         core.reset_listeners("trace.span_finish", self._on_span_finish)
         core.reset_listeners("http.span_inject", self._inject_llmobs_context)
         core.reset_listeners("http.activate_distributed_headers", self._activate_llmobs_distributed_context)
+        core.reset_listeners("threading.submit", self._current_trace_context)
+        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
 
         forksafe.unregister(self._child_after_fork)
 
@@ -371,6 +376,8 @@ class LLMObs(Service):
         core.on("trace.span_finish", cls._instance._on_span_finish)
         core.on("http.span_inject", cls._inject_llmobs_context)
         core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
+        core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
+        core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
 
         atexit.register(cls.disable)
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -396,6 +403,55 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    def _record_object(self, span, obj, input_or_output):
+        if obj is None:
+            return
+        span_links = []
+        for span_link in self._link_tracker.get_span_links_from_object(obj):
+            try:
+                if span_link["attributes"]["from"] == "input" and input_or_output == "output":
+                    continue
+            except KeyError:
+                log.debug("failed to read span link: ", span_link)
+                continue
+            span_links.append(
+                {
+                    "trace_id": span_link["trace_id"],
+                    "span_id": span_link["span_id"],
+                    "attributes": {
+                        "from": span_link["attributes"]["from"],
+                        "to": input_or_output,
+                    },
+                }
+            )
+        self._tag_span_links(span, span_links)
+        self._link_tracker.add_span_links_to_object(
+            obj,
+            [
+                {
+                    "trace_id": self.export_span(span)["trace_id"],
+                    "span_id": self.export_span(span)["span_id"],
+                    "attributes": {
+                        "from": input_or_output,
+                    },
+                }
+            ],
+        )
+
+    def _tag_span_links(self, span, span_links):
+        if not span_links:
+            return
+        span_links = [
+            span_link
+            for span_link in span_links
+            if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
+            and span_link["trace_id"] == LLMObs.export_span(span)["trace_id"]
+        ]
+        current_span_links = span._get_ctx_item(SPAN_LINKS)
+        if current_span_links:
+            span_links = current_span_links + span_links
+        span._set_ctx_item(SPAN_LINKS, span_links)
 
     @classmethod
     def annotation_context(
@@ -505,7 +561,7 @@ class LLMObs(Service):
             if span.span_type != SpanTypes.LLM:
                 log.warning("Span must be an LLMObs-generated span.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id="{:x}".format(span.trace_id))
+            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
         except (TypeError, AttributeError):
             log.warning("Failed to export span. Span must be a valid Span object.")
             return None
@@ -910,6 +966,7 @@ class LLMObs(Service):
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
+        metadata: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span.
@@ -926,6 +983,8 @@ class LLMObs(Service):
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
                                     If not set, the current time will be used.
+        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
+                                evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
@@ -1017,6 +1076,14 @@ class LLMObs(Service):
             "ml_app": ml_app,
             "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
         }
+
+        if metadata:
+            if not isinstance(metadata, dict):
+                log.warning("metadata must be json serializable dictionary.")
+            else:
+                metadata = safe_json(metadata)
+                if metadata and isinstance(metadata, str):
+                    evaluation_metric["metadata"] = json.loads(metadata)
 
         cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
 

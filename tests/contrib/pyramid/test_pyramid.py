@@ -307,19 +307,16 @@ class TestAPIGatewayTracing(PyramidBase):
                         "endpoint": "/",
                         "status": 200,
                         "resource_name": "GET index",
-                        "http.route": "/",
                     },
                     {
                         "endpoint": "/error",
                         "status": 500,
                         "resource_name": "GET error",
-                        "http.route": "/error",
                     },
                     {
                         "endpoint": "/exception",
                         "status": 500,
                         "resource_name": "GET exception",
-                        "http.route": "/exception",
                     },
                 ]:
                     try:
@@ -343,7 +340,6 @@ class TestAPIGatewayTracing(PyramidBase):
                             api_gateway_service_name="local",
                             api_gateway_resource="GET /",
                             method="GET",
-                            route="/",
                             status_code=test_endpoint["status"],
                             url="local/",
                             start=1736973768,
