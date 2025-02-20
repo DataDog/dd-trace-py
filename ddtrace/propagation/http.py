@@ -241,7 +241,7 @@ class _DatadogMultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        # When apm tracing is not enabled, only distributed traces with the `_dd.p.appsec` tag
+        # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
         if not asm_config._apm_tracing_enabled and (APPSEC.PROPAGATION_HEADER not in span_context._meta):
             return
@@ -360,7 +360,7 @@ class _DatadogMultiHeader:
                 meta = validate_sampling_decision(meta)
 
             if not asm_config._apm_tracing_enabled:
-                # When apm tracing is not enabled, only distributed traces with the `_dd.p.appsec` tag
+                # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.
                 if not meta or APPSEC.PROPAGATION_HEADER not in meta:
