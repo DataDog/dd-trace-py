@@ -33,7 +33,6 @@ class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             self._dd_span.finish()
             raise
 
@@ -60,7 +59,6 @@ class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             self._dd_span.finish()
             raise
 
@@ -99,8 +97,6 @@ def shared_stream(
         # error with the method call itself
         span.set_exc_info(*sys.exc_info())
         span.finish()
-        integration.metric(span, "incr", "request.error", 1)
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
         raise
 
 

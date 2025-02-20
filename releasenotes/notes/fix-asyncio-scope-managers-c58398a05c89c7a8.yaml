@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Resolves ModuleNotFoundError errors raised when a OpenTracing tracer is initialized with a AsyncioScopeManager.
