@@ -260,7 +260,6 @@ class ASMConfig(Env):
     @property
     def _apm_opt_out(self) -> bool:
         return (
-            # TODO(ramy.elkest): remove this check, it's probably superfluous
             self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
         ) and not self._apm_tracing_enabled
 
