@@ -11,6 +11,7 @@ from weakref import WeakKeyDictionary
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -316,7 +317,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         links = [
             {
-                "trace_id": "{:x}".format(from_span.trace_id),
+                "trace_id": format_trace_id(from_span.trace_id),
                 "span_id": str(from_span.span_id),
                 "attributes": {"from": link_from, "to": link_to},
             }
