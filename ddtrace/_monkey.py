@@ -264,7 +264,7 @@ def patch(raise_errors=True, **patch_modules):
         # Check if we have the requested contrib.
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
             if raise_errors:
-                raise Exception(f"{contrib} does not have automatic instrumentation")
+                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
