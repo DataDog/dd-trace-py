@@ -91,3 +91,12 @@
       MYSQL_PASSWORD: test
       MYSQL_USER: test
       MYSQL_DATABASE: test
+  localstack:
+    name: registry.ddbuild.io/images/mirror/localstack:2.0.0
+    alias: localstack
+    variables:
+      SERVICES: "${SERVICES- }"
+      DEBUG: "${DEBUG- }"
+      LAMBDA_EXECUTOR: "local"
+      KINESIS_ERROR_PROBABILITY: "${KINESIS_ERROR_PROBABILITY- }"
+      DOCKER_HOST: "unix:///var/run/docker.sock"
