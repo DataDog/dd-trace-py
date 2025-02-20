@@ -1231,6 +1231,11 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    if "env" in kwargs:
+        # Remove all keys with the value None from env, None is used to unset an environment variable
+        env = kwargs.pop("env")
+        cleaned_env = {env: val for env, val in env.items() if val is not None}
+        kwargs["env"] = cleaned_env
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
