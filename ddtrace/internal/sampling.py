@@ -14,6 +14,7 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+from ddtrace import config
 from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -27,7 +28,6 @@ from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings import _global_config as config
 
 from .rate_limiter import RateLimiter
 

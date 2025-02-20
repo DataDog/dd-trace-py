@@ -22,7 +22,6 @@ from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
 from ..internal.sampling import _get_highest_precedence_rule_matching
 from ..internal.sampling import _set_sampling_tags
-from ..settings import _global_config as ddconfig
 from .sampling_rule import SamplingRule
 
 
@@ -239,16 +238,16 @@ class DatadogSampler(RateByServiceSampler):
         self.default_sample_rate = default_sample_rate
         effective_sample_rate = default_sample_rate
         if default_sample_rate is None:
-            if ddconfig._get_source("_trace_sample_rate") != "default":
-                effective_sample_rate = float(ddconfig._trace_sample_rate)
+            if config._get_source("_trace_sample_rate") != "default":
+                effective_sample_rate = float(config._trace_sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(ddconfig._trace_rate_limit)
+            rate_limit = int(config._trace_rate_limit)
 
         self._rate_limit_always_on = rate_limit_always_on
 
         if rules is None:
-            env_sampling_rules = ddconfig._trace_sampling_rules
+            env_sampling_rules = config._trace_sampling_rules
             if env_sampling_rules:
                 rules = self._parse_rules_from_str(env_sampling_rules)
             else:

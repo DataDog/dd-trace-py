@@ -18,6 +18,7 @@ from ddtrace.internal.logger import get_logger
 
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._config import _get_config
 from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
@@ -57,22 +58,26 @@ log = get_logger(__name__)
 
 
 class _TelemetryConfig:
-    API_KEY = os.environ.get("DD_API_KEY", None)
-    SITE = os.environ.get("DD_SITE", "datadoghq.com")
-    ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
-    VERSION = os.environ.get("DD_VERSION", "")
-    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
-    HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())
-    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))
-    INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)
-    INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
-    INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
-    FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
-    LOG_COLLECTION_ENABLED = TELEMETRY_ENABLED and os.getenv("DD_TELEMETRY_LOG_COLLECTION_ENABLED", "true").lower() in (
-        "true",
-        "1",
+    API_KEY: str = _get_config("DD_API_KEY", None, report_telemetry=False)
+    SITE: str = _get_config("DD_SITE", "datadoghq.com", report_telemetry=False)
+    ENV: str = _get_config("DD_ENV", "", report_telemetry=False)
+    SERVICE: str = _get_config("DD_SERVICE", _inferred_service or "unnamed-python-service", report_telemetry=False)
+    VERSION: str = _get_config("DD_VERSION", "", report_telemetry=False)
+    AGENTLESS_MODE: bool = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool, report_telemetry=False)
+    DEBUG: bool = _get_config("DD_TRACE_DEBUG", False, asbool, report_telemetry=False)
+    HEARTBEAT_INTERVAL: float = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float, report_telemetry=False)
+    TELEMETRY_ENABLED: bool = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
+    DEPENDENCY_COLLECTION: bool = _get_config(
+        "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool, report_telemetry=False
+    )
+    INSTALL_ID: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_ID", None, report_telemetry=False)
+    INSTALL_TYPE: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE", None, report_telemetry=False)
+    INSTALL_TIME: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_TIME", None, report_telemetry=False)
+    FORCE_START: bool = _get_config(
+        "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", False, asbool, report_telemetry=False
+    )
+    LOG_COLLECTION_ENABLED: bool = TELEMETRY_ENABLED and _get_config(
+        "DD_TELEMETRY_LOG_COLLECTION_ENABLED", True, asbool, report_telemetry=False
     )
 
 
@@ -201,7 +206,7 @@ class TelemetryWriter(PeriodicService):
         self.started = False
 
         # Debug flag that enables payload debug mode.
-        self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")
+        self._debug = _TelemetryConfig.DEBUG
 
         self._enabled = _TelemetryConfig.TELEMETRY_ENABLED
 

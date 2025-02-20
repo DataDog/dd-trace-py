@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace import config as dd_config
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.peer_service import PeerServiceConfig
@@ -10,7 +11,6 @@ from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_co
 from ..internal import compat
 from ..internal.utils import get_argument_value
 from ..internal.utils import set_argument_value
-from ..settings import _global_config as dd_config
 from ..settings._database_monitoring import dbm_config
 
 

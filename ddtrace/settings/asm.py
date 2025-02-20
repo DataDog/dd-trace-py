@@ -19,7 +19,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
