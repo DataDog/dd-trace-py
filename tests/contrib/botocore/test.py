@@ -3988,8 +3988,7 @@ class BotocoreTest(TracerTestCase):
             dict(payload_tagging_request="all", payload_tagging_response="all", payload_tagging_services="s3,dynamodb"),
         ):
             ddb = self.session.create_client("dynamodb", region_name="us-west-2")
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
+            pin = Pin(service=self.TEST_SERVICE, tracer=self.tracer)
             pin.onto(ddb)
 
             with self.override_config("botocore", dict(instrument_internals=True)):
