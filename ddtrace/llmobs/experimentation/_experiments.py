@@ -68,11 +68,12 @@ def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, ap
             site=site,
             api_key=api_key,
         )
-        ENV_PROJECT_NAME = project_name
-        ENV_SITE = site
-        ENV_API_KEY = api_key
-        ENV_APPLICATION_KEY = application_key
-        IS_INITIALIZED = True
+        
+    ENV_PROJECT_NAME = project_name
+    ENV_SITE = site
+    ENV_API_KEY = api_key
+    ENV_APPLICATION_KEY = application_key
+    IS_INITIALIZED = True
 
 def _validate_init() -> None:
     if IS_INITIALIZED is False:
@@ -189,6 +190,8 @@ class Dataset:
 
         dataset_id = datasets[0]["id"]
         dataset_version = datasets[0]["attributes"]["current_version"]
+
+        print(f"Found dataset '{name}' (latest version: {dataset_version})")
 
         # If version specified, verify it exists
         if version is not None:
