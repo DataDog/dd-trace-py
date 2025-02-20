@@ -1,3 +1,4 @@
+from ddtrace.internal.core.event_hub import on
 from ddtrace.settings.dynamic_instrumentation import config
 
 
@@ -5,14 +6,23 @@ requires = ["remote-configuration"]
 
 
 def post_preload():
-    pass
+    from ddtrace.debugging._debugger import Debugger
+
+    # We need to install this on start-up because if DI gets enabled remotely
+    # we won't be able to capture many of the code objects from the modules
+    # that are already loaded.
+    Debugger.__watchdog__.install()
+
+
+def _start():
+    from ddtrace.debugging import DynamicInstrumentation
+
+    DynamicInstrumentation.enable()
 
 
 def start():
     if config.enabled:
-        from ddtrace.debugging import DynamicInstrumentation
-
-        DynamicInstrumentation.enable()
+        _start()
 
 
 def restart(join=False):
@@ -29,3 +39,21 @@ def stop(join=False):
 
 def at_exit(join=False):
     stop(join=join)
+
+
+def apm_tracing_rc(lib_config):
+    enabled = lib_config.get("dynamic_instrumentation_enabled")
+    try:
+        if enabled is not None:  # and config.spec.enabled.full_name not in config.source:
+            if (config.spec.enabled.full_name not in config.source or config.enabled) and enabled:
+                _start()
+            else:
+                stop()
+    except Exception:
+        from traceback import print_exc
+
+        print_exc()
+        raise
+
+
+on("apm-tracing.rc", apm_tracing_rc, "dynamic-instrumentation")
