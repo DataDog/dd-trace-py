@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    profiling, crashtracking: This upgrades libdatadog to v16.0.2 from v15.0.0
+
