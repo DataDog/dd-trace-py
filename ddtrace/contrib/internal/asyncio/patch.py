@@ -1,10 +1,14 @@
 import asyncio
+import sys
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Pin
+
+
+PY_VERSION = sys.version_info[:2]
 
 
 def get_version():
@@ -49,5 +53,12 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
             pin.tracer.context_provider.activate(dd_active)
         return await coro
 
-    args, kwargs = set_argument_value(args, kwargs, 1, "coro", traced_coro())
+    # try to persist the original function name this useful for debugging
+    tc = traced_coro()
+    if hasattr(coro, "__name__"):
+        tc.__name__ = coro.__name__
+    if hasattr(coro, "__qualname__"):
+        tc.__qualname__ = coro.__qualname__
+    args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
+
     return wrapped(*args, **kwargs)
