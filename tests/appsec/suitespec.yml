@@ -26,7 +26,7 @@ suites:
     retry: 2
     runner: riot
     snapshot: true
-  appsec_iast:
+  appsec_iast_default:
     env:
       TEST_POSTGRES_HOST: postgres
     parallelism: 6
@@ -38,17 +38,15 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
-    pattern: appsec_iast$
     retry: 2
-    runner: riot
+    runner: hatch
     services:
       - postgres
     snapshot: true
-    timeout: 25m
+    timeout: 40m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-      PYTEST_ADDOPTS: '-v -s'
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -60,7 +58,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: riot
+    runner: hatch
     snapshot: true
   appsec_iast_native:
     parallelism: 6

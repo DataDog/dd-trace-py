@@ -2,9 +2,9 @@
 import logging
 import os
 import sys
+from unittest import mock
 
 import astunparse
-import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
