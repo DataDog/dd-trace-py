@@ -21,7 +21,6 @@ variables:
     - ./steps/capture-hardware-software-info.sh
     - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
     - ./steps/analyze-results.sh
-    - mkdir $REPORTS_DIR/$CI_JOB_ID && mv $REPORTS_DIR/* $REPORTS_DIR/$CI_JOB_ID/
   artifacts:
     name: "reports"
     when: always
