@@ -131,6 +131,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
+                    {
+                        "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
+                        "origin": "default",
+                        "value": False,
+                    },
+                    {
+                        "name": "DD_TRACE_PEER_SERVICE_MAPPING",
+                        "origin": "env_var",
+                        "value": "default_service:remapped_service",
+                    },
                     {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
                     {
@@ -220,7 +230,7 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "False"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
@@ -267,6 +277,10 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
     env["DD_SITE"] = "datadoghq.com"
+    env["DD_APPSEC_RASP_ENABLED"] = "False"
+    env["DD_API_SECURITY_ENABLED"] = "False"
+    env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
+    env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
@@ -285,12 +299,12 @@ import ddtrace.settings.exception_replay
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": "identification"},
-        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
+        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
@@ -311,7 +325,7 @@ import ddtrace.settings.exception_replay
             "[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(?:\\.[\\w.+\\/=-]+)?|[\\-]"
             "{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
-        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
         {
             "name": "DD_APPSEC_SCA_ENABLED",
@@ -456,6 +470,16 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
+        {
+            "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
+        {
+            "name": "DD_TRACE_PEER_SERVICE_MAPPING",
+            "origin": "env_var",
+            "value": "default_service:remapped_service",
+        },
         {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
         {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
