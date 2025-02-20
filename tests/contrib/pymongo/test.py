@@ -292,6 +292,7 @@ class PymongoCore(object):
 
         # confirm query tag for find all
         assert spans[-2].get_tag("mongodb.query") is None
+        assert spans[-2].resource == "find teams"
 
         # confirm query tag find with query criteria on name
         assert spans[-1].resource == 'find teams {"name": "?"}'
@@ -433,6 +434,8 @@ class PymongoCore(object):
         spans = tracer.pop()
         assert len(spans) == 2
         assert spans[1].name == "pymongo.cmd"
+        assert spans[1].resource == "buildinfo 1"
+        assert spans[1].get_tag("mongodb.query") is None
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
