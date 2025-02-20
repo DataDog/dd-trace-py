@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.0.1
+
+
+### Bug Fixes
+
+- configurations: This fix resolves an issue where DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES env variable was not parsed correctly
+- profiling: fixes an issue where the profiler unnecessarily outputs log messages when it was unable to record a lock acquire event.
+
+
+---
+
 ## 2.20.2
 
 ### Deprecation Notes
