@@ -13,6 +13,7 @@ from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
 import ddtrace
+from ddtrace.appsec._asm_request_context import can_raise_block
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -93,7 +94,10 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
 
 
 def _must_block(actions: Iterable[str]) -> bool:
-    return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
+    return (
+        any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
+        and can_raise_block()
+    )
 
 
 def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):

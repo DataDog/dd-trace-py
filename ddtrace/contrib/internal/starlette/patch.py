@@ -22,7 +22,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import get_blocked
+from ddtrace.internal.utils import must_block
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.settings.asm import config as asm_config
@@ -181,7 +181,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             route=request_spans[0].get_tag(http.ROUTE),
         )
     core.dispatch("asgi.start_request", ("starlette",))
-    blocked = get_blocked()
+    blocked = must_block()
     if blocked:
         raise BlockingException(blocked)
 

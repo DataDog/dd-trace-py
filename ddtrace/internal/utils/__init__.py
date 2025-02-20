@@ -98,3 +98,13 @@ def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
     from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
 
     core.dispatch("asm.set_blocked", (block_settings or STATUS_403_TYPE_AUTO,))
+
+
+def must_block() -> Optional[Dict[str, Any]]:
+    # local import to avoid circular dependency
+    from ddtrace.internal import core
+
+    res = core.dispatch_with_results("asm.must_block")
+    if res and res.block_flag:
+        return res.block_flag.value
+    return {}

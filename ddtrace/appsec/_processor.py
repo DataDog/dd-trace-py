@@ -366,7 +366,7 @@ class AppSecSpanProcessor(SpanProcessor):
             waf_results.total_runtime,
         )
         if blocked:
-            _asm_request_context.set_blocked(blocked)
+            _asm_request_context.set_blocked(blocked, False)
 
         if waf_results.data or blocked:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm

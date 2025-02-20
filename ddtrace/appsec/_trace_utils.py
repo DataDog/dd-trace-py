@@ -146,7 +146,11 @@ def track_user_login_success_event(
             },
             force_sent=True,
         )
-        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+        if (
+            res
+            and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions)
+            and _asm_request_context.can_raise_block()
+        ):
             raise BlockingException(get_blocked())
 
 
@@ -438,7 +442,11 @@ def _on_django_process(result_user, mode, kwargs, pin, info_retriever, django_co
                 "LOGIN_SUCCESS": real_mode,
             }
             res = call_waf_callback(custom_data=custom_data, force_sent=True)
-            if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+            if (
+                res
+                and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions)
+                and _asm_request_context.can_raise_block()
+            ):
                 raise BlockingException(get_blocked())
 
 

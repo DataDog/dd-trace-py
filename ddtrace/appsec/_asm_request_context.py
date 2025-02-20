@@ -100,6 +100,7 @@ class ASM_Environment:
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
+        self.supress_blocking_exception = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -120,6 +121,18 @@ def is_blocked() -> bool:
 def get_blocked() -> Dict[str, Any]:
     env = _get_asm_context()
     if env is None:
+        return {}
+    return env.blocked or {}
+
+
+def can_raise_block() -> bool:
+    env = _get_asm_context()
+    return env is not None and not env.supress_blocking_exception
+
+
+def must_block() -> Dict[str, Any]:
+    env = _get_asm_context()
+    if env is None or env.supress_blocking_exception:
         return {}
     return env.blocked or {}
 
@@ -161,7 +174,7 @@ def _ctype_from_headers(block_config, headers) -> None:
         block_config["content-type"] = "text/html" if block_config["type"] == "html" else "application/json"
 
 
-def set_blocked(blocked: Dict[str, Any]) -> None:
+def set_blocked(blocked: Dict[str, Any], suppress: bool = True) -> None:
     blocked = blocked.copy()
     env = _get_asm_context()
     if env is None:
@@ -170,6 +183,8 @@ def set_blocked(blocked: Dict[str, Any]) -> None:
         return
     _ctype_from_headers(blocked, get_headers())
     env.blocked = blocked
+    if suppress:
+        env.supress_blocking_exception = True
 
 
 def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
@@ -585,6 +600,7 @@ def asm_listen():
     core.on("asgi.finalize_response", _set_headers_and_response)
 
     core.on("asm.set_blocked", set_blocked)
+    core.on("asm.must_block", must_block)
     core.on("asm.get_blocked", get_blocked, "block_config")
 
     core.on("context.ended.wsgi.__call__", _on_context_ended)
