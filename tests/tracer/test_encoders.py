@@ -388,7 +388,6 @@ def test_long_span_start(encoding):
     span.finish()
 
     trace = [span]
-    breakpoint()
     encoder.put(trace)
     # TODO: Right now this fails with Python int too large to convert to C long
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
