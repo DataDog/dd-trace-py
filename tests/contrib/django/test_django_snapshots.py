@@ -84,7 +84,6 @@ def daphne_client(django_asgi, additional_env=None):
         server_process.terminate()
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(variants={"": django.VERSION >= (2, 2)}, ignores=SNAPSHOT_IGNORES)
 def test_urlpatterns_include(client):
@@ -219,7 +218,7 @@ def psycopg3_patched(transactional_db):
         unpatch()
 
 
-@flaky(1735812000)
+# @flaky(1742502871, reason="TODO: test needs to be rewritten due to missing pq module")
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
 def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
@@ -231,6 +230,9 @@ def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
     if not package_installed("psycopg"):
         # skip test if psycopg3 is not installed as we need to test psycopg2 standalone with Django>=4.2.0
         pytest.skip(reason="Psycopg3 not installed. Focusing on testing psycopg2 with Django>=4.2.0")
+    # Requires pq or it will throw ImportError: no pq wrapper available.
+    if not package_installed("pq"):
+        pytest.skip(reason="pq module not available")
 
     from django.db import connections
     from psycopg.sql import SQL
