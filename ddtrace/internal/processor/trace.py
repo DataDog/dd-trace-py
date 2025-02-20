@@ -229,7 +229,7 @@ class SpanAggregator(SpanProcessor):
 
                 num_finished = len(finished)
 
-                if should_partial_flush:
+                if should_partial_flush and num_finished > 0:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
