@@ -7,7 +7,6 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
-from libcpp.map cimport map
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
@@ -57,8 +56,8 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
-    void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
-    void ddup_profile_add_endpoint_counts(map[string_view, int64_t] trace_endpoints_to_counts)
+    void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
+    void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
@@ -167,7 +166,7 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    cdef unordered_map[int64_t, string_view] span_ids_to_endpoints = unordered_map[int64_t, string_view]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, span_ids in endpoint_to_span_ids.items():
@@ -201,7 +200,7 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    cdef unordered_map[string_view, int64_t] trace_endpoints_to_counts = unordered_map[string_view, int64_t]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, count in endpoint_counts.items():
