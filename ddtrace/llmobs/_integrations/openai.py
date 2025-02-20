@@ -7,6 +7,7 @@ from typing import Tuple
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import BASE_URL
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -113,6 +114,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        base_url = span.get_tag("openai.base_url")
 
         model_provider = "openai"
         if self._is_provider(span, "azure"):
@@ -128,7 +130,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics, BASE_URL: base_url}
         )
 
     @staticmethod

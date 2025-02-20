@@ -35,6 +35,7 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import BASE_URL
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -227,6 +228,7 @@ class LLMObs(Service):
             "ddtrace.version": ddtrace.__version__,
             "language": "python",
             "error": span.error,
+            "base_url": span._get_ctx_item(BASE_URL),
         }
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
