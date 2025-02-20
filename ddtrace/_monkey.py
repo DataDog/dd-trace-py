@@ -8,10 +8,12 @@ from wrapt.importer import when_imported
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .settings import _global_config as config
 
 
@@ -211,6 +213,16 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
 
 
 def patch_all(**patch_modules):
+    deprecate(
+        "patch_all is deprecated and will be removed in a future version of the tracer.",
+        message="""patch_all is deprecated in favor of ``import ddtrace.auto`` and ``DD_PATCH_MODULES``
+        environment variable if needed.""",
+        category=DDTraceDeprecationWarning,
+    )
+    _patch_all(**patch_modules)
+
+
+def _patch_all(**patch_modules):
     # type: (bool) -> None
     """Enables ddtrace library instrumentation.
 
@@ -221,7 +233,7 @@ def patch_all(**patch_modules):
 
     :param dict patch_modules: Override whether particular modules are patched or not.
 
-        >>> patch_all(redis=False, cassandra=False)
+        >>> _patch_all(redis=False, cassandra=False)
     """
     modules = PATCH_MODULES.copy()
 

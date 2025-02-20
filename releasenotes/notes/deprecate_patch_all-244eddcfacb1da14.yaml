@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracer: ``patch_all`` is deprecated. As an alternative to ``patch_all``, you can use ``import ddtrace.auto`` along with ``DD_PATCH_MODULES`` if specific module patching is necessary.
