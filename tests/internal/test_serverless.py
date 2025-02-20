@@ -112,37 +112,34 @@ expanded_blocklist = standard_blocklist + [
         ("ddtrace.contrib.requests", standard_blocklist),
     ],
 )
-def test_slow_imports(package, blocklist):
+def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
-    import os
-    import sys
 
-    os.environ.update(
-        {
-            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
-            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
-            "DD_API_SECURITY_ENABLED": "False",
-        }
-    )
+    env = {
+        "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+        "DD_API_SECURITY_ENABLED": "False",
+    }
 
-    class BlockListFinder:
-        def find_spec(self, fullname, *args):
-            for lib in blocklist:
-                if fullname == lib:
-                    raise ImportError(f"module {fullname} was imported!")
-            return None
+    code = f"""
+import sys
 
-    try:
-        orig_meta_path = sys.meta_path
-        sys.meta_path = [BlockListFinder()] + orig_meta_path
+blocklist = {blocklist}
 
-        for mod in sys.modules.copy():
-            if mod in blocklist or mod.startswith("ddtrace"):
-                del sys.modules[mod]
+class BlockListFinder:
+    def find_spec(self, fullname, *args):
+        if fullname in blocklist:
+            raise ImportError(f"module {{fullname}} was imported!")
+        return None
 
-        __import__(package)
+sys.meta_path = [BlockListFinder()] + sys.meta_path
 
-    finally:
-        sys.meta_path = orig_meta_path
+import {package}
+"""
+
+    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
+    assert status == 0
