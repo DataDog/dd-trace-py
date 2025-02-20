@@ -1454,7 +1454,6 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
-@flaky(1735812000)
 @pytest.mark.django_db
 def test_cached_template(client, test_spans):
     # make the first request so that the view is cached
@@ -1487,7 +1486,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.base_service": "",
+        "_dd.base_service": "tests.contrib.django",
     }
 
     assert span_template_cache.get_tags() == expected_meta
