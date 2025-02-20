@@ -5,8 +5,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from envier.env import EnvVariable
-from envier.env import _normalized
+from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
 from ddtrace.internal.telemetry import telemetry_writer
@@ -18,19 +17,37 @@ from ._otel_remapper import parse_otel_env
 FLEET_CONFIG, LOCAL_CONFIG = get_configuration_from_disk()
 
 
-def report_telemetry(env: Any) -> None:
-    for name, e in list(env.__class__.__dict__.items()):
-        if isinstance(e, EnvVariable) and not e.private:
-            env_name = env._full_prefix + _normalized(e.name)
-            env_val = e(env, env._full_prefix)
-            raw_val = env.source.get(env_name)
-            if env_name in env.source and env_val == e._cast(e.type, raw_val, env):
+class Config(Env):
+    """Env-based configuration sub-class for automatic telemetry reporting."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._report_telemetry()
+
+    def _report_telemetry(self) -> None:
+        for name, e in type(self).items(recursive=True):
+            if e.private:
+                continue
+
+            env_name = e.full_name
+
+            # Get the item value recursively
+            env_val = self
+            for p in name.split("."):
+                env_val = getattr(env_val, p)
+
+            source = "unknown"
+            if env_name in self.source:
                 source = "env_var"
-            elif env_val == e.default:
-                source = "default"
             else:
-                source = "unknown"
+                if env_val == e.default:
+                    source = "default"
+
             telemetry_writer.add_configuration(env_name, env_val, source)
+
+
+def report_telemetry(env: Env) -> None:
+    Config._report_telemetry(env)
 
 
 def get_config(
