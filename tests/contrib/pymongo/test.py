@@ -294,7 +294,8 @@ class PymongoCore(object):
         assert spans[-2].get_tag("mongodb.query") is None
 
         # confirm query tag find with query criteria on name
-        assert spans[-1].get_tag("mongodb.query") == "{'name': '?'}"
+        assert spans[-1].resource == 'find teams {"name": "?"}'
+        assert spans[-1].get_tag("mongodb.query") == '{"name": "?"}'
 
     def test_update_ot(self):
         """OpenTracing version of test_update."""
@@ -401,6 +402,12 @@ class PymongoCore(object):
         assert len(spans) == 4
         one_row_span = spans[2]
         two_row_span = spans[3]
+
+        # Assert resource names and mongodb.query
+        assert one_row_span.resource == 'find songs {"name": "?"}'
+        assert one_row_span.get_tag("mongodb.query") == '{"name": "?"}'
+        assert two_row_span.resource == 'find songs {"artist": "?"}'
+        assert two_row_span.get_tag("mongodb.query") == '{"artist": "?"}'
 
         assert one_row_span.name == "pymongo.cmd"
         assert one_row_span.get_metric("db.row_count") == 1
