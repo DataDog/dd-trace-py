@@ -64,7 +64,6 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     def __next__(self):
         try:
@@ -77,12 +76,10 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
     def _extract_token_chunk(self, chunk):
@@ -130,7 +127,6 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     async def __anext__(self):
         try:
@@ -143,12 +139,10 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
     async def _extract_token_chunk(self, chunk):
@@ -276,7 +270,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
             formatted_completions = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, integration, formatted_completions, prompts, request_messages, kwargs)
+        _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
         operation = "completion" if is_completion else "chat"
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
@@ -381,8 +375,8 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion responses, and submit them as integration metrics.
+def _set_token_metrics(span, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion responses.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
@@ -401,11 +395,6 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
     span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
     span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
     span.set_metric("openai.response.usage.total_tokens", total_tokens)
-
-    tags = ["openai.estimated:true"] if estimated else None
-    integration.metric(span, "dist", "tokens.prompt", prompt_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.completion", completion_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.total", total_tokens, tags=tags)
 
 
 def _compute_prompt_tokens(model_name, prompts=None, messages=None):
