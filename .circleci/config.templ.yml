@@ -422,6 +422,22 @@ jobs:
           snapshot: true
           docker_services: "localstack"
 
+  cassandra:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+        environment:
+          CASS_DRIVER_NO_EXTENSIONS: 1
+      - image: *cassandra_image
+        environment:
+          - MAX_HEAP_SIZE=512M
+          - HEAP_NEWSIZE=256M
+      - *testagent
+    steps:
+      - run_test:
+          wait: cassandra
+          pattern: 'cassandra'
+
   consul:
     <<: *contrib_job_small
     docker:
