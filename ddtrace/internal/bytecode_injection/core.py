@@ -29,14 +29,14 @@ is_python_3_11 = sys.version_info[:2] == (3, 11)
 class InjectionContext:
     original_code: CodeType
     hook: CallbackType
-    offsets_cb: t.Callable[["InjectionContext"], t.List[int]]
+    offsets_callback: t.Callable[["InjectionContext"], t.List[int]]
 
     def transfer(self, code: CodeType) -> "InjectionContext":
-        return InjectionContext(code, self.hook, self.offsets_cb)
+        return InjectionContext(code, self.hook, self.offsets_callback)
 
     @property
     def injection_offsets(self) -> t.List[int]:
-        return self.offsets_cb(self)
+        return self.offsets_callback(self)
 
 
 def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> t.Tuple[CodeType, t.List[int]]:
@@ -403,29 +403,52 @@ def _generate_adjusted_location_data(
 def _generate_adjusted_location_data_3_10(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
+    """
+    The format of the linetable in python3.10 is detailed here:
+    https://github.com/python/cpython/blob/3.10/Objects/lnotab_notes.txt
+
+    TL;DR: an entry is composed of two bytes:
+    - the first one represents the bytecode offset delta. It is unsigned
+    - the second one represent the line delta. It is signed. -128 represents no line
+    If the offsets of the opcode are from 0 to 6 on line 1 and from 6 to 50 on line two,
+    we would encode:
+    End-Start  Line-delta
+      6         +1
+      44        +1
+
+    The injected bytecodes are always at the start of the line and will never add a line.
+    """
     new_linetable = bytearray()
 
     # Iterate through existing variables
     offsets_iterator = iter(sorted(offsets_map.items(), key=lambda x: x[0]))
     extended_arg_iterator = iter(sorted(extended_arg_offsets, key=lambda x: x[0]))
 
-    next_map_offset, next_nb_code_added = next(offsets_iterator, (None, None))
-    next_extended_arg_offset, nb_extended_arg = next(extended_arg_iterator, (None, None))
+    injection_offset, count_opcode_added = next(offsets_iterator, (None, None))
+    extended_arg_offset, count_extended_arg_added = next(extended_arg_iterator, (None, None))
 
     old_linetable = code.co_linetable
     old_linetable_size = len(old_linetable)
 
     current_offset = 0
     for idx in range(0, old_linetable_size, 2):
+        """
+        We do not want to interfere with the line deltas. Therefore we will copy
+        the line deltas of the old table and add delta offsets with a line delta
+        of 0 if needed. Notes that this is not the most optimized linetable possible
+        but it is working.
+        """
         new_linetable.append(0)
         new_linetable.append(old_linetable[idx + 1])
 
+        # Check if we have injected some extended_arg at the current_offset
         while (
-            next_extended_arg_offset is not None
-            and nb_extended_arg is not None
-            and current_offset + old_linetable[idx] > next_extended_arg_offset
+            extended_arg_offset is not None
+            and count_extended_arg_added is not None
+            and current_offset + old_linetable[idx] > extended_arg_offset
         ):
-            offset_to_add = nb_extended_arg << 1
+            offset_to_add = count_extended_arg_added << 1
+            # if we added more than 254 offsets, we need multiple bytes to encode it
             n, r = divmod(offset_to_add, 254)
             for _ in range(n):
                 new_linetable.append(254)
@@ -433,11 +456,12 @@ def _generate_adjusted_location_data_3_10(
             if r:
                 new_linetable.append(r)
                 new_linetable.append(0x0)
-            next_extended_arg_offset, nb_extended_arg = next(extended_arg_iterator, (None, None))
+            extended_arg_offset, count_extended_arg_added = next(extended_arg_iterator, (None, None))
 
-        while next_map_offset is not None and next_nb_code_added is not None and current_offset >= next_map_offset:
-            offset_to_add = next_nb_code_added << 1
-
+        # Check if we have injected our callback at the current_offset
+        while injection_offset is not None and count_opcode_added is not None and current_offset >= injection_offset:
+            offset_to_add = count_opcode_added << 1
+            # if we added more than 254 offsets, we need multiple bytes to encode it
             n, r = divmod(offset_to_add, 254)
             for _ in range(n):
                 new_linetable.append(254)
@@ -445,8 +469,9 @@ def _generate_adjusted_location_data_3_10(
             if r:
                 new_linetable.append(r)
                 new_linetable.append(0)
-            next_map_offset, next_nb_code_added = next(offsets_iterator, (None, None))
+            injection_offset, count_opcode_added = next(offsets_iterator, (None, None))
 
+        # add the former offsets
         new_linetable.append(old_linetable[idx])
         new_linetable.append(0)
 
@@ -458,16 +483,16 @@ def _generate_adjusted_location_data_3_11(
     code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
 ) -> bytes:
     """
-    See "Format of the location table" from Python's internal documentation for more information:
+    The format of the linetable in python3.11 is detailed here:
     https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#format-of-the-locations-table
+
     """
-    # DEV: We expect the original offsets in the trap_map
     new_linetable = bytearray()
 
     orignal_linetable = code.co_linetable
     linetable_iter = iter(orignal_linetable)
     ext_arg_offset_iter = iter(sorted(extended_arg_offsets))
-    ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+    ext_arg_offset, count_extended_arg_added = next(ext_arg_offset_iter, (None, None))
 
     original_offset = 0
     while True:
@@ -476,13 +501,18 @@ def _generate_adjusted_location_data_3_11(
 
             b = next(linetable_iter)
 
+            # We add the former entry
             chunk.append(b)
 
             op_code_offset = ((b & 7) + 1) << 1  # multiply by 2 because the length in the line table is in code units.
             loc_code = (b >> 3) & 0xF
 
-            # See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
+            """Depending on the loc code, the former entry requires potentially more bytes.
+            They will be added below
+
+            See https://github.com/python/cpython/blob/main/InternalDocs/code_objects.md#location-entries for
             # meaning of the `loc_code` value.
+            """
             if loc_code == 14:
                 chunk.extend(_consume_signed_varint(linetable_iter))
                 for _ in range(3):
@@ -495,8 +525,13 @@ def _generate_adjusted_location_data_3_11(
             elif 0 <= loc_code <= 9:
                 chunk.append(next(linetable_iter))
 
+            """ When adding entry to the linetable for the offsets related to the callback
+            or the extended args. We are using the short form (see the link above). The code is
+            0 and we add 0 line. It is just to add the bytecode offsets. The maximum we can add by entry is 8
+            (encoded 7)
+            """
+            # Extend the line table record if we injected our callback at this offset
             if original_offset in offsets_map:
-                # No location info for the trap bytecode
                 injected_code_units_size = offsets_map[original_offset]
                 n, r = divmod(injected_code_units_size, 8)
                 for _ in range(n):
@@ -506,16 +541,20 @@ def _generate_adjusted_location_data_3_11(
                     chunk.append(0x80 | r - 1)
                     chunk.append(0x00)
 
-            # Extend the line table record if we added any EXTENDED_ARGs
-            while ext_arg_offset is not None and ext_arg_size is not None and original_offset >= ext_arg_offset:
-                n, r = divmod(ext_arg_size, 8)
+            # Extend the line table record if we added any EXTENDED_ARGs at this offset
+            while (
+                ext_arg_offset is not None
+                and count_extended_arg_added is not None
+                and original_offset >= ext_arg_offset
+            ):
+                n, r = divmod(count_extended_arg_added, 8)
                 for _ in range(n):
                     chunk.append(0x80 | 7)
                     chunk.append(0x00)
                 if r:
                     chunk.append(0x80 | r - 1)
                     chunk.append(0x00)
-                ext_arg_offset, ext_arg_size = next(ext_arg_offset_iter, (None, None))
+                ext_arg_offset, count_extended_arg_added = next(ext_arg_offset_iter, (None, None))
 
             original_offset += op_code_offset
 
