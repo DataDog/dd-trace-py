@@ -197,8 +197,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
 
     except Exception:
         LOG.warning(
-            "Unable to build package file mapping, "
-            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,
         )
         return None
