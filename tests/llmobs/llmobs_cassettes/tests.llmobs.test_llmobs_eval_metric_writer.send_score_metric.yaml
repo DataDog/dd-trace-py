@@ -1,27 +1,28 @@
 interactions:
 - request:
-    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
-      "12345678902", "trace_id": "98765432102", "metric_type": "score", "label": "sentiment",
-      "score_value": 0.9, "ml_app": "dummy-ml-app", "timestamp_ms": 1724249500942}]}}}'
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678902", "trace_id": "98765432102"}}, "metric_type":
+      "score", "label": "sentiment", "score_value": 0.9, "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1732568298743}]}}}'
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
   response:
     body:
-      string: '{"data":{"id":"e66c93b9-ca0a-4f0a-9207-497e0a1b6eec","type":"evaluation_metric","attributes":{"metrics":[{"id":"5fb5ed5d-20c1-4f34-abf9-c0bdc09680e3","trace_id":"98765432102","span_id":"12345678902","timestamp_ms":1724249500942,"ml_app":"dummy-ml-app","metric_type":"score","label":"sentiment","score_value":0.9}]}}}'
+      string: '{"data":{"id":"5b998846-53af-4b0e-a658-fd9e06726d6d","type":"evaluation_metric","attributes":{"metrics":[{"id":"jbGbAMC7Rk","join_on":{"span":{"trace_id":"98765432102","span_id":"12345678902"}},"timestamp_ms":1732568298743,"ml_app":"dummy-ml-app","metric_type":"score","label":"sentiment","score_value":0.9}]}}}'
     headers:
       content-length:
-      - '316'
+      - '311'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 21 Aug 2024 14:11:41 GMT
+      - Mon, 25 Nov 2024 20:58:19 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

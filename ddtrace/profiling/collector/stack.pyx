@@ -10,7 +10,7 @@ import typing
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
-from ddtrace._trace.tracer import Tracer
+from ddtrace.trace import Tracer
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -157,11 +157,7 @@ from cpython.ref cimport Py_DECREF
 cdef extern from "<pystate.h>":
     PyObject* _PyThread_CurrentFrames()
 
-IF PY_VERSION_HEX >= 0x30d0000:
-    cdef extern from "<internal/pycore_pystate.h>":
-        PyObject* _PyThread_CurrentExceptions()
-
-ELIF PY_VERSION_HEX >= 0x030b0000:
+IF 0x030b0000 <= PY_VERSION_HEX < 0x30d0000:
     cdef extern from "<pystate.h>":
         PyObject* _PyThread_CurrentExceptions()
 
@@ -194,19 +190,7 @@ ELIF UNAME_SYSNAME != "Windows":
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
 
-    IF PY_VERSION_HEX < 0x03080000:
-        # Python 3.7
-        cdef extern from "<internal/pystate.h>":
-
-            cdef struct pyinterpreters:
-                PyThread_type_lock mutex
-
-            ctypedef struct _PyRuntimeState:
-                pyinterpreters interpreters
-
-            cdef extern _PyRuntimeState _PyRuntime
-
-    ELIF PY_VERSION_HEX >= 0x03080000:
+    IF PY_VERSION_HEX >= 0x03080000:
         # Python 3.8
         cdef extern from "<internal/pycore_pystate.h>":
 
@@ -233,8 +217,11 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
     Py_DECREF(running_threads)
 
     IF PY_VERSION_HEX >= 0x030b0000:
-        cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
-        Py_DECREF(current_exceptions)
+        IF PY_VERSION_HEX >= 0x030d0000:
+            current_exceptions = sys._current_exceptions()
+        ELSE:
+            cdef dict current_exceptions = <dict>_PyThread_CurrentExceptions()
+            Py_DECREF(current_exceptions)
 
         for thread_id, exc_info in current_exceptions.items():
             if exc_info is None:

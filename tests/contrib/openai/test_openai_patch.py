@@ -3,14 +3,10 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.openai import get_version
-from ddtrace.contrib.openai.patch import patch
-
-
-try:
-    from ddtrace.contrib.openai.patch import unpatch
-except ImportError:
-    unpatch = None
+from ddtrace.contrib.internal.openai.patch import OPENAI_VERSION
+from ddtrace.contrib.internal.openai.patch import get_version
+from ddtrace.contrib.internal.openai.patch import patch
+from ddtrace.contrib.internal.openai.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
@@ -22,10 +18,136 @@ class TestOpenaiPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, openai):
-        pass
+        if OPENAI_VERSION >= (1, 8, 0):
+            self.assert_wrapped(openai._base_client.SyncAPIClient._process_response)
+            self.assert_wrapped(openai._base_client.AsyncAPIClient._process_response)
+        else:
+            self.assert_wrapped(openai._base_client.BaseClient._process_response)
+        self.assert_wrapped(openai.OpenAI.__init__)
+        self.assert_wrapped(openai.AsyncOpenAI.__init__)
+        self.assert_wrapped(openai.AzureOpenAI.__init__)
+        self.assert_wrapped(openai.AsyncAzureOpenAI.__init__)
+        self.assert_wrapped(openai.resources.models.Models.list)
+        self.assert_wrapped(openai.resources.models.Models.retrieve)
+        self.assert_wrapped(openai.resources.models.Models.delete)
+        self.assert_wrapped(openai.resources.models.AsyncModels.list)
+        self.assert_wrapped(openai.resources.models.AsyncModels.retrieve)
+        self.assert_wrapped(openai.resources.models.AsyncModels.delete)
+        self.assert_wrapped(openai.resources.completions.Completions.create)
+        self.assert_wrapped(openai.resources.chat.Completions.create)
+        self.assert_wrapped(openai.resources.completions.AsyncCompletions.create)
+        self.assert_wrapped(openai.resources.chat.AsyncCompletions.create)
+        self.assert_wrapped(openai.resources.images.Images.generate)
+        self.assert_wrapped(openai.resources.images.Images.edit)
+        self.assert_wrapped(openai.resources.images.Images.create_variation)
+        self.assert_wrapped(openai.resources.images.AsyncImages.generate)
+        self.assert_wrapped(openai.resources.images.AsyncImages.edit)
+        self.assert_wrapped(openai.resources.images.AsyncImages.create_variation)
+        self.assert_wrapped(openai.resources.audio.Transcriptions.create)
+        self.assert_wrapped(openai.resources.audio.Translations.create)
+        self.assert_wrapped(openai.resources.audio.AsyncTranscriptions.create)
+        self.assert_wrapped(openai.resources.audio.AsyncTranslations.create)
+        self.assert_wrapped(openai.resources.embeddings.Embeddings.create)
+        self.assert_wrapped(openai.resources.moderations.Moderations.create)
+        self.assert_wrapped(openai.resources.embeddings.AsyncEmbeddings.create)
+        self.assert_wrapped(openai.resources.moderations.AsyncModerations.create)
+        self.assert_wrapped(openai.resources.files.Files.create)
+        self.assert_wrapped(openai.resources.files.Files.retrieve)
+        self.assert_wrapped(openai.resources.files.Files.list)
+        self.assert_wrapped(openai.resources.files.Files.delete)
+        self.assert_wrapped(openai.resources.files.Files.retrieve_content)
+        self.assert_wrapped(openai.resources.files.AsyncFiles.create)
+        self.assert_wrapped(openai.resources.files.AsyncFiles.retrieve)
+        self.assert_wrapped(openai.resources.files.AsyncFiles.list)
+        self.assert_wrapped(openai.resources.files.AsyncFiles.delete)
+        self.assert_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
 
     def assert_not_module_patched(self, openai):
-        pass
+        if OPENAI_VERSION >= (1, 8, 0):
+            self.assert_not_wrapped(openai._base_client.SyncAPIClient._process_response)
+            self.assert_not_wrapped(openai._base_client.AsyncAPIClient._process_response)
+        else:
+            self.assert_not_wrapped(openai._base_client.BaseClient._process_response)
+        self.assert_not_wrapped(openai.OpenAI.__init__)
+        self.assert_not_wrapped(openai.AsyncOpenAI.__init__)
+        self.assert_not_wrapped(openai.AzureOpenAI.__init__)
+        self.assert_not_wrapped(openai.AsyncAzureOpenAI.__init__)
+        self.assert_not_wrapped(openai.resources.models.Models.list)
+        self.assert_not_wrapped(openai.resources.models.Models.retrieve)
+        self.assert_not_wrapped(openai.resources.models.Models.delete)
+        self.assert_not_wrapped(openai.resources.models.AsyncModels.list)
+        self.assert_not_wrapped(openai.resources.models.AsyncModels.retrieve)
+        self.assert_not_wrapped(openai.resources.models.AsyncModels.delete)
+        self.assert_not_wrapped(openai.resources.completions.Completions.create)
+        self.assert_not_wrapped(openai.resources.chat.Completions.create)
+        self.assert_not_wrapped(openai.resources.completions.AsyncCompletions.create)
+        self.assert_not_wrapped(openai.resources.chat.AsyncCompletions.create)
+        self.assert_not_wrapped(openai.resources.images.Images.generate)
+        self.assert_not_wrapped(openai.resources.images.Images.edit)
+        self.assert_not_wrapped(openai.resources.images.Images.create_variation)
+        self.assert_not_wrapped(openai.resources.images.AsyncImages.generate)
+        self.assert_not_wrapped(openai.resources.images.AsyncImages.edit)
+        self.assert_not_wrapped(openai.resources.images.AsyncImages.create_variation)
+        self.assert_not_wrapped(openai.resources.audio.Transcriptions.create)
+        self.assert_not_wrapped(openai.resources.audio.Translations.create)
+        self.assert_not_wrapped(openai.resources.audio.AsyncTranscriptions.create)
+        self.assert_not_wrapped(openai.resources.audio.AsyncTranslations.create)
+        self.assert_not_wrapped(openai.resources.embeddings.Embeddings.create)
+        self.assert_not_wrapped(openai.resources.moderations.Moderations.create)
+        self.assert_not_wrapped(openai.resources.embeddings.AsyncEmbeddings.create)
+        self.assert_not_wrapped(openai.resources.moderations.AsyncModerations.create)
+        self.assert_not_wrapped(openai.resources.files.Files.create)
+        self.assert_not_wrapped(openai.resources.files.Files.retrieve)
+        self.assert_not_wrapped(openai.resources.files.Files.list)
+        self.assert_not_wrapped(openai.resources.files.Files.delete)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.create)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.retrieve)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.list)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.delete)
+        self.assert_not_wrapped(openai.resources.files.AsyncFiles.retrieve_content)
 
     def assert_not_module_double_patched(self, openai):
-        pass
+        if OPENAI_VERSION >= (1, 8, 0):
+            self.assert_not_double_wrapped(openai._base_client.SyncAPIClient._process_response)
+            self.assert_not_double_wrapped(openai._base_client.AsyncAPIClient._process_response)
+        else:
+            self.assert_not_double_wrapped(openai._base_client.BaseClient._process_response)
+        self.assert_not_double_wrapped(openai.OpenAI.__init__)
+        self.assert_not_double_wrapped(openai.AsyncOpenAI.__init__)
+        self.assert_not_double_wrapped(openai.AzureOpenAI.__init__)
+        self.assert_not_double_wrapped(openai.AsyncAzureOpenAI.__init__)
+        self.assert_not_double_wrapped(openai.resources.models.Models.list)
+        self.assert_not_double_wrapped(openai.resources.models.Models.retrieve)
+        self.assert_not_double_wrapped(openai.resources.models.Models.delete)
+        self.assert_not_double_wrapped(openai.resources.models.AsyncModels.list)
+        self.assert_not_double_wrapped(openai.resources.models.AsyncModels.retrieve)
+        self.assert_not_double_wrapped(openai.resources.models.AsyncModels.delete)
+        self.assert_not_double_wrapped(openai.resources.completions.Completions.create)
+        self.assert_not_double_wrapped(openai.resources.chat.Completions.create)
+        self.assert_not_double_wrapped(openai.resources.completions.AsyncCompletions.create)
+        self.assert_not_double_wrapped(openai.resources.chat.AsyncCompletions.create)
+        self.assert_not_double_wrapped(openai.resources.images.Images.generate)
+        self.assert_not_double_wrapped(openai.resources.images.Images.edit)
+        self.assert_not_double_wrapped(openai.resources.images.Images.create_variation)
+        self.assert_not_double_wrapped(openai.resources.images.AsyncImages.generate)
+        self.assert_not_double_wrapped(openai.resources.images.AsyncImages.edit)
+        self.assert_not_double_wrapped(openai.resources.images.AsyncImages.create_variation)
+        self.assert_not_double_wrapped(openai.resources.audio.Transcriptions.create)
+        self.assert_not_double_wrapped(openai.resources.audio.Translations.create)
+        self.assert_not_double_wrapped(openai.resources.audio.AsyncTranscriptions.create)
+        self.assert_not_double_wrapped(openai.resources.audio.AsyncTranslations.create)
+        self.assert_not_double_wrapped(openai.resources.embeddings.Embeddings.create)
+        self.assert_not_double_wrapped(openai.resources.moderations.Moderations.create)
+        self.assert_not_double_wrapped(openai.resources.embeddings.AsyncEmbeddings.create)
+        self.assert_not_double_wrapped(openai.resources.moderations.AsyncModerations.create)
+        self.assert_not_double_wrapped(openai.resources.files.Files.create)
+        self.assert_not_double_wrapped(openai.resources.files.Files.retrieve)
+        self.assert_not_double_wrapped(openai.resources.files.Files.list)
+        self.assert_not_double_wrapped(openai.resources.files.Files.delete)
+        self.assert_not_double_wrapped(openai.resources.files.Files.retrieve_content)
+        self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.create)
+        self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.retrieve)
+        self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.list)
+        self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.delete)
+        self.assert_not_double_wrapped(openai.resources.files.AsyncFiles.retrieve_content)

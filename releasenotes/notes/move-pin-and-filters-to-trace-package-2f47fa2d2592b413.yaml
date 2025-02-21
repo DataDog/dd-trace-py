@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates ``ddtrace.pin`` module and moves the ``Pin`` class to ``ddtrace.trace`` package. In v3.0.0 the ``ddtrace/pin.py`` will be removed.
+  - |
+    tracing: Deprecates ``ddtrace.filters`` module and moves the ``TraceFilter`` and ``FilterRequestsOnUrl`` classes to ``ddtrace.trace`` package. In v3.0.0 the ``ddtrace/filters.py`` will be removed.

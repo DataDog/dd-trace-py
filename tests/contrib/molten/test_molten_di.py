@@ -3,9 +3,9 @@ from inspect import Parameter
 import molten
 from molten import DependencyInjector
 
-from ddtrace import Pin
-from ddtrace.contrib.molten import patch
-from ddtrace.contrib.molten import unpatch
+from ddtrace.contrib.internal.molten.patch import patch
+from ddtrace.contrib.internal.molten.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 
@@ -85,7 +85,7 @@ class TestMoltenDI(TracerTestCase):
     def setUp(self):
         super(TestMoltenDI, self).setUp()
         patch()
-        Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
+        Pin._override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
 
     def tearDown(self):
         unpatch()

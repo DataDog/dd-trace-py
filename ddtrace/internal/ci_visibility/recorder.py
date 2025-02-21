@@ -12,7 +12,6 @@ from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -39,7 +38,8 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.internal.ci_visibility._api_client import QuarantineSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -85,6 +85,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
+from ddtrace.trace import Tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -145,6 +146,12 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
     return result
 
 
+class CIVisibilityTracer(Tracer):
+    def __init__(self, *args, **kwargs):
+        # Allows for multiple instances of the civis tracer to be created without logging a warning
+        super(CIVisibilityTracer, self).__init__(*args, **kwargs)
+
+
 class CIVisibility(Service):
     _instance = None  # type: Optional[CIVisibility]
     enabled = False
@@ -166,13 +173,13 @@ class CIVisibility(Service):
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
 
-                self.tracer = Tracer(context_provider=CIContextProvider(), url=url)
+                self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:
                 self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
+            self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
@@ -204,6 +211,7 @@ class CIVisibility(Service):
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
+        self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -393,7 +401,7 @@ class CIVisibility(Service):
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer.configure(writer=writer)
+            self.tracer._configure(writer=writer)
 
     def _agent_evp_proxy_is_available(self):
         # type: () -> bool
@@ -448,19 +456,11 @@ class CIVisibility(Service):
         )
 
     @classmethod
-    def is_quarantine_enabled(cls):
+    def is_test_management_enabled(cls):
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.quarantine.enabled and asbool(
-            os.getenv("DD_TEST_QUARANTINE_ENABLED", default=True)
-        )
-
-    @classmethod
-    def should_skip_quarantined_tests(cls):
-        if cls._instance is None:
-            return False
-        return cls._instance._api_settings.quarantine.skip_quarantined_tests and asbool(
-            os.getenv("DD_TEST_QUARANTINE_ENABLED", default=True)
+        return cls._instance._api_settings.test_management.enabled and asbool(
+            os.getenv("DD_TEST_MANAGEMENT_ENABLED", default=True)
         )
 
     @classmethod
@@ -500,6 +500,15 @@ class CIVisibility(Service):
             if self._api_client is not None:
                 return self._api_client.fetch_unique_tests()
             log.warning("API client not initialized, cannot fetch unique tests")
+        except Exception:
+            log.debug("Error fetching unique tests", exc_info=True)
+        return None
+
+    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
+        try:
+            if self._api_client is not None:
+                return self._api_client.fetch_test_management_tests()
+            log.warning("API client not initialized, cannot fetch tests from Test Management")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
         return None
@@ -564,12 +573,12 @@ class CIVisibility(Service):
             "test skipping: %s, "
             "Early Flake Detection: %s, "
             "Auto Test Retries: %s, "
-            "Quarantine: %s",
+            "Flaky Test Management: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
             CIVisibility.is_atr_enabled(),
-            CIVisibility.is_quarantine_enabled(),
+            CIVisibility.is_test_management_enabled(),
         )
 
     @classmethod
@@ -591,10 +600,10 @@ class CIVisibility(Service):
 
     def _start_service(self):
         # type: () -> None
-        tracer_filters = self.tracer._filters
+        tracer_filters = self.tracer._user_trace_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer._configure(trace_processors=tracer_filters)
 
         if self.test_skipping_enabled():
             self._fetch_tests_to_skip()
@@ -629,6 +638,13 @@ class CIVisibility(Service):
                 "Auto Test Retries is enabled by API but disabled by "
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
             )
+
+        if self._api_settings.test_management.enabled:
+            test_properties = self._fetch_test_management_tests()
+            if test_properties is None:
+                log.warning("Failed to fetch quarantined tests from Test Management")
+            else:
+                self._test_properties = test_properties
 
     def _stop_service(self):
         # type: () -> None
@@ -841,7 +857,7 @@ class CIVisibility(Service):
         return None
 
     @classmethod
-    def get_quarantine_api_settings(cls) -> Optional[QuarantineSettings]:
+    def get_test_management_api_settings(cls) -> Optional[TestManagementSettings]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
             log.warning(error_msg)
@@ -849,7 +865,7 @@ class CIVisibility(Service):
         instance = cls.get_instance()
         if instance is None or instance._api_settings is None:
             return None
-        return instance._api_settings.quarantine
+        return instance._api_settings.test_management
 
     @classmethod
     def get_workspace_path(cls) -> Optional[str]:
@@ -931,13 +947,12 @@ class CIVisibility(Service):
         return test_id in instance._unique_test_ids
 
     @classmethod
-    def is_quarantined(cls, test_id: Union[TestId, InternalTestId]) -> bool:
+    def get_test_properties(cls, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
         instance = cls.get_instance()
         if instance is None:
-            return False
+            return None
 
-        # TODO: retrieve this information from the API, once it is available in the backend.
-        return False
+        return instance._test_properties.get(test_id)
 
 
 def _requires_civisibility_enabled(func):
@@ -978,9 +993,9 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     if atr_api_settings is None or not CIVisibility.is_atr_enabled():
         atr_api_settings = AutoTestRetriesSettings()
 
-    quarantine_api_settings = CIVisibility.get_quarantine_api_settings()
-    if quarantine_api_settings is None or not CIVisibility.is_quarantine_enabled():
-        quarantine_api_settings = QuarantineSettings()
+    test_management_api_settings = CIVisibility.get_test_management_api_settings()
+    if test_management_api_settings is None or not CIVisibility.is_test_management_enabled():
+        test_management_api_settings = TestManagementSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -1003,7 +1018,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs):
         coverage_enabled=CIVisibility.should_collect_coverage(),
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
-        quarantine_settings=quarantine_api_settings,
+        test_management_settings=test_management_api_settings,
     )
 
     session = TestVisibilitySession(
@@ -1045,12 +1060,6 @@ def _on_session_get_workspace_path() -> Optional[Path]:
 def _on_session_should_collect_coverage() -> bool:
     log.debug("Handling should collect coverage")
     return CIVisibility.should_collect_coverage()
-
-
-@_requires_civisibility_enabled
-def _on_session_should_skip_quarantined_tests() -> bool:
-    log.debug("Handling should skip quarantined tests")
-    return CIVisibility.should_skip_quarantined_tests()
 
 
 @_requires_civisibility_enabled
@@ -1114,11 +1123,6 @@ def _register_session_handlers():
         "is_test_skipping_enabled",
     )
     core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
-    core.on(
-        "test_visibility.session.should_skip_quarantined_tests",
-        _on_session_should_skip_quarantined_tests,
-        "should_skip_quarantined_tests",
-    )
 
 
 @_requires_civisibility_enabled
@@ -1205,10 +1209,12 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     else:
         is_new = False
 
-    if CIVisibility.is_quarantine_enabled():
-        is_quarantined = CIVisibility.is_quarantined(discover_args.test_id)
-    else:
-        is_quarantined = False
+    test_properties = None
+    if CIVisibility.is_test_management_enabled():
+        test_properties = CIVisibility.get_test_properties(discover_args.test_id)
+
+    if not test_properties:
+        test_properties = TestProperties()
 
     suite.add_child(
         discover_args.test_id,
@@ -1220,7 +1226,8 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
             is_new=is_new,
-            is_quarantined=is_quarantined,
+            is_quarantined=test_properties.quarantined,
+            is_disabled=test_properties.disabled,
         ),
     )
 
@@ -1235,6 +1242,12 @@ def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
 def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is quarantined test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_quarantined()
+
+
+@_requires_civisibility_enabled
+def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is disabled test for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_disabled()
 
 
 @_requires_civisibility_enabled
@@ -1283,6 +1296,7 @@ def _register_test_handlers():
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
     core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
+    core.on("test_visibility.test.is_disabled", _on_is_disabled_test, "is_disabled")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)

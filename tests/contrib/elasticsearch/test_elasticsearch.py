@@ -1,18 +1,19 @@
 import datetime
 from http.client import HTTPConnection
 from importlib import import_module
+import json
 import time
 
 import pytest
 
-from ddtrace import Pin
 from ddtrace import config
-from ddtrace.contrib.elasticsearch.patch import get_version
-from ddtrace.contrib.elasticsearch.patch import get_versions
-from ddtrace.contrib.elasticsearch.patch import patch
-from ddtrace.contrib.elasticsearch.patch import unpatch
+from ddtrace.contrib.internal.elasticsearch.patch import get_version
+from ddtrace.contrib.internal.elasticsearch.patch import get_versions
+from ddtrace.contrib.internal.elasticsearch.patch import patch
+from ddtrace.contrib.internal.elasticsearch.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 
@@ -91,7 +92,9 @@ class ElasticsearchPatchTest(TracerTestCase):
             # `custom_tag` is a custom tag that can be set via `Pin`.
             "custom_tag": "bar",
         }
-        Pin(tracer=self.tracer, tags=tags).onto(es.transport)
+        pin = Pin(tags=tags)
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
         self.create_index(es)
 
         patch()
@@ -167,7 +170,12 @@ class ElasticsearchPatchTest(TracerTestCase):
             es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
             es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
             es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
-            result = es.search(sort=["name:desc"], size=100, body={"query": {"match_all": {}}}, **args)
+            result = es.search(
+                sort={"name": {"order": "desc", "unmapped_type": "keyword"}},
+                size=100,
+                body={"query": {"match_all": {}}},
+                **args,
+            )
 
         assert len(result["hits"]["hits"]) == 3, result
         spans = self.get_spans()
@@ -183,13 +191,25 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert url.endswith("/_search")
         assert url == span.get_tag("elasticsearch.url")
         if elasticsearch.__version__ >= (8, 0, 0):
-            assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}},"size":100}'
-            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc"}
-            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc"}
+            # Key order is not consistent, parse into dict to compare
+            body = json.loads(span.get_tag("elasticsearch.body"))
+            assert body == {
+                "query": {"match_all": {}},
+                "sort": {"name": {"order": "desc", "unmapped_type": "keyword"}},
+                "size": 100,
+            }
+            assert not span.get_tag("elasticsearch.params")
+            assert not span.get_tag(http.QUERY_STRING)
         else:
             assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
-            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
-            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
+            assert set(span.get_tag("elasticsearch.params").split("&")) == {
+                "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
+                "size=100",
+            }
+            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {
+                "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
+                "size=100",
+            }
         assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("span.kind") == "client"
 
@@ -207,7 +227,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        Pin(tracer=self.tracer).onto(es.transport)
+        pin = Pin()
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -235,7 +257,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = self._get_es()
-        Pin(tracer=self.tracer).onto(es.transport)
+        pin = Pin()
+        pin._tracer = self.tracer
+        pin.onto(es.transport)
 
         # Test index creation
         self.create_index(es)
@@ -268,7 +292,9 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert config.service == "mysvc"
 
         self.create_index(self.es)
-        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        pin = Pin(service="es")
+        pin._tracer = self.tracer
+        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
@@ -285,7 +311,9 @@ class ElasticsearchPatchTest(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
         self.create_index(self.es)
-        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        pin = Pin(service="es")
+        pin._tracer = self.tracer
+        pin.onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1

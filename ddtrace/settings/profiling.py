@@ -13,7 +13,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 logger = get_logger(__name__)
@@ -334,7 +334,7 @@ class ProfilingConfigStack(En):
     _v2_enabled = En.v(
         bool,
         "v2_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to enable the v2 stack profiler. Also enables the libdatadog collector.",
     )

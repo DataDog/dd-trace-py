@@ -4,20 +4,16 @@ import sanic
 import wrapt
 from wrapt import wrap_function_wrapper as _w
 
-import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -47,7 +43,10 @@ def update_span(span, response):
     #      and so use 500
     status_code = getattr(response, "status", 500)
     response_headers = getattr(response, "headers", None)
-    trace_utils.set_http_meta(span, config.sanic, status_code=status_code, response_headers=response_headers)
+
+    core.dispatch(
+        "web.request.finish", (span, config.sanic, None, None, status_code, None, None, response_headers, None, False)
+    )
 
 
 def _wrap_response_callback(span, callback):
@@ -200,31 +199,35 @@ def _create_sanic_request_span(request):
 
     headers = request.headers.copy()
 
-    trace_utils.activate_distributed_headers(ddtrace.tracer, int_config=config.sanic, request_headers=headers)
-
-    span = pin.tracer.trace(
-        schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
+    with core.context_with_data(
+        "sanic.request",
+        span_name=schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
+        span_type=SpanTypes.WEB,
         service=trace_utils.int_service(None, config.sanic),
         resource=resource,
-        span_type=SpanTypes.WEB,
-    )
-    span.set_tag_str(COMPONENT, config.sanic.integration_name)
+        tags={},
+        pin=pin,
+        distributed_headers=headers,
+        distributed_headers_config=config.sanic,
+        headers_case_sensitive=True,
+        analytics_sample_rate=config.sanic.get_analytics_sample_rate(use_global_config=True),
+    ) as ctx:
+        req_span = ctx.span
 
-    # set span.kind to the type of operation being performed
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+        ctx.set_item("req_span", req_span)
+        core.dispatch("web.request.start", (ctx, config.sanic))
 
-    sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        method = request.method
+        url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+        query_string = request.query_string
+        if isinstance(query_string, bytes):
+            query_string = query_string.decode()
 
-    method = request.method
-    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-    query_string = request.query_string
-    if isinstance(query_string, bytes):
-        query_string = query_string.decode()
-    trace_utils.set_http_meta(span, config.sanic, method=method, url=url, query=query_string, request_headers=headers)
+        core.dispatch(
+            "web.request.finish", (req_span, config.sanic, method, url, None, query_string, headers, None, None, False)
+        )
 
-    return span
+        return req_span
 
 
 async def sanic_http_lifecycle_handle(request):
@@ -273,7 +276,7 @@ async def sanic_http_lifecycle_exception(request, exception):
     # Do not attach exception for exceptions not considered as errors
     # ex: Http 400s
     # DEV: We still need to set `__dd_span_call_finish` below
-    if not hasattr(exception, "status_code") or config.http_server.is_error_code(exception.status_code):
+    if not hasattr(exception, "status_code") or config._http_server.is_error_code(exception.status_code):
         ex_type = type(exception)
         ex_tb = getattr(exception, "__traceback__", None)
         span.set_exc_info(ex_type, exception, ex_tb)

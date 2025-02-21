@@ -5,15 +5,14 @@ from typing import Generator  # noqa:F401
 import mock
 import pytest
 
-from ddtrace import Tracer
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import SamplingRule
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import SamplingRule
+from tests.integration.utils import AGENT_VERSION
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -21,9 +20,8 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer():
-    # type: (float) -> Generator[Tracer, None, None]
     with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = Tracer()
+        tracer = DummyTracer()
         yield tracer
         tracer.shutdown()
 
@@ -70,10 +68,10 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     """Ensure stats computation can be enabled."""
 
     # Test enabling via `configure`
-    t = Tracer()
+    t = DummyTracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(compute_stats_enabled=True)
+    t._configure(compute_stats_enabled=True)
     assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     assert t._compute_stats
 
@@ -82,7 +80,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envv
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 assert config._trace_compute_stats is True
@@ -100,30 +98,33 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
-def test_apm_opt_out_compute_stats_and_configure(run_python_code_in_subprocess):
+@pytest.mark.subprocess(err=None)
+def test_apm_opt_out_compute_stats_and_configure():
     """
     Ensure stats computation is disabled, but reported as enabled,
     if APM is opt-out.
     """
+    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
+    from ddtrace.trace import tracer as t
 
     # Test via `configure`
-    t = Tracer()
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t.configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    t._configure(appsec_enabled=True, appsec_standalone_enabled=True)
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     # the stats computation is disabled
     assert not t._compute_stats
     # but it's reported as enabled
     assert t._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
-    t.configure(appsec_enabled=False, appsec_standalone_enabled=False)
 
+
+def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
     # Test via environment variable
     env = os.environ.copy()
     env.update({"DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED": "true", "DD_APPSEC_ENABLED": "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 from ddtrace import config
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 # the stats computation is disabled (completely, for both agent and tracer)
@@ -221,7 +222,7 @@ def test_measured_span(send_once_stats_tracer):
     for _ in range(10):
         with send_once_stats_tracer.trace("parent"):  # Should have stats
             with send_once_stats_tracer.trace("child_stats") as span:  # Should have stats
-                span.set_tag(SPAN_MEASURED_KEY)
+                span.set_tag(_SPAN_MEASURED_KEY)
 
 
 @pytest.mark.snapshot()
@@ -239,7 +240,7 @@ def test_top_level(send_once_stats_tracer):
 @pytest.mark.snapshot()
 def test_single_span_sampling(stats_tracer, sampling_rule):
     sampler = DatadogSampler([sampling_rule])
-    stats_tracer.configure(sampler=sampler)
+    stats_tracer._configure(sampler=sampler)
     with stats_tracer.trace("parent", service="test"):
         with stats_tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule

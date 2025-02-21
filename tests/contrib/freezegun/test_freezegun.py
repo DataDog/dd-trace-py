@@ -4,16 +4,16 @@ import time
 
 import pytest
 
-from ddtrace import tracer as dd_tracer
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.trace import tracer as dd_tracer
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
 class TestFreezegunTestCase:
     @pytest.fixture(autouse=True)
     def _patch_freezegun(self):
-        from ddtrace.contrib.freezegun import patch
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import patch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         patch()
         yield
@@ -22,7 +22,7 @@ class TestFreezegunTestCase:
     def test_freezegun_unpatch(self):
         import freezegun
 
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         unpatch()
 
@@ -75,7 +75,7 @@ class PytestFreezegunTestCase(PytestTestCaseBase):
         """Tests that pytest's patching of freezegun in the v1 plugin version works"""
         import sys
 
-        from ddtrace.contrib.freezegun import unpatch
+        from ddtrace.contrib.internal.freezegun.patch import unpatch
 
         unpatch()
         if "freezegun" in sys.modules:
@@ -88,7 +88,7 @@ class PytestFreezegunTestCase(PytestTestCaseBase):
 
             import freezegun
 
-            from ddtrace import tracer as dd_tracer
+            from ddtrace.trace import tracer as dd_tracer
 
             def test_pytest_patched_freezegun():
                 with freezegun.freeze_time("2020-01-01"):

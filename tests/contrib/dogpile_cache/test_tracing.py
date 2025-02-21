@@ -3,9 +3,9 @@ import os
 import dogpile
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.dogpile_cache.patch import patch
-from ddtrace.contrib.dogpile_cache.patch import unpatch
+from ddtrace.contrib.internal.dogpile_cache.patch import patch
+from ddtrace.contrib.internal.dogpile_cache.patch import unpatch
+from ddtrace.trace import Pin
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -31,7 +31,7 @@ def region(tracer):
     # The backend is trivial so we can use memory to simplify test setup.
     test_region = dogpile.cache.make_region(name="TestRegion", key_mangler=lambda x: x)
     test_region.configure("dogpile.cache.memory")
-    Pin.override(dogpile.cache, tracer=tracer)
+    Pin._override(dogpile.cache, tracer=tracer)
     return test_region
 
 

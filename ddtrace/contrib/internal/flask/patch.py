@@ -29,14 +29,14 @@ except ImportError:
 
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
-from ddtrace.contrib.trace_utils import unwrap as _u
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.trace import Pin
 
 from .wrappers import _wrap_call_with_pin_check
 from .wrappers import get_current_app
@@ -224,6 +224,10 @@ def patch():
     _w("flask.templating", "_render", patched_render)
     _w("flask", "render_template", _build_render_template_wrapper("render_template"))
     _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
+    try:
+        _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
+    except AttributeError:
+        log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
 
     bp_hooks = [
         "after_app_request",
@@ -380,12 +384,8 @@ def patched_finalize_request(wrapped, instance, args, kwargs):
     Wrapper for flask.app.Flask.finalize_request
     """
     rv = wrapped(*args, **kwargs)
-    response = None
-    headers = None
     if getattr(rv, "is_sequence", False):
-        response = rv.response
-        headers = rv.headers
-    core.dispatch("flask.finalize_request.post", (response, headers))
+        core.dispatch("flask.finalize_request.post", (rv.response, rv.headers))
     return rv
 
 
@@ -417,6 +417,12 @@ def patched_blueprint_add_url_rule(wrapped, instance, args, kwargs):
         return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
 
     return _wrap(*args, **kwargs)
+
+
+def patched_render_debugger_html(wrapped, instance, args, kwargs):
+    res = wrapped(*args, **kwargs)
+    core.dispatch("werkzeug.render_debugger_html", (res,))
+    return res
 
 
 def patched_add_url_rule(wrapped, instance, args, kwargs):

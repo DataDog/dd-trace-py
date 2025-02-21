@@ -1,29 +1,28 @@
 from __future__ import division
 
-import re
 import unittest
 
 import mock
 import pytest
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import RateByServiceSampler
+from ddtrace._trace.sampler import RateSampler
+from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
-from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.sampler import DatadogSampler
-from ddtrace.sampler import RateByServiceSampler
-from ddtrace.sampler import RateSampler
-from ddtrace.sampling_rule import SamplingRule
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
@@ -51,10 +50,10 @@ def assert_sampling_decision_tags(
     :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
     :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``-{SAMPLINGMECHANISM}``.
     """
-    metric_agent = span.get_metric(SAMPLING_AGENT_DECISION)
-    metric_limit = span.get_metric(SAMPLING_LIMIT_DECISION)
-    metric_rule = span.get_metric(SAMPLING_RULE_DECISION)
-    metric_sampling_priority = span.get_metric(SAMPLING_PRIORITY_KEY)
+    metric_agent = span.get_metric(_SAMPLING_AGENT_DECISION)
+    metric_limit = span.get_metric(_SAMPLING_LIMIT_DECISION)
+    metric_rule = span.get_metric(_SAMPLING_RULE_DECISION)
+    metric_sampling_priority = span.get_metric(_SAMPLING_PRIORITY_KEY)
     if agent:
         assert metric_agent == agent
     if limit:
@@ -192,7 +191,7 @@ def test_sample_rate_deviation_64bit_trace_id():
 def _test_sample_rate_deviation():
     for sample_rate in [0.1, 0.25, 0.5, 1]:
         tracer = DummyTracer()
-        tracer.configure(sampler=RateByServiceSampler())
+        tracer._configure(sampler=RateByServiceSampler())
         tracer._sampler.set_sample_rate(sample_rate)
 
         iterations = int(1e4 / sample_rate)
@@ -250,7 +249,7 @@ def test_sampling_rule_init_defaults():
 
 
 def test_sampling_rule_init():
-    a_regex = re.compile(r"\.request$")
+    a_regex = "*request"
     a_string = "my-service"
 
     rule = SamplingRule(
@@ -261,7 +260,7 @@ def test_sampling_rule_init():
 
     assert rule.sample_rate == 0.0, "SamplingRule should store the rate it's initialized with"
     assert rule.service.pattern == a_string, "SamplingRule should store the service it's initialized with"
-    assert rule.name == a_regex, "SamplingRule should store the name regex it's initialized with"
+    assert rule.name.pattern == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
 @pytest.mark.parametrize(
@@ -272,37 +271,12 @@ def test_sampling_rule_init():
         (SamplingRule(sample_rate=0.0), SamplingRule(sample_rate=0.0), True),
         (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=1.0), False),
         (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="my-svc"), True),
-        (
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
-            True,
-        ),
         (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="other-svc"), False),
         (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=0.5, service="my-svc"), False),
         (
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
-            SamplingRule(sample_rate=0.5, service=re.compile("my-svc")),
-            False,
-        ),
-        (
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
-            SamplingRule(sample_rate=1.0, service=re.compile("other")),
-            False,
-        ),
-        (
             SamplingRule(sample_rate=1.0, name="span.name"),
             SamplingRule(sample_rate=1.0, name="span.name"),
             True,
-        ),
-        (
-            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
-            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
-            True,
-        ),
-        (
-            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
-            SamplingRule(sample_rate=1.0, name=re.compile("span.other")),
-            False,
         ),
         (
             SamplingRule(sample_rate=1.0, name="span.name"),
@@ -314,16 +288,6 @@ def test_sampling_rule_init():
         (
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
             SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
-            True,
-        ),
-        (
-            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
-            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
-            True,
-        ),
-        (
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
-            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
             True,
         ),
         (
@@ -491,15 +455,6 @@ def test_sampling_rule_init_via_env():
             ("test.span", None, False),
             ("test.span", "test.span", True),
             ("test.span", "test_span", False),
-            ("test.span", re.compile(r"^test\.span$"), True),
-            ("test_span", re.compile(r"^test.span$"), True),
-            ("test.span", re.compile(r"^test_span$"), False),
-            ("test.span", re.compile(r"test"), True),
-            ("test.span", re.compile(r"test\.span|another\.span"), True),
-            ("another.span", re.compile(r"test\.span|another\.span"), True),
-            ("test.span", lambda name: "span" in name, True),
-            ("test.span", lambda name: "span" not in name, False),
-            ("test.span", lambda name: 1 / 0, False),
         ]
     ],
 )
@@ -518,20 +473,8 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
             ("my-service", None, False),
             (None, "tests.tracer", True),
             ("tests.tracer", "my-service", False),
-            ("tests.tracer", re.compile(r"my-service"), False),
-            ("tests.tracer", lambda service: "service" in service, False),
             ("my-service", "my-service", True),
             ("my-service", "my_service", False),
-            ("my-service", re.compile(r"^my-"), True),
-            ("my_service", re.compile(r"^my[_-]"), True),
-            ("my-service", re.compile(r"^my_"), False),
-            ("my-service", re.compile(r"my-service"), True),
-            ("my-service", re.compile(r"my"), True),
-            ("my-service", re.compile(r"my-service|another-service"), True),
-            ("another-service", re.compile(r"my-service|another-service"), True),
-            ("my-service", lambda service: "service" in service, True),
-            ("my-service", lambda service: "service" not in service, False),
-            ("my-service", lambda service: 1 / 0, False),
         ]
     ],
 )
@@ -553,7 +496,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
             SamplingRule(
                 sample_rate=1,
                 name="test.span",
-                service=re.compile(r"^my-"),
+                service="my-*",
             ),
             True,
         ),
@@ -567,7 +510,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
             SamplingRule(
                 sample_rate=0,
                 name="test.span",
-                service=re.compile(r"^my-"),
+                service="my-*",
             ),
             True,
         ),
@@ -580,7 +523,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
             SamplingRule(
                 sample_rate=1,
                 name="test_span",
-                service=re.compile(r"^my-"),
+                service="my-*",
             ),
             False,
         ),
@@ -593,7 +536,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
             SamplingRule(
                 sample_rate=1,
                 name="test.span",
-                service=re.compile(r"^service-"),
+                service="service-",
             ),
             False,
         ),
@@ -605,32 +548,12 @@ def test_sampling_rule_matches(span, rule, span_expected_to_match_rule):
     )
 
 
-def test_sampling_rule_matches_exception():
-    def pattern(prop):
-        raise Exception("an error occurred")
-
-    rule = SamplingRule(sample_rate=1.0, name=pattern)
-    span = create_span(name="test.span")
-
-    with mock.patch("ddtrace.sampling_rule.log") as mock_log:
-        assert (
-            rule.matches(span) is False
-        ), "SamplingRule should not match when its name pattern function throws an exception"
-        mock_log.warning.assert_called_once_with(
-            "%r pattern %r failed with %r",
-            rule,
-            pattern,
-            "test.span",
-            exc_info=True,
-        )
-
-
 @pytest.mark.subprocess(
     parametrize={"DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": ["true", "false"]},
 )
 def test_sampling_rule_sample():
-    from ddtrace._trace.span import Span
-    from ddtrace.sampling_rule import SamplingRule
+    from ddtrace._trace.sampling_rule import SamplingRule
+    from ddtrace.trace import Span
 
     for sample_rate in [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991]:
         rule = SamplingRule(sample_rate=sample_rate)
@@ -643,21 +566,6 @@ def test_sampling_rule_sample():
             "Actual sample rate should be within 5 percent of set sample "
             "rate (actual: %f, set: %f, sampled count: %f)" % (deviation, sample_rate, sampled)
         )
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLE_RATE": "0.2"})
-def test_sampling_rate_config_deprecated():
-    import warnings
-
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        from ddtrace import config
-
-        assert config._trace_sample_rate == 0.2
-
-        assert len(ws) >= 1
-        assert any(w for w in ws if "DD_TRACE_SAMPLE_RATE is deprecated" in str(w.message)), [w.message for w in ws]
 
 
 def test_sampling_rule_sample_rate_1():
@@ -727,15 +635,6 @@ def test_datadog_sampler_init():
             SamplingRule(sample_rate=0.5)
         ], "DatadogSampler initialized with no arguments and envvars set should hold a sample_rate from the envvar"
 
-    with override_global_config(dict(_trace_sample_rate=0)):
-        sampler = DatadogSampler()
-        assert (
-            sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-        ), "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold the default rate limit"
-        assert sampler.rules == [
-            SamplingRule(sample_rate=0)
-        ], "DatadogSampler initialized with DD_TRACE_SAMPLE_RATE=0 envvar should hold sample_rate=0"
-
     with override_global_config(dict(_trace_sample_rate="asdf")):
         with pytest.raises(ValueError):
             DatadogSampler()
@@ -766,10 +665,10 @@ def test_datadog_sampler_init():
     )
 
 
-@mock.patch("ddtrace.sampler.RateSampler.sample")
+@mock.patch("ddtrace._trace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
-    dummy_tracer.configure(sampler=sampler)
+    dummy_tracer._configure(sampler=sampler)
 
     mock_sample.return_value = True
     dummy_tracer.trace("test").finish()
@@ -935,7 +834,7 @@ class MatchNoSample(SamplingRule):
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mechanism, rule, limit, dummy_tracer):
-    dummy_tracer.configure(sampler=sampler)
+    dummy_tracer._configure(sampler=sampler)
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
@@ -952,7 +851,7 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
 def test_datadog_sampler_tracer_child(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer.configure(sampler=sampler)
+    dummy_tracer._configure(sampler=sampler)
 
     with dummy_tracer.trace("parent.span"):
         dummy_tracer.trace("child.span").finish()
@@ -978,7 +877,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer.configure(sampler=sampler)
+    dummy_tracer._configure(sampler=sampler)
     dummy_tracer.start_span("test.span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "A tracer using a DatadogSampler should emit all of its spans"

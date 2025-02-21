@@ -11,15 +11,18 @@ import pytest
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.ext import http
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 from tests.utils import snapshot
 
 from .web import StubApp
@@ -55,7 +58,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         )
 
     def test_and_emit_get_version(self):
-        from ddtrace.contrib.cherrypy import get_version
+        from ddtrace.contrib.internal.cherrypy.patch import get_version
 
         version = get_version()
         assert type(version) == str
@@ -286,7 +289,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id == 1234
         assert s.parent_id == 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) == 2
 
     def test_disabled_distributed_tracing_config(self):
         previous_distributed_tracing = config.cherrypy["distributed_tracing"]
@@ -313,7 +316,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
 
         config.cherrypy["distributed_tracing"] = previous_distributed_tracing
 
@@ -342,7 +345,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
 
         cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 
@@ -479,6 +482,78 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
 
         cherrypy.tools.tracer.service = previous_service
 
+    def test_inferred_spans_api_gateway_default(self):
+        default_headers = [
+            ("x-dd-proxy", "aws-apigateway"),
+            ("x-dd-proxy-request-time-ms", "1736973768000"),
+            ("x-dd-proxy-path", "/"),
+            ("x-dd-proxy-httpmethod", "GET"),
+            ("x-dd-proxy-domain-name", "local"),
+            ("x-dd-proxy-stage", "stage"),
+        ]
+
+        distributed_headers = [
+            ("x-dd-proxy", "aws-apigateway"),
+            ("x-dd-proxy-request-time-ms", "1736973768000"),
+            ("x-dd-proxy-path", "/"),
+            ("x-dd-proxy-httpmethod", "GET"),
+            ("x-dd-proxy-domain-name", "local"),
+            ("x-dd-proxy-stage", "stage"),
+            ("x-datadog-trace-id", "1"),
+            ("x-datadog-parent-id", "2"),
+            ("x-datadog-origin", "rum"),
+            ("x-datadog-sampling-priority", "2"),
+        ]
+        for setting_enabled in [True, False]:
+            for test_endpoint in [
+                {
+                    "endpoint": "/",
+                    "status": 200,
+                    "resource_name": "GET /",
+                },
+                {
+                    "endpoint": "/fatal",
+                    "status": 500,
+                    "resource_name": "GET /fatal",
+                },
+                {
+                    "endpoint": "/error",
+                    "status": 500,
+                    "resource_name": "GET /error",
+                },
+            ]:
+                with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                    for test_headers in [default_headers, distributed_headers]:
+                        self.getPage(test_endpoint["endpoint"], headers=test_headers)
+                        time.sleep(0.1)
+                        traces = self.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+
+                            assert_web_and_inferred_aws_api_gateway_span_data(
+                                aws_gateway_span,
+                                web_span,
+                                web_span_name="cherrypy.request",
+                                web_span_component="cherrypy",
+                                web_span_service_name="test.cherrypy.service",
+                                web_span_resource="GET " + test_endpoint["endpoint"],
+                                api_gateway_service_name="local",
+                                api_gateway_resource="GET /",
+                                method="GET",
+                                status_code=test_endpoint["status"],
+                                url="local/",
+                                start=1736973768,
+                                is_distributed=test_headers == distributed_headers,
+                                distributed_trace_id=1,
+                                distributed_parent_id=2,
+                                distributed_sampling_priority=USER_KEEP,
+                            )
+
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None
+
 
 class TestCherrypySnapshot(helper.CPWebCase):
     @staticmethod
@@ -543,7 +618,7 @@ import time
 from cherrypy.test import helper
 from tests.utils import TracerTestCase
 from tests.contrib.cherrypy.web import StubApp
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 class TestCherrypy(TracerTestCase, helper.CPWebCase):
     @staticmethod
     def setup_server():
@@ -602,7 +677,7 @@ import time
 from cherrypy.test import helper
 from tests.utils import TracerTestCase
 from tests.contrib.cherrypy.web import StubApp
-from ddtrace.contrib.cherrypy import TraceMiddleware
+from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 class TestCherrypy(TracerTestCase, helper.CPWebCase):
     @staticmethod
     def setup_server():

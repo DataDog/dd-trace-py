@@ -5,9 +5,9 @@ import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
-from ddtrace import Pin
-from ddtrace.contrib.psycopg.patch import patch
-from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.contrib.internal.psycopg.patch import patch
+from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -36,7 +36,7 @@ class PsycopgCore(AsyncioTestCase):
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
         pin = Pin.get_from(conn)
         if pin:
-            pin.clone(service=service, tracer=self.tracer).onto(conn)
+            pin._clone(service=service, tracer=self.tracer).onto(conn)
 
         return conn
 

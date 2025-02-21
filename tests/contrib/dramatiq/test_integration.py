@@ -3,9 +3,9 @@ import unittest
 import dramatiq
 import pytest
 
-from ddtrace.contrib.dramatiq import patch
-from ddtrace.contrib.dramatiq import unpatch
-from ddtrace.pin import Pin
+from ddtrace.contrib.internal.dramatiq.patch import patch
+from ddtrace.contrib.internal.dramatiq.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import snapshot
 
@@ -35,7 +35,9 @@ class DramatiqSnapshotTests(unittest.TestCase):
         unpatch()
 
         tracer = DummyTracer()
-        Pin(tracer=tracer).onto(dramatiq)
+        pin = Pin()
+        pin._tracer = tracer
+        pin.onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():
@@ -51,7 +53,9 @@ class DramatiqSnapshotTests(unittest.TestCase):
         # the body of the function is not instrumented so calling it
         # directly doesn't create a trace
         tracer = DummyTracer()
-        Pin(tracer=tracer).onto(dramatiq)
+        pin = Pin()
+        pin._tracer = tracer
+        pin.onto(dramatiq)
 
         @dramatiq.actor
         def fn_task():
@@ -92,7 +96,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
         fn_task.send()
 
     # Ignoring these two values due to variance in method name
-    # Python 3.7 - 3.9 -> send_with_options
+    # Python 3.8 - 3.9 -> send_with_options
     # Python 3.10+ -> Actor.send_with_options
     @snapshot(ignores=["meta.error.message", "meta.error.stack"], wait_for_num_traces=1)
     def test_send_exception(self):

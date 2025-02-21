@@ -2,12 +2,13 @@
 import pymemcache
 import pytest
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
+
+# project
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config
@@ -67,7 +68,7 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
 
     def make_client(self, mock_socket_values, **kwargs):
         tracer = DummyTracer()
-        Pin.override(pymemcache, tracer=tracer)
+        Pin._override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
         return self.client

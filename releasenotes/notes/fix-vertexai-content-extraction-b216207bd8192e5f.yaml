@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    vertexai: Resolves an issue with ``chat.send_message()`` where the content keyword argument was not parsed correctly.

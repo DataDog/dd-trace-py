@@ -110,16 +110,17 @@ benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
+ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/appsec/            @DataDog/asm-python
+ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
-tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
-tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 scripts/iast/*                      @DataDog/asm-python
@@ -146,6 +147,8 @@ ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observabilit
 ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                       @DataDog/ml-observability
 ddtrace/contrib/vertexai                                @DataDog/ml-observability
+ddtrace/contrib/langgraph                               @DataDog/ml-observability
+ddtrace/contrib/internal/langgraph                      @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -155,6 +158,7 @@ tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observabilit
 tests/contrib/anthropic                                 @DataDog/ml-observability
 tests/contrib/google_generativeai                       @DataDog/ml-observability
 tests/contrib/vertexai                                  @DataDog/ml-observability
+tests/contrib/langgraph                                 @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
@@ -162,12 +166,14 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # API SDK
+ddtrace/trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
 ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
+ddtrace/provider.py                                @DataDog/apm-sdk-api-python
 ddtrace/pin.py                                     @DataDog/apm-sdk-api-python
 ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
 ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python
@@ -182,3 +188,6 @@ tests/opentelemetry/                               @DataDog/apm-sdk-api-python
 tests/tracer/                                      @DataDog/apm-sdk-api-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+
+# Serverless
+tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless

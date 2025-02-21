@@ -14,20 +14,20 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+from ddtrace import config
+from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.internal.constants import _CATEGORY_TO_PRIORITIES
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
-from ddtrace.sampling_rule import SamplingRule  # noqa:F401
-from ddtrace.settings import _config as config
 
 from .rate_limiter import RateLimiter
 
@@ -282,18 +282,18 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
     # type: (Span, bool, float, str) -> None
     mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
     if priority_category == PriorityCategory.RULE_DEFAULT:
-        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
     if priority_category == PriorityCategory.RULE_CUSTOMER:
-        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
         mechanism = SamplingMechanism.REMOTE_USER_RULE
     if priority_category == PriorityCategory.RULE_DYNAMIC:
-        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
+        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
         mechanism = SamplingMechanism.REMOTE_DYNAMIC_RULE
     elif priority_category == PriorityCategory.DEFAULT:
         mechanism = SamplingMechanism.DEFAULT
     elif priority_category == PriorityCategory.AUTO:
         mechanism = SamplingMechanism.AGENT_RATE
-        span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
+        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
     priorities = _CATEGORY_TO_PRIORITIES[priority_category]
     _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
     set_sampling_decision_maker(span.context, mechanism)

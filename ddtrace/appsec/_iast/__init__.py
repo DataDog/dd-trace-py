@@ -38,7 +38,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from ._overhead_control_engine import OverheadControl
-from ._utils import _is_iast_enabled
 
 
 log = get_logger(__name__)
@@ -49,12 +48,12 @@ oce = OverheadControl()
 def ddtrace_iast_flask_patch():
     """
     Patch the code inside the Flask main app source code file (typically "app.py") so
-    IAST/Custom Code propagation works also for the functions and methods defined inside it.
+    Runtime Code Analysis (IAST) works also for the functions and methods defined inside it.
     This must be called on the top level or inside the `if __name__ == "__main__"`
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
     """
-    if not _is_iast_enabled():
+    if not asm_config._iast_enabled:
         return
 
     from ._ast.ast_patching import astpatch_module

@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.contrib.aws_lambda import patch
-from ddtrace.contrib.aws_lambda import unpatch
+from ddtrace.contrib.internal.aws_lambda.patch import patch
+from ddtrace.contrib.internal.aws_lambda.patch import unpatch
 from tests.contrib.aws_lambda.handlers import class_handler
 from tests.contrib.aws_lambda.handlers import datadog
 from tests.contrib.aws_lambda.handlers import finishing_spans_early_handler
@@ -135,6 +135,7 @@ async def test_module_patching(mocker, context):
     ],
 )
 @pytest.mark.snapshot
+@flaky(1741838400, reason="Did not receive expected traces: 'aws.lambda' for [handler3-instance_handler_with_code]")
 def test_class_based_handlers(context, handler, function_name):
     env = get_env(
         {

@@ -5,7 +5,6 @@ import pytest
 import requests
 
 from tests.appsec.iast.conftest import iast_context_defaults
-from tests.utils import flaky
 
 
 span_defaults = iast_context_defaults  # So ruff does not remove it
@@ -28,11 +27,12 @@ def client():
     reply = agent_client.get(TESTAGENT_URL + "/start" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
 
     assert reply.status_code == 200
-    pygoat_client, token = login_to_pygoat()
+    pygoat_client, token, session_id = login_to_pygoat()
 
     class RetClient:
         agent_session = agent_client
         pygoat_session = pygoat_client
+        sessionid = session_id
         csrftoken = token
 
     return RetClient
@@ -54,9 +54,11 @@ def login_to_pygoat():
 
     login_data = {"username": "admin", "password": "adminpassword", "csrfmiddlewaretoken": csrftoken}
     reply = client.post(LOGIN_URL, data=login_data, headers=TESTAGENT_HEADERS)
+
     assert reply.status_code == 200
     csrftoken = client.cookies["csrftoken"]
-    return client, csrftoken
+    sessionid = client.cookies["sessionid"]
+    return client, csrftoken, sessionid
 
 
 def get_traces(agent_client: requests.Session) -> requests.Response:
@@ -95,20 +97,19 @@ def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> b
 
 
 def test_insecure_cookie(client):
-    payload = {"name": "admin", "pass": "adminpassword", "csrfmiddlewaretoken": client.csrftoken}
-    reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
+    payload = {"name": "My Name", "username": "user1", "pass": "testuser1", "csrfmiddlewaretoken": client.csrftoken}
+    reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("INSECURE_COOKIE", client.agent_session)
 
 
 def test_nohttponly_cookie(client):
-    payload = {"email": "test@test.com", "csrfmiddlewaretoken": client.csrftoken}
-    reply = client.pygoat_session.post(PYGOAT_URL + "/otp", data=payload, headers=TESTAGENT_HEADERS)
+    payload = {"name": "My Name2", "username": "user2", "pass": "testuser2", "csrfmiddlewaretoken": client.csrftoken}
+    reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("NO_HTTPONLY_COOKIE", client.agent_session)
 
 
-@flaky(1735812000)
 def test_weak_random(client):
     reply = client.pygoat_session.get(PYGOAT_URL + "/otp?email=test%40test.com", headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
@@ -124,7 +125,6 @@ def test_weak_hash(client):
     assert vulnerability_in_traces("WEAK_HASH", client.agent_session)
 
 
-@flaky(1735812000)
 def test_cmdi(client):
     payload = {"domain": "google.com && ls", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/cmd_lab", data=payload, headers=TESTAGENT_HEADERS)
@@ -132,7 +132,6 @@ def test_cmdi(client):
     assert vulnerability_in_traces("COMMAND_INJECTION", client.agent_session)
 
 
-@pytest.mark.skip("TODO: fix interaction with new RASP rules")
 def test_sqli(client):
     payload = {"name": "admin", "pass": "anything' OR '1' ='1", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
@@ -142,34 +141,20 @@ def test_sqli(client):
 
 @pytest.mark.skip("TODO: SSRF is not implemented for open()")
 def test_ssrf1(client, iast_context_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    s = "templates/Lab/ssrf/blogs/blog2.txt"
-    tainted_path = taint_pyobject(
-        pyobject=s,
-        source_name="test_ssrf",
-        source_value=s,
-        source_origin=OriginType.PARAMETER,
-    )
-    payload = {"blog": tainted_path, "csrfmiddlewaretoken": client.csrftoken}
+    payload = {"blog": "templates/Lab/ssrf/blogs/blog2.txt", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("SSRF", client.agent_session)
 
 
 def test_ssrf2(client, iast_context_defaults):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    s = "http://example.com"
-    tainted_path = taint_pyobject(
-        pyobject=s,
-        source_name="test_ssrf",
-        source_value=s,
-        source_origin=OriginType.PARAMETER,
-    )
-    payload = {"url": tainted_path, "csrfmiddlewaretoken": client.csrftoken}
+    payload = {"url": "http://example.com", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab2", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert vulnerability_in_traces("SSRF", client.agent_session)
+
+
+def test_xss(client):
+    reply = client.pygoat_session.get(PYGOAT_URL + '/xssL?q=<script>alert("XSS")</script>', headers=TESTAGENT_HEADERS)
+    assert reply.status_code == 200
+    assert vulnerability_in_traces("XSS", client.agent_session)

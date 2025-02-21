@@ -18,8 +18,6 @@ from typing import Union
 from typing import cast
 from uuid import uuid4
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
@@ -27,10 +25,13 @@ from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 @dataclass
@@ -44,6 +45,7 @@ class SignalState(str, Enum):
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
     SKIP_RATE = "SKIP_RATE"
+    SKIP_BUDGET = "SKIP_BUDGET"
     COND_ERROR = "COND_ERROR"
     DONE = "DONE"
 
@@ -121,11 +123,36 @@ class Signal(abc.ABC):
             # We don't have a rate limiter, so no rate was exceeded.
             return False
 
-        exceeded = probe.limiter.limit() is RateLimitExceeded
+        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
         if exceeded:
             self.state = SignalState.SKIP_RATE
 
         return exceeded
+
+    def _session_check(self) -> bool:
+        # Check that we emit signals from probes with a session ID only if the
+        # session is active. If the probe has no session ID, or the session ID
+        # is active, we can proceed with the signal emission.
+        session_id = self.probe.tags.get("session_id")
+        if session_id is not None:
+            session = Session.lookup(session_id)
+            return session is not None and session.level >= 1
+        return True
+
+    def _budget_exceeded(self) -> bool:
+        session = self.session
+        if session is not None:
+            probe = self.probe
+            session.count_probe(probe.probe_id)
+            if session.get_probe_count(probe.probe_id) > getattr(probe, "__budget__", float("inf")):
+                self.state = SignalState.SKIP_BUDGET
+                return True
+        return False
+
+    @property
+    def session(self):
+        session_id = self.probe.tags.get("session_id")
+        return Session.lookup(session_id) if session_id is not None else None
 
     @property
     def args(self):
@@ -144,6 +171,9 @@ class Signal(abc.ABC):
         pass
 
     def do_enter(self) -> None:
+        if not self._session_check():
+            return
+
         if self._timing is not ProbeEvalTiming.ENTRY:
             return
 
@@ -154,9 +184,15 @@ class Signal(abc.ABC):
         if self._rate_limit_exceeded():
             return
 
+        if self._budget_exceeded():
+            return
+
         self.enter(scope)
 
     def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
+        if not self._session_check():
+            return
+
         if self.state is not SignalState.NONE:
             # The signal has already been handled and move to a final state
             return
@@ -181,11 +217,17 @@ class Signal(abc.ABC):
             if self._rate_limit_exceeded():
                 return
 
+            if self._budget_exceeded():
+                return
+
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
         self.state = SignalState.DONE
 
     def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
+        if not self._session_check():
+            return
+
         frame = self.frame
         scope = ChainMap(frame.f_locals, frame.f_globals)
 
@@ -197,6 +239,9 @@ class Signal(abc.ABC):
             return
 
         if self._rate_limit_exceeded():
+            return
+
+        if self._budget_exceeded():
             return
 
         self.line(scope)

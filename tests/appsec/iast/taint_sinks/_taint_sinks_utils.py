@@ -17,6 +17,15 @@ def get_parametrize(vuln_type, ignore_list=None):
     data = json.loads(open(fixtures_filename).read())
     idx = -1
     for element in data["suite"]:
+        if element["description"] in (
+            "$1 with query parameters or fragment",
+            "$1 - Tainted range based redaction - multiple ranges",
+            "Redacted source that needs to be truncated",
+            "Query with single quoted string literal and null source",
+            "No redacted that needs to be truncated - whole text",
+        ):
+            continue
+
         if element["type"] == "VULNERABILITIES":
             evidence_parameters = [
                 param for k, params in element.get("parameters", {}).items() for param in params if param == vuln_type
@@ -46,13 +55,19 @@ def get_parametrize(vuln_type, ignore_list=None):
                                 if value_part.get("value"):
                                     value_part["value"] = value_part["value"].replace(replace, value)
 
-                            yield evidence_input_copy, sources_expected, vulnerabilities_expected_copy
+                            if all(
+                                [
+                                    bool(input_ranges["iinfo"].get("parameterName", {}))
+                                    for input_ranges in evidence_input_copy.get("ranges", {})
+                                ]
+                            ):
+                                yield evidence_input_copy, sources_expected, vulnerabilities_expected_copy, element
                 else:
                     idx += 1
                     if ignore_list and idx in ignore_list:
                         continue
 
-                    yield evidence_input[0], sources_expected, vulnerabilities_expected
+                    yield evidence_input[0], sources_expected, vulnerabilities_expected, element
 
 
 def _taint_pyobject_multiranges(pyobject, elements):

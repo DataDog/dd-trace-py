@@ -5,7 +5,7 @@ import os
 import django
 from django.conf import settings
 
-from ddtrace.contrib.django import patch
+from ddtrace.contrib.internal.django.patch import patch
 
 from ..django.conftest import test_spans
 from ..django.conftest import tracer

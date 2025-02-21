@@ -34,19 +34,19 @@ def tracer_config(__init__, app, args, kwargs):
     service = settings["default_service"]
 
     # extract extra settings
-    extra_settings = settings.get("settings", {})
+    trace_processors = settings.get("settings", {}).get("FILTERS")
 
     # the tracer must use the right Context propagation and wrap executor;
     # this action is done twice because the patch() method uses the
     # global tracer while here we can have a different instance (even if
     # this is not usual).
-    tracer.configure(
+    tracer._configure(
         context_provider=context_provider,
         wrap_executor=decorators.wrap_executor,
         enabled=settings.get("enabled", None),
         hostname=settings.get("agent_hostname", None),
         port=settings.get("agent_port", None),
-        settings=extra_settings,
+        trace_processors=trace_processors,
     )
 
     # set global tags if any
@@ -54,5 +54,6 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    # configure the PIN object for template rendering
-    ddtrace.Pin(service=service, tracer=tracer).onto(template)
+    pin = ddtrace.trace.Pin(service=service)
+    pin._tracer = tracer
+    pin.onto(template)

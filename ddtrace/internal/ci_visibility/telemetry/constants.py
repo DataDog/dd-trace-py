@@ -1,9 +1,6 @@
 from enum import Enum
 
 
-CIVISIBILITY_TELEMETRY_NAMESPACE = "civisibility"
-
-
 class ERROR_TYPES(str, Enum):
     TIMEOUT = "timeout"
     NETWORK = "network"

@@ -1,17 +1,11 @@
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import _constants as const
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-
-@pytest.fixture
-def mock_logs():
-    with mock.patch("ddtrace.llmobs._trace_processor.log") as mock_logs:
-        yield mock_logs
 
 
 class TestMLApp:
@@ -48,19 +42,18 @@ class TestMLApp:
             assert "ml_app:test-ml-app" in llmobs_event["tags"]
 
 
-def test_set_correct_parent_id(tracer):
+def test_set_correct_parent_id(llmobs):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
-    with tracer.trace("root"):
-        with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
+    with llmobs._instance.tracer.trace("root"):
+        with llmobs.workflow("llm_span") as llm_span:
             pass
-    assert _get_llmobs_parent_id(llm_span) is None
-    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-        with tracer.trace("child_span") as child_span:
-            with tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                pass
-    assert _get_llmobs_parent_id(root_span) is None
-    assert _get_llmobs_parent_id(child_span) == str(root_span.span_id)
-    assert _get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
+    assert llm_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
+    with llmobs.workflow("root_llm_span") as root_span:
+        assert root_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
+        with llmobs._instance.tracer.trace("child_span") as child_span:
+            assert child_span._get_ctx_item(PARENT_ID_KEY) is None
+            with llmobs.task("llm_span") as grandchild_span:
+                assert grandchild_span._get_ctx_item(PARENT_ID_KEY) == str(root_span.span_id)
 
 
 class TestSessionId:
@@ -119,14 +112,6 @@ def test_input_messages_are_set(tracer, llmobs_events):
         llm_span._set_ctx_item(const.SPAN_KIND, "llm")
         llm_span._set_ctx_item(const.INPUT_MESSAGES, [{"content": "message", "role": "user"}])
     assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "message", "role": "user"}]
-
-
-def test_input_parameters_are_set(tracer, llmobs_events):
-    """Test that input parameters are set on the span event if they are present on the span."""
-    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        llm_span._set_ctx_item(const.SPAN_KIND, "llm")
-        llm_span._set_ctx_item(const.INPUT_PARAMETERS, {"key": "value"})
-    assert llmobs_events[0]["meta"]["input"]["parameters"] == {"key": "value"}
 
 
 def test_output_messages_are_set(tracer, llmobs_events):
@@ -228,27 +213,48 @@ def test_model_and_provider_are_set(tracer, llmobs_events):
     assert span_event["meta"]["model_provider"] == "model_provider"
 
 
-def test_malformed_span_logs_error_instead_of_raising(mock_logs, tracer, llmobs_events):
+def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, mock_llmobs_logs):
     """Test that a trying to create a span event from a malformed span will log an error instead of crashing."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        # span does not have SPAN_KIND tag
-        pass
-    mock_logs.error.assert_called_once_with(
-        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span
+        pass  # span does not have SPAN_KIND tag
+    mock_llmobs_logs.error.assert_called_with(
+        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
     )
     assert len(llmobs_events) == 0
 
 
-def test_processor_only_creates_llmobs_span_event(tracer, llmobs_events):
-    """Test that the LLMObsTraceProcessor only creates LLMObs span events for LLM span types."""
+def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
+    """Test that we only generate LLMObs span events for LLM span types."""
     with tracer.trace("root_llm_span", service="tests.llmobs", span_type=SpanTypes.LLM) as root_span:
         root_span._set_ctx_item(const.SPAN_KIND, "llm")
         with tracer.trace("child_span"):
-            with tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
-    expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
-    expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
-
-    assert len(llmobs_events) == 2
+            pass
+    assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(root_span, "llm")
-    assert llmobs_events[1] == expected_grandchild_llmobs_span
+
+
+def test_utf_non_ascii_io(llmobs, llmobs_backend):
+    with llmobs.workflow() as workflow_span:
+        with llmobs.llm(model_name="gpt-3.5-turbo-0125") as llm_span:
+            llmobs.annotate(llm_span, input_data="안녕, 지금 몇 시야?")
+            llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert events[0]["spans"][1]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+
+
+def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
+    """Test that latin1 encoded inputs and outputs are correctly decoded."""
+    with llmobs.llm(model_name="gpt-3.5-turbo-0125") as span:
+        llmobs.annotate(
+            span,
+            input_data="The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967.",
+        )
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert (
+        events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"]
+        == "The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967."
+    )

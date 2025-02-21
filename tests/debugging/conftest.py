@@ -2,12 +2,14 @@ import sys
 
 import pytest
 
+from ddtrace.internal.utils.inspection import functions_for_code
+
 
 @pytest.fixture
 def stuff():
-    was_loaded = False
-    if "tests.submod.stuff" in sys.modules:
-        was_loaded = True
+    functions_for_code.cache_clear()
+    was_loaded = "tests.submod.stuff" in sys.modules
+    if was_loaded:
         del sys.modules["tests.submod.stuff"]
 
     __import__("tests.submod.stuff")

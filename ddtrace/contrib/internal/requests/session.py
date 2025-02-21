@@ -1,10 +1,4 @@
 import requests
-from wrapt import wrap_function_wrapper as _w
-
-from ddtrace import Pin
-from ddtrace import config
-
-from .connection import _wrap_send
 
 
 class TracedSession(requests.Session):
@@ -14,8 +8,3 @@ class TracedSession(requests.Session):
     """
 
     pass
-
-
-# always patch our `TracedSession` when imported
-_w(TracedSession, "send", _wrap_send)
-Pin(_config=config.requests).onto(TracedSession)

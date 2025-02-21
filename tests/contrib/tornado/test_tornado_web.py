@@ -2,12 +2,14 @@ import pytest
 import tornado
 
 from ddtrace import config
+from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ORIGIN_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
@@ -212,13 +214,13 @@ class TestTornadoWeb(TornadoTestCase):
     def test_http_exception_500_handler_ignored_exception(self):
         # it should trace a handler that raises a Tornado HTTPError
         # The exception should NOT be set on the span
-        prev_error_statuses = config.http_server.error_statuses
+        prev_error_statuses = config._http_server.error_statuses
         try:
-            config.http_server.error_statuses = "501-599"
+            config._http_server.error_statuses = "501-599"
             response = self.fetch("/http_exception_500/")
             assert 500 == response.code
         finally:
-            config.http_server.error_statuses = prev_error_statuses
+            config._http_server.error_statuses = prev_error_statuses
 
         traces = self.pop_traces()
         assert 1 == len(traces)
@@ -379,7 +381,7 @@ class TestTornadoWeb(TornadoTestCase):
         # check propagation
         assert 1234 == request_span.trace_id
         assert 4567 == request_span.parent_id
-        assert 2 == request_span.get_metric(SAMPLING_PRIORITY_KEY)
+        assert 2 == request_span.get_metric(_SAMPLING_PRIORITY_KEY)
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -463,8 +465,8 @@ class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -502,8 +504,8 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -536,8 +538,8 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -664,3 +666,80 @@ class TestSchematization(TornadoTestCase):
         assert "http.server.request" == request_span.name, "Expected 'http.server.request' but got {}".format(
             request_span.name
         )
+
+
+class TestAPIGatewayTracing(TornadoTestCase):
+    """
+    Ensure that Tornado web handlers are properly traced when API Gateway is involved
+    """
+
+    def test_inferred_spans_api_gateway(self):
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        for setting_enabled in [False, True]:
+            config._inferred_proxy_services_enabled = setting_enabled
+            for test_headers in [distributed_headers, headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/success/",
+                        "status": 200,
+                        "resource_name": "tests.contrib.tornado.web.app.SuccessHandler",
+                    },
+                    {
+                        "endpoint": "/exception/",
+                        "status": 500,
+                        "resource_name": "tests.contrib.tornado.web.app.ExceptionHandler",
+                    },
+                    {
+                        "endpoint": "/status_code/500",
+                        "status": 500,
+                        "resource_name": "tests.contrib.tornado.web.app.ResponseStatusHandler",
+                    },
+                ]:
+                    self.fetch(test_endpoint["endpoint"], headers=test_headers)
+                    traces = self.pop_traces()
+                    if setting_enabled:
+                        aws_gateway_span = traces[0][0]
+                        web_span = traces[0][1]
+
+                        assert_web_and_inferred_aws_api_gateway_span_data(
+                            aws_gateway_span,
+                            web_span,
+                            web_span_name="tornado.request",
+                            web_span_component="tornado",
+                            web_span_service_name="tornado-web",
+                            web_span_resource=test_endpoint["resource_name"],
+                            api_gateway_service_name="local",
+                            api_gateway_resource="GET /",
+                            method="GET",
+                            status_code=test_endpoint["status"],
+                            url="local/",
+                            start=1736973768,
+                            is_distributed=test_headers == distributed_headers,
+                            distributed_trace_id=1,
+                            distributed_parent_id=2,
+                            distributed_sampling_priority=USER_KEEP,
+                        )
+                    else:
+                        web_span = traces[0][0]
+                        assert web_span._parent is None

@@ -1,6 +1,6 @@
 from envier import En
 
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 class ExceptionReplayConfig(En):
@@ -13,6 +13,13 @@ class ExceptionReplayConfig(En):
         help_type="Boolean",
         help="Enable automatic capturing of exception debugging information",
         deprecations=[("debugging.enabled", None, "3.0")],
+    )
+    max_frames = En.v(
+        int,
+        "replay.capture_max_frames",
+        default=8,
+        help_type="int",
+        help="The maximum number of frames to capture for each exception",
     )
 
 

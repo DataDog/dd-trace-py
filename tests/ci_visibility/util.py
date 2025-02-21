@@ -12,6 +12,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
+from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
@@ -209,5 +210,5 @@ def _ci_override_env(
     new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=False, replace_os_env=True, full_clear=False
 ):
     env_vars = _get_default_ci_env_vars(new_vars, mock_ci_env, full_clear)
-    with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", ddtrace.Tracer()):
+    with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", CIVisibilityTracer()):
         yield

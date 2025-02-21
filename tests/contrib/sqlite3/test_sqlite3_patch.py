@@ -10,12 +10,12 @@ try:
 except ImportError:
     pass
 
-from ddtrace.contrib.sqlite3 import get_version
-from ddtrace.contrib.sqlite3.patch import patch
+from ddtrace.contrib.internal.sqlite3.patch import get_version
+from ddtrace.contrib.internal.sqlite3.patch import patch
 
 
 try:
-    from ddtrace.contrib.sqlite3.patch import unpatch
+    from ddtrace.contrib.internal.sqlite3.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

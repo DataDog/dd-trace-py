@@ -142,6 +142,7 @@ services:
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
             - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+
     vertica:
         image: vertica/vertica-ce
         environment:
@@ -197,14 +198,32 @@ services:
         ports:
             - "127.0.0.1:8321:8321"
         environment:
-            - DD_APPSEC_ENABLED=true
             - DD_IAST_ENABLED=true
+            - _DD_IAST_DEBUG=true
             - DD_IAST_REQUEST_SAMPLING=100
             - DD_IAST_VULNERABILITIES_PER_REQUEST=100
             - DD_REMOTE_CONFIGURATION_ENABLED=true
             - DD_AGENT_PORT=8126
             - DD_TRACE_AGENT_URL=http://testagent:8126
-            - _DD_APPSEC_DEDUPLICATION_ENABLED=false
+            - DD_IAST_DEDUPLICATION_ENABLED=false
+
+    valkey:
+        image: valkey/valkey:8.0-alpine
+        ports:
+            - "127.0.0.1:6379:6379"
+
+    valkeycluster:
+        platform: linux/amd64
+        image: grokzen/redis-cluster:6.2.0
+        environment:
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
 
 volumes:
     ddagent:

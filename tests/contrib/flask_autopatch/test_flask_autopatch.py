@@ -2,9 +2,9 @@
 import flask
 import wrapt
 
-from ddtrace import Pin
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -17,7 +17,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
         super(FlaskAutopatchTestCase, self).setUp()
         self.app = flask.Flask(__name__)
-        Pin.override(self.app, service="test-flask", tracer=self.tracer)
+        Pin._override(self.app, service="test-flask", tracer=self.tracer)
         self.client = self.app.test_client()
 
     def test_patched(self):
