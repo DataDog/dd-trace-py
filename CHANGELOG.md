@@ -5,7 +5,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ---
 
 ## 3.0.0
-# **Migration Guide: Upgrading from dd-trace-py v2 to v3**
+### **Migration Guide: Upgrading from dd-trace-py v2 to v3**
 
 We are happy to announce the release of v3.0.0 of ddtrace. This release drops support for Python 3.7 and many previously-deprecated parts of the library interface.
 
@@ -13,11 +13,11 @@ The 2.x release line enters Maintenance Mode with the release of 3.0.0, meaning 
 
 ---
 
-## **Summary of Significant Changes**
+#### **Summary of Significant Changes**
 
 * Removed support for Python 3.7 from the library
 
-### **CI Visibility**
+##### **CI Visibility**
 
 * The new pytest plugin is now the default.  
 * Module, suite, and test names are now parsed from `item.nodeid`.  
@@ -25,13 +25,13 @@ The 2.x release line enters Maintenance Mode with the release of 3.0.0, meaning 
 * Test skipping is now done at the suite level.  
 * The `DD_PYTEST_USE_NEW_PLUGIN_BETA` environment variable is no longer used.
 
-### **LLM Observability**
+##### **LLM Observability**
 
 * Removed support for `DD_LLMOBS_APP_NAME`.  
 * The `parameters` argument in `LLMObs.annotate()` has been removed. Use `metadata` instead.  
 * Dropped support for OpenAI 0.x and Langchain v0.0.x.
 
-### **Tracing**
+##### **Tracing**
 
 * Removed all deprecated interfaces from integrations.  
 * `DD_TRACE_PROPAGATION_STYLE=b3 single header` is no longer supported. Use `b3` instead.  
@@ -39,11 +39,11 @@ The 2.x release line enters Maintenance Mode with the release of 3.0.0, meaning 
 * Removed deprecated parameters from `Tracer.configure(...)`.  
 * Dropped support for several deprecated tracing configurations. See “Environment Variables” section below for details.
 
-## **Recommended Pre-Upgrade Steps**
+#### **Recommended Pre-Upgrade Steps**
 
 Before upgrading to v3, check for deprecation warnings in your application using the latest v2 release (**2.21.0**):
 
-### **Detect Deprecation Warnings in Tests**
+##### **Detect Deprecation Warnings in Tests**
 
 Enable warnings as errors in `pytest`:
 
@@ -51,7 +51,7 @@ Enable warnings as errors in `pytest`:
 pytest -W "error::ddtrace.DDTraceDeprecationWarning" tests.py
 ```
 
-### **Detect Deprecation Warnings in Applications**
+##### **Detect Deprecation Warnings in Applications**
 
 Set the following environment variable to raise exceptions for deprecated usage:
 
@@ -65,7 +65,7 @@ Alternatively, enable all deprecation warnings:
 PYTHONWARNINGS=all python app.py
 ```
 
-### **Environment Variables**
+##### **Environment Variables**
 
 The following environment variables have been removed or replaced in v3. Use the table below to update your configuration:
 
@@ -106,7 +106,7 @@ Replace deprecated settings with the recommended alternatives where applicable.
 
 **NOTE**: The changes to environment variables apply only to the configuration of the dd-trace-py library and not the Datadog Agent.
 
-### **Legacy Interfaces**
+##### **Legacy Interfaces**
 
 The following methods and module attributes have been removed or changed. Unless noted, removal means that the functionality pointed to by the removed interface has been disabled.
 
@@ -120,7 +120,7 @@ The following methods and module attributes have been removed or changed. Unless
 | **LLM Observability** |  |
 | `LLMObs.annotate(parameters=foo)` | `LLMObs.annotate(metadata=foo)` |
 
-### **Python 3.13 Support**
+##### **Python 3.13 Support**
 
 Much of the library’s functionality has been compatible with Python 3.13 since version 2.20. Some pieces of functionality do not yet work with Python 3.13. Here’s what does not work under Python 3.13 as of dd-trace-py 3.0. 'Not tested' indicates that while the feature may be compatible with Python 3.13, its functionality has not been verified, as it is not included in our automated test coverage.
 
@@ -318,55 +318,17 @@ By following these guidelines, you can transition to dd-trace-py v3 gradually, e
 
 ## 2.20.2
 
-
-### Deprecation Notes
-
-- tracing: Deprecates the following constants in `ddtrace.constants` module:
-  - ANALYTICS_SAMPLE_RATE_KEY
-  - SAMPLE_RATE_METRIC_KEY
-  - SAMPLING_PRIORITY_KEY
-  - SAMPLING_AGENT_DECISION
-  - SAMPLING_RULE_DECISION
-  - SAMPLING_LIMIT_DECISION
-  - ORIGIN_KEY
-  - USER_ID_KEY
-  - HOSTNAME_KEY
-  - RUNTIME_FAMILY
-  - BASE_SERVICE_KEY
-  - SPAN_MEASURED_KEY
-  - KEEP_SPANS_RATE_KEY
-  - MULTIPLE_IP_HEADERS
-  - CONFIG_ENDPOINT_ENV
-  - CONFIG_ENDPOINT_RETRIES_ENV
-  - CONFIG_ENDPOINT_TIMEOUT_ENV
-- tracing: Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
-  - http, use `DD_TRACE_HEADER_TAGS` environment variable instead.
-  - http_server, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
-  - trace_headers, this attribute is internal to the tracer.
-  - header_is_traced, this attribute is internal to the tracer.
-  - convert_rc_trace_sampling_rules, this attribute is internal to the tracer.
-  - enable_remote_configuration, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
-  - get_from, use `ddtrace.trace.Pin` to set instance level configurations.
-
 ### Bug Fixes
+- ASM
+  - Ensures that no module from ASM are loaded when ASM is disabled or unavailable.
+  - Resolves an issue where IAST modules could be loaded, even if disabled, which could create an `ImportError` exception on Windows.
 
-- ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable.
+- Code Security 
+  - SCA: Ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+  - Runtime Code Analysis (IAST): Avoids imports of IAST native module when IAST is not enabled.
 
-- SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
-
-- Code security (IAST): This fix resolves an issue where the usage of <span class="title-ref">callonce</span> decorator could trigger an import loop
-
-- Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
-
-- internal: Fix performance overhead of Python distribution parsing for internal telemetry.
-
-- ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled,  
-  which could create an ImportError exception on Windows.
-
-### Other Changes
-
-- tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
-- cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+- Tracing
+  - internal: Fixes performance overhead of Python distribution parsing for internal telemetry.
 
 
 ---
