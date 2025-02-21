@@ -318,7 +318,6 @@ By following these guidelines, you can transition to dd-trace-py v3 gradually, e
 
 ## 2.20.2
 
-
 ### Deprecation Notes
 
 - tracing: Deprecates the following constants in `ddtrace.constants` module:
@@ -367,6 +366,259 @@ By following these guidelines, you can transition to dd-trace-py v3 gradually, e
 
 - tracing: Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
 - cassandra,cherrypy,flask_cache,starlette: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+---
+
+## 2.21.1
+### Bug Fixes
+
+- ASM
+    - Ensure that no module from ASM are loaded when ASM is disabled or unavailable.
+
+ - Code Security
+    - Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
+    - SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+    - Resolve an issue where IAST modules could be loaded, even if disabled, which could create an ImportError exception on Windows.
+
+- Profiling
+    - Fixes an issue where the profiler unnecessarily outputs log messages when it was unable to record a lock acquire event. 
+
+- Tracing
+    - aiohttp: Adds the environment variable `DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK` to address a potential memory leak in the aiohttp integration. When set to true, this flag may cause streamed response span timing to be inaccurate. The flag defaults to false.
+    - span: Fix issue where spans weren't being handled correctly and were not being sent when using a custom Exception class that raises an exception in ``__str__``.
+
+---
+
+## 2.21.0
+### New Features
+- LLM Observability
+  - `openai`: Introduces tracing support to the OpenAI integration for Python versions 3.12 and 3.13.
+
+### Deprecation Notes
+- Tracing
+  - Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
+  - Deprecates the following constants in `ddtrace.constants` module:
+    - `ANALYTICS_SAMPLE_RATE_KEY`
+    - `SAMPLE_RATE_METRIC_KEY`
+    - `SAMPLING_PRIORITY_KEY`
+    - `SAMPLING_AGENT_DECISION`
+    - `SAMPLING_RULE_DECISION`
+    - `SAMPLING_LIMIT_DECISION`
+    - `ORIGIN_KEY`
+    - `USER_ID_KEY`
+    - `HOSTNAME_KEY`
+    - `RUNTIME_FAMILY`
+    - `BASE_SERVICE_KEY`
+    - `SPAN_MEASURED_KEY`
+    - `KEEP_SPANS_RATE_KEY`
+    - `MULTIPLE_IP_HEADERS`
+    - `CONFIG_ENDPOINT_ENV`
+    - `CONFIG_ENDPOINT_RETRIES_ENV`
+    - `CONFIG_ENDPOINT_TIMEOUT_ENV`
+  - Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
+    - `http`, use `DD_TRACE_HEADER_TAGS` environment variable instead.
+    - `http_server`, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
+    - `trace_headers`, this attribute is internal to the tracer.
+    - `header_is_traced`, this attribute is internal to the tracer.
+    - `convert_rc_trace_sampling_rules`, this attribute is internal to the tracer.
+    - `enable_remote_configuration`, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
+    - `get_from`, use `ddtrace.trace.Pin` to set instance level configurations.
+
+### Bug Fixes
+- CI Visibility
+  - Fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+
+- Code Security
+  - Resolves an issue where the usage of `callonce` decorator could trigger an import loop
+
+- LLM Observability
+  - Resolves an issue where explicitly only using `LLMObs.enable()` to configure LLM Observability without environment variables would not automatically propagate distributed tracing headers.
+  - Resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+  - Resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError
+  - `openai`: Fixes a patching issue where asynchronous moderation endpoint calls resulted in coroutine scheduling errors.
+  - `vertexai`: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+
+- Profiling
+  - Fixes `SystemError` from the memory profiler returning NULL when collecting events
+
+### Other Changes
+- Tracing
+  - Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
+  - `cassandra`, `cherrypy`, `flask_cache`, `starlette`: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+
+---
+
+## 2.20.1
+### Deprecation Notes
+
+  - Tracing
+    - Moves `ddtrace.provider.BaseContextProvider` to `ddtrace.trace.BaseContextProvider`. The `ddtrace.provider` module is deprecated and will be removed in v3.0.0.
+    - Deprecates the following constants in `ddtrace.constants` module:
+        - `ANALYTICS_SAMPLE_RATE_KEY`
+        - `SAMPLE_RATE_METRIC_KEY`
+        - `SAMPLING_PRIORITY_KEY`
+        - `SAMPLING_AGENT_DECISION`
+        - `SAMPLING_RULE_DECISION`
+        - `SAMPLING_LIMIT_DECISION`
+        - `ORIGIN_KEY`
+        - `USER_ID_KEY`
+        - `HOSTNAME_KEY`
+        - `RUNTIME_FAMILY`
+        - `BASE_SERVICE_KEY`
+        - `SPAN_MEASURED_KEY`
+        - `KEEP_SPANS_RATE_KEY`
+        - `MULTIPLE_IP_HEADERS`
+        - `CONFIG_ENDPOINT_ENV`
+        - `CONFIG_ENDPOINT_RETRIES_ENV`
+        - `CONFIG_ENDPOINT_TIMEOUT_ENV`
+    - Internalizes the `ddtrace.settings.config` module and deprecates the following `ddtrace.config` attributes:
+        - `http`, use `DD_TRACE_HEADER_TAGS` environment variable instead.
+        - `http_server`, use `DD_TRACE_HTTP_SERVER_ERROR_STATUSES` environment variable instead.
+        - `trace_headers`, this attribute is internal to the tracer.
+        - `header_is_traced`, this attribute is internal to the tracer.
+        - `convert_rc_trace_sampling_rules`, this attribute is internal to the tracer.
+        - `enable_remote_configuration`, use `DD_REMOTE_CONFIGURATION_ENABLED` environment variable instead.
+        - `get_from`, use `ddtrace.trace.Pin` to set instance level configurations.
+
+
+### Bug Fixes
+
+  - CI Visibility
+    - Fixes an issue where Auto Test Retries with pytest would always consider retries of tests defined inside unittest classes to be successful.
+  - LLM Observability
+    - Resolves an issue where explicitly only using `LLMObs.enable()` to configure LLM Observability without environment variables would not automatically propagate distributed tracing headers.
+    - This fix resolves an issue where annotating a span with non latin-1 (but valid utf-8) input/output values resulted in encoding errors.
+    - This fix resolves an issue where extracting token metadata from openai streamed chat completion token chunks caused an IndexError.
+  - Tracing
+    - `vertexai`: Resolves an issue with `chat.send_message()` where the content keyword argument was not parsed correctly.
+  - Profiling
+    - Fix SystemError from the memory profiler returning NULL when collecting events
+
+### Other Changes
+
+  - Tracing
+    - Ensures the ddtrace library does not use deprecated APIs internally. Deprecation warnings should only be logged when the user's code is using deprecated APIs.
+    - `cassandra`, `cherrypy` ,`flask_cache`, `starlette`: Ensures a deprecation warning is not raised when patching these integrations via `ddtrace-run` and `import ddtrace.auto`.
+
+
+---
+
+## 2.20.0
+### Upgrade Notes
+- Tracing
+  - Validates Python 3.13 support for the `ddtrace-run` entrypoint.
+  - Validates Python 3.13 support for the following integrations:  
+    - aiomysql
+    - aiopg
+    - asyncpg
+    - avro
+    - botocore
+    - confluent-kafka
+    - django
+    - falcon
+    - fastapi
+    - grpcio
+    - mysqldb
+    - protobuf
+    - pyodbc
+    - sqlalchemy
+
+### Deprecation Notes
+- CI Visibility
+  - Moves the implementational details of the pytest, pytest_benchmark, pytest_bdd, and unittest integrations from `ddtrace.contrib.<integration>` to `ddtrace.contrib.internal.<integration>`.
+
+- Tracing
+  - Deprecates `ddtrace.filters.FilterRequestsOnUrl`. Spans should be filtered/sampled using `DD_TRACE_SAMPLING_RULES` configuration.
+  - Deprecates the use of multiple tracer instances in the same process. The global tracer (`ddtrace.tracer`) \`should be used instead.
+  - Deprecates support for configuring samplers via a programmatic API. In v3.0.0 samplers will only be configurable via environment variables or remote configuration.
+  - Ensures most tracing configurations are only set on application start up. This is done by deprecating the following parameters in `ddtrace.configure(...)` function. These parameters will be removed in `ddtrace>=3.0.0`: - enabled - hostname - port - uds_path - https - sampler - settings - priority_sampling - settings - dogstatsd_url - writer - partial_flush_enabled - partial_flush_min_spans - api_version - compute_stats_enabled - wrap_executor
+  - Deprecates `ddtrace.pin` module and moves the `Pin` class to `ddtrace.trace` package. In v3.0.0 the `ddtrace/pin.py` will be removed.
+  - Deprecates `ddtrace.filters` module and moves the `TraceFilter` and `FilterRequestsOnUrl` classes to `ddtrace.trace` package. In v3.0.0 the `ddtrace/filters.py` will be removed.
+  - Deprecates all attributes in `ddtrace.contrib.trace_utils_async` and `ddtrace.contrib.redis_utils`. Replaces `ddtrace.contrib.trace_utils_async.with_traced_module(...)` with `ddtrace.contrib.trace_utils.with_traced_module_async(...)`. Moves public attributes defined in `ddtrace.contrib.redis_utils.*` to `ddtrace.contrib.trace_utils`.
+  - Deprecates the ability to use multiple tracer instances with ddtrace.Pin. In v3.0.0 pin objects will only use the global tracer.
+  - Ensures the implementation details of ddtrace integrations are internal to ddtrace library. In `ddtrace>=3.0.0` integrations should only be enabled and configured via `ddtrace.patch(..)`, `import ddtrace.auto` or the `ddtrace-run` command. Unpatching integrations or getting the version of an integration is no longer supported.
+  - `rq`: Ensures the implementation details of the rq integration are internal to ddtrace library. In `ddtrace>=3.0.0` this integration should only be enabled and configured via `ddtrace.patch(..)`, `import ddtrace.auto` or the `ddtrace-run` command
+
+### New Features
+- ASM
+  - Introduces full support for Automated user lifecycle tracking for login events (success and failure)
+  - Introduces the support for command injection for Exploit Prevention. With previous support of shell injection with os.system, this provides automatic instrumentation for subprocess module functions and os.spawn\* functions, ensuring monitoring and blocking for Exploit Prevention on those endpoints.
+
+- Code Security
+  - Adds support for Header Injection vulnerability sink point.
+  - Code Injection vulnerability detection, which will be displayed on your DataDog Vulnerability Explorer dashboard. See the [Application Vulnerability Management](https://docs.datadoghq.com/security/application_security/vulnerability_management/) documentation for more information about this feature.
+
+- LLM Observability
+  - `openai`: Introduces automatic extraction of token usage from streamed chat completions. Unless `stream_options: {"include_usage": False}` is explicitly set on your streamed chat completion request, the OpenAI integration will add `stream_options: {"include_usage": True}` to your request and automatically extract the token usage chunk from the streamed response.
+
+- Profiling
+  - Stack V2 is enabled by default. It is the new stack sampler implementation for CPython 3.8+. It enhances the performance, accuracy, and reliability of Python CPU profiling. This feature activates our new stack sampling, collection and export system.
+  The following are known issues and missing features from Stack V2
+    - Services using `gunicorn` with Stack V2 results in performance degradation
+    - Support for `gevent` is lacking
+  - Exception sampling is missing If you find these as a blocker for enabling Stack V2 for your services, you can turn it off via setting `DD_PROFILING_STACK_V2_ENABLED=0`. If you find any other issue, then please proceed to escalate using appropriate support channels or file an issue on the repository.
+
+- Tracing
+  - Introduces the environment variable `DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT` to control the behavior of the extraction of distributed tracing headers. The values, `continue` (default), `ignore`, and `restart`, are supported. The default value is `continue` which has no change from the current behavior of always propagating valid headers. `ignore` ignores all incoming headers, never propagating the incoming trace information and `restart` turns the first extracted propagation style into a span link and propagates baggage if extracted.
+
+
+### Bug Fixes
+
+- Code Security
+  - Adds more modules to the IAST patching denylist to improve startup time
+
+- Exception Replay
+  - Includes missing nonlocal variables in snapshot log messages.
+
+- Lib Injection/SSI
+  - Removes python-json-logger from library compatibility check.
+  - Fixes incorrect telemetry data payload format.
+
+- LLM Observability
+  - Resolves an issue where enabling LLM Observability in agentless mode would result in traces also being sent to the agent proxy endpoint.
+  - Resolves an issue where configuring custom trace filters/processors onto the tracer would disable LLM Observability.  
+  Note that if LLM Observability is enabled in agentless mode, writing APM traces must be explicitly disabled by setting <span class="title-ref">DD_TRACE_ENABLED=0</span>.
+  - `botocore`: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs.
+
+- Profiling
+  - Fixes an issue where the memory allocation profiler can cause a segmentation fault due to data races when accessing its own global data structures from multiple threads.
+  - Fixes a bug where profiling mutexes were not cleared on fork in the child process. This could cause deadlocks in certain configurations.
+  - Resolves a data race issue accessing lock's acquired time, leading to an `AttributeError`: `_Profiled_ThreadingLock` object has no attribute `self_acquired_at`
+  - Resolves an issue where lock release would have been captured with a wrong acquire timestamp
+  - Removes a system call from the memory allocation profiler, used to detect forks, which ran on every allocation and resulted in a significant slowdown.
+
+- Tracing
+  - Resolves an issue where baggage header extraction was case sensitive and didn't accept the header prepended with HTTP. Now the baggage header will be extracted regardless of casing and the HTTP format.
+  - Resolves an issue where the core instrumentation could raise an uncaught exception.
+  - Improves error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.
+  - Fixes an issue where the baggage header was not being propagated when the baggage header was the only header extracted. With this fix, the baggage header is now propagated when it is the only header extracted.
+  - `asgi`: Resolves an issue parsing response cookies in FastAPI and awsgi
+  - `asyncio`: Resolves an issue where asyncio event loops fail to register when `ddtrace-run`/`import ddtrace.auto` is used and gevent is installed.
+  - `celery`: Fixes an issue where `celery.apply` spans from Celery prerun got closed too soon leading to span tags being missing.
+  - `django`: Fixes issue where django cache is represented as a django service rather than the third party service.
+
+
+### Other Changes
+- Lib Injection/SSI
+  - Reduces size of OCI image size to improve k8s lib-injection pull and startup times.
+
+
+---
+
+## 2.19.4
+
+
+### Bug Fixes
+
+- ASM: This ensures that no module from ASM are loaded when ASM is disabled or unavailable. 
+
+- SCA: This ensures that no module from IAST are loaded when IAST is disabled or unavailable.
+
+- Runtime Code Analysis (IAST): Avoid imports of IAST native module when IAST is not enabled.
+
+- ASM: This fix resolves an issue where IAST modules could be loaded, even if disabled,  
+  which could create an ImportError exception on Windows.
 
 
 ---
