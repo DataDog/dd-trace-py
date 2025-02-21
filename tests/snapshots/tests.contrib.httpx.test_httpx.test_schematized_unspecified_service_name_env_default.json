@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": "tests.contrib.httpx",
+    "service": "ddtrace_subprocess_dir",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,
