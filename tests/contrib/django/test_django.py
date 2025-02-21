@@ -39,7 +39,6 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
-from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
