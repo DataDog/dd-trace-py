@@ -7,8 +7,6 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import Pin
 
 
-
-
 def get_version():
     # type: () -> str
     return ""
