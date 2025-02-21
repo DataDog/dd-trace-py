@@ -1074,10 +1074,6 @@ suites:
       - postgres
       - mysql
     snapshot: true
-    services:
-      - postgres
-      - mysql
-    snapshot: true
   starlette:
     paths:
       - '@bootstrap'
