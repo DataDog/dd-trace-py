@@ -4076,7 +4076,6 @@ class BotocoreTest(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
-    # @flaky(1741838400, reason="span mismatch on 'service': got 'dd-trace-py' which does not match expected 'aws.sqs'")
     def test_aws_payload_tagging_s3_invalid_config(self):
         with self.override_config(
             "botocore",
