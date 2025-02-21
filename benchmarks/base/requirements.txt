@@ -4,5 +4,5 @@ pyperf
 pyyaml
 attrs
 httpretty==1.1.4
-tenacity==8.0.0
+tenacity~=8.0
 viztracer

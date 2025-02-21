@@ -7,8 +7,8 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.settings.asm import config as asm_config
 
-from .appsec._iast._utils import _is_iast_enabled
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
@@ -239,7 +239,7 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if _is_iast_enabled():
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 

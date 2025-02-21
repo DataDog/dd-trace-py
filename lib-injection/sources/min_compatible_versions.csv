@@ -26,7 +26,6 @@ austin-python,~=1.0
 avro,0
 azure.functions,0
 blinker,0
-boto3,==1.34.49
 bottle,>=0.12
 bytecode,0
 cassandra-driver,~=3.24.0
