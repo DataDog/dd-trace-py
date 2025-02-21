@@ -439,6 +439,8 @@ suites:
       - '@cassandra'
       - tests/contrib/cassandra/*
     runner: riot
+    snapshot: true
+    parallelism: 2
     services:
       - cassandra
   celery:
