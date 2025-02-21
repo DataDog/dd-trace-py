@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    asyncio: Fix an issue where the name of a coroutine was being overridden by a ddtrace function.
+    asyncio: Fixes an issue where the name of a coroutine was being overridden by a ddtrace function.
