@@ -1,0 +1,4 @@
+features:
+  - |
+    A subset of the tracer configuration is now stored on disk throughout the tracer's lifetime.
+    This enables to monitor which processes are being instrumented.
