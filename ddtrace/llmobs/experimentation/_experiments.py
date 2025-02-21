@@ -359,7 +359,7 @@ class Dataset:
             self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
 
             # Print url to the dataset in Datadog
-            print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/experiments/datasets/{dataset_id}\n")
+            print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/testing/datasets/{dataset_id}\n")
 
     @classmethod
     def from_csv(
@@ -540,6 +540,68 @@ class Dataset:
                 json_line = json.dumps(record)
                 f.write(json_line + '\n')
 
+    def __repr__(self) -> str:
+        """Rich string representation of the Dataset.
+        
+        Shows dataset name, size, structure, and Datadog sync status.
+        """
+        # Get basic dataset info
+        name = f"{Color.CYAN}{self.name}{Color.RESET}"
+        record_count = len(self._data)
+        
+        # Get sample structure from first record
+        structure = []
+        if self._data:
+            sample = self._data[0]
+            # Input structure
+            input_data = sample.get('input', {})
+            if isinstance(input_data, dict):
+                input_desc = f"dict[{len(input_data)} keys]"
+            else:
+                input_desc = type(input_data).__name__
+            structure.append(f"input: {input_desc}")
+            
+            # Expected output structure
+            expected = sample.get('expected_output', {})
+            if isinstance(expected, dict):
+                output_desc = f"dict[{len(expected)} keys]"
+            else:
+                output_desc = type(expected).__name__
+            structure.append(f"expected_output: {output_desc}")
+            
+            # Metadata fields
+            metadata = {k: v for k, v in sample.items() 
+                       if k not in ['input', 'expected_output', 'record_id']}
+            if metadata:
+                structure.append(f"metadata: {len(metadata)} fields")
+        
+        # Datadog sync status
+        if self._datadog_dataset_id:
+            dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
+            dd_url = f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+        else:
+            dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
+            dd_url = ""
+        
+        # Build the representation
+        info = [
+            f"Dataset(name={name})",
+            f"  Records: {record_count:,}",
+            f"  Structure: {', '.join(structure)}",
+            f"  Datadog: {dd_status}"
+        ]
+        
+        # Add description if present
+        if self.description:
+            desc_preview = (self.description[:47] + '...') if len(self.description) > 50 else self.description
+            info.insert(1, f"  Description: {desc_preview}")
+        
+        # Add URL if dataset is synced
+        if dd_url:
+            info.append(dd_url)
+        
+        return '\n'.join(info)
+
 
 class Experiment:
     """Manages the execution and evaluation of tasks on a dataset.
@@ -678,53 +740,56 @@ class Experiment:
         return experiment_id
 
     def run(
-        self,
-        jobs: int = 10,
-        raise_errors: bool = True,
-    ) -> "ExperimentResults":
+    self,
+    jobs: int = 10,
+    raise_errors: bool = False,
+    sample_size: Optional[int] = None,
+) -> "ExperimentResults":
         """
         Execute the task and evaluations, returning the results.
-        Here, we guarantee an experiment is created first,
-        so run_task() can tag traces with the real experiment ID.
+        If sample_size is provided, run on just that many rows from the dataset (subset).
+        Otherwise, run on the entire dataset.
         """
         _validate_init()
-         # Use color formatting for the header
-        print(f"\n{Color.BOLD}Running experiment{Color.RESET}")
+
+        # Handle logging/feedback:
+        if sample_size is not None:
+            print(f"\n{Color.BOLD}Running experiment (subset of {sample_size} rows){Color.RESET}")
+        else:
+            print(f"\n{Color.BOLD}Running experiment{Color.RESET}")
         print(f"  Project: {Color.CYAN}{self.project_name}{Color.RESET}")
-        print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}\n")
-        
+        print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}")
+        print(f"  raise_errors={raise_errors}\n")
+
         # 1) Make sure the dataset is pushed
         if not self.dataset._datadog_dataset_id:
-            raise ValueError(
-                "Dataset must be pushed to Datadog before running the experiment."
-            )
-        
+            raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
 
-        project_id = self._get_or_create_project()  # your existing helper
+        # 2) Create/get the project, then create an experiment in Datadog.
+        project_id = self._get_or_create_project()
         self._datadog_project_id = project_id
-
-            
-        experiment_id = self._create_experiment_in_datadog()  # your existing helper
+        experiment_id = self._create_experiment_in_datadog()
         self._datadog_experiment_id = experiment_id
 
+        # If a sample_size is given, slice the dataset to that many records
+        # to create a temporary subset that lines up with the partial output.
+        from copy import deepcopy
+        if sample_size is not None and sample_size < len(self.dataset._data):
+            subset_data = [deepcopy(r) for r in self.dataset._data[:sample_size]]
+            subset_dataset = Dataset(
+                name=f"{self.dataset.name}_test_subset",
+                data=subset_data,
+                description=f"[Test subset of {sample_size}] {self.dataset.description}",
+            )
+        else:
+            subset_dataset = self.dataset
 
-        # 3) Now run the experimenttask and evaluations
-        self.run_task(_jobs=jobs, raise_errors=raise_errors)
-        experiment_results = self.run_evaluations(raise_errors=raise_errors)
-        return experiment_results
-
-    def run_task(self, _jobs: int = 10, raise_errors: bool = True) -> None:
-        """
-        Execute the task function on the dataset concurrently using ThreadPoolExecutor.map,
-        updating progress via _print_progress_bar and processing more rows in parallel.
-        """
-        _validate_init()
+        # -- Run the "task" portion on the subset:
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
-        total_rows = len(self.dataset)
-
+        total_rows = len(subset_dataset)
         progress = ProgressReporter(total_rows, desc="Processing")
         outputs_buffer = []
-        
+
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
@@ -733,12 +798,183 @@ class Experiment:
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
                 trace_id = span_context["trace_id"]
+
                 input_data = row["input"]
                 expected_output = row["expected_output"]
 
+                try:
+                    if getattr(self.task, "_accepts_config", False):
+                        output = self.task(input_data, self.config)
+                    else:
+                        output = self.task(input_data)
+
+                    LLMObs.annotate(
+                        span,
+                        input_data=input_data,
+                        output_data=output,
+                        tags={
+                            "dataset_id": self.dataset._datadog_dataset_id,
+                            "dataset_record_id": row.get("record_id"),
+                            "experiment_id": self._datadog_experiment_id,
+                        },
+                    )
+                    LLMObs._tag_expected_output(span, expected_output)
+
+                    return {
+                        "idx": idx,
+                        "output": output,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": time.time() - start_time,
+                            "dataset_record_index": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                            "span_id": span_id,
+                            "trace_id": trace_id,
+                        },
+                        "error": {"message": None, "stack": None, "type": None},
+                    }
+                except Exception as e:
+                    error_message = str(e)
+                    span.error = 1
+                    span.set_exc_info(type(e), e, e.__traceback__)
+
+                    LLMObs.annotate(
+                        span,
+                        input_data=input_data,
+                        tags={
+                            "dataset_id": self.dataset._datadog_dataset_id,
+                            "dataset_record_id": row.get("record_id"),
+                            "experiment_id": self._datadog_experiment_id,
+                        },
+                    )
+                    LLMObs._tag_expected_output(span, expected_output)
+
+                    return {
+                        "idx": idx,
+                        "output": None,
+                        "metadata": {
+                            "timestamp": start_time,
+                            "duration": time.time() - start_time,
+                            "dataset_record_index": idx,
+                            "project_name": self.project_name,
+                            "experiment_name": self.name,
+                            "dataset_name": self.dataset.name,
+                            "span_id": span_id,
+                            "trace_id": trace_id,
+                        },
+                        "error": {
+                            "message": error_message,
+                            "stack": traceback.format_exc(),
+                            "type": type(e).__name__,
+                        }
+                    }
+
+        _jobs = 5 if sample_size else jobs
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
+            for result in executor.map(process_row, enumerate(subset_dataset)):
+                outputs_buffer.append(result)
+                progress.update(error=result["error"]["message"] is not None)
+                if raise_errors and result["error"]["message"]:
+                    raise RuntimeError(
+                        f"Error on record {result['idx']}: {result['error']['message']}\n"
+                        f"Stack Trace:\n{result['error']['stack']}"
+                    )
+
+        LLMObs.flush()
+        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
+        os.environ["DD_LLMOBS_ENABLED"] = "False"
+
+        if not outputs_buffer:
+            raise ValueError("No outputs were produced, cannot evaluate.")
+
+        # -- Run evaluations on the subset outputs:
+        print(f"\nEvaluating {len(outputs_buffer)} rows...\n")
+        evaluators_to_use = self.evaluators
+        progress_eval = ProgressReporter(len(outputs_buffer), desc="Evaluating")
+        evaluations_partial = []
+
+        for idx, output_data in enumerate(outputs_buffer):
+            output = output_data["output"]
+            dataset_row = subset_dataset[idx]
+            input_data = dataset_row.get("input", {})
+            expected_output = dataset_row.get("expected_output", {})
+
+            evaluations_dict = {}
+            for evaluator_func in evaluators_to_use:
+                if not hasattr(evaluator_func, "_is_evaluator"):
+                    raise TypeError(
+                        f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator."
+                    )
+                try:
+                    evaluation_result = evaluator_func(input_data, output, expected_output)
+                    evaluations_dict[evaluator_func.__name__] = {
+                        "value": evaluation_result,
+                        "error": None
+                    }
+                except Exception as e:
+                    evaluations_dict[evaluator_func.__name__] = {
+                        "value": None,
+                        "error": {
+                            "message": str(e),
+                            "type": type(e).__name__,
+                            "stack": traceback.format_exc(),
+                        }
+                    }
+                    if raise_errors:
+                        raise RuntimeError(
+                            f"Evaluator '{evaluator_func.__name__}' failed on row {idx}: {e}"
+                        ) from e
+
+            evaluations_partial.append({
+                "idx": idx,
+                "evaluations": evaluations_dict
+            })
+            progress_eval.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
+
+        # If sample_size was not used, we can store these as the main experiment outputs/evals:
+        if sample_size is None:
+            self.outputs = outputs_buffer
+            self.has_run = True
+
+        # Build/attach an ExperimentResults
+        experiment_results = ExperimentResults(
+            dataset=subset_dataset,
+            experiment=self,
+            outputs=outputs_buffer,
+            evaluations=evaluations_partial,
+        )
+        self.has_evaluated = True
+        print(f"\n{Color.RESET} Run complete.\n")
+        return experiment_results
+
+
+    def run_task(self, jobs: int = 10, raise_errors: bool = False) -> None:
+        """
+        Execute the task function on the dataset concurrently, terminating early if raise_errors is True
+        and an exception occurs (on the first error).
+        """
+        _validate_init()
+        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
+        total_rows = len(self.dataset)
+
+        progress = ProgressReporter(total_rows, desc="Processing")
+        outputs_buffer = []
+
+        def process_row(idx_row):
+            idx, row = idx_row
+            start_time = time.time()
+            with LLMObs._experiment(name=self.task.__name__) as span:
+                span.context.set_baggage_item("is_experiment_task", True)
+                span_context = LLMObs.export_span(span=span)
+                span_id = span_context["span_id"]
+                trace_id = span_context["trace_id"]
+
+                input_data = row["input"]
+                expected_output = row["expected_output"]
 
                 try:
-                    
                     if getattr(self.task, "_accepts_config", False):
                         output = self.task(input_data, self.config)
                     else:
@@ -756,7 +992,6 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
-                     # Periodic flush for concurrency
                     if idx % 30 == 0:
                         LLMObs.flush()
 
@@ -791,7 +1026,6 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
-                    # Periodic flush for concurrency
                     if idx % 30 == 0:
                         LLMObs.flush()
 
@@ -816,15 +1050,22 @@ class Experiment:
                     }
 
         # Using ThreadPoolExecutor.map to process rows concurrently
-        with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(process_row, list(enumerate(self.dataset))):
                 outputs_buffer.append(result)
                 progress.update(error=result["error"]["message"] is not None)
-        
+
+                # Raise the first error encountered if raise_errors is True
+                if raise_errors and result["error"]["message"]:
+                    raise RuntimeError(
+                        f"Error on record {result['idx']}: {result['error']['message']}\n"
+                        f"Stack trace:\n{result['error']['stack']}"
+                    )
+
         self.outputs = outputs_buffer
         self.has_run = True
         LLMObs.flush()
-        
+
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
 
@@ -902,6 +1143,119 @@ class Experiment:
         experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
         experiment_results._push_evals()
         return experiment_results
+    
+
+
+
+
+    def __repr__(self) -> str:
+        """Rich string representation of the Experiment.
+        
+        Shows experiment configuration, task details, evaluators, and run status
+        with color-coded indicators and formatted statistics.
+        """
+        # Basic experiment info with color
+        name = f"{Color.CYAN}{self.name}{Color.RESET}"
+        project = f"{Color.CYAN}{self.project_name}{Color.RESET}"
+        
+        # Task info
+        task_name = self.task.__name__
+        task_doc = self.task.__doc__
+        task_preview = f"{task_name}"
+        if task_doc:
+            # Get first line of docstring
+            first_line = task_doc.splitlines()[0].strip()
+            task_preview += f" ({first_line})"
+        
+        # Dataset info
+        dataset_info = (
+            f"{self.dataset.name} "
+            f"({len(self.dataset):,} records)"
+        )
+        
+        # Evaluators info
+        evaluator_names = [e.__name__ for e in self.evaluators]
+        evaluator_info = (
+            f"{len(evaluator_names)} evaluator"
+            f"{'s' if len(evaluator_names) != 1 else ''}"
+        )
+        
+        # Config preview
+        config_preview = ""
+        if self.config:
+            # Format first few config items
+            items = list(self.config.items())[:3]
+            preview = ", ".join(f"{k}: {repr(v)}" for k, v in items)
+            if len(self.config) > 3:
+                preview += f" + {len(self.config) - 3} more"
+            config_preview = f"\n  Config: {preview}"
+        
+        # Tags
+        tags_info = ""
+        if self.tags:
+            tags = " ".join(f"{Color.GREY}#{tag}{Color.RESET}" for tag in self.tags)
+            tags_info = f"\n  Tags: {tags}"
+        
+        # Execution status
+        status_indicators = []
+        
+        # Run status
+        if self.has_run:
+            run_status = f"{Color.GREEN}✓ Run complete{Color.RESET}"
+            if self.outputs:
+                errors = sum(1 for o in self.outputs if o.get("error", {}).get("message"))
+            if errors:
+                error_rate = (errors / len(self.outputs)) * 100
+                run_status += f" ({Color.RED}{errors:,} errors{Color.RESET}, {error_rate:.1f}%)"
+        else:
+            run_status = f"{Color.YELLOW}Not run{Color.RESET}"
+        status_indicators.append(run_status)
+        
+        # Evaluation status
+        if self.has_evaluated:
+            eval_status = f"{Color.GREEN}✓ Evaluated{Color.RESET}"
+        elif self.has_run:
+            eval_status = f"{Color.YELLOW}Not evaluated{Color.RESET}"
+        else:
+            eval_status = f"{Color.DIM}Pending run{Color.RESET}"
+        status_indicators.append(eval_status)
+        
+        # Datadog sync status
+        if self._datadog_experiment_id:
+            dd_status = f"{Color.GREEN}✓ Synced{Color.RESET}"
+            dd_url = f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
+        else:
+            dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
+            dd_url = ""
+        status_indicators.append(dd_status)
+        
+        # Description (if present)
+        desc_info = ""
+        if self.description:
+            desc_preview = (self.description[:47] + '...') if len(self.description) > 50 else self.description
+            desc_info = f"\n  Description: {desc_preview}"
+        
+        # Build the final representation
+        info = [
+            f"Experiment(name={name})",
+            f"  Project: {project}",
+            f"  Task: {task_preview}",
+            f"  Dataset: {dataset_info}",
+            f"  Evaluators: {evaluator_info} ({', '.join(evaluator_names)})",
+            f"  Status: {' | '.join(status_indicators)}"
+        ]
+        
+        # Add optional sections if present
+        if desc_info:
+            info.insert(2, desc_info)
+        if config_preview:
+            info.append(config_preview)
+        if tags_info:
+            info.append(tags_info)
+        if dd_url:
+            info.append(dd_url)
+        
+        return '\n'.join(info)
 
  
 
@@ -1161,6 +1515,8 @@ class ExperimentResults:
             for result in self.merged_results:
                 json_line = json.dumps(result)
                 f.write(json_line + '\n')
+
+        
 
 
 def _make_id() -> str:
@@ -1425,3 +1781,4 @@ class ProgressReporter:
                 print(f"{Color.DIM}   Set .run(raise_errors=True) to halt and see full error traces{Color.RESET}")
             else:
                 print(f"{Color.GREEN}✓ Completed successfully{Color.RESET}")
+
