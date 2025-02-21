@@ -3,8 +3,9 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -17,7 +18,6 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Span
-from ddtrace.trace import tracer
 
 
 class LangGraphIntegration(BaseLLMIntegration):
@@ -40,7 +40,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         metadata = _get_attr(config, "metadata", {})
         instance_id = metadata.get("langgraph_checkpoint_ns", "").split(":")[-1]
         invoked_node = self._graph_nodes_by_task_id.setdefault(instance_id, {})
-        invoked_node["span"] = {"trace_id": "{:x}".format(span.trace_id), "span_id": str(span.span_id)}
+        invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
 
         span_links = [_default_span_link(span)]
         invoked_node_span_links = invoked_node.get("span_links")
@@ -67,9 +67,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         graph_span = (
-            tracer.current_span()
+            LLMObs._instance._current_span()
         )  # we're running between nodes, so the current span should be the pregel graph
-        if graph_span is None or graph_span.span_type != SpanTypes.LLM:
+        if graph_span is None:
             return
 
         if not more_tasks:
@@ -98,7 +98,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = [
                 {
                     "span_id": str(graph_span.span_id) or "undefined",
-                    "trace_id": "{:x}".format(graph_caller_span.trace_id),
+                    "trace_id": format_trace_id(graph_span.trace_id),
                     "attributes": {"from": "output", "to": "output"},
                 }
             ]
@@ -177,7 +177,7 @@ def _default_span_link(span: Span):
     """
     return {
         "span_id": span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
-        "trace_id": "{:x}".format(span.trace_id),
+        "trace_id": format_trace_id(span.trace_id),
         "attributes": {"from": "input", "to": "input"},
     }
 
