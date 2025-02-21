@@ -490,7 +490,7 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    import ddtrace  #  noqa:F401
+    import ddtrace  # noqa:F401
     from tests.internal.namespace_test import ns_module
 
     # Check that the loader's get_code is wrapped:
@@ -568,3 +568,27 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.requests",
         "ddtrace.contrib.pyramid",
     }
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Does not work with CPython < 3.11")
+def test_module_watchdog_no_interal_frames_in_import_exceptions(module_watchdog):
+    try:
+        import tests.submod.import_test  # noqa:F401
+    except ImportError as e:
+        import ddtrace.internal.module as m
+
+        sources = set()
+
+        tb = e.__traceback__
+        while tb is not None:
+            sources.add(Path(tb.tb_frame.f_code.co_filename).resolve())
+            tb = tb.tb_next
+
+        m_origin = origin(m)
+        assert m_origin is not None and m_origin not in sources
+
+
+def test_lazy_decorator():
+    import tests.internal.lazy as lazy
+
+    assert lazy.new_value == 42

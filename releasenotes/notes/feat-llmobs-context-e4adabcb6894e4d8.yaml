@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Introduces an improved automated context management system for LLM Observability-specific spans.
+    Also modifies ``LLMObs.export_span()``, ``LLMObs.inject_distributed_headers()``, ``LLMObs.annotate()`` to default to the current active LLM Observability-specific span if ``span`` is not provided.

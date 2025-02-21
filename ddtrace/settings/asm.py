@@ -17,8 +17,9 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -269,6 +270,13 @@ class ASMConfig(Env):
                 return self._auto_user_instrumentation_rc_mode
             return self._auto_user_instrumentation_local_mode
         return LOGIN_EVENTS_MODE.DISABLED
+
+    @property
+    def is_iast_request_enabled(self) -> bool:
+        env = core.get_item(IAST.REQUEST_CONTEXT_KEY)
+        if env:
+            return env.request_enabled
+        return False
 
 
 config = ASMConfig()

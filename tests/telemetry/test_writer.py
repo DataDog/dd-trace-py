@@ -9,13 +9,13 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace import config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings import _global_config as config
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
@@ -440,6 +440,10 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
         {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
+        {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
+        {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
+        {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
@@ -471,6 +475,7 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
+        {"name": "_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
@@ -876,4 +881,4 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
 
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
-    assert tags == [["config_opentelemetry:otel_logs_exporter", "config_datadog:"]]
+    assert tags == [["config_opentelemetry:otel_logs_exporter"]]
