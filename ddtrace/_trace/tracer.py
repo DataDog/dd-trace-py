@@ -486,9 +486,9 @@ class Tracer(object):
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
             if isinstance(sampler, DatadogSampler):
-                sampler._rate_limit_always_on = True
-                sampler.limiter.rate_limit = 1
-                sampler.limiter.time_window = 60e9
+                sampler._rate_limit_always_on = True  # type: ignore[has-type]
+                sampler.limiter.rate_limit = 1  # type: ignore[has-type]
+                sampler.limiter.time_window = 60e9  # type: ignore[has-type]
             else:
                 if sampler is not None:
                     log.warning(
