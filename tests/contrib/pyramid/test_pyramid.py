@@ -9,7 +9,6 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
-from tests.utils import flaky
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -254,7 +253,6 @@ def pyramid_client(snapshot, pyramid_app):
         proc.terminate()
 
 
-@flaky(1740089353, reason="Sample app doesn't seem to spin up in subprocess")
 @pytest.mark.parametrize(
     "pyramid_app",
     [
@@ -262,7 +260,6 @@ def pyramid_client(snapshot, pyramid_app):
         "ddtrace-run python tests/contrib/pyramid/app/app.py",
     ],
 )
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200
