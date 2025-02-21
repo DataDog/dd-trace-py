@@ -10,7 +10,6 @@ from tests.appsec.appsec_utils import flask_server
 _PORT = 8060
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 12, 0), reason="Package not yet compatible with Python 3.12")
 @pytest.mark.parametrize(
     "orm, xfail",
     [
