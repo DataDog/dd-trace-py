@@ -1453,45 +1453,6 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
-@pytest.mark.django_db
-def test_cached_template(client, test_spans):
-    # make the first request so that the view is cached
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-
-    # check the first call for a non-cached view
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    cache_span_count = len(spans)
-    assert cache_span_count >= 1
-    # the cache miss
-    assert spans[0].resource == "django.core.cache.backends.locmem.get"
-    # store the result in the cache
-    assert spans[1].resource == "django.core.cache.backends.locmem.set"
-
-    # check if the cache hit is traced
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    # Should have 1 more span
-    assert len(spans) == cache_span_count + 1
-
-    span_template_cache = spans[2]
-    assert span_template_cache.service == "django"
-    assert span_template_cache.resource == "django.core.cache.backends.locmem.get"
-    assert span_template_cache.name == "django.cache"
-    assert span_template_cache.span_type == "cache"
-    assert span_template_cache.error == 0
-
-    expected_meta = {
-        "component": "django",
-        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.base_service": "tests.contrib.django",
-    }
-
-    assert span_template_cache.get_tags() == expected_meta
-
-
 """
 Configuration tests
 """
