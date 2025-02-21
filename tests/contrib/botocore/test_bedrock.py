@@ -261,6 +261,7 @@ def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(until=1742428860, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
     body = json.dumps(
         {
