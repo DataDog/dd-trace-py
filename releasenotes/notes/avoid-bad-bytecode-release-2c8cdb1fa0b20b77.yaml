@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Require ``bytecode>=0.15.1`` for Python 3.12 to avoid `known bug <https://github.com/MatthieuDartiailh/bytecode/issues/130>`_.
