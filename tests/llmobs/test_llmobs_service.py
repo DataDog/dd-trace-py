@@ -435,13 +435,13 @@ def test_annotate_numeric_io(llmobs):
 def test_annotate_input_serializable_value(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span._get_ctx_item(INPUT_VALUE) == str(["test_input"])
+        assert task_span._get_ctx_item(INPUT_VALUE) == '["test_input"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span._get_ctx_item(INPUT_VALUE) == str({"test_input": "hello world"})
+        assert tool_span._get_ctx_item(INPUT_VALUE) == '{"test_input": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(INPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
         assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
@@ -609,16 +609,16 @@ def test_annotate_output_string(llmobs):
 def test_annotate_output_serializable_value(llmobs):
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
+        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == str(["test_output"])
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == '["test_output"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
+        assert tool_span._get_ctx_item(OUTPUT_VALUE) == '{"test_output": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
         assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
