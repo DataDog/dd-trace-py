@@ -669,7 +669,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
-@flaky(until=1738272799, reason="GitLab CI does not support ipv6 at this time")
+@flaky(until=1767220930, reason="GitLab CI does not support ipv6 at this time")
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""
