@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ddtrace-native"
+name = "ddtrace-core"
 version = "0.1.0"
 dependencies = [
  "datadog-ddsketch",
