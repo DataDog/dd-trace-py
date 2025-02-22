@@ -221,8 +221,10 @@ def test_simple_pyramid_app_endpoint():
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
 
-    apps = ["ddtrace-run pserve tests/contrib/pyramid/pserve_app/development.ini",
-                   "ddtrace-run python tests/contrib/pyramid/app/app.py"]
+    apps = [
+        "ddtrace-run pserve tests/contrib/pyramid/pserve_app/development.ini",
+        "ddtrace-run python tests/contrib/pyramid/app/app.py",
+    ]
 
     for pyramid_app in apps:
         cmd = pyramid_app.split(" ")
@@ -240,7 +242,6 @@ def test_simple_pyramid_app_endpoint():
         client.wait()
 
         try:
-
             r = client.get("/")
             assert r.status_code == 200
         finally:
