@@ -215,55 +215,38 @@ class TestSchematization(PyramidBase):
         assert s.name == "http.server.request", "Expected 'http.server.request' and got {}".format(s.name)
 
 
-@pytest.fixture
-def pyramid_app():
-    return "ddtrace-run python tests/contrib/pyramid/app/app.py"
-
-
-@pytest.fixture(scope="function")
-def pyramid_client(snapshot, pyramid_app):
-    """Runs a Pyramid app in a subprocess and returns a client which can be used to query it.
-
-    Traces are flushed by invoking a tracer.shutdown() using a /shutdown-tracer route
-    at the end of the testcase.
-    """
-
+# TODO: fix snapshots if this passes
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_simple_pyramid_app_endpoint():
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
 
-    cmd = pyramid_app.split(" ")
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-        env=env,
-    )
+    apps = ["ddtrace-run pserve tests/contrib/pyramid/pserve_app/development.ini",
+                   "ddtrace-run python tests/contrib/pyramid/app/app.py"]
 
-    client = Client("http://localhost:%d" % SERVER_PORT)
+    for pyramid_app in apps:
+        cmd = pyramid_app.split(" ")
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            close_fds=True,
+            env=env,
+        )
 
-    # Wait for the server to start up
-    client.wait()
+        client = Client("http://localhost:%d" % SERVER_PORT)
 
-    try:
-        yield client
-    finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        proc.terminate()
+        # Wait for the server to start up
+        client.wait()
 
+        try:
 
-@pytest.mark.parametrize(
-    "pyramid_app",
-    [
-        "ddtrace-run pserve tests/contrib/pyramid/pserve_app/development.ini",
-        "ddtrace-run python tests/contrib/pyramid/app/app.py",
-    ],
-)
-@pytest.mark.snapshot(ignores=["meta.http.useragent"])
-def test_simple_pyramid_app_endpoint(pyramid_client):
-    r = pyramid_client.get("/")
-    assert r.status_code == 200
+            r = client.get("/")
+            assert r.status_code == 200
+        finally:
+            resp = client.get_ignored("/shutdown-tracer")
+            assert resp.status_code == 200
+            proc.terminate()
 
 
 class TestAPIGatewayTracing(PyramidBase):
