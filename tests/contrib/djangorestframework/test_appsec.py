@@ -17,7 +17,7 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
         client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
         root_span = test_spans.spans[0]
         assert_span_http_status_code(root_span, 500)
-        query = dict(core.get_item("http.request.body", span=root_span))
+        query = dict(core.get_item("http.request.body"))
 
         assert get_triggers(root_span) is None
         assert root_span.get_tag("component") == "django"

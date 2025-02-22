@@ -411,11 +411,11 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
                 # Force to set respond headers at the end
-                headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
                 if headers_res:
                     _set_headers(span, headers_res, kind="response")
 
-                headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
+                headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
                 if headers_req:
                     _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
