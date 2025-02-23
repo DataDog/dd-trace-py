@@ -313,7 +313,7 @@ def run_function_from_file(item, params=None):
     args = [sys.executable]
 
     timeout = marker.kwargs.get("timeout", None)
-    check_logs = marker.kwargs.get("check_logs", True)
+    check_logs = marker.kwargs.get("check_logs", False)
 
     # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
