@@ -114,7 +114,7 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
-            raise OverflowError("Integer value out of range")
+            raise OverflowError("Integer value out of range: %d" % n)
 
     if PyInt_Check(n):
         return msgpack_pack_long(pk, <long> n)
