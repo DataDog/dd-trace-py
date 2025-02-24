@@ -14,42 +14,50 @@
  https://github.com/google/tcmalloc/blob/master/docs/sampling.md#detailed-treatment-of-weighting-weighting
 
    We want to explain memory used by the program. We can't track every
-   allocation with reasonable overhead, so we sample. We basically want every
-   byte allocated to have the same probability of being represented in the
-   profile. Assume we want an average of one byte out of every R allocated
-   sampled. Call R the "sampling interval". In a simplified world where every
-   allocation is 1 byte, we can just do a 1/R coin toss for every allocation.
-   This can be simplified by observing that the interval between samples done
-   this way follows a geometric distribution with average R. We can draw from a
-   geometric distribution to pick the next sample point. For computational
-   simplicity, we use an exponential distribution, which is essentially the
-   limit of the geometric distribution if we were to divide each byte into
-   smaller and smaller sub-bytes. We set a target for sampling, T, drawn from
-   the exponential distribution with average R. We count the number of bytes
-   allocated, C. For each allocation, we increment C by the size of the
+   allocation with reasonable overhead, so we sample. We'd like the heap to
+   represent what's taking up the most memory. We'd like to see large live
+   allocations, or when many small allocations in some part of the code add up
+   to a lot of memory usage. So, we choose to sample based on bytes allocated.
+   We basically want every byte allocated to have the same probability of being
+   represented in the profile. Assume we want an average of one byte out of
+   every R allocated sampled. Call R the "sampling interval". In a simplified
+   world where every allocation is 1 byte, we can just do a 1/R coin toss for
+   every allocation.  This can be simplified by observing that the interval
+   between samples done this way follows a geometric distribution with average
+   R. We can draw from a geometric distribution to pick the next sample point.
+   For computational simplicity, we use an exponential distribution, which is
+   essentially the limit of the geometric distribution if we were to divide each
+   byte into smaller and smaller sub-bytes. We set a target for sampling, T,
+   drawn from the exponential distribution with average R. We count the number
+   of bytes allocated, C. For each allocation, we increment C by the size of the
    allocation, and when C >= T, we take a sample, reset C to 0, and re-draw T.
 
    If we reported just the sampled allocation's sizes, we would significantly
-   misrepresent the actual heap size. Each sampled allocation represents roughly
-   R bytes of actual allocated memory. We want to weight our samples accordingly,
-   and account for the fact that large allocations are more likely to have been
-   sampled than small allocations.
+   misrepresent the actual heap size. We're probably going to hit some small
+   allocations with our sampling, and reporting their actual size would
+   under-represent the size of the heap. Each sampled allocation represents
+   roughly R bytes of actual allocated memory. We want to weight our samples
+   accordingly, and account for the fact that large allocations are more likely
+   to be sampled than small allocations.
 
    The math for weighting is described in more detail in the tcmalloc docs.
    Basically, any sampled allocation should get an average weight of R, our
-   sampling intervali. However, when we pick our next sampling point, it's
-   probably going to be in the middle of an allocation, and bytes of the
-   allocation past that point are going to be skipped by our sampling method. We
-   can correct for this by looking at how big the allocation was, and how much
-   it would drive the counter C past the target T. The formula W = R + (C - T)
-   expresses this, where C is the counter including the sampled allocation. If
-   the allocation was large, we are likely to have significantly exceeded T, so
-   the weight will be larger. Conversely, if the allocation was small, C - T
-   will likely be small, so the allocation gets less weight. The current code
-   simplifies this a bit. We can also express the weight as C + (R - T), and
-   note that on average T should equal R, and just drop the (R - T) term and use
-   C as the weight. We might want to use the full formula if more testing shows
-   us to be too inaccurate.
+   sampling interval. However, this would under-weight allocations larger than R
+   bytes, our sampling interval. When we pick the next sampling point, it's
+   probably going to be in the middle of an allocation. Bytes of the sampled
+   allocation past that point are going to be skipped by our sampling method,
+   since we re-draw the target _after_ the allocation. We can correct for this
+   by looking at how big the allocation was, and how much it would drive the
+   counter C past the target T. The formula W = R + (C - T) expresses this,
+   where C is the counter including the sampled allocation. If the allocation
+   was large, we are likely to have significantly exceeded T, so the weight will
+   be larger. Conversely, if the allocation was small, C - T will likely be
+   small, so the allocation gets less weight, and as we get closer to our
+   hypothetical 1-byte allocations we'll get closer to a weight of R for each
+   allocation. The current code simplifies this a bit. We can also express the
+   weight as C + (R - T), and note that on average T should equal R, and just
+   drop the (R - T) term and use C as the weight. We might want to use the full
+   formula if more testing shows us to be too inaccurate.
  */
 
 typedef struct
