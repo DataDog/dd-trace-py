@@ -69,16 +69,37 @@ baseline:build:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
   script: |
-    ulimit -c unlimited
-    pyenv global 3.9
+    if [ ! -f baseline.whl ];
+    then
+      ulimit -c unlimited
+      pyenv global 3.9
 
-    echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
-    git checkout "${BASELINE_COMMIT_SHA}"
-    python3.9 -m pip wheel --no-deps .
-    mv *.whl baseline.whl
+      echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
+      git checkout "${BASELINE_COMMIT_SHA}"
+      python3.9 -m pip wheel --no-deps .
+      mv *.whl baseline.whl
+    else
+      echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
+    fi
+  cache:
+    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+      paths:
+        - baseline.whl
   artifacts:
     paths:
       - baseline.whl
+
+latest:
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:0a50e839f4b1600f02157518b8d016451b346578@sha256:5dae9bc7872f69b31b612690f0748c7ad71ab90ef28a754b2ae93d0ba505837b
+  tags: [ "arch:amd64" ]
+  stage: build
+  script: |
+    pyenv global 3.9
+    python3.9 -m pip download --no-deps ddtrace
+    mv *.whl latest.whl
+  artifacts:
+    paths:
+      - latest.whl
 
 candidate:
   stage: build
