@@ -98,6 +98,7 @@ venv = Venv(
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+        "CARGO_BUILD_JOBS": "12",
     },
     venvs=[
         Venv(
@@ -133,66 +134,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-            },
-        ),
-        Venv(
-            name="appsec_iast",
-            pys=select_pys(max_version="3.12"),
-            command="pytest -v {cmdargs} tests/appsec/iast/",
-            pkgs={
-                "requests": latest,
-                "urllib3": latest,
-                "pycryptodome": latest,
-                "cryptography": latest,
-                "astunparse": latest,
-                "simplejson": latest,
-                "SQLAlchemy": "==2.0.22",
-                "psycopg2-binary": "~=2.9.9",
-                "pymysql": latest,
-                "mysqlclient": "==2.1.1",
-                "googleapis-common-protos": latest,
-                "grpcio": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
-            command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
-            pkgs={
-                "requests": latest,
-                "pycryptodome": latest,
-                "cryptography": latest,
-                "SQLAlchemy": "==2.0.22",
-                "psycopg2-binary": "~=2.9.9",
-                # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
-                # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "pytest-memray": "~=1.7.0",
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_iast_packages",
-            pys=select_pys(min_version="3.8"),
-            command="pytest {cmdargs} tests/appsec/iast_packages/",
-            pkgs={
-                "requests": latest,
-                "astunparse": latest,
-                "flask": "~=3.0",
-                "virtualenv-clone": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -711,6 +652,12 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="dd_trace_api",
+            command="pytest {cmdargs} tests/contrib/dd_trace_api",
+            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
         # 2.2     3.5, 3.6, 3.7, 3.8  3.9
@@ -2090,6 +2037,25 @@ venv = Venv(
                 "protobuf": latest,
                 "pytest-randomly": latest,
             },
+        ),
+        Venv(
+            name="yaaredis",
+            command="pytest {cmdargs} tests/contrib/yaaredis",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"yaaredis": ["~=2.0.0", latest]},
+                ),
+                Venv(
+                    # yaaredis added support for Python 3.10 in 3.0
+                    pys="3.10",
+                    pkgs={"yaaredis": latest},
+                ),
+            ],
         ),
         Venv(
             name="sanic",

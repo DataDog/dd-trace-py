@@ -313,14 +313,14 @@ def test_otel_resource_attributes_tags_warning():
     }, config.tags
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration():
     from ddtrace import config
 
     assert config._otel_enabled is True
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": ""})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 

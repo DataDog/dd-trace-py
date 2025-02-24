@@ -1,4 +1,3 @@
-import ast
 from collections import defaultdict
 import datetime as dt
 from http.client import HTTPSConnection
@@ -19,7 +18,7 @@ sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
 
-CONTRIB_ROOT = pathlib.Path("ddtrace/contrib")
+CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
 excluded = {"coverage"}
@@ -81,18 +80,21 @@ def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
     all_required_modules = set()
     for item in CONTRIB_ROOT.iterdir():
-        init_filepath = item / "__init__.py"
-        if os.path.isdir(item) and os.path.isfile(init_filepath):
-            with open(init_filepath, "r") as initfile:
-                initfile_content = initfile.read()
-            syntax_tree = ast.parse(initfile_content)
-            for node in syntax_tree.body:
-                if hasattr(node, "targets"):
-                    if node.targets[0].id == "required_modules":
-                        to_add = set()
-                        for mod in node.value.elts:
-                            to_add |= {mod.value, mod.value.split(".")[0]}
-                        all_required_modules |= to_add
+        if not os.path.isdir(item):
+            continue
+
+        patch_filepath = item / "patch.py"
+
+        if os.path.isfile(patch_filepath):
+            with open(patch_filepath, "r") as patchfile:
+                patch_content = patchfile.read()
+
+            # Check if this patch file has a get_version function
+            if "def get_version()" in patch_content:
+                module_name = item.name
+                all_required_modules.add(module_name)
+
+
     return all_required_modules
 
 
@@ -238,6 +240,8 @@ def _get_version_bounds(packages) -> dict:
     return bounds
 
 def output_outdated_packages(all_required_packages, envs, bounds):
+    outdated_packages = []
+
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
         bounds[package] = (earliest, latest)
@@ -248,16 +252,20 @@ def output_outdated_packages(all_required_packages, envs, bounds):
         for pkg, version in versions_used:
             all_used_versions[pkg].add(version)
 
+
     for package in all_required_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
             continue
         if not _versions_fully_cover_bounds(bounds[package], ordered):
-            print(f"{package}")
+            outdated_packages.append(package)
+
+    print(" ".join(outdated_packages))
+
 
 def generate_supported_versions(contrib_packages, all_used_versions, patched):
     for mod in mapping_module_to_package:
-        contrib_packages.remove(mod)
+        contrib_packages.discard(mod)
         contrib_packages.add(mapping_module_to_package[mod])
         patched[mapping_module_to_package[mod]] = _is_module_autoinstrumented(mod)
 

@@ -91,3 +91,9 @@
       MYSQL_PASSWORD: test
       MYSQL_USER: test
       MYSQL_DATABASE: test
+  cassandra:
+    name: registry.ddbuild.io/images/mirror/cassandra:3.11.3
+    alias: cassandra
+    variables:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 256M
