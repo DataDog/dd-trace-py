@@ -16,6 +16,28 @@ from ddtrace.version import get_version  # noqa: E402
 
 
 app = Flask(__name__)
+_TELEMETRY_DEPENDENCIES = []
+
+# intercept telemetry events
+from ddtrace.internal.telemetry.writer import TelemetryWriter  # noqa: E402
+
+
+_flush_events = TelemetryWriter._flush_events_queue
+
+
+def _flush_events_wrapper(self):
+    global _TELEMETRY_DEPENDENCIES
+    res = _flush_events(self)
+    if res:
+        dependencies = [v.get("payload", {}).get("dependencies", {}) for v in res]
+        dependencies = [d for d in dependencies if d]
+        for lst in dependencies:
+            _TELEMETRY_DEPENDENCIES.extend(lst)
+        print(f"flushed events {dependencies}", flush=True)
+    return res
+
+
+TelemetryWriter._flush_events_queue = _flush_events_wrapper
 
 
 @app.route("/")
@@ -54,6 +76,13 @@ def import_modules():
 
     return {
         "dependencies": res,
+    }
+
+
+@app.route("/telemetrydependencies")
+def telemetry_dependencies():
+    return {
+        "dependencies": _TELEMETRY_DEPENDENCIES,
     }
 
 

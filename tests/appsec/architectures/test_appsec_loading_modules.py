@@ -95,11 +95,14 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
 
 @pytest.mark.parametrize("module, expected", [("asgiref", "asgiref"), ("botocore", "botocore"), ("dns", "dnspython")])
 def test_package(module, expected):
+    """test if third parties packages are correctly detected and reported through telemetry"""
     flask_app = pathlib.Path(__file__).parent / "mini.py"
 
     print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
 
-    process = subprocess.Popen([sys.executable, str(flask_app)])
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "4"
+    process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
     try:
         print("process started", flush=True)
         for i in range(24):
@@ -114,13 +117,21 @@ def test_package(module, expected):
 
                     assert "dependencies" in data
                     # appsec is always enabled
+                    res = {}
                     for m in data["dependencies"]:
                         if m["name"] == expected:
                             print(f">>> found {m}")
+                            res = m
                             break
                     else:
                         assert False, f"{expected} not in {data['dependencies']}"
-
+                # Waiting for telemetry to be generated
+                time.sleep(8)
+                with urlopen("http://localhost:8475/telemetrydependencies", timeout=1) as response:
+                    payload = response.read().decode()
+                    data = json.loads(payload)
+                    print(data)
+                    assert res in data["dependencies"], f"{res} not in {data}"
                 print(f"Test passed {i}", flush=True)
                 return
             except HTTPError as e:
@@ -129,8 +140,8 @@ def test_package(module, expected):
             except AssertionError:
                 print(f"Test failed {i}", flush=True)
                 raise
-            except BaseException:
-                print(f"Server not started yet {i}", flush=True)
+            except BaseException as e:
+                print(f"Server not started yet {i} {e!r}", flush=True)
                 continue
     finally:
         try:
