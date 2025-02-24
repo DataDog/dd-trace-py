@@ -87,7 +87,7 @@ class DDTraceAPITestCase(TracerTestCase):
         assert result == 2
         self._assert_real_spans()
 
-    @pytest.mark.snapshot()
+    @pytest.mark.snapshot(ignores=["meta.error.stack"])
     def test_set_traceback(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             try:
@@ -97,7 +97,7 @@ class DDTraceAPITestCase(TracerTestCase):
         spans = self._assert_real_spans()
         assert "error.stack" in spans[0]._meta
 
-    @pytest.mark.snapshot()
+    @pytest.mark.snapshot(ignores=["meta.error.stack"])
     def test_set_exc_info(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             try:
@@ -109,7 +109,7 @@ class DDTraceAPITestCase(TracerTestCase):
         assert "error.stack" in spans[0]._meta
         assert "error.type" in spans[0]._meta
 
-    @pytest.mark.snapshot()
+    @pytest.mark.snapshot(ignores=["meta.error.stack"])
     def test_exc_info_caught(self):
         try:
             with dd_trace_api.tracer.trace("web.request"):
