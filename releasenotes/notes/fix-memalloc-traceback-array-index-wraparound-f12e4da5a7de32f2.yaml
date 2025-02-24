@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes a crash in memory allocation profiler when tracking a large
+    number of live allocations, caused by unsigned integer wraparound which lead
+    to invalid memory access

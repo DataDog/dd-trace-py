@@ -59,7 +59,7 @@ def test_httpx_service_name(tracer, test_spans):
         We set the span service name as a text type and not binary
     """
     client = httpx.Client()
-    Pin.override(client, tracer=tracer)
+    Pin._override(client, tracer=tracer)
 
     with override_config("httpx", {"split_by_domain": True}):
         resp = client.get(get_url("/status/200"))
@@ -124,15 +124,15 @@ async def test_configure_service_name_pin(tracer, test_spans):
 
     # override the tracer on the default sync client
     # DEV: `httpx.get` will call `with Client() as client: client.get()`
-    Pin.override(httpx.Client, tracer=tracer)
+    Pin._override(httpx.Client, tracer=tracer)
 
     # sync client
     client = httpx.Client()
-    Pin.override(client, service="sync-client", tracer=tracer)
+    Pin._override(client, service="sync-client", tracer=tracer)
 
     # async client
     async_client = httpx.AsyncClient()
-    Pin.override(async_client, service="async-client", tracer=tracer)
+    Pin._override(async_client, service="async-client", tracer=tracer)
 
     resp = httpx.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200
@@ -292,7 +292,6 @@ def test_schematized_configure_global_service_name_env_v1():
     asyncio.run(test())
 
 
-@flaky(1735812000)
 @pytest.mark.subprocess()
 def test_schematized_unspecified_service_name_env_default():
     """
@@ -325,7 +324,6 @@ def test_schematized_unspecified_service_name_env_default():
     asyncio.run(test())
 
 
-@flaky(1735812000)
 @pytest.mark.subprocess(env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
 def test_schematized_unspecified_service_name_env_v0():
     """

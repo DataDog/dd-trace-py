@@ -129,6 +129,14 @@ def sqli_http_request_parameter_name_post(request):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def sqli_query_no_redacted(request):
+    obj = request.GET["q"]
+    with connection.cursor() as cursor:
+        # label sqli_query_no_redacted
+        cursor.execute(f"SELECT * FROM {obj} ORDER BY name")
+    return HttpResponse("OK", status=200)
+
+
 def sqli_http_request_header_name(request):
     key = [x for x in request.META.keys() if x == "master"][0]
 
@@ -248,6 +256,8 @@ def view_with_exception(request):
 
 def view_insecure_cookies_insecure(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie
     res.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
     return res
 
@@ -274,6 +284,8 @@ def view_insecure_cookies_two_insecure_one_secure(request):
 
 def view_insecure_cookies_insecure_special_chars(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie_special_characters
     res.set_cookie("insecure", "cookie?()43jfM;;;===value", secure=False, httponly=True, samesite="Strict")
     return res
 

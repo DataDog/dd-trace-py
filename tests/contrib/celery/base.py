@@ -88,10 +88,11 @@ class CeleryBaseTestCase(TracerTestCase):
     def setUp(self):
         super(CeleryBaseTestCase, self).setUp()
 
-        self.pin = Pin(service="celery-unittest", tracer=self.tracer)
+        self.pin = Pin(service="celery-unittest")
+        self.pin._tracer = self.tracer
         # override pins to use our Dummy Tracer
-        Pin.override(self.app, tracer=self.tracer)
-        Pin.override(celery.beat.Scheduler, tracer=self.tracer)
+        Pin._override(self.app, tracer=self.tracer)
+        Pin._override(celery.beat.Scheduler, tracer=self.tracer)
 
     def tearDown(self):
         self.app = None

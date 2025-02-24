@@ -27,6 +27,9 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_XSS
+from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -44,6 +47,8 @@ def _aux_appsec_prepare_tracer(tracer):
     _on_iast_fastapi_patch()
     patch_fastapi()
     patch_sqlite_sqli()
+    patch_header_injection()
+    patch_insecure_cookie()
     oce.reconfigure()
 
     # Hack: need to pass an argument to configure so that the processors are recreated
@@ -682,10 +687,12 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         }
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "test_route"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["hash"] == hash_value
 
 
-def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans):
+def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans):
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -702,6 +709,8 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
+
+        # label test_fastapi_insecure_cookie
         response.set_cookie(key="insecure", value=query_params, secure=False, httponly=True, samesite="strict")
 
         return response
@@ -722,13 +731,16 @@ def test_fasapi_insecure_cookie(fastapi_application, client, tracer, test_spans)
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_INSECURE_COOKIE
-        assert "path" not in vulnerability["location"].keys()
-        assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+        )
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
 
-def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_spans):
+def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test_spans):
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -765,7 +777,7 @@ def test_fasapi_insecure_cookie_empty(fastapi_application, client, tracer, test_
         assert loaded is None
 
 
-def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_spans):
+def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_spans):
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -782,6 +794,8 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
+
+        # label test_fastapi_no_http_only_cookie
         response.set_cookie(key="insecure", value=query_params, secure=True, httponly=False, samesite="strict")
 
         return response
@@ -802,13 +816,16 @@ def test_fasapi_no_http_only_cookie(fastapi_application, client, tracer, test_sp
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
-        assert "path" not in vulnerability["location"].keys()
-        assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+        )
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
 
-def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, test_spans):
+def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, test_spans):
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -843,7 +860,7 @@ def test_fasapi_no_http_only_cookie_empty(fastapi_application, client, tracer, t
         assert loaded is None
 
 
-def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spans):
+def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_spans):
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -860,6 +877,8 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
                 "ranges_origin": origin_to_str(ranges_result[0].source.origin),
             }
         )
+
+        # label test_fastapi_no_samesite_cookie
         response.set_cookie(key="insecure", value=query_params, secure=True, httponly=True, samesite="none")
 
         return response
@@ -880,10 +899,13 @@ def test_fasapi_no_samesite_cookie(fastapi_application, client, tracer, test_spa
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
-        assert "path" not in vulnerability["location"].keys()
-        assert "line" not in vulnerability["location"].keys()
         assert vulnerability["location"]["spanId"]
         assert vulnerability["hash"]
+        line, hash_value = get_line_and_hash(
+            "test_fastapi_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+        )
+        assert vulnerability["location"]["line"] == line
+        assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
 
 def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
@@ -927,6 +949,8 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert vulnerability["hash"] == hash_value
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
+        assert vulnerability["location"]["method"] == "header_injection"
+        assert vulnerability["location"]["class_name"] == ""
         assert vulnerability["location"]["spanId"]
 
 
@@ -971,7 +995,9 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
             content=_load_text_stacktrace(),
         )
 
-    with override_global_config(dict(_iast_enabled=True, _deduplication_enabled=False, _iast_request_sampling=100.0)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+    ):
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/stacktrace_leak/",
@@ -987,3 +1013,34 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_STACKTRACE_LEAK
+
+
+def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        from fastapi.responses import HTMLResponse
+        from jinja2 import Template
+
+        query_params = request.query_params.get("iast_queryparam")
+        template = Template("<p>{{ user_input|safe }}</p>")
+        html = template.render(user_input=query_params)
+        return HTMLResponse(html)
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        patch_iast({"xss": True})
+        _aux_appsec_prepare_tracer(tracer)
+        resp = client.get(
+            "/index.html?iast_queryparam=test1234",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+
+        span = test_spans.pop_traces()[0][0]
+        assert span.get_metric(IAST.ENABLED) == 1.0
+
+        iast_tag = span.get_tag(IAST.JSON)
+        assert iast_tag is not None
+        loaded = json.loads(iast_tag)
+        assert len(loaded["vulnerabilities"]) == 1
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_XSS

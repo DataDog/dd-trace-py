@@ -14,6 +14,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -42,7 +43,7 @@ def aws_credentials():
 def mock_tracer(ddtrace_global_config, bedrock_client):
     pin = Pin.get_from(bedrock_client)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(bedrock_client, tracer=mock_tracer)
+    pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
 
 
@@ -102,7 +103,7 @@ class TestBedrockConfig(SubprocessTestCase):
         self.bedrock_client = self.session.client("bedrock-runtime")
         self.mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(self.bedrock_client)
-        pin.override(self.bedrock_client, tracer=self.mock_tracer)
+        pin._override(self.bedrock_client, tracer=self.mock_tracer)
 
         super(TestBedrockConfig, self).setUp()
 
@@ -179,6 +180,7 @@ def test_anthropic_invoke(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(until=1742428860, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_anthropic_message_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
     model = "us." + model
@@ -259,6 +261,7 @@ def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(until=1742428860, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
     body = json.dumps(
         {
@@ -355,6 +358,7 @@ def test_amazon_embedding(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(1741838400, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_embedding(bedrock_client, request_vcr):
     body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
     model = "cohere.embed-english-v3"

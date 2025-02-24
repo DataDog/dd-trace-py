@@ -485,6 +485,13 @@ urllib3
 .. automodule:: ddtrace.contrib._urllib3
 
 
+.. _valkey:
+
+valkey
+^^^^^^
+.. automodule:: ddtrace.contrib.valkey
+
+
 .. _vertexai:
 
 vertexai
@@ -497,12 +504,6 @@ vertexai
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib._vertica
-
-.. _yaaredis:
-
-yaaredis
-^^^^^^^^
-.. automodule:: ddtrace.contrib._yaaredis
 
 .. _wsgi:
 

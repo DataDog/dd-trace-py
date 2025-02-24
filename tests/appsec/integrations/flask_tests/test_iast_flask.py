@@ -16,7 +16,10 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
+from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -45,11 +48,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_request_sampling=100.0,
             )
         ):
-            super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             patch_sqlite_sqli()
+            patch_insecure_cookie()
             patch_header_injection()
+            patch_xss_injection()
             patch_json()
-
+            super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
@@ -59,7 +63,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def sqli_1(param_str):
             import sqlite3
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             assert is_pyobject_tainted(param_str)
@@ -103,6 +106,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"]
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -159,6 +164,66 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_2"
+            assert vulnerability["location"]["class_name"] == ""
+            assert vulnerability["hash"] == hash_value
+
+    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+    def test_flask_iast_enabled_http_request_header_get(self):
+        @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
+        def sqli_2(param_str):
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            con = sqlite3.connect(":memory:")
+            cur = con.cursor()
+            # label test_flask_iast_enabled_http_request_header_get
+            cur.execute(add_aspect("SELECT 1 FROM ", request.headers.get("User-Agent")))
+
+            return "OK", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post(
+                "/sqli/sqlite_master/", data={"name": "test"}, headers={"User-Agent": "sqlite_master"}
+            )
+            assert resp.status_code == 200
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
+            ]
+
+            line, hash_value = get_line_and_hash(
+                "test_flask_iast_enabled_http_request_header_get",
+                VULN_SQL_INJECTION,
+                filename=TEST_FILE_PATH,
+            )
+            vulnerability = loaded["vulnerabilities"][0]
+
+            assert vulnerability["type"] == VULN_SQL_INJECTION
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "SELECT "},
+                    {"redacted": True},
+                    {"value": " FROM "},
+                    {"value": "sqlite_master", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_2"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -213,6 +278,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_3"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -265,6 +332,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_4"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
@@ -274,7 +343,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from ddtrace.appsec._iast._taint_tracking import OriginType
             from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
@@ -323,8 +391,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def sqli_6(param_str):
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             # Note: these are not tainted because of request sampling at 0%
             assert not is_pyobject_tainted(request.headers["User-Agent"])
@@ -414,6 +480,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_7"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -476,6 +544,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
+                    assert vulnerability["location"]["method"] == "sqli_8"
+                    assert vulnerability["location"]["class_name"] == ""
                     assert vulnerability["hash"] == hash_value
 
             assert {VULN_SQL_INJECTION} == vulnerabilities
@@ -527,6 +597,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_9"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -535,7 +607,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def sqli_13():
             import sqlite3
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             for i in request.form.keys():
@@ -585,6 +656,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_13"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -593,7 +666,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def sqli_14():
             import sqlite3
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             for i in request.args.keys():
@@ -643,6 +715,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_14"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -654,7 +728,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -709,6 +782,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_10"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -719,7 +794,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -774,6 +848,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -784,7 +860,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -839,6 +914,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -849,7 +926,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -906,6 +982,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -916,7 +994,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             def iterate_json(data, parent_key=""):
@@ -1044,6 +1121,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1057,7 +1136,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
             from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
             con = sqlite3.connect(":memory:")
@@ -1151,6 +1229,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_12"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1159,8 +1239,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def header_injection():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1194,13 +1272,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_header_injection_exlusions_location(self):
+    def test_flask_header_injection_exclusions_location(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1223,13 +1299,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_header_injection_exlusions_access_control(self):
+    def test_flask_header_injection_exclusions_access_control(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1258,11 +1332,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_insecure_cookie
             resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
             return resp
 
@@ -1284,10 +1358,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_INSECURE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
+            assert "class_name" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie_empty(self):
@@ -1295,8 +1374,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def insecure_cookie_empty():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1326,11 +1403,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_http_only_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=False, samesite="Strict")
             return resp
 
@@ -1352,10 +1429,13 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_http_only_cookie_empty(self):
@@ -1363,8 +1443,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def no_http_only_cookie_empty():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1395,11 +1473,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_samesite_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
             return resp
 
@@ -1421,10 +1499,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_samesite_cookie_empty(self):
@@ -1432,8 +1514,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def no_samesite_cookie_empty():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1460,8 +1540,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         def cookie_secure():
             from flask import Response
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
@@ -1587,6 +1665,163 @@ Lorem Ipsum Foobar
             )
             assert "Exception: ValueError" in vulnerability["evidence"]["valueParts"][0]["value"]
 
+    def test_flask_xss(self):
+        @self.app.route("/xss/", methods=["GET"])
+        def xss_view():
+            from flask import render_template_string
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss
+            return render_template_string("<p>XSS: {{ user_input|safe }}</p>", user_input=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "xss_view"
+            assert vulnerability["location"]["class_name"] == ""
+
+    def test_flask_xss_concat(self):
+        @self.app.route("/xss/concat/", methods=["GET"])
+        def xss_view():
+            from flask import render_template_string
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_concat
+            return render_template_string(add_aspect(add_aspect("<p>XSS: ", user_input), "</p>"))
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/concat/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss_concat", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<p>XSS: "},
+                    {"source": 0, "value": "<script>alert('XSS')</script>"},
+                    {"value": "</p>"},
+                ]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "xss_view"
+            assert vulnerability["location"]["class_name"] == ""
+
+    def test_flask_xss_template_secure(self):
+        @self.app.route("/xss/template/secure/", methods=["GET"])
+        def xss_view_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_template
+            return render_template("test.html", world=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/template/secure/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"hello &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    def test_flask_xss_template(self):
+        @self.app.route("/xss/template/", methods=["GET"])
+        def xss_view_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_template
+            return render_template("test_insecure.html", world=user_input)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/template/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            assert resp.data == b"hello <script>alert('XSS')</script>"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_insecure.html"
+
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
@@ -1621,18 +1856,19 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             return "OK", 200
 
-        if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
-            self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
-        else:
-            self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
+        with override_global_config(dict(_iast_enabled=False)):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+                self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
+            else:
+                self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
 
-        resp = self.client.post("/sqli/cookies/")
-        assert resp.status_code == 200
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
 
-        root_span = self.pop_spans()[0]
-        assert root_span.get_metric(IAST.ENABLED) is None
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
 
-        assert root_span.get_tag(IAST.JSON) is None
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):

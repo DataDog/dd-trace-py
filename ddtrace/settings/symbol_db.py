@@ -2,7 +2,7 @@ import re
 
 from envier import En
 
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 class SymbolDatabaseConfig(En):
@@ -11,7 +11,7 @@ class SymbolDatabaseConfig(En):
     enabled = En.v(
         bool,
         "upload_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to upload source code symbols to the Datadog backend",
     )

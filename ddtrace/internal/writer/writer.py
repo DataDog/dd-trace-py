@@ -13,8 +13,8 @@ from typing import Optional
 from typing import TextIO
 
 import ddtrace
+from ddtrace import config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings import _global_config as config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -578,9 +578,7 @@ class AgentWriter(HTTPWriter):
         try:
             # appsec remote config should be enabled/started after the global tracer and configs
             # are initialized
-            if os.getenv("AWS_LAMBDA_FUNCTION_NAME") is None and (
-                asm_config._asm_enabled or config._remote_config_enabled
-            ):
+            if asm_config._asm_rc_enabled:
                 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
                 enable_appsec_rc()

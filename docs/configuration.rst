@@ -120,7 +120,7 @@ Traces
 
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
-     default: False
+     default: True
      
      description: |
          This configuration enables the generation of 128 bit trace ids.
@@ -817,6 +817,7 @@ Sampling
      version_added:
         v0.33.0:
         v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
+        v3.0.0: Only applied when DD_TRACE_SAMPLING_RULES or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
@@ -927,3 +928,9 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+
+
+Live Debugging
+--------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig

@@ -80,8 +80,16 @@ def mock_llmobs_span_writer():
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(span, n_output, message=False):
-        prompt_tokens = int(span.get_tag("bedrock.usage.prompt_tokens"))
-        completion_tokens = int(span.get_tag("bedrock.usage.completion_tokens"))
+        prompt_tokens = span.get_metric("bedrock.response.usage.prompt_tokens")
+        completion_tokens = span.get_metric("bedrock.response.usage.completion_tokens")
+        token_metrics = {}
+        if prompt_tokens is not None:
+            token_metrics["input_tokens"] = prompt_tokens
+        if completion_tokens is not None:
+            token_metrics["output_tokens"] = completion_tokens
+        if prompt_tokens is not None and completion_tokens is not None:
+            token_metrics["total_tokens"] = prompt_tokens + completion_tokens
+
         expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
@@ -95,11 +103,7 @@ class TestLLMObsBedrock:
             input_messages=expected_input,
             output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
-            token_metrics={
-                "input_tokens": prompt_tokens,
-                "output_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-            },
+            token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -107,7 +111,7 @@ class TestLLMObsBedrock:
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_llmobs_span_writer, cassette_name=None, n_output=1):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -148,7 +152,7 @@ class TestLLMObsBedrock:
     ):
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
@@ -249,7 +253,7 @@ class TestLLMObsBedrock:
 
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
-        pin.override(bedrock_client, tracer=mock_tracer)
+        pin._override(bedrock_client, tracer=mock_tracer)
         # Need to disable and re-enable LLMObs service to use the mock tracer
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched

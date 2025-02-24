@@ -62,7 +62,7 @@ def record_settings_response(
     itr_enabled: Optional[bool] = False,
     flaky_test_retries_enabled: Optional[bool] = False,
     early_flake_detection_enabled: Optional[bool] = False,
-    quarantine_enabled: Optional[bool] = False,
+    test_management_enabled: Optional[bool] = False,
 ) -> None:
     log.debug(
         "Recording settings telemetry:"
@@ -71,13 +71,15 @@ def record_settings_response(
         ", require_git=%s"
         ", itr_enabled=%s"
         ", flaky_test_retries_enabled=%s"
-        ", early_flake_detection_enabled=%s",
+        ", early_flake_detection_enabled=%s"
+        ", test_management_enabled=%s",
         coverage_enabled,
         skipping_enabled,
         require_git,
         itr_enabled,
         flaky_test_retries_enabled,
         early_flake_detection_enabled,
+        test_management_enabled,
     )
     # Telemetry "booleans" are true if they exist, otherwise false
     response_tags = []
@@ -93,8 +95,8 @@ def record_settings_response(
         response_tags.append(("flaky_test_retries_enabled", "true"))
     if early_flake_detection_enabled:
         response_tags.append(("early_flake_detection_enabled", "true"))
-    if quarantine_enabled:
-        response_tags.append(("quarantine_enabled", "true"))
+    if test_management_enabled:
+        response_tags.append(("test_management_enabled", "true"))
 
     if response_tags:
         telemetry_writer.add_count_metric(

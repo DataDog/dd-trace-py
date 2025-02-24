@@ -274,7 +274,7 @@ elif sys.version_info >= (3, 9):
     )
 
 
-elif sys.version_info >= (3, 7):
+elif sys.version_info >= (3, 8):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}

@@ -2,7 +2,8 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import _constants as const
-from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -41,19 +42,18 @@ class TestMLApp:
             assert "ml_app:test-ml-app" in llmobs_event["tags"]
 
 
-def test_set_correct_parent_id(tracer):
+def test_set_correct_parent_id(llmobs):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
-    with tracer.trace("root"):
-        with tracer.trace("llm_span", span_type=SpanTypes.LLM) as llm_span:
+    with llmobs._instance.tracer.trace("root"):
+        with llmobs.workflow("llm_span") as llm_span:
             pass
-    assert _get_llmobs_parent_id(llm_span) is None
-    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as root_span:
-        with tracer.trace("child_span") as child_span:
-            with tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                pass
-    assert _get_llmobs_parent_id(root_span) is None
-    assert _get_llmobs_parent_id(child_span) == str(root_span.span_id)
-    assert _get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
+    assert llm_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
+    with llmobs.workflow("root_llm_span") as root_span:
+        assert root_span._get_ctx_item(PARENT_ID_KEY) is ROOT_PARENT_ID
+        with llmobs._instance.tracer.trace("child_span") as child_span:
+            assert child_span._get_ctx_item(PARENT_ID_KEY) is None
+            with llmobs.task("llm_span") as grandchild_span:
+                assert grandchild_span._get_ctx_item(PARENT_ID_KEY) == str(root_span.span_id)
 
 
 class TestSessionId:
@@ -216,8 +216,7 @@ def test_model_and_provider_are_set(tracer, llmobs_events):
 def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, mock_llmobs_logs):
     """Test that a trying to create a span event from a malformed span will log an error instead of crashing."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
-        # span does not have SPAN_KIND tag
-        pass
+        pass  # span does not have SPAN_KIND tag
     mock_llmobs_logs.error.assert_called_with(
         "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
     )
@@ -229,14 +228,9 @@ def test_only_generate_span_events_from_llmobs_spans(tracer, llmobs_events):
     with tracer.trace("root_llm_span", service="tests.llmobs", span_type=SpanTypes.LLM) as root_span:
         root_span._set_ctx_item(const.SPAN_KIND, "llm")
         with tracer.trace("child_span"):
-            with tracer.trace("llm_span", span_type=SpanTypes.LLM) as grandchild_span:
-                grandchild_span._set_ctx_item(const.SPAN_KIND, "llm")
-    expected_grandchild_llmobs_span = _expected_llmobs_llm_span_event(grandchild_span, "llm")
-    expected_grandchild_llmobs_span["parent_id"] = str(root_span.span_id)
-
-    assert len(llmobs_events) == 2
-    assert llmobs_events[1] == _expected_llmobs_llm_span_event(root_span, "llm")
-    assert llmobs_events[0] == expected_grandchild_llmobs_span
+            pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(root_span, "llm")
 
 
 def test_utf_non_ascii_io(llmobs, llmobs_backend):
@@ -264,3 +258,41 @@ def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
         events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"]
         == "The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967."
     )
+
+
+def test_structured_io_data(llmobs, llmobs_backend):
+    """Ensure that structured output data is correctly serialized."""
+    for m in [llmobs.workflow, llmobs.task, llmobs.llm]:
+        with m() as span:
+            llmobs.annotate(span, input_data={"data": "test1"}, output_data={"data": "test2"})
+        events = llmobs_backend.wait_for_num_events(num=1)
+        assert len(events) == 1
+        assert events[0]["spans"][0]["meta"]["input"]["value"] == '{"data": "test1"}'
+        assert events[0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
+
+
+def test_structured_prompt_data(llmobs, llmobs_backend):
+    with llmobs.llm() as span:
+        llmobs.annotate(span, prompt={"template": "test {{value}}"})
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0]["spans"][0]["meta"]["input"] == {
+        "prompt": {
+            "template": "test {{value}}",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        },
+    }
+
+
+def test_structured_io_data_unserializable(llmobs, llmobs_backend):
+    class CustomObj:
+        pass
+
+    for m in [llmobs.workflow, llmobs.task, llmobs.llm, llmobs.retrieval]:
+        with m() as span:
+            llmobs.annotate(span, input_data=CustomObj(), output_data=CustomObj())
+        events = llmobs_backend.wait_for_num_events(num=1)
+        assert len(events) == 1
+        assert "[Unserializable object:" in events[0]["spans"][0]["meta"]["input"]["value"]
+        assert "[Unserializable object:" in events[0]["spans"][0]["meta"]["output"]["value"]
