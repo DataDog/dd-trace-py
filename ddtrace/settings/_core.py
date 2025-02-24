@@ -5,49 +5,12 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from envier import Env
-
 from ddtrace.internal.native import get_configuration_from_disk
-from ddtrace.internal.telemetry import telemetry_writer
 
-from ._otel_remapper import hiding_otel_config
 from ._otel_remapper import parse_otel_env
 
 
 FLEET_CONFIG, LOCAL_CONFIG = get_configuration_from_disk()
-
-
-class Config(Env):
-    """Env-based configuration sub-class for automatic telemetry reporting."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._report_telemetry()
-
-    def _report_telemetry(self) -> None:
-        for name, e in type(self).items(recursive=True):
-            if e.private:
-                continue
-
-            env_name = e.full_name
-
-            # Get the item value recursively
-            env_val = self
-            for p in name.split("."):
-                env_val = getattr(env_val, p)
-
-            source = "unknown"
-            if env_name in self.source:
-                source = "env_var"
-            else:
-                if env_val == e.default:
-                    source = "default"
-
-            telemetry_writer.add_configuration(env_name, env_val, source)
-
-
-def report_telemetry(env: Env) -> None:
-    Config._report_telemetry(env)
 
 
 def get_config(
@@ -56,7 +19,7 @@ def get_config(
     modifier: Optional[Callable[[Any], Any]] = None,
     otel_env: Optional[str] = None,
     report_telemetry=True,
-):
+) -> Any:
     """Retrieve a configuration value in order of precedence:
     1. Fleet stable config
     2. Datadog env vars
@@ -92,8 +55,6 @@ def get_config(
                 source = "env_var"
                 effective_env = otel_env
                 val = parsed_val
-    elif effective_env is not None and otel_env is not None and otel_env in os.environ:
-        hiding_otel_config(otel_env, effective_env)
     # Get configurations from local stable config
     if val is None:
         for env in envs:
@@ -112,10 +73,8 @@ def get_config(
         source = "default"
     # Report telemetry
     if report_telemetry:
-        if effective_env == otel_env:
-            # We only report the raw value for OpenTelemetry configurations, we should make this consistent
-            raw_val = os.environ.get(effective_env, "").lower()
-            telemetry_writer.add_configuration(effective_env, raw_val, source)
-        else:
-            telemetry_writer.add_configuration(effective_env, val, source)
+        from ddtrace.settings._telemetry import report_config_telemetry
+
+        report_config_telemetry(effective_env, val, source, otel_env)
+
     return val
