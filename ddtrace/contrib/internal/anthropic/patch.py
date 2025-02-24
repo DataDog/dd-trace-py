@@ -90,6 +90,8 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
                         str(_get_attr(block, "type", "text")),
                     )
             span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
+        if instance._client.base_url:
+            span.set_tag_str("anthropic.base_url", str(instance._client.base_url))
         tag_params_on_span(span, kwargs, integration)
 
         chat_completions = func(*args, **kwargs)
