@@ -380,7 +380,7 @@ def int_service(pin, int_config, default=None):
     if (
         global_service
         and global_service != int_config.global_config._inferred_base_service
-        and not int_config.global_config._is_user_provided_service
+        # and not int_config.global_config._is_user_provided_service
     ):
         return cast(str, global_service)
 
