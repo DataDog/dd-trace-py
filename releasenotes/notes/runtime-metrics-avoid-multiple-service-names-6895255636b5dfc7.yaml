@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    runtime_metrics: Ensures only the global service name is tagged on runtime metrics, instead of every service name found in the process.
