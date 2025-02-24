@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
 from typing import Dict
-from typing import Iterable  # noqa:F401
+from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
