@@ -1,6 +1,8 @@
 from bm import Scenario
 
-from ddtrace.internal.telemetry.metrics_namespaces import add_metric
+from ddtrace.internal.telemetry.metrics_namespaces import MetricNamespace
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.metrics import CountMetric
 
 class TelemetryAddMetric(Scenario):
     """
@@ -10,6 +12,8 @@ class TelemetryAddMetric(Scenario):
     def run(self):
         def _(loops):
             for _ in range(loops):
-                add_metric("test", "metric", count, {"integration_name": "somevalue"})
+                metricnamespace = MetricNamespace()
+                metricnamespace.add_metric(CountMetric, TELEMETRY_NAMESPACE.TRACERS, "metric", int(self.count), tags=(("integration_name","somevalue"),))
+                metricnamespace.flush()
 
         yield _
