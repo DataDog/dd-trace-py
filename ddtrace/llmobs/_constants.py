@@ -29,6 +29,7 @@ GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
+CREWAI_APM_SPAN_NAME = "crewai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"

@@ -7,6 +7,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -123,7 +124,7 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
 
 
 def _get_span_name(span: Span) -> str:
-    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME, VERTEXAI_APM_SPAN_NAME) and span.resource != "":
+    if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME, VERTEXAI_APM_SPAN_NAME, CREWAI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.client") or "OpenAI"

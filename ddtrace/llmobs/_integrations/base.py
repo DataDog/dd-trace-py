@@ -64,14 +64,16 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(
+        self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, span_name: Optional[str] = None, **kwargs: Dict[str, Any]
+    ) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
         span = pin.tracer.trace(
-            "%s.request" % self._integration_name,
+            "%s.request" % self._integration_name if span_name is None else span_name,
             resource=operation_id,
             service=int_service(pin, self.integration_config),
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
