@@ -97,3 +97,12 @@
     variables:
       MAX_HEAP_SIZE: 512M
       HEAP_NEWSIZE: 256M
+  moto:
+    name: registry.ddbuild.io/images/mirror/moto:1.0.1
+    alias: moto
+  localstack:
+    name: registry.ddbuild.io/images/mirror/localstack:2.0.0
+    alias: localstack
+    variables:
+      LAMBDA_EXECUTOR: local
+      DOCKER_HOST: unix:///var/run/docker.sock

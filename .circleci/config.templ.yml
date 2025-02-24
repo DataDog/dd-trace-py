@@ -413,15 +413,6 @@ jobs:
           pattern: 'opentelemetry'
           snapshot: true
 
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
   consul:
     <<: *contrib_job_small
     docker:
@@ -448,16 +439,6 @@ jobs:
           pattern: 'mongoengine'
           snapshot: true
           docker_services: 'mongo'
-
-  aiobotocore:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *moto_image
-      - *testagent
-    steps:
-       - run_test:
-          pattern: 'aiobotocore'
 
   build_docs:
     # build documentation and store as an artifact

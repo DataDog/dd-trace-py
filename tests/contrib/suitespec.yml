@@ -263,6 +263,9 @@ suites:
       - '@botocore'
       - tests/contrib/aiobotocore/*
     runner: riot
+    services:
+      - moto
+    snapshot: true
   aiohttp:
     parallelism: 3
     paths:
@@ -420,6 +423,8 @@ suites:
     pattern: ^botocore$
     runner: riot
     snapshot: true
+    services:
+      - localstack
   bottle:
     paths:
       - '@bootstrap'
