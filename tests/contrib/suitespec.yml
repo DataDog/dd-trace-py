@@ -76,6 +76,9 @@ components:
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
+  dd_trace_api:
+    - ddtrace/contrib/internal/dd_trace_api/*
+    - tests/snapshots/tests.contrib.dd_trace_api.*
   django:
     - ddtrace/contrib/_django.py
     - ddtrace/contrib/internal/django/*
@@ -487,6 +490,15 @@ suites:
       - '@datastreams'
       - tests/datastreams/*
     runner: riot
+  dd_trace_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@dd_trace_api'
+      - tests/contrib/dd_trace_api/*
+    runner: riot
+    snapshot: true
   django:
     env:
       TEST_MEMCACHED_HOST: memcached

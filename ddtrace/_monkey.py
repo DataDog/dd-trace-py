@@ -37,6 +37,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
+    "dd_trace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
@@ -157,6 +158,8 @@ _MODULES_FOR_CONTRIB = {
     ),
 }
 
+_NOT_PATCHABLE_VIA_ENVVAR = {"dd_trace_api"}
+
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
@@ -211,8 +214,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     return on_import
 
 
-def patch_all(**patch_modules):
-    # type: (bool) -> None
+def patch_all(**patch_modules: bool) -> None:
     """Enables ddtrace library instrumentation.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -229,7 +231,7 @@ def patch_all(**patch_modules):
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if env_var in os.environ:
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
             modules[module] = formats.asbool(os.environ[env_var])
 
         # Enable all dependencies for the module
