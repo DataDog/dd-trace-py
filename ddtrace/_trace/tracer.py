@@ -971,9 +971,6 @@ class Tracer(object):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
-        If a ``wrap_executor`` callable has been provided in the ``Tracer.configure()``
-        method, it will be called instead of the default one when the function
-        decorator is invoked.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
