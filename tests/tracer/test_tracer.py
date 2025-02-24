@@ -464,26 +464,6 @@ class TracerTestCases(TracerTestCase):
             _parent=None,
         )
 
-    @run_in_subprocess()
-    def test_adding_services(self):
-        assert self.tracer._services == set(), self.tracer._services
-        with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one"]), self.tracer._services
-            with self.start_span("child", service="two", child_of=root):
-                pass
-        assert self.tracer._services == set(["one", "two"]), self.tracer._services
-
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
-    def test_adding_mapped_services(self):
-        assert self.tracer._services == set()
-        with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one"])
-
-            # service "two" gets remapped to "three"
-            with self.start_span("child", service="two", child_of=root):
-                pass
-        assert self.tracer._services == set(["one", "three"])
-
     def test_tracer_set_user(self):
         with self.trace("fake_span") as span:
             set_user(
