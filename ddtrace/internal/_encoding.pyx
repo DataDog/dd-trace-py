@@ -500,8 +500,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             try:
                 ret = self.pack_span(span, dd_origin)
             except Exception as e:
-                raise RuntimeError("failed to pack span: {}. Exception: {}".format(span._pprint(), e))
-
+                try:
+                    span_repr = span._pprint()
+                except Exception:
+                    span_repr = repr(span)
+                raise RuntimeError("failed to pack span: {}. Exception: {}".format(span_repr, e))
             # No exception was raised, but we got an error code from msgpack
             if ret != 0:
                 raise RuntimeError("couldn't pack span: {!r}".format(span))

@@ -798,7 +798,7 @@ def test_encoding_invalid_data(data):
     with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
-    assert e.match(r"failed to pack span: name="), e
+    assert e.match(r"failed to pack span: "), e
     assert encoder.encode()[0] is None
 
 
