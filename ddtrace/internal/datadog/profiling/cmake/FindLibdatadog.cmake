@@ -24,16 +24,14 @@ set(FETCHCONTENT_DOWNLOADS_DIR
 include_guard(GLOBAL)
 include(FetchContent)
 
-
-# Depending on whether a commit or version was specified, either download + build the repo or just grab a release tarball
+# Depending on whether a commit or version was specified, either download + build the repo or just grab a release
+# tarball
 if(COMMIT_LIBDATADOG)
-        FetchContent_Declare(
+    FetchContent_Declare(
         libdatadog
         GIT_REPOSITORY "https://github.com/DataDog/libdatadog.git"
         GIT_TAG "${COMMIT_LIBDATADOG}"
-        DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}"
-        SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src"
-    )
+        DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
 
     FetchContent_MakeAvailable(libdatadog)
 
@@ -48,10 +46,11 @@ if(COMMIT_LIBDATADOG)
     # Create the output folder
     file(MAKE_DIRECTORY "${LIBDD_OUTPUT_FOLDER}")
     execute_process(
-        COMMAND cargo run --bin release --features profiling,telemetry,data-pipeline,symbolizer,crashtracker,library-config --release -- --out ${LIBDD_OUTPUT_FOLDER}
+        COMMAND
+            cargo run --bin release --features profiling,telemetry,data-pipeline,symbolizer,crashtracker,library-config
+            --release -- --out ${LIBDD_OUTPUT_FOLDER}
         WORKING_DIRECTORY "${libdatadog_SOURCE_DIR}"
-        RESULT_VARIABLE CARGO_RESULT
-    )
+        RESULT_VARIABLE CARGO_RESULT)
     if(NOT CARGO_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to build libdatadog FFI")
     endif()
@@ -77,7 +76,8 @@ else()
             "4540ffb8ccb671550a39ba79226117086582c1eaf9714180a9e26bd6bb175860 libdatadog-aarch64-apple-darwin.tar.gz"
             "31bceab4f56873b03b3728760d30e3abc493d32ca8fdc9e1f2ec2147ef4d5424 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
             "530348c4b02cc7096de2231476ec12db82e2cc6de12a87e5b28af47ea73d4e56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-            "5073ffc657bc4698f8bdd4935475734577bfb18c54dcbebc4f7d8c7595626e52 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
+            "5073ffc657bc4698f8bdd4935475734577bfb18c54dcbebc4f7d8c7595626e52 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
+        )
     endif()
 
     # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
@@ -134,9 +134,7 @@ else()
         libdatadog
         URL "https://github.com/DataDog/libdatadog/releases/download/${TAG_LIBDATADOG}/${DD_TARBALL}"
         URL_HASH SHA256=${DD_HASH}
-        DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}"
-        SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src"
-    )
+        DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
 
     # Set up paths.  This depends on how the libdatadog is acquired.
     get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
