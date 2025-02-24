@@ -36,9 +36,10 @@ ENV_SITE = None
 ENV_API_KEY = None
 ENV_APPLICATION_KEY = None
 ML_APP = "dne"
+RUN_LOCALLY = False
 
 
-def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, application_key: str = None) -> None:
+def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, application_key: str = None, run_locally: bool = False) -> None:
     """Initialize an experiment environment.
 
     Args:
@@ -46,9 +47,16 @@ def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, ap
         site: Datadog site
         api_key: Datadog API key
         application_key: Datadog application key
+        run_locally: If True, run locally and don't send any data to Datadog
     """
 
-    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_SITE, ENV_API_KEY, ENV_APPLICATION_KEY
+    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_SITE, ENV_API_KEY, ENV_APPLICATION_KEY, RUN_LOCALLY
+
+    if run_locally:
+        RUN_LOCALLY = True
+       
+        return
+
     if api_key is None:
         api_key = os.getenv("DD_API_KEY")
         if api_key is None:
@@ -78,6 +86,9 @@ def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, ap
 def _validate_init() -> None:
     if IS_INITIALIZED is False:
         raise ValueError("Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions")
+    
+def _is_locally_initialized() -> bool:
+    return RUN_LOCALLY
 
 class Dataset:
     """A container for LLM experiment data that can be pushed to and retrieved from Datadog.
@@ -750,7 +761,8 @@ class Experiment:
         If sample_size is provided, run on just that many rows from the dataset (subset).
         Otherwise, run on the entire dataset.
         """
-        _validate_init()
+        if not _is_locally_initialized():
+            _validate_init()
 
         # Handle logging/feedback:
         if sample_size is not None:
@@ -762,14 +774,16 @@ class Experiment:
         print(f"  raise_errors={raise_errors}\n")
 
         # 1) Make sure the dataset is pushed
-        if not self.dataset._datadog_dataset_id:
-            raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
+        if not _is_locally_initialized():
+            if not self.dataset._datadog_dataset_id:
+                raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
 
         # 2) Create/get the project, then create an experiment in Datadog.
-        project_id = self._get_or_create_project()
-        self._datadog_project_id = project_id
-        experiment_id = self._create_experiment_in_datadog()
-        self._datadog_experiment_id = experiment_id
+        if not _is_locally_initialized():
+            project_id = self._get_or_create_project()
+            self._datadog_project_id = project_id
+            experiment_id = self._create_experiment_in_datadog()
+            self._datadog_experiment_id = experiment_id
 
         # If a sample_size is given, slice the dataset to that many records
         # to create a temporary subset that lines up with the partial output.
@@ -955,7 +969,8 @@ class Experiment:
         Execute the task function on the dataset concurrently, terminating early if raise_errors is True
         and an exception occurs (on the first error).
         """
-        _validate_init()
+        if not _is_locally_initialized():
+            _validate_init()
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
         total_rows = len(self.dataset)
 
@@ -1074,9 +1089,7 @@ class Experiment:
         evaluators: Optional[List[Callable]] = None,
         raise_errors: bool = False
     ) -> "ExperimentResults":
-        _validate_init()
         """Run evaluators on the outputs and return ExperimentResults.
-        
         Args:
             evaluators (Optional[List[Callable]]): List of evaluators to use. If None, uses the experiment's evaluators.
             raise_errors (bool): If True, raises exceptions encountered during evaluation.
@@ -1087,6 +1100,9 @@ class Experiment:
         Raises:
             ValueError: If task has not been run yet
         """
+        if not _is_locally_initialized():
+            _validate_init()
+        
         if not self.has_run:
             raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
@@ -1516,7 +1532,126 @@ class ExperimentResults:
                 json_line = json.dumps(result)
                 f.write(json_line + '\n')
 
+    def __repr__(self) -> str:
+        """Rich string representation of the ExperimentResults.
         
+        Shows experiment name, dataset info, evaluation statistics, and error rates
+        with color-coded indicators and formatted metrics.
+        """
+        # Basic experiment info with color
+        exp_name = f"{Color.CYAN}{self.experiment.name}{Color.RESET}"
+        dataset_name = f"{Color.CYAN}{self.dataset.name}{Color.RESET}"
+        
+        # Count records and errors
+        total_records = len(self.merged_results)
+        errors = sum(1 for r in self.merged_results if r.get("error", {}).get("message"))
+        error_rate = (errors / total_records) * 100 if total_records > 0 else 0
+        
+        # Get evaluator names and stats
+        evaluator_names = set()
+        eval_stats = {}
+        
+        for result in self.merged_results:
+            evals = result.get("evaluations", {})
+            for eval_name, eval_data in evals.items():
+                evaluator_names.add(eval_name)
+                
+                # Track stats for this evaluator
+                if eval_name not in eval_stats:
+                    eval_stats[eval_name] = {"count": 0, "errors": 0, "values": []}
+                
+                # Count evaluations and errors
+                eval_stats[eval_name]["count"] += 1
+                if eval_data.get("error"):
+                    eval_stats[eval_name]["errors"] += 1
+                
+                # Collect values for numeric metrics
+                value = eval_data.get("value")
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    eval_stats[eval_name]["values"].append(value)
+        
+        # Format evaluator statistics
+        eval_info = []
+        for name in sorted(evaluator_names):
+            stats = eval_stats[name]
+            eval_error_rate = (stats["errors"] / stats["count"]) * 100 if stats["count"] > 0 else 0
+            
+            # Format differently based on whether we have numeric values
+            if stats["values"]:
+                # Calculate statistics for numeric metrics
+                values = stats["values"]
+                avg = sum(values) / len(values) if values else 0
+                min_val = min(values) if values else 0
+                max_val = max(values) if values else 0
+                
+                # Format with color based on error rate
+                if eval_error_rate > 0:
+                    eval_info.append(
+                        f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f} "
+                        f"({Color.RED}{stats['errors']} errors, {eval_error_rate:.1f}%{Color.RESET})"
+                    )
+                else:
+                    eval_info.append(
+                        f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f}"
+                    )
+            else:
+                # Format for non-numeric metrics
+                if eval_error_rate > 0:
+                    eval_info.append(
+                        f"    {name}: {stats['count']} evaluations "
+                        f"({Color.RED}{stats['errors']} errors, {eval_error_rate:.1f}%{Color.RESET})"
+                    )
+                else:
+                    eval_info.append(f"    {name}: {stats['count']} evaluations")
+        
+        # Format execution time if available
+        time_info = ""
+        if self.merged_results and "metadata" in self.merged_results[0]:
+            durations = [r.get("metadata", {}).get("duration", 0) for r in self.merged_results]
+            if any(durations):
+                avg_time = sum(durations) / len(durations)
+                total_time = sum(durations)
+                time_info = f"\n  Time: {total_time:.1f}s total, {avg_time:.3f}s per record"
+        
+        # Format error information
+        error_info = ""
+        if errors > 0:
+            error_info = f"\n  {Color.RED}Errors: {errors} ({error_rate:.1f}%){Color.RESET}"
+            # Add sample of first error
+            for result in self.merged_results:
+                error_msg = result.get("error", {}).get("message")
+                if error_msg:
+                    preview = (error_msg[:60] + '...') if len(error_msg) > 60 else error_msg
+                    error_info += f"\n    First error: {preview}"
+                    break
+        
+        # Build the representation
+        info = [
+            f"ExperimentResults({exp_name})",
+            f"  Dataset: {dataset_name} ({total_records:,} records)",
+            f"  Task: {self.experiment.task.__name__}",
+        ]
+        
+        # Add error info if present
+        if error_info:
+            info.append(error_info)
+        
+        # Add time info if available
+        if time_info:
+            info.append(time_info)
+        
+        # Add evaluator section if we have evaluations
+        if evaluator_names:
+            info.append(f"  Evaluations:")
+            info.extend(eval_info)
+        
+        # Add URL if experiment is synced with Datadog
+        if self.experiment._datadog_experiment_id:
+            info.append(
+                f"\n  {Color.BLUE}URL: {BASE_URL}/llm/testing/experiments/{self.experiment._datadog_experiment_id}{Color.RESET}"
+            )
+        
+        return '\n'.join(info)
 
 
 def _make_id() -> str:
