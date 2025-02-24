@@ -110,6 +110,18 @@ class DDTraceAPITestCase(TracerTestCase):
         assert "error.type" in spans[0]._meta
 
     @pytest.mark.snapshot()
+    def test_exc_info_caught(self):
+        try:
+            with dd_trace_api.tracer.trace("web.request"):
+                raise Exception
+        except Exception:  # noqa
+            pass
+        spans = self._assert_real_spans()
+        assert "error.message" in spans[0]._meta
+        assert "error.stack" in spans[0]._meta
+        assert "error.type" in spans[0]._meta
+
+    @pytest.mark.snapshot()
     def test_set_tags(self):
         with dd_trace_api.tracer.trace("web.request") as span:
             span.set_tags({"tag1": "value1", "tag2": "value2"})

@@ -8,7 +8,6 @@ from typing import TypeVar
 import weakref
 
 import dd_trace_api
-from wrapt.importer import when_imported
 
 import ddtrace
 from ddtrace.internal.logger import get_logger
@@ -41,19 +40,6 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
             self.get_local("retval"),
             **{param: self.get_local(param) for param in _params_for_fn(self, stub, fn_name) if param != "self"},
         )
-
-    def _handle_enter(self) -> None:
-        pass
-
-    def __enter__(self) -> "DDTraceAPIWrappingContextBase":
-        super().__enter__()
-
-        try:
-            self._handle_enter()
-        except Exception:  # noqa: E722
-            log.debug("Error handling dd_trace_api instrumentation enter", exc_info=True)
-
-        return self
 
     def __return__(self, value: T) -> T:
         """Always return the original value no matter what our instrumentation does"""

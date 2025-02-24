@@ -5,12 +5,7 @@
 
 from ddtrace.contrib.internal.dd_trace_api.patch import get_version
 from ddtrace.contrib.internal.dd_trace_api.patch import patch
-
-
-try:
-    from ddtrace.contrib.internal.dd_trace_api.patch import unpatch
-except ImportError:
-    unpatch = None
+from ddtrace.contrib.internal.dd_trace_api.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
@@ -22,10 +17,12 @@ class TestDDTraceAPIPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, dd_trace_api):
-        pass
+        assert hasattr(dd_trace_api, "__datadog_patch")
+        assert getattr(dd_trace_api, "__datadog_patch") is True
 
     def assert_not_module_patched(self, dd_trace_api):
-        pass
+        assert getattr(dd_trace_api, "__datadog_patch", None) in (None, False)
 
     def assert_not_module_double_patched(self, dd_trace_api):
-        pass
+        assert hasattr(dd_trace_api, "__datadog_patch")
+        assert getattr(dd_trace_api, "__datadog_patch") is True
