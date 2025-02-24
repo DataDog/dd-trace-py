@@ -1,9 +1,11 @@
 stages:
+  - build
   - test
   - report
 
 variables:
-  MICROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py
+  BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
 
 .benchmarks:
   stage: test
@@ -12,16 +14,17 @@ variables:
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
   timeout: 1h
-  needs: []
-  script:
-    - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-    - export CMAKE_BUILD_PARALLEL_LEVEL=12
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
-    - ./steps/capture-hardware-software-info.sh
-    - '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
-    - ./steps/analyze-results.sh
-    - "./steps/upload-results-to-s3.sh || :"
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+  script: |
+    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    [ -z ${CI_JOB_TOKEN} ] && git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    ./steps/capture-hardware-software-info.sh
+    '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
+    ./steps/analyze-results.sh
+    "./steps/upload-results-to-s3.sh || :"
   artifacts:
     name: "reports"
     when: always
@@ -36,6 +39,44 @@ variables:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
+
+baseline:
+  image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+  script: |
+    if [ -z ${GH_TOKEN} ]
+    then
+      aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+      gh auth login --with-token < token
+      rm token
+    fi
+
+    BASELINE_BRANCH=$(gh pr view --json "baseRefName" --jq ".baseRefName" "${UPSTREAM_BRANCH}" || echo "main")
+    BASELINE_COMMIT_SHA=$(git merge-base "origin/${BASELINE_BRANCH}" "origin/${UPSTREAM_BRANCH}" || git rev-list -1 "origin/${BASELINE_BRANCH}")
+    git checkout "${BASELINE_COMMIT_SHA}"
+
+
+    pip wheel --no-deps .
+    mv *.whl baseline.whl
+  artifacts:
+    paths:
+      - baseline.whl
+
+candidate:
+  stage: build
+  tags: [ "arch:amd64" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: download_ddtrace_artifacts
+  script:
+    - cp pywheels/ddtrace-*-cp39-cp39-manylinux*-x86_64.*.whl ./candidate.whl
+  artifacts:
+    paths:
+      - candidate.whl
 
 microbenchmarks:
   extends: .benchmarks
