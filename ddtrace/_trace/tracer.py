@@ -373,6 +373,11 @@ class Tracer(object):
             return active.context
         return None
 
+    def top_level_span_events_enabled(self) -> bool:
+        # assert correct writer type
+        assert isinstance(self._writer, AgentWriter)
+        return self._writer._agent_top_level_span_events_support
+
     def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
@@ -753,6 +758,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
+        span_event_support = self.top_level_span_events_enabled()
         if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
@@ -788,6 +794,7 @@ class Tracer(object):
                 span_type=span_type,
                 span_api=span_api,
                 on_finish=[self._on_span_finish],
+                span_event_formatting=span_event_support,
             )
             if config._report_hostname:
                 span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())

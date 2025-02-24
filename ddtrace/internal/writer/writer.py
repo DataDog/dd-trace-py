@@ -14,6 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import agent
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -512,6 +513,16 @@ class AgentWriter(HTTPWriter):
             headers=_headers,
             report_metrics=report_metrics,
         )
+        self._agent_top_level_span_events_support = False
+        info = agent.info(self.agent_url)
+        # if not info:
+        #     log.warning("Could not read agent info endpoint")
+        # elif info and not info.get("span_events"):
+        #     log.warning("Top-level span events not supported in this agent version")
+        # else:
+        #     self._agent_top_level_span_events_support = True
+        if info and info.get("span_events"):
+            self._agent_top_level_span_events_support = True
 
     def recreate(self):
         # type: () -> HTTPWriter
