@@ -94,6 +94,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
+    "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_functions": True,
