@@ -71,6 +71,7 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     Pin._override(amqp_celery_app, tracer=dummy_tracer)
     yield amqp_celery_app
 
+
 @pytest.fixture(autouse=False)
 def list_broker_celery_app(instrument_celery, dummy_tracer):
     app = Celery("list_broker_celery", broker=BROKER_URL, backend=BACKEND_URL)
@@ -84,6 +85,7 @@ def list_broker_celery_app(instrument_celery, dummy_tracer):
     Pin.get_from(app)
     Pin._override(app, tracer=dummy_tracer)
     yield app
+
 
 def test_redis_task(traced_redis_celery_app):
     tracer = Pin.get_from(traced_redis_celery_app).tracer
@@ -122,6 +124,7 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
 
         assert_traces(tracer, "add", t, 5672)
 
+
 def test_list_broker_urls(list_broker_celery_app):
     """
     Test that when the broker URL is provided as a list,
@@ -142,6 +145,7 @@ def test_list_broker_urls(list_broker_celery_app):
         time.sleep(3)
 
         assert_traces(tracer, "subtract", t, 6379)
+
 
 def assert_traces(tracer, task_name, task, port):
     traces = tracer.pop_traces()
