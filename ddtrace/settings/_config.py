@@ -194,6 +194,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_client",
         "grpc_aio_client",
         "grpc_aio_server",
+        "yaaredis"
     }
 )
 
