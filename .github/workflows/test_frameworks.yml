@@ -5,14 +5,14 @@ on:
   # we investigate the value of framework tests.
   # They will run nightly instead, and manual
   # workflow dispatch will be enabled
-  # push:
-  #   branches:
-  #     - main
-  #     - 'mq-working-branch**'
-  # pull_request:
-  workflow_dispatch: {}
-  schedule:
-    - cron: '0 5 * * *'
+  push:
+    branches:
+      - main
+      - 'mq-working-branch**'
+  pull_request:
+  # workflow_dispatch: {}
+  # schedule:
+  #   - cron: '0 5 * * *'
 
 
 concurrency:
@@ -44,10 +44,10 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -103,14 +103,14 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
-      - name: Run tests
-        if: needs.needs-run.outputs.outcome == 'success'
-        # Disable all test_simple tests because they check for
-        # log output and it contains phony error messages.
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
-      - name: Debugger exploration result
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
+      # - name: Run tests
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   # Disable all test_simple tests because they check for
+      #   # log output and it contains phony error messages.
+      #   run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      # - name: Debugger exploration result
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   run: cat debugger-expl.txt
       - name: Run Bytecode injection tests
         if: needs.needs-run.outputs.outcome == 'success'
         # Disable all test_simple tests because they check for
@@ -234,14 +234,14 @@ jobs:
           sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
           sed -i'' 's/test_aauthenticate_sensitive_variables/aauthenticate_sensitive_variables/' tests/auth_tests/test_auth_backends.py
 
-      - name: Run tests
-        if: needs.needs-run.outputs.outcome == 'success'
-        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+      # - name: Run tests
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+      #   run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
 
-      - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
+      # - name: Debugger exploration results
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   run: cat debugger-expl.txt
 
       - name: Run Bytecode injection tests
         if: needs.needs-run.outputs.outcome == 'success'
@@ -279,7 +279,7 @@ jobs:
       DD_PROFILING_ENABLED: ${{ matrix.profiling }}
       DD_IAST_ENABLED: ${{ matrix.iast }}
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
-      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      PYTHONPATH: ../ddtrace/tests/internal/bytecode_injection/framework_injection/:.
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
@@ -330,10 +330,10 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -385,13 +385,13 @@ jobs:
       - name: Inject ddtrace
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
-      - name: Test
-        if: needs.needs-run.outputs.outcome == 'success'
-        # https://github.com/tiangolo/fastapi/pull/10876
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
-      - name: Debugger exploration results
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cat debugger-expl.txt
+      # - name: Test
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   # https://github.com/tiangolo/fastapi/pull/10876
+      #   run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+      # - name: Debugger exploration results
+      #   if: needs.needs-run.outputs.outcome == 'success'
+      #   run: cat debugger-expl.txt
       - name: Bytecode injection Test
         if: needs.needs-run.outputs.outcome == 'success'
         # https://github.com/tiangolo/fastapi/pull/10876

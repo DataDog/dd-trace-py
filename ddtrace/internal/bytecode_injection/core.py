@@ -199,27 +199,23 @@ def _inject_invocation_nonrecursive(
     instrumented_lines: list[int] = []
     is_first_instrumented_module_line = code.co_name == "<module>"
 
-    def append_instruction(opcode: int, extended_arg: int) -> bytearray:
+    def append_instruction(opcode: int, extended_arg: int):
         """
         Append an operation and its argument to the new bytecode.
 
         If the argument does not fit in a single byte, EXTENDED_ARG instructions are prepended as needed.
         """
-        code_chunk = bytearray()
-
         if extended_arg > 255:
             extended_bytes = (extended_arg.bit_length() - 1) // 8
             shift = 8 * extended_bytes
 
             while shift:
-                code_chunk.append(EXTENDED_ARG)
-                code_chunk.append((extended_arg >> shift) & 0xFF)
+                new_code.append(EXTENDED_ARG)
+                new_code.append((extended_arg >> shift) & 0xFF)
                 shift -= 8
 
-        code_chunk.append(opcode)
-        code_chunk.append(extended_arg & 0xFF)
-
-        return code_chunk
+        new_code.append(opcode)
+        new_code.append(extended_arg & 0xFF)
 
     # key: old offset, value: how many instructions have been injected at that spot
     offsets_map: t.Dict[int, int] = {}
@@ -236,41 +232,40 @@ def _inject_invocation_nonrecursive(
         if line is not None:
             injection_occurred = False
             if old_offset in line_injection_offsets:
-                instructions = bytearray()
+                current_code_size = len(new_code)
 
                 if is_python_3_11:
-                    instructions.append(dis.opmap["PUSH_NULL"])
-                    instructions.append(0)
+                    new_code.append(dis.opmap["PUSH_NULL"])
+                    new_code.append(0)
 
-                instructions.extend(append_instruction(LOAD_CONST, hook_index))
-                instructions.extend(append_instruction(LOAD_CONST, len(new_consts)))
+                append_instruction(LOAD_CONST, hook_index)
+                append_instruction(LOAD_CONST, len(new_consts))
 
                 # DEV: Because these instructions have fixed arguments and don't need EXTENDED_ARGs, we append them
                 #      directly to the bytecode here. This loop runs for every instruction in the code to be
                 #      instrumented, so this has some impact on execution time.
                 if is_python_3_11:
-                    instructions.append(dis.opmap["PRECALL"])
-                    instructions.append(1)
-                    instructions.append(dis.opmap["CACHE"])
-                    instructions.append(0)
-                instructions.append(CALL)
-                instructions.append(1)
+                    new_code.append(dis.opmap["PRECALL"])
+                    new_code.append(1)
+                    new_code.append(dis.opmap["CACHE"])
+                    new_code.append(0)
+                new_code.append(CALL)
+                new_code.append(1)
                 if is_python_3_11:
-                    instructions.append(dis.opmap["CACHE"])
-                    instructions.append(0)
-                    instructions.append(dis.opmap["CACHE"])
-                    instructions.append(0)
-                    instructions.append(dis.opmap["CACHE"])
-                    instructions.append(0)
-                    instructions.append(dis.opmap["CACHE"])
-                    instructions.append(0)
-                instructions.append(POP_TOP)
-                instructions.append(0)
+                    new_code.append(dis.opmap["CACHE"])
+                    new_code.append(0)
+                    new_code.append(dis.opmap["CACHE"])
+                    new_code.append(0)
+                    new_code.append(dis.opmap["CACHE"])
+                    new_code.append(0)
+                    new_code.append(dis.opmap["CACHE"])
+                    new_code.append(0)
+                new_code.append(POP_TOP)
+                new_code.append(0)
 
-                offsets_map[old_offset] = len(instructions) // 2
+                offsets_map[old_offset] = (len(new_code) - current_code_size) // 2
                 injection_occurred = True
                 instrumented_lines.append(line)
-                new_code.extend(instructions)
 
                 # Make sure that the current module is marked as depending on its own package by instrumenting the
                 # first executable line.
@@ -314,7 +309,7 @@ def _inject_invocation_nonrecursive(
             extended_arg_offsets.append((old_offset, 3 - original_extended_arg_count))
 
         else:
-            new_code.extend(append_instruction(opcode, arg))
+            append_instruction(opcode, arg)
 
             if injection_occurred:
                 # Track imports names
