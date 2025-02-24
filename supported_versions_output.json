@@ -305,5 +305,11 @@
         "minimum_tracer_supported": "1.71.1",
         "max_tracer_supported": "1.71.1",
         "auto-instrumented": true
+    },
+    {
+        "integration": "yaaredis",
+        "minimum_tracer_supported": "2.0.4",
+        "max_tracer_supported": "3.0.0",
+        "auto-instrumented": true
     }
 ]

@@ -202,6 +202,8 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/_aredis.py
     - ddtrace/contrib/internal/aredis/*
+    - ddtrace/contrib/_yaaredis.py
+    - ddtrace/contrib/internal/yaaredis/*
     - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
@@ -286,6 +288,9 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   aiopg:
     paths:
       - '@bootstrap'
@@ -298,6 +303,9 @@ suites:
       - tests/contrib/aiopg/*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    snapshot: true
+    services:
+      - postgres
   algoliasearch:
     paths:
       - '@bootstrap'
@@ -348,6 +356,8 @@ suites:
       - tests/contrib/shared_tests_async.py
     runner: riot
     snapshot: true
+    services:
+      - postgres
   asynctest:
     parallelism: 2
     paths:
@@ -837,6 +847,8 @@ suites:
     pattern: mysqldb$
     runner: riot
     skip: true
+    services:
+      - mysql
   opentelemetry:
     parallelism: 4
     paths:
@@ -880,6 +892,9 @@ suites:
       - tests/snapshots/tests.contrib.psycopg2.*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - postgres
+    snapshot: true
   pylibmc:
     paths:
       - '@bootstrap'
@@ -928,6 +943,9 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   pynamodb:
     paths:
       - '@bootstrap'
@@ -1058,6 +1076,10 @@ suites:
       - '@dbapi'
       - tests/contrib/sqlalchemy/*
     runner: riot
+    services:
+      - postgres
+      - mysql
+    snapshot: true
   starlette:
     paths:
       - '@bootstrap'
@@ -1168,6 +1190,20 @@ suites:
       - tests/contrib/uwsgi/__init__.py
       - tests/snapshots/tests.contrib.wsgi.*
     runner: riot
+    snapshot: true
+  yaaredis:
+    paths:
+      - '@core'
+      - '@bootstrap'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/yaaredis/*
+      - tests/snapshots/tests.contrib.yaaredis.*
+    pattern: yaaredis$
+    runner: riot
+    services:
+      - redis
     snapshot: true
   valkey:
     parallelism: 5
