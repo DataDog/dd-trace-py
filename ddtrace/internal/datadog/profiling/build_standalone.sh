@@ -106,6 +106,11 @@ cmake_args=(
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 )
 
+# If the COMMIT_LIBDATADOG environment variable is set, then add it to the cmake args
+if [ -n "${COMMIT_LIBDATADOG:-}" ]; then
+  cmake_args+=(-DCOMMIT_LIBDATADOG=${COMMIT_LIBDATADOG})
+fi
+
 # Initial build targets; start out empty
 targets=()
 
