@@ -286,6 +286,9 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   aiopg:
     paths:
       - '@bootstrap'
@@ -298,6 +301,9 @@ suites:
       - tests/contrib/aiopg/*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    snapshot: true
+    services:
+      - postgres
   algoliasearch:
     paths:
       - '@bootstrap'
@@ -348,6 +354,8 @@ suites:
       - tests/contrib/shared_tests_async.py
     runner: riot
     snapshot: true
+    services:
+      - postgres
   asynctest:
     parallelism: 2
     paths:
@@ -837,6 +845,8 @@ suites:
     pattern: mysqldb$
     runner: riot
     skip: true
+    services:
+      - mysql
   opentelemetry:
     parallelism: 4
     paths:
@@ -880,6 +890,9 @@ suites:
       - tests/snapshots/tests.contrib.psycopg2.*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - postgres
+    snapshot: true
   pylibmc:
     paths:
       - '@bootstrap'
@@ -928,6 +941,9 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   pynamodb:
     paths:
       - '@bootstrap'
@@ -1058,6 +1074,10 @@ suites:
       - '@dbapi'
       - tests/contrib/sqlalchemy/*
     runner: riot
+    services:
+      - postgres
+      - mysql
+    snapshot: true
   starlette:
     paths:
       - '@bootstrap'
