@@ -406,20 +406,20 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_
         llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-# @pytest.mark.snapshot
-# def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
-#     if langchain_community is None:
-#         pytest.skip("langchain-community not installed which is required for this test.")
-#     pytest.importorskip("faiss", reason="faiss required for this test.")
-#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-#         with request_vcr.use_cassette("openai_embedding_query.yaml"):
-#             faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
-#                 ["this is a test query."],
-#                 embedding=langchain_openai.OpenAIEmbeddings(),
-#             )
-#             retriever = faiss.as_retriever()
-#         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
-#             retriever.invoke("What was the message of the last test query?")
+@pytest.mark.snapshot
+def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
+    pytest.importorskip("faiss", reason="faiss required for this test.")
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+        with request_vcr.use_cassette("openai_embedding_query.yaml"):
+            faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
+                ["this is a test query."],
+                embedding=langchain_openai.OpenAIEmbeddings(),
+            )
+            retriever = faiss.as_retriever()
+        with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
+            retriever.invoke("What was the message of the last test query?")
 
 
 @pytest.mark.snapshot(
@@ -590,8 +590,8 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
         pass
 
 
-# # until we fully support `astream_events`, we do not need a snapshot here
-# # this is just a regression test to make sure we don't throw
+# until we fully support `astream_events`, we do not need a snapshot here
+# this is just a regression test to make sure we don't throw
 async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core, async_streamed_response_responder):
     client = async_streamed_response_responder(
         module="openai",
