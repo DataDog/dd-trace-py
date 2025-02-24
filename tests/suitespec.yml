@@ -66,6 +66,7 @@ components:
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py

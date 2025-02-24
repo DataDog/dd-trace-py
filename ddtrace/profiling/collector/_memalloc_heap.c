@@ -7,15 +7,68 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
+/*
+   How heap profiler sampling works:
+
+   This is mostly derived from
+ https://github.com/google/tcmalloc/blob/master/docs/sampling.md#detailed-treatment-of-weighting-weighting
+
+   We want to explain memory used by the program. We can't track every
+   allocation with reasonable overhead, so we sample. We'd like the heap to
+   represent what's taking up the most memory. We'd like to see large live
+   allocations, or when many small allocations in some part of the code add up
+   to a lot of memory usage. So, we choose to sample based on bytes allocated.
+   We basically want every byte allocated to have the same probability of being
+   represented in the profile. Assume we want an average of one byte out of
+   every R allocated sampled. Call R the "sampling interval". In a simplified
+   world where every allocation is 1 byte, we can just do a 1/R coin toss for
+   every allocation.  This can be simplified by observing that the interval
+   between samples done this way follows a geometric distribution with average
+   R. We can draw from a geometric distribution to pick the next sample point.
+   For computational simplicity, we use an exponential distribution, which is
+   essentially the limit of the geometric distribution if we were to divide each
+   byte into smaller and smaller sub-bytes. We set a target for sampling, T,
+   drawn from the exponential distribution with average R. We count the number
+   of bytes allocated, C. For each allocation, we increment C by the size of the
+   allocation, and when C >= T, we take a sample, reset C to 0, and re-draw T.
+
+   If we reported just the sampled allocation's sizes, we would significantly
+   misrepresent the actual heap size. We're probably going to hit some small
+   allocations with our sampling, and reporting their actual size would
+   under-represent the size of the heap. Each sampled allocation represents
+   roughly R bytes of actual allocated memory. We want to weight our samples
+   accordingly, and account for the fact that large allocations are more likely
+   to be sampled than small allocations.
+
+   The math for weighting is described in more detail in the tcmalloc docs.
+   Basically, any sampled allocation should get an average weight of R, our
+   sampling interval. However, this would under-weight allocations larger than R
+   bytes, our sampling interval. When we pick the next sampling point, it's
+   probably going to be in the middle of an allocation. Bytes of the sampled
+   allocation past that point are going to be skipped by our sampling method,
+   since we re-draw the target _after_ the allocation. We can correct for this
+   by looking at how big the allocation was, and how much it would drive the
+   counter C past the target T. The formula W = R + (C - T) expresses this,
+   where C is the counter including the sampled allocation. If the allocation
+   was large, we are likely to have significantly exceeded T, so the weight will
+   be larger. Conversely, if the allocation was small, C - T will likely be
+   small, so the allocation gets less weight, and as we get closer to our
+   hypothetical 1-byte allocations we'll get closer to a weight of R for each
+   allocation. The current code simplifies this a bit. We can also express the
+   weight as C + (R - T), and note that on average T should equal R, and just
+   drop the (R - T) term and use C as the weight. We might want to use the full
+   formula if more testing shows us to be too inaccurate.
+ */
+
 typedef struct
 {
-    /* Granularity of the heap profiler in bytes */
+    /* Heap profiler sampling interval */
     uint64_t sample_size;
-    /* Current sample size of the heap profiler in bytes */
+    /* Next heap sample target, in bytes allocated */
     uint64_t current_sample_size;
     /* Tracked allocations */
     traceback_array_t allocs;
-    /* Allocated memory counter in bytes */
+    /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
     /* True if the heap tracker is frozen */
     bool frozen;
@@ -78,6 +131,12 @@ memheap_init()
 static uint32_t
 heap_tracker_next_sample_size(uint32_t sample_size)
 {
+    /* We want to draw a sampling target from an exponential distribution with
+       average sample_size. We use the standard technique of inverse transform
+       sampling, where we take uniform randomness, which is easy to get, and
+       transform it by the inverse of the cumulative distribution function for
+       the distribution we want to sample.
+       See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
     /* Get a value between [0, 1[ */
     double q = (double)rand() / ((double)RAND_MAX + 1);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
@@ -245,6 +304,11 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return false;
     }
 
+    /* The weight of the allocation is described above, but briefly: it's the
+       count of bytes allocated since the last sample, including this one, which
+       will tend to be larger for large allocations and smaller for small
+       allocations, and close to the average sampling interval so that the sum
+       of sample live allocations stays close to the actual heap size */
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
     if (tb) {
         if (global_heap_tracker.frozen)

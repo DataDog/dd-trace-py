@@ -5,9 +5,6 @@ from .http import HttpConfig
 from .integration import IntegrationConfig
 
 
-# Default global config
-_global_config = Config()
-
 __all__ = [
     "Config",
     "ConfigException",
