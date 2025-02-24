@@ -24,8 +24,8 @@ set(FETCHCONTENT_DOWNLOADS_DIR
 include_guard(GLOBAL)
 include(FetchContent)
 
-# Depending on whether a commit or version was specified, either download + build the repo or just grab a release
-# tarball
+# Depending on whether a commit or version was specified
+#either download + build the repo or just grab a release tarball
 if(COMMIT_LIBDATADOG)
     FetchContent_Declare(
         libdatadog
@@ -37,14 +37,12 @@ if(COMMIT_LIBDATADOG)
 
     # Manage the output folder
     set(LIBDD_OUTPUT_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/libdatadog-output")
-
-    # Clear the output folder if it exists
     if(EXISTS "${LIBDD_OUTPUT_FOLDER}")
         file(REMOVE_RECURSE "${LIBDD_OUTPUT_FOLDER}")
     endif()
-
-    # Create the output folder
     file(MAKE_DIRECTORY "${LIBDD_OUTPUT_FOLDER}")
+
+    # Run the build
     execute_process(
         COMMAND
             cargo run --bin release --features profiling,telemetry,data-pipeline,symbolizer,crashtracker,library-config
@@ -55,15 +53,10 @@ if(COMMIT_LIBDATADOG)
         message(FATAL_ERROR "Failed to build libdatadog FFI")
     endif()
 
-    # Set up paths.  This depends on how the libdatadog is acquired.
+    # Set up paths for the end user
     set(Datadog_DIR "${LIBDD_OUTPUT_FOLDER}/cmake")
     set(Datadog_LIBRARY "${LIBDD_OUTPUT_FOLDER}/lib/libdatadog_profiling${CMAKE_STATIC_LIBRARY_SUFFIX}")
     set(Datadog_INCLUDE_DIR "${LIBDD_OUTPUT_FOLDER}/include")
-
-    # Let's print these paths to the user so they can see where the library was built
-    message(STATUS "libdatadog library: ${Datadog_LIBRARY}")
-    message(STATUS "libdatadog include: ${Datadog_INCLUDE_DIR}")
-    message(STATUS "libdatadog cmake: ${Datadog_DIR}")
 
     if(NOT EXISTS ${Datadog_LIBRARY} OR NOT EXISTS ${Datadog_INCLUDE_DIR})
         message(FATAL_ERROR "Built libdatadog but couldn't find library or include files in ${LIBDD_OUTPUT_FOLDER}")
