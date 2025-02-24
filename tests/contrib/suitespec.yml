@@ -428,6 +428,10 @@ suites:
       - '@cassandra'
       - tests/contrib/cassandra/*
     runner: riot
+    snapshot: true
+    parallelism: 2
+    services:
+      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
