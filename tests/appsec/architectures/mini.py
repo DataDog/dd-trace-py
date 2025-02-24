@@ -8,6 +8,7 @@ import signal  # noqa: E402
 import sys  # noqa: E402
 
 from flask import Flask  # noqa: E402
+from flask import request  # noqa: E402
 import requests  # noqa: E402 F401
 
 from ddtrace.settings.asm import config as asm_config  # noqa: E402
@@ -35,6 +36,24 @@ def hello_world():
         "version": get_version(),
         "env": dict(os.environ),
         "file_length": file_length,
+    }
+
+
+@app.route("/import")
+def import_modules():
+    res = []
+    loaded = {}
+    module_name = request.args.get("module")
+    if module_name:
+        __import__(module_name)
+
+    from ddtrace.internal.telemetry.data import update_imported_dependencies  # noqa: E402
+
+    newly_loaded = list(sys.modules.keys())
+    res = update_imported_dependencies(loaded, newly_loaded)
+
+    return {
+        "dependencies": res,
     }
 
 
