@@ -14,7 +14,6 @@ from typing import Union  # noqa:F401
 from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._trace.pin import Pin
@@ -37,7 +36,6 @@ from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
-from ._otel_remapper import validate_otel_envs
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -196,6 +194,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_client",
         "grpc_aio_client",
         "grpc_aio_server",
+        "yaaredis",
     }
 )
 
@@ -460,6 +459,8 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
+        from ._telemetry import validate_otel_envs
+
         validate_otel_envs()
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
@@ -774,7 +775,10 @@ class Config(object):
         # use the inferred base service value, and instead use the default if included. If we
         # didn't do this, we would have a massive breaking change from adding inferred_base_service,
         # which would be replacing any integration defaults since service is no longer None.
-        if self.service and self.service == self._inferred_base_service:
+        # We also check if the service was user provided since an edge case may be that
+        # DD_SERVICE == inferred base service, which would force the default to be returned
+        # even though we want config.service in this case.
+        if self.service and self.service == self._inferred_base_service and not self._is_user_provided_service:
             return default if default is not None else self.service
 
         # TODO: This method can be replaced with `config.service`.
@@ -815,6 +819,8 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
+                from ddtrace.internal.telemetry import telemetry_writer
+
                 telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 

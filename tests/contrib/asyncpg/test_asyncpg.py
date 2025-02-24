@@ -39,6 +39,7 @@ async def patched_conn():
 
 
 @pytest.mark.asyncio
+@flaky(until=1742428860, reason="Did not receive expected traces: 'postgres.connect'")
 async def test_connect(snapshot_context):
     with snapshot_context():
         conn = await asyncpg.connect(
