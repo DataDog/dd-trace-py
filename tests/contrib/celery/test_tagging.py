@@ -75,10 +75,9 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
 @pytest.fixture(autouse=False)
 def list_broker_celery_app(instrument_celery, dummy_tracer):
     app = Celery("list_broker_celery", broker=BROKER_URL, backend=BACKEND_URL)
-    # Override broker_url with a list of URLs.
     app.conf.broker_url = [BROKER_URL, "memory://"]
 
-    @app.task(name="list_broker_celery.subtract")
+    @app.task(name="tests.contrib.celery.test_tagging.subtract")
     def subtract(x, y):
         return x - y
 
