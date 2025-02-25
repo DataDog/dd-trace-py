@@ -65,7 +65,12 @@ class BaseLLMIntegration:
         pass
 
     def trace(
-        self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, span_name: Optional[str] = None, **kwargs: Dict[str, Any]
+        self,
+        pin: Pin,
+        operation_id: str,
+        submit_to_llmobs: bool = False,
+        span_name: Optional[str] = None,
+        **kwargs: Dict[str, Any],
     ) -> Span:
         """
         Start a LLM request span.
