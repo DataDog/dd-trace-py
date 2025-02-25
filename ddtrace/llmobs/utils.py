@@ -34,10 +34,10 @@ class Prompt:
         prompt_instance_id (int): A hash of all prompt attributes, used to identify the prompt instance.
         template (Union[List[Tuple[str, str]], str]): The template used for the prompt, which can be a list of tuples or a string.
         variables (Dict[str, str]): A dictionary of variables used in the prompt.
-        example_variables (List[str]): A list of variables names denoting examples. Examples are used to improve accuracy for the prompt.
-        constraint_variables (List[str]): A list of variables names denoting constraints. Constraints are limitations on how the prompt result is displayed.
-        rag_context_variables (List[str]): A list of variable key names that contain ground truth context information.
-        rag_query_variables (List[str]): A list of variable key names that contain query information for an LLM call.
+        example_variable_keys (List[str]): A list of variables names denoting examples. Examples are used to improve accuracy for the prompt.
+        constraint_variable_keys (List[str]): A list of variables names denoting constraints. Constraints are limitations on how the prompt result is displayed.
+        rag_context_variable_keys (List[str]): A list of variable key names that contain ground truth context information.
+        rag_query_variable_keys (List[str]): A list of variable key names that contain query information for an LLM call.
     """
     name: str
     version: Optional[str]
@@ -68,10 +68,7 @@ class Prompt:
         # Default values
         template = template or []
         variables = variables or {}
-        example_variables = example_variables or ["example"]
-        constraint_variables = constraint_variables or ["constraint"]
-        rag_context_variables = rag_context_variables or ["context"]
-        rag_query_variables = rag_query_variables or ["question"]
+        # TODO remove default keys when not in variables
         example_variable_keys = example_variable_keys or ["example"]
         constraint_variable_keys = constraint_variable_keys or ["constraint"]
         rag_context_variable_keys = rag_context_variable_keys or ["context"]
