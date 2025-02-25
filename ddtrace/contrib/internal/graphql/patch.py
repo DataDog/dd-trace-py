@@ -358,7 +358,6 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             if extensions:
                 for key in extensions:
                     attributes[f"extensions.{key}"] = extensions[key]
-        # breakpoint()
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,

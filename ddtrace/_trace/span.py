@@ -129,7 +129,6 @@ class Span(object):
         "_links",
         "_events",
         "__weakref__",
-        "_span_event_formatting",
     ]
 
     def __init__(
@@ -146,7 +145,6 @@ class Span(object):
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
-        span_event_formatting: Optional[bool] = False,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -187,7 +185,6 @@ class Span(object):
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
-        self._span_event_formatting = span_event_formatting
 
         self._meta: _MetaDictType = {}
         self.error = 0
@@ -490,10 +487,7 @@ class Span(object):
         self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
         """Add an event to the span."""
-        if self._span_event_formatting is False:
-            # backwards compatibility: v0.5 and agent versions older than 7.63.0
-            self._events.append(SpanEvent(name, attributes, timestamp))
-        # TODO: add top-level span events for v0.4 and agent versions greater than or equal 7.63.0
+        self._events.append(SpanEvent(name, attributes, timestamp))
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""

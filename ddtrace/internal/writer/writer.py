@@ -482,7 +482,10 @@ class AgentWriter(HTTPWriter):
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
+        if self._api_version == "v0.4" and self.get_span_event_support_type(agent_url):
+            client = WRITER_CLIENTS["v0.4.1"](buffer_size, max_payload_size)
+        else:
+            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         _headers = {
             "Datadog-Meta-Lang": "python",
@@ -513,16 +516,12 @@ class AgentWriter(HTTPWriter):
             headers=_headers,
             report_metrics=report_metrics,
         )
-        self._agent_top_level_span_events_support = False
-        info = agent.info(self.agent_url)
-        # if not info:
-        #     log.warning("Could not read agent info endpoint")
-        # elif info and not info.get("span_events"):
-        #     log.warning("Top-level span events not supported in this agent version")
-        # else:
-        #     self._agent_top_level_span_events_support = True
+
+    def get_span_event_support_type(self, agent_url):
+        info = agent.info(agent_url)
         if info and info.get("span_events"):
-            self._agent_top_level_span_events_support = True
+            return True
+        return False
 
     def recreate(self):
         # type: () -> HTTPWriter
