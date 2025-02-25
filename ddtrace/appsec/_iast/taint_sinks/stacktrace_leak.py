@@ -28,13 +28,31 @@ def asm_report_stacktrace_leak_from_django_debug_page(exc_name, module):
     set_iast_stacktrace_reported(True)
 
 
+# `werkzeug.DebugTraceback.render_debugger_html` runs outside of `iast_request_context`. Because of this, when
+# this function is called, we store the result to report it in the next request when there's context and the
+# span hasn't been sent yet.
+REPORT_STACKTRACE_LATER = None
+
+
+def check_and_report_stacktrace_leak():
+    global REPORT_STACKTRACE_LATER
+    if REPORT_STACKTRACE_LATER:
+        StacktraceLeak.report(evidence_value=REPORT_STACKTRACE_LATER)
+        REPORT_STACKTRACE_LATER = None
+
+
 def asm_check_stacktrace_leak(content: str) -> None:
+    global REPORT_STACKTRACE_LATER
     if not content:
         return
 
     try:
         # Quick check to avoid the slower operations if on stacktrace
-        if "Traceback (most recent call last):" not in content:
+        if (
+            "Traceback (most recent call last):" not in content
+            and "Traceback <em>(most recent call last)" not in content
+            and '<div class="traceback">' not in content
+        ):
             return
 
         text = HTML_TAGS_REMOVE.sub("", content)
@@ -94,9 +112,9 @@ def asm_check_stacktrace_leak(content: str) -> None:
             if not module_name:
                 module_name = module_path  # fallback: just the path
 
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, StacktraceLeak.vulnerability_type)
         _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
         evidence = "Module: %s\nException: %s" % (module_name.strip(), exception_line.strip())
-        StacktraceLeak.report(evidence_value=evidence)
+        REPORT_STACKTRACE_LATER = evidence
+
     except Exception as e:
         iast_taint_log_error("[IAST] error in check stacktrace leak. {}".format(e))

@@ -473,6 +473,7 @@ def _on_flask_finalize_request_post(response, _):
         from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
 
         content = response[0].decode("utf-8", errors="ignore")
+
         asm_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
