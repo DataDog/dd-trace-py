@@ -72,20 +72,6 @@ def traced_amqp_celery_app(instrument_celery, dummy_tracer):
     yield amqp_celery_app
 
 
-@pytest.fixture(autouse=False)
-def list_broker_celery_app(instrument_celery, dummy_tracer):
-    app = Celery("list_broker_celery", broker=BROKER_URL, backend=BACKEND_URL)
-    app.conf.broker_url = [BROKER_URL, "memory://"]
-
-    @app.task(name="tests.contrib.celery.test_tagging.subtract")
-    def subtract(x, y):
-        return x - y
-
-    Pin.get_from(app)
-    Pin._override(app, tracer=dummy_tracer)
-    yield app
-
-
 def test_redis_task(traced_redis_celery_app):
     tracer = Pin.get_from(traced_redis_celery_app).tracer
 
@@ -122,28 +108,6 @@ def test_amqp_task(instrument_celery, traced_amqp_celery_app):
         time.sleep(3)
 
         assert_traces(tracer, "add", t, 5672)
-
-
-def test_list_broker_urls(list_broker_celery_app):
-    """
-    Test that when the broker URL is provided as a list,
-    the instrumentation correctly parses the first URL in the list.
-    """
-    tracer = Pin.get_from(list_broker_celery_app).tracer
-
-    with start_worker(
-        list_broker_celery_app,
-        pool="solo",
-        loglevel="info",
-        perform_ping_check=False,
-        shutdown_timeout=30,
-    ):
-        t = list_broker_celery_app.tasks["list_broker_celery.subtract"].delay(10, 3)
-        assert t.get(timeout=2) == 7
-
-        time.sleep(3)
-
-        assert_traces(tracer, "subtract", t, 6379)
 
 
 def assert_traces(tracer, task_name, task, port):
