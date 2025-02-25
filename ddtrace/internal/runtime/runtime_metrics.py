@@ -7,7 +7,6 @@ from typing import Optional  # noqa:F401
 import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import telemetry
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -19,8 +18,6 @@ from .metric_collectors import PSUtilRuntimeMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import TracerTagCollector
 
-
-TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
 
 log = get_logger(__name__)
 
@@ -75,13 +72,13 @@ class RuntimeWorker(periodic.PeriodicService):
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = forksafe.Lock()
 
-    def __init__(self, interval=_get_interval_or_default(), tracer=ddtrace.tracer, dogstatsd_url=None) -> None:
+    def __init__(self, interval=_get_interval_or_default(), tracer=None, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
             self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
         )
-        self.tracer: Optional[ddtrace.trace.Tracer] = tracer
+        self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         self._platform_tags: List[str] = self._format_tags(PlatformTags())
 
@@ -107,9 +104,6 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = None
             cls.enabled = False
 
-        # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
-
     @classmethod
     def _restart(cls):
         cls.disable()
@@ -131,9 +125,6 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
-
-        # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
     def flush(self):
         # type: () -> None
