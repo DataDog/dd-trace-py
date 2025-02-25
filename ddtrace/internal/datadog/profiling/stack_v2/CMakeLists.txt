@@ -50,8 +50,6 @@ if(NOT echion_POPULATED)
     FetchContent_Populate(echion)
 endif()
 
-add_compile_definitions(ECHION_OBSERVE_IDLE_THREADS)
-
 # Specify the target C-extension that we want to build
 add_library(${EXTENSION_NAME} SHARED src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
 
@@ -71,7 +69,8 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Never build with native unwinding, since this is not currently used
-target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
+# Echion is by default configured to ignore idle threads.
+target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE ECHION_OBSERVE_IDLE_THREADS)
 
 # Includes; echion and python are marked "system" to suppress warnings, but note in MSVC we'll have to #pragma
 # warning(push, 0 then pop for the same effect.
