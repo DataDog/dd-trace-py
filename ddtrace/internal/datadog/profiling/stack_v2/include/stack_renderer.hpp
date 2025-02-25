@@ -40,6 +40,7 @@ class StackRenderer : public RendererInterface
     // the sample is created, this has to be reset.
     bool pushed_task_name = false;
 
+    void open() override {}
     void close() override {}
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
