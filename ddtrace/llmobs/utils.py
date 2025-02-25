@@ -3,6 +3,8 @@ from hashlib import sha1
 from typing import Dict, Tuple, Optional
 from typing import List
 from typing import Union
+from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
+from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 
 # TypedDict was added to typing in python 3.8
 try:
@@ -43,20 +45,20 @@ class Prompt:
     prompt_instance_id: str
     template: Optional[List[Tuple[str, str]]]
     variables: Optional[Dict[str, str]]
-    example_variables: Optional[List[str]]
-    constraint_variables: Optional[List[str]]
-    rag_context_variables: Optional[List[str]]
-    rag_query_variables: Optional[List[str]]
+    example_variable_keys: Optional[List[str]]
+    constraint_variable_keys: Optional[List[str]]
+    rag_context_variable_keys: Optional[List[str]]
+    rag_query_variable_keys: Optional[List[str]]
 
     def __init__(self,
                  name,
                  version = "1.0.0",
                  template = None,
                  variables = None,
-                 example_variables = None,
-                 constraint_variables = None,
-                 rag_context_variables = None,
-                 rag_query_variables = None):
+                 example_variable_keys = None,
+                 constraint_variable_keys = None,
+                 rag_context_variable_keys = None,
+                 rag_query_variable_keys = None):
 
         if name is None:
             raise TypeError("Prompt name of type String is mandatory.")
@@ -70,6 +72,10 @@ class Prompt:
         constraint_variables = constraint_variables or ["constraint"]
         rag_context_variables = rag_context_variables or ["context"]
         rag_query_variables = rag_query_variables or ["question"]
+        example_variable_keys = example_variable_keys or ["example"]
+        constraint_variable_keys = constraint_variable_keys or ["constraint"]
+        rag_context_variable_keys = rag_context_variable_keys or ["context"]
+        rag_query_variable_keys = rag_query_variable_keys or ["question"]
         version = version or "1.0.0"
 
         if version is not None:
@@ -89,7 +95,7 @@ class Prompt:
         self.rag_context_variables = rag_context_variables
         self.rag_query_variables = rag_query_variables
 
-    def to_dict(self) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
+    def to_tags_dict(self) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
         return {
             "name": self.name,
             "version": self.version,
@@ -97,10 +103,10 @@ class Prompt:
             "prompt_instance_id": self.prompt_instance_id,
             "template": self.template,
             "variables": self.variables,
-            "example_variables": self.example_variables,
-            "constraint_variables": self.constraint_variables,
-            "rag_context_variables": self.rag_context_variables,
-            "rag_query_variables": self.rag_query_variables,
+            "example_variable_keys": self.example_variable_keys,
+            "constraint_variable_keys": self.constraint_variable_keys,
+            INTERNAL_CONTEXT_VARIABLE_KEYS: self.rag_context_variable_keys,
+            INTERNAL_QUERY_VARIABLE_KEYS: self.rag_query_variable_keys,
         }
 
     def generate_ids(self, ml_app=""):
@@ -113,13 +119,13 @@ class Prompt:
         version = str(self.version)
         template = str(self.template)
         variables = str(self.variables)
-        example_variables = str(self.example_variables)
-        constraint_variables = str(self.constraint_variables)
-        rag_context_variables = str(self.rag_context_variables)
-        rag_query_variables = str(self.rag_query_variables)
+        example_variable_keys = str(self.example_variable_keys)
+        constraint_variable_keys = str(self.constraint_variable_keys)
+        rag_context_variable_keys = str(self.rag_context_variable_keys)
+        rag_query_variable_keys = str(self.rag_query_variable_keys)
 
         template_id_str = f"[{ml_app}]{name}"
-        instance_id_str = f"[{ml_app}]{name}{version}{template}{variables}{example_variables}{constraint_variables}{rag_context_variables}{rag_query_variables}"
+        instance_id_str = f"[{ml_app}]{name}{version}{template}{variables}{example_variable_keys}{constraint_variable_keys}{rag_context_variable_keys}{rag_query_variable_keys}"
 
         self.prompt_template_id = sha1(template_id_str.encode()).hexdigest()
         self.prompt_instance_id = sha1(instance_id_str.encode()).hexdigest()
@@ -132,10 +138,10 @@ class Prompt:
         version = self.version
         template = self.template
         variables = self.variables
-        example_variables = self.example_variables
-        constraint_variables = self.constraint_variables
-        rag_context_variables = self.rag_context_variables
-        rag_query_variables = self.rag_query_variables
+        example_variable_keys = self.example_variable_keys
+        constraint_variable_keys = self.constraint_variable_keys
+        rag_context_variable_keys = self.rag_context_variable_keys
+        rag_query_variable_keys = self.rag_query_variable_keys
 
 
         if prompt_template_id is None:
@@ -188,7 +194,7 @@ class Prompt:
         if not all(isinstance(k, str) and isinstance(v, str) for k, v in variables.items()):
             errors.append("Prompt variable keys and values must be strings.")
 
-        for var_list in [example_variables, constraint_variables, rag_context_variables, rag_query_variables]:
+        for var_list in [example_variable_keys, constraint_variable_keys, rag_context_variable_keys, rag_query_variable_keys]:
             if not all(isinstance(var, str) for var in var_list):
                 errors.append("All variable lists must contain strings only.")
 
