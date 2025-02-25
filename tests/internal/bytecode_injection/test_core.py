@@ -172,12 +172,16 @@ def test_linetable_adjustment_opcode_on_multiple_lines():
         (3, 11): 22,
     }
     BASE_INJECTED_OFFSET = SIZE_INJECTED[sys.version_info[:2]]
+    EXTENDED_ARG = dis.opmap["EXTENDED_ARG"]
 
     for idx, (original_offset, original_line_start) in enumerate(selected_line_starts):
         assert original_line_start == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
         bytecode_injected_size = BASE_INJECTED_OFFSET
         # skip extended args
-        while injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size] == 144:
+        while (
+            injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size]
+            == EXTENDED_ARG
+        ):
             bytecode_injected_size += 2
 
         # offset of line points to the same instructions
