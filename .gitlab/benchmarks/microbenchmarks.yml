@@ -95,17 +95,20 @@ baseline:build:
       echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
       git checkout "${BASELINE_COMMIT_SHA}"
       python3.9 -m pip wheel --no-deps .
-      mv *.whl baseline.whl
     else
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     fi
+
+    echo BASELINE_WHL=$(ls *.whl | head -n 1) | tee -a baseline.env
   cache:
     - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
-        - baseline.whl
+        - *.whl
   artifacts:
+    reports:
+      dotenv: baseline.env
     paths:
-      - baseline.whl
+      - *.whl
 
 latest:
   image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:0a50e839f4b1600f02157518b8d016451b346578@sha256:5dae9bc7872f69b31b612690f0748c7ad71ab90ef28a754b2ae93d0ba505837b
@@ -114,10 +117,13 @@ latest:
   script: |
     pyenv global 3.9
     python3.9 -m pip download --no-deps ddtrace
+    echo LATEST_WHL=$(ls *.whl | head -n 1) | tee latest.env
     mv *.whl latest.whl
   artifacts:
+    reports:
+      dotenv: latest.env
     paths:
-      - latest.whl
+      - *.whl
 
 candidate:
   stage: build
@@ -125,11 +131,14 @@ candidate:
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
-  script:
-    - cp pywheels/*-cp39-cp39-manylinux_2_17_x86_64*.whl ./candidate.whl
+  script: |
+    cp pywheels/*-cp39-cp39-manylinux_*_x86_64*.whl ./
+    echo CANDIDATE_WHL=$(ls *.whl | head -n 1) | tee candidate.env
   artifacts:
+    reports:
+      dotenv: candidate.env
     paths:
-      - candidate.whl
+      - *.whl
 
 microbenchmarks:
   extends: .benchmarks
