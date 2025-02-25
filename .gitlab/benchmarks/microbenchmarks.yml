@@ -52,7 +52,8 @@ baseline:detect:
       rm token
     fi
 
-    chown -R ${uuid} ${CI_PROJECT_DIR}
+    # Needed to run `git merge-base` and `git rev-list`
+    chown -R $(id -u):$(id -g) ${CI_PROJECT_DIR}
     BASELINE_BRANCH=$(gh pr view --json "baseRefName" --jq ".baseRefName" "${UPSTREAM_BRANCH}" || echo "main")
     echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
     BASELINE_COMMIT_SHA=$(git merge-base "origin/${BASELINE_BRANCH}" "origin/${UPSTREAM_BRANCH}" || git rev-list -1 "origin/${BASELINE_BRANCH}")
@@ -109,8 +110,7 @@ candidate:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
   script:
-    - ls pywheels/
-    - cp pywheels/ddtrace-*-cp39-cp39-manylinux*-x86_64.*.whl ./candidate.whl
+    - cp pywheels/*-cp39-cp39-manylinux_2_17_x86_64*.whl ./candidate.whl
   artifacts:
     paths:
       - candidate.whl
