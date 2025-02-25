@@ -25,7 +25,10 @@ variables:
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     fi
-    git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+    git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform
+    cd /platform
+
+    cp ../*.whl ./
 
     ./steps/capture-hardware-software-info.sh
 
