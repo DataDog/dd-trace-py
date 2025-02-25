@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "redis_get",
+    "service": "redis_svc",
+    "resource": "redis_get",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.yaaredis",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "language": "python",
+      "runtime-id": "4d0d479c17be4095b8e0dee5a0839596"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 5119
+    },
+    "duration": 402211,
+    "start": 1692650065865079296
+  },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "GET",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "redis",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.yaaredis",
+         "_dd.p.tid": "654a694400000000",
+         "component": "yaaredis",
+         "db.system": "redis",
+         "out.host": "localhost",
+         "redis.raw_command": "GET cheese",
+         "server.address": "localhost",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "db.row_count": 0,
+         "network.destination.port": 6379,
+         "out.redis_db": 0,
+         "redis.args_length": 2
+       },
+       "duration": 271333,
+       "start": 1692650065865181924
+     }]]
