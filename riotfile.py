@@ -653,6 +653,12 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="dd_trace_api",
+            command="pytest {cmdargs} tests/contrib/dd_trace_api",
+            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            pys=select_pys(min_version="3.8"),
+        ),
         # Django  Python version support
         # 2.2     3.5, 3.6, 3.7, 3.8  3.9
         # 3.2     3.6, 3.7, 3.8, 3.9, 3.10
@@ -2031,6 +2037,25 @@ venv = Venv(
                 "protobuf": latest,
                 "pytest-randomly": latest,
             },
+        ),
+        Venv(
+            name="yaaredis",
+            command="pytest {cmdargs} tests/contrib/yaaredis",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"yaaredis": ["~=2.0.0", latest]},
+                ),
+                Venv(
+                    # yaaredis added support for Python 3.10 in 3.0
+                    pys="3.10",
+                    pkgs={"yaaredis": latest},
+                ),
+            ],
         ),
         Venv(
             name="sanic",
