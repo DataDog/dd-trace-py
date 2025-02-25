@@ -53,7 +53,7 @@ baseline:detect:
     fi
 
     # Needed to run `git merge-base` and `git rev-list`
-    chown -R $(id -u):$(id -g) ${CI_PROJECT_DIR}
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
     BASELINE_BRANCH=$(gh pr view --json "baseRefName" --jq ".baseRefName" "${UPSTREAM_BRANCH}" || echo "main")
     echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
     BASELINE_COMMIT_SHA=$(git merge-base "origin/${BASELINE_BRANCH}" "origin/${UPSTREAM_BRANCH}" || git rev-list -1 "origin/${BASELINE_BRANCH}")
