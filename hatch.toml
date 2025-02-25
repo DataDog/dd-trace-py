@@ -622,6 +622,9 @@ dependencies = [
     "requests",
     "hypothesis",
     "flask",
+    "asgiref",
+    "botocore",
+    "dnspython",
 ]
 
 [envs.multiple_os_tests.env-vars]
