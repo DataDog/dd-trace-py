@@ -8,9 +8,6 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
-# Set verbose mode so compiler and args are shown
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
