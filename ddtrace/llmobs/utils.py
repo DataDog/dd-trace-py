@@ -87,10 +87,10 @@ class Prompt:
         self.version = version
         self.template = template
         self.variables = variables
-        self.example_variables = example_variables
-        self.constraint_variables = constraint_variables
-        self.rag_context_variables = rag_context_variables
-        self.rag_query_variables = rag_query_variables
+        self.example_variable_keys = example_variable_keys
+        self.constraint_variable_keys = constraint_variable_keys
+        self.rag_context_variable_keys = rag_context_variable_keys
+        self.rag_query_variable_keys = rag_query_variable_keys
 
     def to_tags_dict(self) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
         return {
