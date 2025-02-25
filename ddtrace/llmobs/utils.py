@@ -220,8 +220,6 @@ class Prompt:
             "variables": variables,
             "example_variable_keys": example_variable_keys_set,
             "constraint_variable_keys": constraint_variable_keys_set,
-            "rag_context_variable_keys": rag_context_variable_keys_set,
-            "rag_query_variable_keys": rag_query_variable_keys_set,
             # also using internal constants to keep hallucination functionality
             INTERNAL_CONTEXT_VARIABLE_KEYS: rag_context_variable_keys_set,
             INTERNAL_QUERY_VARIABLE_KEYS: rag_query_variable_keys_set,
