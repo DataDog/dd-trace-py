@@ -19,8 +19,10 @@ class TestConsulPatch(TracerTestCase):
 
     def setUp(self):
         super(TestConsulPatch, self).setUp()
-        if "CONSUL_HTTP_ADDR" in os.environ:
-            del os.environ["CONSUL_HTTP_ADDR"]
+        print("EMMETT AAA")
+        for name, value in os.environ.items():
+            if "consul" in name.lower():
+                print("{0}: {1}".format(name, value))
         patch()
         c = consul.Consul(
             host=CONSUL_CONFIG["host"],
