@@ -1,7 +1,10 @@
 from re import match
 from hashlib import sha1
-from typing import Dict, Tuple, Optional
+from typing import Any
+from typing import Dict
 from typing import List
+from typing import Optional
+from typing import Tuple
 from typing import Union
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -29,6 +32,7 @@ class Prompt:
 
     Attributes:
         name (str): The name of the prompt.
+        ml_app (str): The name of the service, retrieved from the active span when not specified.
         version (str): The version of the prompt.
         prompt_template_id (int): A hash of name and ml_app, used to identify the prompt template.
         prompt_instance_id (int): A hash of all prompt attributes, used to identify the prompt instance.
@@ -44,11 +48,12 @@ class Prompt:
     prompt_template_id: str
     prompt_instance_id: str
     template: Optional[List[Tuple[str, str]]]
-    variables: Optional[Dict[str, str]]
+    variables: Optional[Dict[str, Any]]
     example_variable_keys: Optional[List[str]]
     constraint_variable_keys: Optional[List[str]]
     rag_context_variable_keys: Optional[List[str]]
     rag_query_variable_keys: Optional[List[str]]
+    ml_app: str
 
     def __init__(self,
                  name,
@@ -58,7 +63,8 @@ class Prompt:
                  example_variable_keys = None,
                  constraint_variable_keys = None,
                  rag_context_variable_keys = None,
-                 rag_query_variable_keys = None):
+                 rag_query_variable_keys = None,
+                 ml_app=""):
 
         if name is None:
             raise TypeError("Prompt name of type String is mandatory.")
@@ -68,9 +74,8 @@ class Prompt:
         # Default values
         template = template or []
         variables = variables or {}
-        # TODO remove default keys when not in variables
-        example_variable_keys = example_variable_keys or ["example"]
-        constraint_variable_keys = constraint_variable_keys or ["constraint"]
+        example_variable_keys = example_variable_keys or ["example", "examples"]
+        constraint_variable_keys = constraint_variable_keys or ["constraint", "constraints"]
         rag_context_variable_keys = rag_context_variable_keys or ["context"]
         rag_query_variable_keys = rag_query_variable_keys or ["question"]
         version = version or "1.0.0"
@@ -80,10 +85,11 @@ class Prompt:
             version_parts = (version.split(".") + ["0", "0"])[:3]
             version = ".".join(version_parts)
 
-        # Accept simple string templates
+        # Accept simple string templates as user role
         if isinstance(template, str):
             template = [("user", template)]
 
+        self.ml_app = ml_app
         self.version = version
         self.template = template
         self.variables = variables
@@ -92,27 +98,14 @@ class Prompt:
         self.rag_context_variable_keys = rag_context_variable_keys
         self.rag_query_variable_keys = rag_query_variable_keys
 
-    def to_tags_dict(self) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
-        return {
-            "name": self.name,
-            "version": self.version,
-            "prompt_template_id": self.prompt_template_id,
-            "prompt_instance_id": self.prompt_instance_id,
-            "template": self.template,
-            "variables": self.variables,
-            "example_variable_keys": self.example_variable_keys,
-            "constraint_variable_keys": self.constraint_variable_keys,
-            INTERNAL_CONTEXT_VARIABLE_KEYS: self.rag_context_variable_keys,
-            INTERNAL_QUERY_VARIABLE_KEYS: self.rag_query_variable_keys,
-        }
-
-    def generate_ids(self, ml_app=""):
+    def generate_ids(self):
         """
         Generates prompt_template_id and prompt_instance_id based on the prompt attributes.
         The prompt_template_id is a sha-1 hash of the prompt name and ml_app
         The prompt_instance_id is a sha-1 hash of all prompt attributes.
         """
         name = str(self.name)
+        ml_app = str(self.ml_app)
         version = str(self.version)
         template = str(self.template)
         variables = str(self.variables)
@@ -188,8 +181,8 @@ class Prompt:
 
         if not isinstance(variables, dict):
             errors.append("Prompt variables must be a dictionary.")
-        if not all(isinstance(k, str) and isinstance(v, str) for k, v in variables.items()):
-            errors.append("Prompt variable keys and values must be strings.")
+        if not all(isinstance(k, str) for k in variables):
+            errors.append("Prompt variable keys must be strings.")
 
         for var_list in [example_variable_keys, constraint_variable_keys, rag_context_variable_keys, rag_query_variable_keys]:
             if not all(isinstance(var, str) for var in var_list):
@@ -199,6 +192,52 @@ class Prompt:
             raise TypeError("\n".join(errors))
 
         return errors
+
+    def to_tags_dict(self) -> Dict[str, Union[str, List[str], Dict[str, str], List[Tuple[str, str]]]]:
+        name = self.name
+        version = self.version
+        prompt_template_id = self.prompt_template_id
+        prompt_instance_id = self.prompt_instance_id
+        template = self.template
+        variables = self.variables
+        example_variable_keys = self.example_variable_keys
+        constraint_variable_keys = self.constraint_variable_keys
+        rag_context_variable_keys = self.rag_context_variable_keys
+        rag_query_variable_keys = self.rag_query_variable_keys
+
+        # Clean up keys and remove those that are not in variables, including default keys.
+        example_variable_keys_set = {key for key in example_variable_keys if key in variables}
+        constraint_variable_keys_set = {key for key in constraint_variable_keys if key in variables}
+        rag_context_variable_keys_set = {key for key in rag_context_variable_keys if key in variables}
+        rag_query_variable_keys_set = {key for key in rag_query_variable_keys if key in variables}
+
+        return {
+            "name": name,
+            "version": version,
+            "prompt_template_id": prompt_template_id,
+            "prompt_instance_id": prompt_instance_id,
+            "template": template,
+            "variables": variables,
+            "example_variable_keys": example_variable_keys_set,
+            "constraint_variable_keys": constraint_variable_keys_set,
+            "rag_context_variable_keys": rag_context_variable_keys_set,
+            "rag_query_variable_keys": rag_query_variable_keys_set,
+            # also using internal constants to keep hallucination functionality
+            INTERNAL_CONTEXT_VARIABLE_KEYS: rag_context_variable_keys_set,
+            INTERNAL_QUERY_VARIABLE_KEYS: rag_query_variable_keys_set,
+        }
+
+    def prepare_prompt(self, ml_app=None) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
+        if ml_app:
+            self.ml_app = ml_app
+        self.validate()
+        return self.to_tags_dict()
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        self.generate_ids()
+
+
 
 
 class Messages:
