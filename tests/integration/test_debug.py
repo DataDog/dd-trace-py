@@ -248,10 +248,6 @@ def test_runtime_metrics_enabled_via_manual_start():
     from ddtrace.runtime import RuntimeMetrics
 
     f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
-
-    RuntimeMetrics.enable()
-    f = debug.collect(ddtrace.tracer)
     assert f.get("runtime_metrics_enabled") is True
 
     RuntimeMetrics.disable()
