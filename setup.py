@@ -44,6 +44,10 @@ from urllib.request import urlretrieve
 HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+FAST_BUILD = "DD_FAST_BUILD" in os.environ
+
+if FAST_BUILD:
+    os.environ["DD_COMPILE_ABSEIL"] = "0"
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
@@ -536,10 +540,12 @@ if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
+    fast_build_args = []
 else:
     linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
+    fast_build_args = ["-O0"]
     if DEBUG_COMPILE:
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
@@ -567,7 +573,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
             extra_compile_args=(
-                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c11"]
             ),
@@ -575,7 +581,7 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
         ),
     ]
     if platform.system() not in ("Windows", ""):
@@ -586,11 +592,17 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=extra_compile_args + debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
 
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.appsec._iast._taint_tracking._native",
+                source_dir=IAST_DIR,
+                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
+            )
+        )
 
     if (
         platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
@@ -600,6 +612,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
+                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
             )
         )
 
@@ -608,6 +621,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
+                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
             )
         )
 
@@ -617,6 +631,7 @@ if not IS_PYSTON:
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
                     optional=False,
+                    build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
                 ),
             )
 
