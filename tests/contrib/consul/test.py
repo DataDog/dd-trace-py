@@ -1,3 +1,5 @@
+import os
+
 import consul
 from wrapt import BoundFunctionWrapper
 
@@ -17,6 +19,8 @@ class TestConsulPatch(TracerTestCase):
 
     def setUp(self):
         super(TestConsulPatch, self).setUp()
+        if "CONSUL_HTTP_ADDR" in os.environ:
+            del os.environ["CONSUL_HTTP_ADDR"]
         patch()
         c = consul.Consul(
             host=CONSUL_CONFIG["host"],
