@@ -586,7 +586,9 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+            if CURRENT_OS != "Windows"
+            else ["/std:c++20", "/MT"],
         ),
     ]
     if platform.system() not in ("Windows", ""):
