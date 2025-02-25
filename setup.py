@@ -412,6 +412,11 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
+        if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
+            cmake_args += [
+                "-DCMAKE_C_FLAGS_%s=-O0" % ext.build_type.upper(),
+                "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
+            ]
         cmake_command = (
             Path(cmake.CMAKE_BIN_DIR) / "cmake"
         ).resolve()  # explicitly use the cmake provided by the cmake package
@@ -545,7 +550,7 @@ else:
     linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
-    fast_build_args = ["-O0"]
+    fast_build_args = ["-O0"] if FAST_BUILD else []
     if DEBUG_COMPILE:
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
@@ -600,7 +605,6 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.appsec._iast._taint_tracking._native",
                 source_dir=IAST_DIR,
-                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
             )
         )
 
@@ -612,7 +616,6 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
-                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
             )
         )
 
@@ -621,7 +624,6 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
-                build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
             )
         )
 
@@ -631,7 +633,6 @@ if not IS_PYSTON:
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
                     optional=False,
-                    build_args=['CFLAGS="-O0', 'CXXFLAGS="-O0"'],
                 ),
             )
 

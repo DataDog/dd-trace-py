@@ -192,6 +192,7 @@ build_base_venvs:
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_FAST_BUILD: '1'
   script: |
     set -e -o pipefail
     if [ ! -f cache_used.txt ];
