@@ -1,7 +1,7 @@
 from typing import Optional  # noqa:F401
 
-from ddtrace.internal import telemetry
 import ddtrace.internal.runtime.runtime_metrics
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
@@ -42,7 +42,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         :param dogstatsd_url: The DogStatsD URL.
         :param flush_interval: The flush interval.
         """
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
+        telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
         ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(
             tracer=tracer, dogstatsd_url=dogstatsd_url, flush_interval=flush_interval
         )
@@ -56,7 +56,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         Once disabled, runtime metrics can be re-enabled by calling ``enable``
         again.
         """
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
+        telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="code")
         ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
 
 
