@@ -83,6 +83,9 @@ if(NATIVE_TESTING)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
