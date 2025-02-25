@@ -98,7 +98,7 @@
       MAX_HEAP_SIZE: 512M
       HEAP_NEWSIZE: 256M
   moto:
-    name: registry.ddbuild.io/images/mirror/moto:5.1.0
+    name: registry.ddbuild.io/images/mirror/moto:1.0.1
     alias: moto
   localstack:
     name: registry.ddbuild.io/images/mirror/localstack:1.4.0
