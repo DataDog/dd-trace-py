@@ -110,7 +110,7 @@ def test_apm_opt_out_compute_stats_and_configure():
     # Test via `configure`
     assert not t._compute_stats
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t._configure(appsec_enabled=True, appsec_standalone_enabled=True)
+    t._configure(appsec_enabled=True, apm_tracing_disabled=True)
     assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
     # the stats computation is disabled
     assert not t._compute_stats
@@ -121,7 +121,7 @@ def test_apm_opt_out_compute_stats_and_configure():
 def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
     # Test via environment variable
     env = os.environ.copy()
-    env.update({"DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED": "true", "DD_APPSEC_ENABLED": "true"})
+    env.update({"DD_APM_TRACING_ENABLED": "false", "DD_APPSEC_ENABLED": "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace.trace import tracer
