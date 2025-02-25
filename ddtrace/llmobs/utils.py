@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -193,7 +194,7 @@ class Prompt:
 
         return errors
 
-    def to_tags_dict(self) -> Dict[str, Union[str, List[str], Dict[str, str], List[Tuple[str, str]]]]:
+    def to_tags_dict(self) -> Dict[str, Union[str, Set[str], Dict[str, str], List[Tuple[str, str]]]]:
         name = self.name
         version = self.version
         prompt_template_id = self.prompt_template_id
@@ -225,7 +226,7 @@ class Prompt:
             INTERNAL_QUERY_VARIABLE_KEYS: rag_query_variable_keys_set,
         }
 
-    def prepare_prompt(self, ml_app=None) -> Dict[str, Union[str, int, List[str], Dict[str, str], List[Tuple[str, str]]]]:
+    def prepare_prompt(self, ml_app=None) -> Dict[str, Union[str, List[str], Dict[str, str], List[Tuple[str, str]]]]:
         if ml_app:
             self.ml_app = ml_app
         self.validate()
