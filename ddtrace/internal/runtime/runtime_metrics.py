@@ -7,7 +7,6 @@ from typing import Optional  # noqa:F401
 import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
-from ddtrace.internal import telemetry
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -19,8 +18,6 @@ from .metric_collectors import PSUtilRuntimeMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import TracerTagCollector
 
-
-TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
 
 log = get_logger(__name__)
 
@@ -107,9 +104,6 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = None
             cls.enabled = False
 
-        # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="unknown")
-
     @classmethod
     def _restart(cls):
         cls.disable()
@@ -131,9 +125,6 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
-
-        # Report status to telemetry
-        telemetry.telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="unknown")
 
     def flush(self):
         # type: () -> None
