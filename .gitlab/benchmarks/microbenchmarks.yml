@@ -109,6 +109,7 @@ candidate:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts
   script:
+    - ls pywheels/
     - cp pywheels/ddtrace-*-cp39-cp39-manylinux*-x86_64.*.whl ./candidate.whl
   artifacts:
     paths:
