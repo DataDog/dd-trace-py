@@ -23,6 +23,8 @@ class TestConsulPatch(TracerTestCase):
         for name, value in os.environ.items():
             if "consul" in name.lower():
                 print("{0}: {1}".format(name, value))
+        if "CONSUL_HTTP_ADDR" in os.environ:
+            del os.environ["CONSUL_HTTP_ADDR"]
         patch()
         c = consul.Consul(
             host=CONSUL_CONFIG["host"],
