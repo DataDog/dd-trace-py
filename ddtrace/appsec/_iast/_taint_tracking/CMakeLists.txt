@@ -18,11 +18,8 @@ add_compile_options(
     -fpermissive
     -pthread
     -Wall
-    -fno-implicit-templates
+    -Wno-unknown-pragmas
     -U_FORTIFY_SOURCE)
-
-# JJJ
-set(CMAKE_VERBOSE_MAKEFILE ON)
 
 if(BUILD_MACOS)
     # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
