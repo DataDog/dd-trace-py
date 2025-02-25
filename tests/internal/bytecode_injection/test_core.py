@@ -150,6 +150,47 @@ def test_linetable_adjustment():
             ), "The corresponding argument is the same"
 
 
+@skipif_bytecode_injection_not_supported
+def test_linetable_adjustment_opcode_on_multiple_lines():
+    selected_line_starts = [e for e in list(dis.findlinestarts(opcode_on_multiple_lines.__code__))]
+    injection_offsets = [o for o, _ in selected_line_starts]
+
+    original_code = opcode_on_multiple_lines.__code__
+    ic = InjectionContext(original_code, nothing, lambda _: injection_offsets)
+    injected_code, _ = inject_invocation(ic, "some/path.py", "some.package")
+
+    selected_line_starts_post_injection = [e for e in list(dis.findlinestarts(injected_code))]
+
+    assert len(selected_line_starts) == len(selected_line_starts_post_injection), "Same number of lines"
+
+    OFFSET = 0
+    LINE = 1
+    """ 3.10 will inject 4 instructions, so the opcode we are looking for is shifted of 8 at least
+        3.11 will inject 11 instructions (they are not all visible by dis.dis) so, 22"""
+    SIZE_INJECTED = {
+        (3, 10): 8,
+        (3, 11): 22,
+    }
+    BASE_INJECTED_OFFSET = SIZE_INJECTED[sys.version_info[:2]]
+
+    for idx, (original_offset, original_line_start) in enumerate(selected_line_starts):
+        assert original_line_start == selected_line_starts_post_injection[idx][LINE], "Every line is the same"
+        bytecode_injected_size = BASE_INJECTED_OFFSET
+        # skip extended args
+        while injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size] == 144:
+            bytecode_injected_size += 2
+
+        # offset of line points to the same instructions
+        assert (
+            original_code.co_code[original_offset]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size]
+        ), "The corresponding opcode is the same"
+        assert (
+            original_code.co_code[original_offset + 1]
+            == injected_code.co_code[selected_line_starts_post_injection[idx][OFFSET] + bytecode_injected_size + 1]
+        ), "The corresponding argument is the same"
+
+
 @pytest.mark.skipif(
     sys.version_info[:2] != (3, 11),
     reason="Exception table was introduced in 3.11",
@@ -415,3 +456,369 @@ def nothing(*args):
 
 def _sample_callback(*arg):
     print("callback")
+
+
+def opcode_on_multiple_lines():
+    def f():
+        # fmt: off
+        print(
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            "foo"
+        )
+        # fmt: on

@@ -433,8 +433,19 @@ def _generate_adjusted_location_data_3_10(
         of 0 if needed. Notes that this is not the most optimized linetable possible
         but it is working.
         """
-        new_linetable.append(0)
+        # Append the former linetable entry
+        # Offset
+        new_linetable.append(old_linetable[idx])
+        # Line delta
         new_linetable.append(old_linetable[idx + 1])
+
+        # It means the line delta is encoded on multiple entry
+        if old_linetable[idx] == 0:
+            continue
+
+        # 0x80 means -128 which means no line. Inject on an opcode with no lines is not expected
+        # but we still to handle the case
+        line_delta = 0x80 if old_linetable[idx + 1] == 0x80 else 0
 
         # Check if we have injected some extended_arg at the current_offset
         while (
@@ -447,10 +458,10 @@ def _generate_adjusted_location_data_3_10(
             n, r = divmod(offset_to_add, 254)
             for _ in range(n):
                 new_linetable.append(254)
-                new_linetable.append(0x0)
+                new_linetable.append(line_delta)
             if r:
                 new_linetable.append(r)
-                new_linetable.append(0x0)
+                new_linetable.append(line_delta)
             extended_arg_offset, count_extended_arg_added = next(extended_arg_iterator, (None, None))
 
         # Check if we have injected our callback at the current_offset
@@ -460,15 +471,11 @@ def _generate_adjusted_location_data_3_10(
             n, r = divmod(offset_to_add, 254)
             for _ in range(n):
                 new_linetable.append(254)
-                new_linetable.append(0)
+                new_linetable.append(line_delta)
             if r:
                 new_linetable.append(r)
-                new_linetable.append(0)
+                new_linetable.append(line_delta)
             injection_offset, count_opcode_added = next(offsets_iterator, (None, None))
-
-        # add the former offsets
-        new_linetable.append(old_linetable[idx])
-        new_linetable.append(0)
 
         current_offset += old_linetable[idx]
     return bytes(new_linetable)
