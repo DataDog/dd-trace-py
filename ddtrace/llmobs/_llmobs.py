@@ -853,7 +853,7 @@ class LLMObs(Service):
             try:
                 prompt.generate_ids(_get_ml_app(span) or "")
                 prompt.validate()
-                dict_prompt = prompt.to_dict()
+                dict_prompt = prompt.to_tags_dict()
                 cls._set_dict_attribute(span, INPUT_PROMPT, dict_prompt)
             except TypeError:
                 log.warning("Failed to validate prompt with error: ", exc_info=True)
