@@ -38,10 +38,6 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.9.4
 
-contrib_job_large: &contrib_job_large
-  executor: ddtrace_dev
-  parallelism: 10
-
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 2
@@ -391,27 +387,6 @@ jobs:
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
-
-  aws_lambda:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'aws_lambda'
-          snapshot: true
-
-  datastreams:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "datastreams"
-
-  opentelemetry:
-    parallelism: 4
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'opentelemetry'
-          snapshot: true
 
   botocore:
     <<: *machine_executor
