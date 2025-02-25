@@ -19,6 +19,7 @@ variables:
     CARGO_BUILD_JOBS: 12
   dependencies: [ "baseline:build", "candidate", "latest" ]
   script: |
+    set -ex -o pipefail
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
 
     if [ -n ${CI_JOB_TOKEN} ];
@@ -27,8 +28,6 @@ variables:
     fi
     git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform
     cd /platform
-
-    cp $CI_PROJECT_DIR/*.whl ./
 
     ./steps/capture-hardware-software-info.sh
 
