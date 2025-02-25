@@ -28,10 +28,7 @@ variables:
     git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform
     cd /platform
 
-    ls
-    ls ../
-    ls "${CI_PROJECT_DIR}"
-    cp ../*.whl ./
+    cp "${CI_PROJECT_DIR}/*.whl" ./
 
     ./steps/capture-hardware-software-info.sh
 
