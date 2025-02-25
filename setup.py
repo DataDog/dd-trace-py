@@ -561,15 +561,15 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-                "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc.cpp",
+                "ddtrace/profiling/collector/_memalloc_tb.cpp",
+                "ddtrace/profiling/collector/_memalloc_heap.cpp",
+                "ddtrace/profiling/collector/_memalloc_reentrant.cpp",
             ],
             extra_compile_args=(
-                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c++17"]
                 if CURRENT_OS != "Windows"
-                else ["/std:c11"]
+                else ["/std:c++20"]
             ),
         ),
         Extension(

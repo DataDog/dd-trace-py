@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <vector>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -10,9 +11,8 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
-#include "_utils.h"
 
-typedef struct
+struct memalloc_context_t
 {
     PyMemAllocatorEx pymem_allocator_obj;
     /* The domain we are tracking */
@@ -21,7 +21,7 @@ typedef struct
     uint16_t max_events;
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
-} memalloc_context_t;
+};
 
 /* We only support being started once, so we use a global context for the whole
    module. If we ever want to be started multiple twice, we'd need a more
@@ -30,13 +30,13 @@ typedef struct
 static memalloc_context_t global_memalloc_ctx;
 
 /* Allocation tracker */
-typedef struct
+struct alloc_tracker_t
 {
-    /* List of traceback */
-    traceback_array_t allocs;
-    /* Total number of allocations */
+    /* List of sampled allocations */
+    std::vector<traceback_t*> allocs;
+    /* Total number of allocations (sampled or not) */
     uint64_t alloc_count;
-} alloc_tracker_t;
+};
 
 /* A string containing "object" */
 static PyObject* object_string = NULL;
@@ -118,6 +118,13 @@ memalloc_assert_gil()
     }
 }
 
+static inline uint64_t
+random_range(uint64_t max)
+{
+    /* Return a random number between [0, max[ */
+    return (uint64_t)((double)rand() / ((double)RAND_MAX + 1) * max);
+}
+
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
@@ -142,11 +149,11 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
     }
 
     /* Determine if we can capture or if we need to sample */
-    if (global_alloc_tracker->allocs.count < ctx->max_events) {
+    if (global_alloc_tracker->allocs.size() < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
         if (tb) {
-            traceback_array_append(&global_alloc_tracker->allocs, tb);
+            global_alloc_tracker->allocs.push_back(tb);
         }
     } else {
         /* Sampling mode using a reservoir sampling algorithm: replace a random
@@ -154,14 +161,14 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         uint64_t r = random_range(alloc_count);
 
         // In addition to event size, need to check that the tab is in a good state
-        if (r < ctx->max_events && global_alloc_tracker->allocs.tab != NULL) {
+        if (r < ctx->max_events) { // && global_alloc_tracker->allocs.tab != NULL) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
 
             // Need to check not only that the tb returned
             if (tb) {
-                traceback_free(global_alloc_tracker->allocs.tab[r]);
-                global_alloc_tracker->allocs.tab[r] = tb;
+                traceback_free(global_alloc_tracker->allocs[r]);
+                global_alloc_tracker->allocs[r] = tb;
             }
         }
     }
@@ -232,17 +239,17 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 static alloc_tracker_t*
 alloc_tracker_new()
 {
-    alloc_tracker_t* alloc_tracker = PyMem_RawMalloc(sizeof(alloc_tracker_t));
-    alloc_tracker->alloc_count = 0;
-    traceback_array_init(&alloc_tracker->allocs);
+    alloc_tracker_t* alloc_tracker = new alloc_tracker_t;
     return alloc_tracker;
 }
 
 static void
 alloc_tracker_free(alloc_tracker_t* alloc_tracker)
 {
-    traceback_array_wipe(&alloc_tracker->allocs);
-    PyMem_RawFree(alloc_tracker);
+    for (auto tb : alloc_tracker->allocs) {
+        traceback_free(tb);
+    }
+    delete alloc_tracker;
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
@@ -369,11 +376,11 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     return memalloc_heap();
 }
 
-typedef struct
+struct IterEventsState
 {
     PyObject_HEAD alloc_tracker_t* alloc_tracker;
     uint32_t seq_index;
-} IterEventsState;
+};
 
 PyDoc_STRVAR(iterevents__doc__,
              "iter_events()\n"
@@ -420,7 +427,7 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 
     PyObject* iter_and_count = PyTuple_New(3);
     PyTuple_SET_ITEM(iter_and_count, 0, (PyObject*)iestate);
-    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker->allocs.count));
+    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker->allocs.size()));
     PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->alloc_tracker->alloc_count));
 
     return iter_and_count;
@@ -439,8 +446,8 @@ iterevents_dealloc(IterEventsState* iestate)
 static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
-    if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
-        traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
+    if (iestate->seq_index < iestate->alloc_tracker->allocs.size()) {
+        traceback_t* tb = iestate->alloc_tracker->allocs[iestate->seq_index];
         iestate->seq_index++;
 
         PyObject* tb_size_domain = PyTuple_New(3);

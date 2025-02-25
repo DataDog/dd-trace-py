@@ -6,8 +6,6 @@
 
 #include <Python.h>
 
-#include "_utils.h"
-
 typedef struct
 #ifdef __GNUC__
   __attribute__((packed))
@@ -23,7 +21,7 @@ typedef struct
 #pragma pack(pop)
 #endif
 
-typedef struct
+struct traceback_t
 {
     /* Total number of frames in the traceback */
     uint16_t total_nframe;
@@ -39,7 +37,7 @@ typedef struct
     unsigned long thread_id;
     /* List of frames, top frame first */
     frame_t frames[1];
-} traceback_t;
+};
 
 /* The maximum number of frames we can store in `traceback_t.nframe` */
 #define TRACEBACK_MAX_NFRAME UINT16_MAX
@@ -64,7 +62,5 @@ traceback_to_tuple(traceback_t* tb);
 /* The maximum number of events we can store in `traceback_array_t.count` */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
 #define TRACEBACK_ARRAY_COUNT_TYPE size_t
-
-DO_ARRAY(traceback_t*, traceback, TRACEBACK_ARRAY_COUNT_TYPE, traceback_free)
 
 #endif

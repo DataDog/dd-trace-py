@@ -70,7 +70,7 @@ memalloc_tb_init(uint16_t max_nframe)
 
     /* Allocate a buffer that can handle the largest traceback possible.
        This will be used a temporary buffer when converting stack traces. */
-    traceback_buffer = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
+    traceback_buffer = static_cast<traceback_t*>(PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe)));
 
     if (traceback_buffer == NULL)
         return -1;
@@ -81,7 +81,7 @@ memalloc_tb_init(uint16_t max_nframe)
 void
 memalloc_tb_deinit(void)
 {
-    PyMem_RawFree(traceback_buffer);
+    PyMem_RawFree(static_cast<void*>(traceback_buffer));
 }
 
 void
@@ -94,7 +94,7 @@ traceback_free(traceback_t* tb)
         Py_DECREF(tb->frames[nframe].filename);
         Py_DECREF(tb->frames[nframe].name);
     }
-    PyMem_RawFree(tb);
+    PyMem_RawFree(static_cast<void*>(tb));
 }
 
 /* Convert PyFrameObject to a frame_t that we can store in memory */
@@ -167,8 +167,7 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
     }
 
     size_t traceback_size = TRACEBACK_SIZE(traceback_buffer->nframe);
-    traceback_t* traceback = PyMem_RawMalloc(traceback_size);
-
+    traceback_t* traceback = static_cast<traceback_t*>(PyMem_RawMalloc(traceback_size));
     if (traceback)
         memcpy(traceback, traceback_buffer, traceback_size);
 
