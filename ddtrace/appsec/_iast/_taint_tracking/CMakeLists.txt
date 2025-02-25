@@ -31,12 +31,13 @@ endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
 # Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false"))
+if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
+                                                                                 "false"))
     message("DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    add_definitions(-DDONT_COMPILE_ABSEIL)  # Define DONT_COMPILE_ABSEIL preprocessor variable
+    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("Debug mode: not using abseil")
-    add_definitions(-DDONT_COMPILE_ABSEIL)  # Define DONT_COMPILE_ABSEIL preprocessor variable
+    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
     message("Release mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
     FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip")
@@ -89,7 +90,9 @@ set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRE
 
 # target_link_libraries(_native PRIVATE ${ICU_LIBS})
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false")))
+if(CMAKE_BUILD_TYPE STREQUAL "Release"
+   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
+                                                                                          STREQUAL "false")))
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 endif()
 
