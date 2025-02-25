@@ -112,7 +112,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
                     {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
-                    {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
                     {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},

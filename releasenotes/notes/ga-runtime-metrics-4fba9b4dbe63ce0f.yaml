@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    runtime_metrics: Enable python runtime metrics collection (ex: gc counts, thread counts, memory usage, etc) by default.
+    To disable this feature, set the environment variable ``DD_RUNTIME_METRICS_ENABLED`` to `false`.
