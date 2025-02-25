@@ -1,6 +1,4 @@
 mini-val:
-  count: 1
   runs: 1
 max-val:
-  count: 10000000000000000
   runs: 1000
