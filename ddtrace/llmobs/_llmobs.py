@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Any
+from typing import Any, Tuple
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -779,6 +779,25 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
+
+    @classmethod
+    def prompt_context(cls,
+        name: str,
+        version: Optional[str]="1.0.0",
+        template: Optional[List[Tuple[str, str]]]=None,
+        variables: Optional[Dict[str, Any]]=None,
+        example_variable_keys: Optional[List[str]]=None,
+        constraint_variable_keys: Optional[List[str]]=None,
+        rag_context_variable_keys: Optional[List[str]]=None,
+        rag_query_variable_keys: Optional[List[str]]=None,
+        ml_app: str="") -> AnnotationContext:
+        """
+        shortcut to create a prompt object and annotate it
+        """
+        # TODO try to check for if the prompt already exists within the span and update it
+        prompt = Prompt(name, version, template, variables, example_variable_keys, constraint_variable_keys,
+                        rag_context_variable_keys, rag_query_variable_keys, ml_app)
+        return cls.annotation_context(prompt=prompt)
 
     @classmethod
     def annotate(
