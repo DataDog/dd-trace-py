@@ -78,7 +78,7 @@ def list_broker_celery_app(instrument_celery, dummy_tracer):
     # Override broker_url with a list of URLs.
     app.conf.broker_url = [BROKER_URL, "memory://"]
 
-    @app.task
+    @app.task(name="list_broker_celery.subtract")
     def subtract(x, y):
         return x - y
 
