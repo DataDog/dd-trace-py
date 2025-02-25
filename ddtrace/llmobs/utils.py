@@ -67,10 +67,12 @@ class Prompt:
                  rag_query_variable_keys = None,
                  ml_app=""):
 
+        self.__dict__["_is_initialized"] = False
+
         if name is None:
             raise TypeError("Prompt name of type String is mandatory.")
 
-        self.name = name
+        self.__dict__["name"] = name
 
         # Default values
         template = template or []
@@ -90,14 +92,17 @@ class Prompt:
         if isinstance(template, str):
             template = [("user", template)]
 
-        self.ml_app = ml_app
-        self.version = version
-        self.template = template
-        self.variables = variables
-        self.example_variable_keys = example_variable_keys
-        self.constraint_variable_keys = constraint_variable_keys
-        self.rag_context_variable_keys = rag_context_variable_keys
-        self.rag_query_variable_keys = rag_query_variable_keys
+        self.__dict__["ml_app"] = ml_app
+        self.__dict__["version"] = version
+        self.__dict__["template"] = template
+        self.__dict__["variables"] = variables
+        self.__dict__["example_variable_keys"] = example_variable_keys
+        self.__dict__["constraint_variable_keys"] = constraint_variable_keys
+        self.__dict__["rag_context_variable_keys"] = rag_context_variable_keys
+        self.__dict__["rag_query_variable_keys"] = rag_query_variable_keys
+
+        # Unlocks the id regeneration at each setattr call
+        self.__dict__["_is_initialized"] = True
 
     def generate_ids(self):
         """
@@ -118,8 +123,8 @@ class Prompt:
         template_id_str = f"[{ml_app}]{name}"
         instance_id_str = f"[{ml_app}]{name}{version}{template}{variables}{example_variable_keys}{constraint_variable_keys}{rag_context_variable_keys}{rag_query_variable_keys}"
 
-        self.prompt_template_id = sha1(template_id_str.encode()).hexdigest()
-        self.prompt_instance_id = sha1(instance_id_str.encode()).hexdigest()
+        self.__dict__["prompt_template_id"] = sha1(template_id_str.encode()).hexdigest()
+        self.__dict__["prompt_instance_id"] = sha1(instance_id_str.encode()).hexdigest()
 
     def validate(self):
         errors = []
@@ -228,13 +233,19 @@ class Prompt:
 
     def prepare_prompt(self, ml_app=None) -> Dict[str, Union[str, List[str], Dict[str, str], List[Tuple[str, str]]]]:
         if ml_app:
-            self.ml_app = ml_app
+            # regenerate ids if ml_app is changed
+            self.__dict__["ml_app"] = ml_app
+        self.generate_ids()
         self.validate()
         return self.to_tags_dict()
 
     def __setattr__(self, name, value):
+        """
+        Overrides Set attribute value to regenerate prompt ids if attributes change.
+        """
         super().__setattr__(name, value)
-        self.generate_ids()
+        if self.__dict__.get("_is_initialized"):
+            self.generate_ids()
 
 
 
