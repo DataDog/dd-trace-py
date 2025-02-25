@@ -19,12 +19,25 @@ variables:
     CARGO_BUILD_JOBS: 12
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-    [ -z ${CI_JOB_TOKEN} ] && git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+
+    if [ -n ${CI_JOB_TOKEN} ];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
     git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform && cd /platform
+
     ./steps/capture-hardware-software-info.sh
-    '([[ $SCENARIO =~ ^flask_* ]] && BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t) || (! [[ $SCENARIO =~ ^flask_* ]] && ./steps/run-benchmarks.sh)'
+
+    if [[ $SCENARIO =~ ^flask_* ]];
+    then
+      BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t
+    else
+      ./steps/run-benchmarks.sh
+    fi
+
     ./steps/analyze-results.sh
-    "./steps/upload-results-to-s3.sh || :"
+
+    ./steps/upload-results-to-s3.sh || :
   artifacts:
     name: "reports"
     when: always
