@@ -862,7 +862,7 @@ Package build
    DD_USE_SCCACHE:
       type: Boolean
       default: False
-      description: Use ``sccace`` to make compilation faster if available.
+      description: Use ``sccache`` to make compilation faster if available.
 
    DD_SCCACHE_PATH:
       type: String
