@@ -74,6 +74,7 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
@@ -1604,6 +1605,54 @@ def _register_atr_handlers():
     core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
 
 
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_is_enabled() -> bool:
+    return CIVisibility.is_attempt_to_fix_enabled()
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_should_retry()
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int):
+    CIVisibility.get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_finish_retry(attempt_to_fix_finish_args: AttemptToFixTestMixin.AttemptToFixRetryFinishArgs):
+    CIVisibility.get_test_by_id(attempt_to_fix_finish_args.test_id).attempt_to_fix_finish_retry(
+        attempt_to_fix_finish_args.retry_number, attempt_to_fix_finish_args.status, attempt_to_fix_finish_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
+    return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
+
+
+def _register_attempt_to_fix_handlers():
+    log.debug("Registering AttemptToFix handlers")
+    core.on("test_visibility.attempt_to_fix.is_enabled", _on_attempt_to_fix_is_enabled, "is_enabled")
+    core.on("test_visibility.attempt_to_fix.session_has_failed_tests", _on_attempt_to_fix_session_has_failed_tests, "has_failed_tests")
+    core.on("test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test")
+    core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
+    core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
+    core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
+    core.on("test_visibility.attempt_to_fix.get_final_status", _on_attempt_to_fix_get_final_status, "attempt_to_fix_final_status")
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
@@ -1614,3 +1663,4 @@ _register_coverage_handlers()
 _register_itr_handlers()
 _register_efd_handlers()
 _register_atr_handlers()
+_register_attempt_to_fix_handlers()

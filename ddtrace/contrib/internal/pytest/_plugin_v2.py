@@ -81,6 +81,7 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_handle_retries
 
 log = get_logger(__name__)
 
@@ -123,14 +124,13 @@ def _handle_test_management(item, test_id):
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     is_disabled = InternalTest.is_disabled_test(test_id)
-    breakpoint()
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
         is_disabled = True
 
-    if is_disabled:
+    if is_disabled and not is_attempt_to_fix:
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
         # It should still have both disabled and quarantined event tags, though.
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
@@ -488,6 +488,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_id = _get_test_id_from_item(item)
 
     is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     test_outcome = _process_result(item, call, original_result)
 
@@ -504,7 +505,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    if original_result.failed and is_quarantined:
+    if original_result.failed and (is_quarantined or is_attempt_to_fix):
         # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
         original_result.outcome = OUTCOME_QUARANTINED
@@ -514,6 +515,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
+    if is_attempt_to_fix:
+        return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
