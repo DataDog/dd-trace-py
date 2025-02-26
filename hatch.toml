@@ -316,7 +316,7 @@ test = [
 [[envs.appsec_iast_default.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-[[envs.appsec_iast_default.env-vars]]
+[envs.appsec_iast_default.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
@@ -347,7 +347,7 @@ test = [
 [[envs.appsec_iast_memcheck.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]
 
-[[envs.appsec_iast_memcheck.env-vars]]
+[envs.appsec_iast_memcheck.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
@@ -372,7 +372,7 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-[[envs.appsec_iast_native.env-vars]]
+[envs.appsec_iast_native.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
@@ -401,7 +401,7 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
-[[envs.appsec_iast_packages.env-vars]]
+[envs.appsec_iast_packages.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
@@ -436,7 +436,7 @@ django = ["~=4.0"]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=3.2"]
 
-[[envs.appsec_integrations_django.env-vars]]
+[envs.appsec_integrations_django.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
@@ -493,7 +493,7 @@ python = ["3.11", "3.12", "3.13"]
 flask = ["~=3.1"]
 werkzeug = ["~=3.1"]
 
-[[envs.appsec_integrations_flask.env-vars]]
+[envs.appsec_integrations_flask.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
