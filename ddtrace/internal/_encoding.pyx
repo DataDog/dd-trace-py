@@ -844,8 +844,7 @@ cdef class MsgpackEncoderV041(MsgpackEncoderBase):
                 # pack the name of a span event
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
-                    return return
-                # pack the timestamp of span event
+                    return ret
                 if isinstance(v, (int, float)):
                     ret = pack_number(&self.pk, v)
                 elif isinstance(v, str):
