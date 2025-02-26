@@ -376,7 +376,9 @@ jobs:
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
-            DD_FAST_BUILD: 1
+            if [ "$CIRCLE_BRANCH" != "main" ]; then
+              export DD_FAST_BUILD=1
+            fi
       - save_sccache
       - persist_to_workspace:
           root: .
