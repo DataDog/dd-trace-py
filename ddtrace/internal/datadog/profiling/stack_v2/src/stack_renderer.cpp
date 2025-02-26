@@ -3,6 +3,8 @@
 #include "thread_span_links.hpp"
 #include "utf8_validate.hpp"
 
+#include "echion/strings.h"
+
 using namespace Datadog;
 
 void
@@ -119,7 +121,7 @@ StackRenderer::render_frame(Frame& frame)
         return;
     }
 
-    // Ordinarily we could just call string_table.lookup() here, but our
+    // Ordinarily we could just call frame_cache->lookup() here, but our
     // underlying frame is owned by the LRUCache, which may have cleaned it up,
     // causing the table keys to be garbage.  Since individual frames in
     // the stack may be bad, this isn't a failable condition.  Instead, populate
