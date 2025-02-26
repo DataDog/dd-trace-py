@@ -867,7 +867,7 @@ Package build
    DD_SCCACHE_PATH:
       type: String
       default: ""
-      description: Path to the ``sccache`` directory if a custom want is to be used for ddtrace building.
+      description: Path to the ``sccache`` directory if a custom one is to be used for ddtrace building.
 
 Other
 -----
