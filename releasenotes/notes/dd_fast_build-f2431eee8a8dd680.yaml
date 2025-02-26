@@ -1,9 +1,0 @@
----
-features:
-  - |
-    Introduces two new environment variables to control the building process:
-    - ``DD_FAST_BUILD`` which, when set, speeds up the ddtrace build process by disabling certain optimizations. 
-      This is particularly beneficial for CI workflows or local development environments.
-    - ``DD_COMPILE_ABSEIL`` which, depending on the value (defaulting to ``true``), will compile and use the ``abseil`` library 
-      for a small performance improvement in taint tracking in exchange of a slightly bigger binary and longer compilation times (note that
-      ``DD_FAST_BUILD`` if present sets ``DD_COMPILE_ABSEIL`` to ``false``).
