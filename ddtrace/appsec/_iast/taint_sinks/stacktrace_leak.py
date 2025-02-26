@@ -1,12 +1,14 @@
 import os
 import re
 
+from ddtrace.settings.asm import config as asm_config
+
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._iast_request_context import set_iast_stacktrace_reported
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking._errors import iast_taint_log_error
+from .._taint_tracking._errors import iast_error
 from ..constants import HTML_TAGS_REMOVE
 from ..constants import STACKTRACE_EXCEPTION_REGEX
 from ..constants import STACKTRACE_FILE_LINE
@@ -35,14 +37,22 @@ REPORT_STACKTRACE_LATER = None
 
 
 def check_and_report_stacktrace_leak():
-    global REPORT_STACKTRACE_LATER
-    if REPORT_STACKTRACE_LATER:
-        StacktraceLeak.report(evidence_value=REPORT_STACKTRACE_LATER)
-        REPORT_STACKTRACE_LATER = None
+    report = get_report_stacktrace_later()
+    if report:
+        StacktraceLeak.report(evidence_value=report)
+        set_report_stacktrace_later(None)
 
 
-def asm_check_stacktrace_leak(content: str) -> None:
+def set_report_stacktrace_later(evidence):
     global REPORT_STACKTRACE_LATER
+    REPORT_STACKTRACE_LATER = evidence
+
+
+def get_report_stacktrace_later():
+    return REPORT_STACKTRACE_LATER
+
+
+def iast_check_stacktrace_leak(content: str) -> None:
     if not content:
         return
 
@@ -114,7 +124,9 @@ def asm_check_stacktrace_leak(content: str) -> None:
 
         _set_metric_iast_executed_sink(StacktraceLeak.vulnerability_type)
         evidence = "Module: %s\nException: %s" % (module_name.strip(), exception_line.strip())
-        REPORT_STACKTRACE_LATER = evidence
-
+        if asm_config.is_iast_request_enabled:
+            StacktraceLeak.report(evidence_value=evidence)
+        else:
+            set_report_stacktrace_later(evidence)
     except Exception as e:
-        iast_taint_log_error("[IAST] error in check stacktrace leak. {}".format(e))
+        iast_error("Taint Sink error. Error in check stacktrace leak. {}".format(e))
