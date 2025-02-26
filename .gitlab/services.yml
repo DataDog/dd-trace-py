@@ -77,3 +77,28 @@
   rabbitmq:
     name: registry.ddbuild.io/images/mirror/rabbitmq:3.12.7-management-alpine
     alias: rabbitmq
+  mysql:
+    name: registry.ddbuild.io/images/mirror/mysql:5.7
+    alias: mysql
+    variables:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_PASSWORD: test
+      MYSQL_USER: test
+      MYSQL_DATABASE: test
+  cassandra:
+    name: registry.ddbuild.io/images/mirror/cassandra:3.11.3
+    alias: cassandra
+    variables:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 256M
+  mariadb:
+    name: registry.ddbuild.io/images/mirror/mariadb:lts
+    alias: mariadb
+    variables:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+  consul:
+    name: registry.ddbuild.io/images/mirror/consul:1.6.0
+    alias: consul
