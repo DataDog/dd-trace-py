@@ -29,7 +29,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "datadog-ddsketch"
 version = "16.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.2#52bd068269da43fb216e278a8576184bf6307177"
+source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.3#ce8c536ddef78a49142fe4a6c77ab0a1263c1018"
 dependencies = [
  "prost",
 ]
@@ -37,7 +37,7 @@ dependencies = [
 [[package]]
 name = "datadog-library-config"
 version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.2#52bd068269da43fb216e278a8576184bf6307177"
+source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.3#ce8c536ddef78a49142fe4a6c77ab0a1263c1018"
 dependencies = [
  "anyhow",
  "serde",
