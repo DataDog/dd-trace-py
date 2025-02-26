@@ -98,36 +98,32 @@ telemetry_writer.periodic(force_flush=True)
 
 def test_start_runtime_metrics_via_env_var(ddtrace_run_python_code_in_subprocess):
     """
-    When running with ddtrace-run and DD_RUNTIME_METRICS_ENABLED is set
+    When running with ddtrace-run
         Runtime metrics worker starts and there are no errors
     """
 
-    env = os.environ.copy()
-    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     _, _, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace.runtime import RuntimeMetrics
 assert RuntimeMetrics._enabled
 """,
-        env=env,
     )
     assert status == 0
 
 
 def test_runtime_metrics_via_env_var_manual_start(ddtrace_run_python_code_in_subprocess):
     """
-    When running with ddtrace-run and DD_RUNTIME_METRICS_ENABLED is set and trying to start RuntimeMetrics manually
+    When running with ddtrace-run and RuntimeMetrics is started manually
         Runtime metrics worker starts and there are no errors
     """
 
-    env = os.environ.copy()
-    env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     _, _, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace.runtime import RuntimeMetrics
 assert RuntimeMetrics._enabled
+RuntimeMetrics.enable()
+assert RuntimeMetrics._enabled
 """,
-        env=env,
     )
     assert status == 0
 
