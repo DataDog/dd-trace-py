@@ -454,6 +454,7 @@ class DebugMetadata:
             f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
             f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
             f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
+            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
