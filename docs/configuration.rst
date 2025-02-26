@@ -834,45 +834,15 @@ Sampling
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
 
-Package build
--------------
+Other
+-----
 
 .. ddtrace-configuration-options::
 
    DD_COMPILE_DEBUG:
      type: Boolean
      default: False
-     description: Compile native extensions in Debug mode (will default to Release mode if not present).
-
-   DD_COMPILE_ABSEIL:
-      type: Boolean
-      default: True
-      description: |
-            Compile the Abseil library into the native taint tracking module. This slightly improved taint
-            tracking performance in exchange for a slightly larger binary size and longer compilation times.
-            Note that by setting ``DD_FAST_BUILD`` to ``true``, this setting will be overridden to ``False``.
-
-   DD_FAST_BUILD:
-      type: Boolean
-      default: False
-      description: |
-            Makes compilation of native extensions significantly faster by disabling some optimizations. Sets
-             ``DD_COMPILE_ABSEIL`` to ``false``.
-
-   DD_USE_SCCACHE:
-      type: Boolean
-      default: False
-      description: Use ``sccache`` to make compilation faster if available.
-
-   DD_SCCACHE_PATH:
-      type: String
-      default: ""
-      description: Path to the ``sccache`` directory if a custom one is to be used for ddtrace building.
-
-Other
------
-
-.. ddtrace-configuration-options::
+     description: Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
 
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
