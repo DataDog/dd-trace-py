@@ -844,14 +844,14 @@ cdef class MsgpackEncoderV041(MsgpackEncoderBase):
                 # pack the name of a span event
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
-                    return ret
+                    return return
+                # pack the timestamp of span event
                 if isinstance(v, (int, float)):
                     ret = pack_number(&self.pk, v)
                 elif isinstance(v, str):
                     ret = pack_text(&self.pk, v)
                 elif k == "attributes":
-                    # span links can contain attributes, this is analougous to span tags
-                    # attributes are serialized as a nested dict with string keys and values
+                    # span events can contain attributes, this is analougous to span tags
                     attributes = v.items()
                     ret = msgpack_pack_map(&self.pk, len(attributes))
                     for attr_k, attr_v in attributes:
