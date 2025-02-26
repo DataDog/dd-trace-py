@@ -593,7 +593,7 @@ class Span(object):
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="recorded exception", attributes=attrs, timestamp=timestamp)
+        self._add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
