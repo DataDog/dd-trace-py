@@ -82,7 +82,7 @@ def _subprocess_task(parent_span_context, errors):
     try:
         ctx = opentelemetry.trace.set_span_in_context(opentelemetry.trace.NonRecordingSpan(parent_span_context))
         with ot_tracer.start_as_current_span("task", context=ctx):
-            time.sleep(0.02)
+            time.sleep(1.02)
     except AssertionError as e:
         errors.put(e)
     finally:
