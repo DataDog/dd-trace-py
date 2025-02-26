@@ -842,7 +842,7 @@ Package build
    DD_COMPILE_DEBUG:
      type: Boolean
      default: False
-     description: Compile native extensions in Debug mode.
+     description: Compile native extensions in Debug mode (will default to Release mode if not present).
 
    DD_FAST_BUILD:
       type: Boolean
