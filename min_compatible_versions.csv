@@ -58,7 +58,6 @@ elasticsearch7,~=7.13.0
 elasticsearch7[async],0
 elasticsearch8,~=8.0.1
 elasticsearch[async],0
-envier,==0.5.2
 exceptiongroup,0
 faiss-cpu,==1.8.0
 falcon,~=3.0
