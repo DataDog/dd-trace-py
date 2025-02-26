@@ -97,3 +97,14 @@
     variables:
       MAX_HEAP_SIZE: 512M
       HEAP_NEWSIZE: 256M
+  mariadb:
+    name: registry.ddbuild.io/images/mirror/mariadb:lts
+    alias: mariadb
+    variables:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+  consul:
+    name: registry.ddbuild.io/images/mirror/consul:1.6.0
+    alias: consul
