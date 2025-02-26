@@ -33,10 +33,15 @@ unset(BUILD_MACOS CACHE)
 # Check the DD_COMPILE_ABSEIL environment variable and build type
 if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
                                                                                  "false"))
-    message("DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
+
+    message("==============================================================")
+    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
+    message("==============================================================")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("Debug mode: not using abseil")
+    message("=====================================")
+    message("WARNING: Debug mode: not using abseil")
+    message("=====================================")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
     message("Release mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
