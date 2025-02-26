@@ -23,14 +23,14 @@ endif()
 
 if(NOT DEFINED DD_CHECKSUMS)
     set(DD_CHECKSUMS
-    "dd08d3a4dbbd765392121d27b790d7818e80dd28500b554db16e9186b1025ba9 libdatadog-aarch64-alpine-linux-musl.tar.gz"
-    "2d7933e09dc39706e9c99c7edcff5c60f7567ea2777157596de828f62f39035b libdatadog-aarch64-apple-darwin.tar.gz"
-    "decc01a2e0f732cabcc56594429a3dbc13678070e07f24891555dcc02df2e516 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
-    "fdf4e188d0e92150ad2fbb22e65a645d86d8a4eb04bbd9754683ae1adaf48eb4 libdatadog-i686-alpine-linux-musl.tar.gz"
-    "63ace200493cd8e108be11cbf5ba19b5bd9a2e1cb730bdefd0a14ae217b716f5 libdatadog-i686-unknown-linux-gnu.tar.gz"
-    "8e09afd3cfb5ace85501f37b4bd6378299ebbf71189ccc2173169998b75b4b56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-    "ced5db61e0ca8e974b9d59b0b6833c28e19445a3e4ec3c548fda965806c17560 libdatadog-x86_64-apple-darwin.tar.gz"
-    "caaec84fc9afbcb3ec4618791b3c3f1ead65196009e9f07fd382e863dc3bdc66 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
+        "dd08d3a4dbbd765392121d27b790d7818e80dd28500b554db16e9186b1025ba9 libdatadog-aarch64-alpine-linux-musl.tar.gz"
+        "2d7933e09dc39706e9c99c7edcff5c60f7567ea2777157596de828f62f39035b libdatadog-aarch64-apple-darwin.tar.gz"
+        "decc01a2e0f732cabcc56594429a3dbc13678070e07f24891555dcc02df2e516 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
+        "fdf4e188d0e92150ad2fbb22e65a645d86d8a4eb04bbd9754683ae1adaf48eb4 libdatadog-i686-alpine-linux-musl.tar.gz"
+        "63ace200493cd8e108be11cbf5ba19b5bd9a2e1cb730bdefd0a14ae217b716f5 libdatadog-i686-unknown-linux-gnu.tar.gz"
+        "8e09afd3cfb5ace85501f37b4bd6378299ebbf71189ccc2173169998b75b4b56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
+        "ced5db61e0ca8e974b9d59b0b6833c28e19445a3e4ec3c548fda965806c17560 libdatadog-x86_64-apple-darwin.tar.gz"
+        "caaec84fc9afbcb3ec4618791b3c3f1ead65196009e9f07fd382e863dc3bdc66 libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
