@@ -104,7 +104,7 @@ baseline:build:
       python3.9 -m pip wheel --no-deps -w ./tmp/ ./
       for wheel in ./tmp/*.whl;
       do
-        auditwheel repair "$wheel" --plat "manylinux2014" -w ./
+        auditwheel repair "$wheel" --plat "manylinux2014_x86_64" -w ./
       done
     else
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
