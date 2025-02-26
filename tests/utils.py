@@ -7,6 +7,7 @@ import inspect
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -1230,7 +1231,9 @@ class AnyFloat(object):
 
 
 def call_program(*args, **kwargs):
+    ignore_connection_errors = kwargs.pop("ignore_connection_errors", True)
     timeout = kwargs.pop("timeout", None)
+
     if "env" in kwargs:
         # Remove all keys with the value None from env, None is used to unset an environment variable
         env = kwargs.pop("env")
@@ -1243,7 +1246,19 @@ def call_program(*args, **kwargs):
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
+    if ignore_connection_errors:
+        stderr = remove_connection_error_logs(stderr)
     return stdout, stderr, subp.wait(), subp.pid
+
+
+def remove_connection_error_logs(text):
+    """Remove connection error logs from the given text"""
+    # Removes dogstatsd connection error logs
+    # These connection errors are expected when runtime metrics are enabled and the test agent is used
+    # TODO: Update test-agent to support receiving dogstatsd metrics
+    pattern = rb"Error submitting packet: .*?, dropping the packet and closing the socket\n"
+    cleaned_text = re.sub(pattern, b"", text)
+    return cleaned_text
 
 
 def request_token(request):
