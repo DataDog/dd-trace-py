@@ -1,0 +1,40 @@
+interactions:
+- request:
+    body: '{"modelId": "anthropic.claude-3-sonnet-20240229-v1:0", "messages": [{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}], "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Content-Length:
+      - '231'
+      User-Agent:
+      - Boto3/1.28.38 Python/3.8.15 Linux/5.15.0-1027-aws Botocore/1.31.38
+      X-Amz-Date:
+      - '20250226T000000Z'
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1:0/converse
+  response:
+    body:
+      string: '{"message": {"role": "assistant", "content": "Distributed tracing is like tracking a package as it travels through different postal facilities. Each service adds a timestamp and info about what it did with the package, creating a complete journey map.", "completionReason": "end_turn"}, "usage": {"inputTokens": 15, "outputTokens": 42}, "conversationId": "abc123", "stopReason": "max_tokens"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '351'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 26 Feb 2025 00:00:00 GMT
+      x-amz-bedrock-input-token-count:
+      - '15'
+      x-amz-bedrock-invocation-latency:
+      - '1256'
+      x-amz-bedrock-output-token-count:
+      - '42'
+      x-amzn-RequestId:
+      - 5d90f049-f5de-11ed-b840-0123456789ab
+    status:
+      code: 200
+      message: OK
+version: 1

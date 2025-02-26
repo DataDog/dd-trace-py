@@ -15,6 +15,7 @@ _MODELS = {
     "anthropic_message": "anthropic.claude-3-sonnet-20240229-v1:0",
     "cohere": "cohere.command-light-text-v14",
     "meta": "meta.llama2-13b-chat-v1",
+    "converse": "anthropic.claude-3-sonnet-20240229-v1:0",  # Using Claude 3 Sonnet for converse tests
 }
 
 _REQUEST_BODIES = {
@@ -63,6 +64,22 @@ _REQUEST_BODIES = {
         "temperature": 0.9,
         "top_p": 1.0,
         "max_gen_len": 60,
+    },
+    "converse": {
+        # Converse API request parameters
+        "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Explain the concept of distributed tracing in a simple way"
+            }
+        ],
+        "inferenceConfig": {
+            "temperature": 0.7,
+            "topP": 0.9,
+            "maxTokens": 50,
+            "stopSequences": []
+        }
     },
 }
 
