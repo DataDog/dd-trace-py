@@ -130,7 +130,7 @@ def gen_build_docs() -> None:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: hatch", file=f)
-            print("  needs: ['precheck']", file=f)
+            print("  needs: [ precheck ]", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
