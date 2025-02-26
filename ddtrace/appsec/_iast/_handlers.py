@@ -32,28 +32,6 @@ except ImportError:
 log = get_logger(__name__)
 
 
-def _on_set_http_meta_iast(
-    span,
-    request_ip,
-    raw_uri,
-    route,
-    method,
-    request_headers,
-    request_cookies,
-    parsed_query,
-    request_path_params,
-    request_body,
-    status_code,
-    response_headers,
-    response_cookies,
-):
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.taint_sinks.insecure_cookie import asm_check_cookies
-
-        if response_cookies:
-            asm_check_cookies(response_cookies)
-
-
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
     if asm_config._iast_enabled and asm_config.is_iast_request_enabled:

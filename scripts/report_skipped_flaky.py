@@ -8,7 +8,7 @@ from codeowners import CodeOwners
 
 
 FLAKY_PATTERN = re.compile(r'^\s*@flaky\(\s*(?:until=)?(\d+),?\s*(?:reason=\s*"(.*?)")?\s*\)?', re.IGNORECASE)
-TEST_FUNCTION_PATTERN = re.compile(r"^\s*def\s+(test_\w+)\s*\(", re.IGNORECASE)
+TEST_FUNCTION_PATTERN = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)\s*\(", re.IGNORECASE)
 
 TEST_DIR = "tests"
 EXCLUDE_DIR = "tests/contrib/pytest"
@@ -49,13 +49,14 @@ def extract_flaky_tests(file_path):
                 flaky_match = FLAKY_PATTERN.match(line)
 
             func_match = TEST_FUNCTION_PATTERN.match(line)
-            if func_match:
+            if flaky_match and func_match:
                 test_name = func_match.group(1)
 
             if flaky_match and test_name:
                 timestamp, reason = int(flaky_match.group(1)), flaky_match.group(2)
                 flaky_tests.append((test_name, file_path, timestamp, reason))
                 flaky_match = None  # Reset for the next test function
+                test_name = None
 
     except (UnicodeDecodeError, IOError):
         print(f"Skipping file due to encoding issue: {file_path}")

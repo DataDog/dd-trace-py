@@ -4,6 +4,7 @@ from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import Set  # noqa:F401
 
+from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
@@ -14,7 +15,6 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings import _global_config as ddconfig
 
 
 log = get_logger(__name__)

@@ -5,11 +5,6 @@ import warnings
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-# Configuration for the whole tracer from file. Do it before anything else happens.
-from ddtrace.internal.native import _apply_configuration_from_disk
-
-_apply_configuration_from_disk()
-
 from ddtrace.internal.module import ModuleWatchdog
 
 
@@ -22,7 +17,9 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings import _global_config as config
+from .settings._config import Config as _Config
+
+config = _Config()
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
