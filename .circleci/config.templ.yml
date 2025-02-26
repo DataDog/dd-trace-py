@@ -376,9 +376,7 @@ jobs:
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
-            if [ "$CIRCLE_BRANCH" != "main" ]; then
-              export DD_FAST_BUILD=1
-            fi
+            DD_FAST_BUILD: << pipeline.git.branch == 'main' && '0' || '1' >>
       - save_sccache
       - persist_to_workspace:
           root: .
