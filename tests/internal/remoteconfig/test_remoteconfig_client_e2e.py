@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import enum
 import json
 import os
 
@@ -19,7 +20,7 @@ from tests.utils import override_global_config
 
 def _expected_payload(
     rc_client,
-    capabilities="IAjwAA==",  # this was gathered by running the test and observing the payload
+    capabilities="",
     has_errors=False,
     targets_version=0,
     backend_client_state=None,
@@ -86,8 +87,7 @@ def _assert_response(mock_send_request, expected_response):
     autospec=True,
 )
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
-def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request, mock_write):
+def test_remote_config_client_steps(mock_send_request, mock_write):
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -105,7 +105,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         mock_preprocess_results(features)
         return features
 
-    mock_appsec_rc_capabilities.return_value = "Ag=="
+    class Capabilities(enum.IntFlag):
+        TEST = 16
 
     with override_global_config(dict(_remote_config_enabled=False)):
         enable_appsec_rc()
@@ -113,6 +114,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
         asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
         rc_client.register_product("ASM_FEATURES", asm_callback)
+        rc_client.add_capabilities(Capabilities)
+        capabilities = rc_client._encode_capabilities(Capabilities.TEST)
 
     assert len(rc_client._products) == 1
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -120,7 +123,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # 0.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
     rc_client.request()
-    expected_response = _expected_payload(rc_client)
+    expected_response = _expected_payload(rc_client, capabilities=capabilities)
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
@@ -140,7 +143,9 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
     rc_client.request()
-    expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+    expected_response = _expected_payload(
+        rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=", capabilities=capabilities
+    )
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
@@ -176,6 +181,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             }
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -211,6 +217,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             }
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -235,6 +242,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         config_states=[],
         backend_client_state="eyJmb28iOiAiYmFyIn0=",
         cached_target_files=[],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -283,6 +291,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -332,6 +341,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -394,6 +404,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -442,6 +453,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -493,6 +505,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -543,6 +556,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -604,6 +618,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -672,6 +687,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == "Not all client configurations have target files"
@@ -737,11 +753,11 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-        "not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -805,11 +821,11 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-        "not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -826,18 +842,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
-def test_remote_config_client_callback_error(
-    mock_appsec_rc_capabilities,
-    mock_send_request,
-):
+def test_remote_config_client_callback_error(mock_send_request):
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
     def callback_with_exception():
         raise Exception("fake error")
-
-    mock_appsec_rc_capabilities.return_value = "Ag=="
 
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
