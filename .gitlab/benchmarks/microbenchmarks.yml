@@ -92,8 +92,8 @@ baseline:build:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
   script: |
-    CACHED_WHL=$(ls *.whl | head -n 1 2>/dev/null) || echo ""
-    if [ ! -f $CACHED_WHL ];
+    CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
+    if [ ! -f "${CACHED_WHL}" ];
     then
       ulimit -c unlimited
       curl -sSf https://sh.rustup.rs | sh -s -- -y;
@@ -126,7 +126,6 @@ latest:
   tags: [ "arch:amd64" ]
   stage: build
   script: |
-    pyenv global 3.9
     python3.9 -m pip download --no-deps ddtrace
     echo "LATEST_WHL=$(ls *.whl | head -n 1)" | tee latest.env
   artifacts:
