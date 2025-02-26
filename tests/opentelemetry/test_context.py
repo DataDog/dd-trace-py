@@ -91,7 +91,7 @@ def _subprocess_task(parent_span_context, errors):
         ot_tracer._tracer.flush()
 
 
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.snapshot(ignores=["meta.tracestate", "_dd.parent_id"])
 def test_otel_trace_across_fork(oteltracer):
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root") as root:
@@ -105,7 +105,7 @@ def test_otel_trace_across_fork(oteltracer):
     assert errors.empty(), errors.get()
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate", "_dd.parent_id"])
 @pytest.mark.parametrize("decision", [MANUAL_KEEP_KEY, MANUAL_DROP_KEY], ids=["manual.keep", "manual.drop"])
 def test_sampling_decisions_across_processes(oteltracer, decision):
     # sampling decision in the subprocess task should be the same as the parent

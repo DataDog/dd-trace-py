@@ -219,7 +219,9 @@ def otel_flask_app_env(flask_wsgi_application):
         "with_opentelemetry_instrument",
     ],
 )
-@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"])
+@pytest.mark.snapshot(
+    ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version", "_dd.parent_id"]
+)
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:
         headers = {}
