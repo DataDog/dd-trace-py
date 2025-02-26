@@ -68,8 +68,8 @@ add_cppcheck_target(
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Never build with native unwinding, since this is not currently used
-# Echion is by default configured to ignore idle threads.
+# Never build with native unwinding, since this is not currently used. Echion is by default configured to ignore idle
+# threads.
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE ECHION_OBSERVE_IDLE_THREADS)
 
 # Includes; echion and python are marked "system" to suppress warnings, but note in MSVC we'll have to #pragma
