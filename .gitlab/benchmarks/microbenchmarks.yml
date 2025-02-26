@@ -87,7 +87,8 @@ baseline:build:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
   script: |
-    if [ ! -f baseline.whl ];
+    CACHED_WHL=$(ls *.whl | head -n 1) || echo ""
+    if [ ! -f $CACHED_WHL ];
     then
       ulimit -c unlimited
       curl -sSf https://sh.rustup.rs | sh -s -- -y;
