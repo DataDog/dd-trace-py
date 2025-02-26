@@ -86,7 +86,7 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
-  needs: [ ]
+  needs: [ release_pypi_prod ]
 
 onboarding_tests_installer:
   parallel:
