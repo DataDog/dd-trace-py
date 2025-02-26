@@ -61,6 +61,8 @@ baseline:detect:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   stage: build
+  variables:
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
     if [ -z ${GH_TOKEN} ]
     then
