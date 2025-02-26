@@ -142,6 +142,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
             pkgs={
                 "requests": latest,
+                "bytecode": latest,
+                "protobuf": ">=3",
+                "typing_extensions": latest,
+                "xmltodict": ">=0.12",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
