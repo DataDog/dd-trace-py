@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adds the ``DD_FAST_BUILD`` environment variable to make ddtrace build faster at the expense of 
+    some optimizations which can be useful for CI or local development.
