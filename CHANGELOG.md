@@ -14,6 +14,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.3
+
+
+### Bug Fixes
+
+- configurations: This fix resolves an issue where DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES env variable was not parsed correctly
+
+
+---
+
 ## 3.0.0
 ### **Migration Guide: Upgrading from dd-trace-py v2 to v3**
 
