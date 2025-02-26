@@ -214,9 +214,11 @@ class TestSchematization(PyramidBase):
         s = spans[0]
         assert s.name == "http.server.request", "Expected 'http.server.request' and got {}".format(s.name)
 
+
 @pytest.fixture
 def pyramid_app():
     return "ddtrace-run python tests/contrib/pyramid/app/app.py"
+
 
 @pytest.fixture(scope="function")
 def pyramid_client(snapshot, pyramid_app):
