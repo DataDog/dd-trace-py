@@ -101,7 +101,7 @@ baseline:build:
       echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
       git checkout "${BASELINE_COMMIT_SHA}"
       mkdir ./tmp
-      python3.9 -m pip wheel --no-deps ./tmp/
+      python3.9 -m pip wheel --no-deps -w ./tmp/ ./
       for wheel in ./tmp/*.whl;
       do
         auditwheel repair "$wheel" --plat "manylinux2014" -w ./
