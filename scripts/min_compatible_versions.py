@@ -20,6 +20,7 @@ IGNORED_PACKAGES = {
     "boto3",
     "botocore",
     "click",
+    "git+https://github.com/DataDog/dd-trace-api-py",
     "pillow",
     "pytest-asyncio",
     "pytest-randomly",

@@ -9,6 +9,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -434,13 +435,13 @@ def test_annotate_numeric_io(llmobs):
 def test_annotate_input_serializable_value(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span._get_ctx_item(INPUT_VALUE) == str(["test_input"])
+        assert task_span._get_ctx_item(INPUT_VALUE) == '["test_input"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span._get_ctx_item(INPUT_VALUE) == str({"test_input": "hello world"})
+        assert tool_span._get_ctx_item(INPUT_VALUE) == '{"test_input": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(INPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
         assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
@@ -608,16 +609,16 @@ def test_annotate_output_string(llmobs):
 def test_annotate_output_serializable_value(llmobs):
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
+        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == str(["test_output"])
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == '["test_output"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
+        assert tool_span._get_ctx_item(OUTPUT_VALUE) == '{"test_output": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
         assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
@@ -819,7 +820,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == "{:x}".format(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span.trace_id)
 
 
 def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, mock_llmobs_logs):
@@ -838,7 +839,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == "{:x}".format(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span.trace_id)
 
 
 def test_submit_evaluation_no_api_key_raises_warning(llmobs, mock_llmobs_logs):
@@ -1116,7 +1117,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -1145,7 +1146,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -1182,7 +1183,7 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="token_count",
             metric_type="score",
             score_value=35,
@@ -2043,7 +2044,7 @@ def test_submit_evaluation_for_enqueues_writer_with_categorical_metric(llmobs, m
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -2072,7 +2073,7 @@ def test_submit_evaluation_for_enqueues_writer_with_score_metric(llmobs, mock_ll
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="sentiment",
             metric_type="score",
             score_value=0.9,

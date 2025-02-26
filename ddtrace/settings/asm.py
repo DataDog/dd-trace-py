@@ -19,7 +19,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -73,7 +73,7 @@ class ASMConfig(Env):
     _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
     _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
-    _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
+    _apm_tracing_enabled = Env.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
 
     _auto_user_instrumentation_local_mode = Env.var(
@@ -174,7 +174,7 @@ class ASMConfig(Env):
         "_asm_static_rule_file",
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
-        "_appsec_standalone_enabled",
+        "_apm_tracing_enabled",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
@@ -261,7 +261,7 @@ class ASMConfig(Env):
     def _apm_opt_out(self) -> bool:
         return (
             self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
-        ) and self._appsec_standalone_enabled
+        ) and not self._apm_tracing_enabled
 
     @property
     def _user_event_mode(self) -> str:
