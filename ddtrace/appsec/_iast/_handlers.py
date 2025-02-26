@@ -493,7 +493,8 @@ def _on_asgi_finalize_response(body, _):
 
 
 def _on_werkzeug_render_debugger_html(html):
-    if not html or not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    # we don't check asm_config.is_iast_request_enabled due to werkzeug.render_debugger_html works outside the request
+    if not html or not asm_config._iast_enabled:
         return
 
     try:
