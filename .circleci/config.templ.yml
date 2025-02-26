@@ -459,19 +459,6 @@ jobs:
        - run_test:
           pattern: 'aiobotocore'
 
-  build_docs:
-    # build documentation and store as an artifact
-    executor: ddtrace_dev
-    steps:
-      - checkout
-      - run:
-          command: |
-             hatch run docs:build
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
-      - store_artifacts:
-          path: /tmp/docs
-
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
