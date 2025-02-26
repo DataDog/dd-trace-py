@@ -14,6 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import agent
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -481,7 +482,10 @@ class AgentWriter(HTTPWriter):
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
+        if self._api_version == "v0.4" and self.get_span_event_support_type(agent_url):
+            client = WRITER_CLIENTS["v0.4.1"](buffer_size, max_payload_size)
+        else:
+            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         _headers = {
             "Datadog-Meta-Lang": "python",
@@ -512,6 +516,12 @@ class AgentWriter(HTTPWriter):
             headers=_headers,
             report_metrics=report_metrics,
         )
+
+    def get_span_event_support_type(self, agent_url):
+        info = agent.info(agent_url)
+        if info and info.get("span_events"):
+            return True
+        return False
 
     def recreate(self):
         # type: () -> HTTPWriter
