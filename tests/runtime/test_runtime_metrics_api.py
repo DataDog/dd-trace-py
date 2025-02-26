@@ -64,11 +64,9 @@ telemetry_writer.periodic(force_flush=True)
     assert status == 0, stderr
 
     runtimemetrics_enabled = test_agent_session.get_configurations("DD_RUNTIME_METRICS_ENABLED")
-    assert len(runtimemetrics_enabled) == 2
+    assert len(runtimemetrics_enabled) == 1
     assert runtimemetrics_enabled[0]["value"]
-    assert runtimemetrics_enabled[0]["origin"] == "unknown"
-    assert runtimemetrics_enabled[1]["value"] is False
-    assert runtimemetrics_enabled[1]["origin"] == "unknown"
+    assert runtimemetrics_enabled[0]["origin"] == "code"
 
 
 def test_manually_stop_runtime_metrics_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -95,7 +93,7 @@ telemetry_writer.periodic(force_flush=True)
     runtimemetrics_enabled = test_agent_session.get_configurations("DD_RUNTIME_METRICS_ENABLED")
     assert len(runtimemetrics_enabled) == 1
     assert runtimemetrics_enabled[0]["value"] is False
-    assert runtimemetrics_enabled[0]["origin"] == "unknown"
+    assert runtimemetrics_enabled[0]["origin"] == "code"
 
 
 def test_start_runtime_metrics_via_env_var(ddtrace_run_python_code_in_subprocess):
