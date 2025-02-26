@@ -1,3 +1,4 @@
+from enum import Enum
 from enum import IntEnum
 import re
 
@@ -65,6 +66,12 @@ class REQUESTS_MODE(IntEnum):
     TRACES = 2
 
 
+class RETRY_REASON(str, Enum):
+    EARLY_FLAKE_DETECTION = "efd"
+    AUTO_TEST_RETRIES = "atr"
+    ATTEMPT_TO_FIX = "attempt_to_fix"
+
+
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
 
@@ -83,8 +90,10 @@ CIVISIBILITY_SPAN_TYPE = "ci_visibility"
 # EFD and auto retries
 TEST_IS_NEW = "test.is_new"
 TEST_IS_RETRY = "test.is_retry"
+TEST_RETRY_REASON = "test.retry_reason"
 TEST_IS_QUARANTINED = "test.test_management.is_quarantined"
 TEST_IS_DISABLED = "test.test_management.is_test_disabled"
+TEST_IS_ATTEMPT_TO_FIX = "test.test_management.is_attempt_to_fix"
 TEST_EFD_ABORT_REASON = "test.early_flake.abort_reason"
 TEST_EFD_ENABLED = "test.early_flake.enabled"
 TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"

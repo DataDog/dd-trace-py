@@ -123,6 +123,8 @@ def _handle_test_management(item, test_id):
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     is_disabled = InternalTest.is_disabled_test(test_id)
+    breakpoint()
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.

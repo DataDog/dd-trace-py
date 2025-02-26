@@ -1228,6 +1228,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             is_new=is_new,
             is_quarantined=test_properties.quarantined,
             is_disabled=test_properties.disabled,
+            is_attempt_to_fix=test_properties.attempt_to_fix,
         ),
     )
 
@@ -1248,6 +1249,11 @@ def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
 def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is disabled test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_disabled()
+
+@_requires_civisibility_enabled
+def _on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is attempt to fix for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_attempt_to_fix()
 
 
 @_requires_civisibility_enabled
@@ -1297,6 +1303,7 @@ def _register_test_handlers():
     core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
     core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
     core.on("test_visibility.test.is_disabled", _on_is_disabled_test, "is_disabled")
+    core.on("test_visibility.test.is_attempt_to_fix", _on_is_attempt_to_fix, "is_attempt_to_fix")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
