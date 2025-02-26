@@ -61,7 +61,7 @@ Datadog::Sample::profile_clear_state()
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
     name = string_storage.insert(name);
     filename = string_storage.insert(filename);
 
