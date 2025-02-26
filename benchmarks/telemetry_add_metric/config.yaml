@@ -1,6 +1,24 @@
-mini-val:
-  count: 1
+one-metric-one-run-batch-flush-true:
   runs: 1
-max-val:
-  count: 10000000000000000
+  batches: 1
+  flush: true
+one-metric-one-run-batch-flush-false:
+  runs: 1
+  batches: 1
+  flush: False
+many-metrics-many-runs-batch-flush-true:
   runs: 1000
+  batches: 10
+  flush: true
+many-metrics-many-runs-batch-flush-false:
+  runs: 1000
+  batches: 10
+  flush: False
+one-metric-many-runs-batch-flush-true:
+  runs: 1000
+  batches: 1
+  flush: true
+one-metric-many-runs-batch-flush-false:
+  runs: 1000
+  batches: 1
+  flush: False

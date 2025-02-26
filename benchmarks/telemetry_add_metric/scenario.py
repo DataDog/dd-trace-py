@@ -8,14 +8,21 @@ class TelemetryAddMetric(Scenario):
     """
     This scenario checks to see if there's an impact on sending metrics via instrumentation telemetry
     """
-    count: int
     runs: int
+    flush: bool
+    batches: int
     def run(self):
         def _(loops):
             for _ in range(loops):
+                # Start the test when MetricNamespace is created
+                metricnamespace = MetricNamespace()
                 for i in range(self.runs):
-                    metricnamespace = MetricNamespace()
-                    metricnamespace.add_metric(CountMetric, TELEMETRY_NAMESPACE.TRACERS, "metric", self.count, tags=(("integration_name","somevalue"),))
+                    for j in range(self.batches):
+                        metricnamespace.add_metric(CountMetric, TELEMETRY_NAMESPACE.TRACERS, str(j), 10, tags=(("integration_name","somevalue"),))
+
+
+                # Make flush optional
+                if self.flush:
                     metricnamespace.flush()
 
         yield _
