@@ -84,6 +84,10 @@ requirements_json_test:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
+promote-oci-to-prod:
+  stage: release
+  needs: [ release_pypi_prod ]
+
 onboarding_tests_installer:
   parallel:
     matrix:
