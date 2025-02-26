@@ -585,12 +585,6 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-[[envs.appsec_threats_fastapi.env-vars]]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
-
 ## ASM Appsec Aggregated Leak Testing
 
 [envs.iast_aggregated_leak_testing]
@@ -608,7 +602,6 @@ dependencies = [
 
 [envs.iast_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
 DD_IAST_ENABLED = "true"
