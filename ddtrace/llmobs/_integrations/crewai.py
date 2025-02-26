@@ -7,6 +7,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -61,17 +62,17 @@ class CrewAIIntegration(BaseLLMIntegration):
     ) -> None:
         span._set_ctx_item(SPAN_KIND, "workflow" if operation == "crew" else operation)
         if operation == "crew":
-            self._llmobs_set_metadata_crew(span, args, kwargs, response)
+            self._llmobs_set_tags_crew(span, args, kwargs, response)
             self._traces_to_task_span_ids.pop(span.trace_id, None)
             self._traces_to_tasks.pop(span.trace_id, None)
         elif operation == "task":
-            self._llmobs_set_metadata_task(span, args, kwargs, response)
+            self._llmobs_set_tags_task(span, args, kwargs, response)
         elif operation == "agent":
-            self._llmobs_set_metadata_agent(span, args, kwargs, response)
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif operation == "tool":
-            self._llmobs_set_metadata_tool(span, args, kwargs, response)
+            self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-    def _llmobs_set_metadata_crew(self, span, args, kwargs, response):
+    def _llmobs_set_tags_crew(self, span, args, kwargs, response):
         task_span_ids = self._traces_to_task_span_ids[span.trace_id]
         if self.span_linking_enabled and task_span_ids:
             last_task_span_id = task_span_ids[-1]
@@ -82,31 +83,42 @@ class CrewAIIntegration(BaseLLMIntegration):
             }
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
-        span._set_ctx_item(INPUT_VALUE, args)
+        span._set_ctx_items({INPUT_VALUE: args, NAME: "CrewAI Crew"})
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, response.raw)
+        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
 
-    def _llmobs_set_metadata_task(self, span, args, kwargs, response):
-        task_id = getattr(kwargs.get("instance"), "id", None)
+    def _llmobs_set_tags_task(self, span, args, kwargs, response):
+        task_instance = kwargs.get("instance")
+        task_id = getattr(task_instance, "id", None)
+        task_name = getattr(task_instance, "name", "")
+        task_expected_output = getattr(task_instance, "expected_output", "")
+        task_description = getattr(task_instance, "description", "")
+        task_context = args[1] if args and len(args) >= 2 else ""
         if self.span_linking_enabled and task_id:
             span_links = self._traces_to_tasks[span.trace_id].get(task_id, {}).get("span_links", [])
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
         span._set_ctx_items(
             {
-                METADATA: {"expected_output": kwargs["instance"].expected_output, "context": args[1]},
-                INPUT_VALUE: kwargs["instance"].description,
+                NAME: task_name if task_name else "CrewAI Task",
+                METADATA: {"expected_output": task_expected_output, "context": task_context},
+                INPUT_VALUE: task_description,
             }
         )
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, response.raw)
+        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
 
-    def _llmobs_set_metadata_agent(self, span, args, kwargs, response):
+    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         """Set span links and metadata for agent spans.
         Agent spans are 1:1 with task spans, so we can link them directly here, even on the task span itself.
         """
+        agent_instance = kwargs.get("instance")
+        agent_role = getattr(agent_instance, "role", "")
+        agent_goal = getattr(agent_instance, "goal", "")
+        agent_backstory = getattr(agent_instance, "backstory", "")
+        task_description = getattr(kwargs.get("task"), "description", "")
         if self.span_linking_enabled:
             task_span = _get_nearest_llmobs_ancestor(span)
             task_span_link = {
@@ -125,16 +137,26 @@ class CrewAIIntegration(BaseLLMIntegration):
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
         span._set_ctx_items(
             {
-                METADATA: {"description": kwargs["instance"].goal, "backstory": kwargs["instance"].backstory},
-                INPUT_VALUE: {"context": kwargs.get("context"), "input": kwargs.get("task").description},
+                NAME: agent_role if agent_role else "CrewAI Agent",
+                METADATA: {"description": agent_goal, "backstory": agent_backstory},
+                INPUT_VALUE: {"context": kwargs.get("context", ""), "input": task_description},
             }
         )
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
-    def _llmobs_set_metadata_tool(self, span, args, kwargs, response):
-        span._set_ctx_items({METADATA: {"description": kwargs["instance"].description}, INPUT_VALUE: kwargs["input"]})
+    def _llmobs_set_tags_tool(self, span, args, kwargs, response):
+        tool_instance = kwargs.get("instance")
+        tool_name = getattr(tool_instance, "name", "")
+        description = getattr(tool_instance, "description", "")
+        span._set_ctx_items(
+            {
+                NAME: tool_name if tool_name else "CrewAI Tool",
+                METADATA: {"description": description},
+                INPUT_VALUE: kwargs.get("input", ""),
+            }
+        )
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
