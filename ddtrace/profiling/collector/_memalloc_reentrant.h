@@ -16,15 +16,22 @@
 #include <stdlib.h>
 
 // Cross-platform macro for defining thread-local storage
-// NB - we use dynamic-global on Linux because the others are problematic
 #if defined(_MSC_VER) // Check for MSVC compiler
 #define MEMALLOC_TLS __declspec(thread)
 #elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
+// NB - we explicitly specify global-dynamic on Unix because the others are problematic.
+// See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
+// an explanation of thread-local storage access models. global-dynamic is the
+// most general access model and is always correct to use, if not always the
+// fastest, for a library like this which will be dlopened by an executable.
+// The C toolchain should do the right thing without this attribute if it
+// sees we're building a shared library. But we've been bit by issues related
+// to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
 #else
 #error "Unsupported compiler for thread-local storage"
 #endif
-extern bool _MEMALLOC_ON_THREAD;
+extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 // This is a saturating atomic add for 32- and 64-bit platforms.
 // In order to implement the saturation logic, use a CAS loop.
@@ -41,7 +48,7 @@ atomic_add_clamped(uint64_t* target, uint64_t amount, uint64_t max)
     // consumer CPU generally used by our customers.
     int attempts = 96;
     while (attempts--) {
-        uint64_t old_val = (volatile uint64_t) * target;
+        uint64_t old_val = (volatile uint64_t)*target;
 
         // CAS loop + saturation check
         uint64_t new_val = old_val + amount;
