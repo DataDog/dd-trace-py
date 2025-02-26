@@ -19,7 +19,7 @@ variables:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
-  dependencies: [ "baseline:build", "candidate", "latest" ]
+  dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
 
@@ -118,19 +118,6 @@ baseline:build:
   artifacts:
     reports:
       dotenv: baseline.env
-    paths:
-      - "*.whl"
-
-latest:
-  image: $PACKAGE_IMAGE
-  tags: [ "arch:amd64" ]
-  stage: build
-  script: |
-    python3.9 -m pip download --no-deps ddtrace
-    echo "LATEST_WHL=$(ls *.whl | head -n 1)" | tee latest.env
-  artifacts:
-    reports:
-      dotenv: latest.env
     paths:
       - "*.whl"
 
