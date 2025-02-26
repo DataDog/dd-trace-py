@@ -44,7 +44,7 @@ from urllib.request import urlretrieve
 HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
-FAST_BUILD = "DD_FAST_BUILD" in os.environ
+FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 
 if FAST_BUILD:
     os.environ["DD_COMPILE_ABSEIL"] = "0"
