@@ -844,20 +844,20 @@ Package build
      default: False
      description: Compile native extensions in Debug mode (will default to Release mode if not present).
 
-   DD_FAST_BUILD:
-      type: Boolean
-      default: False
-      description: |
-            Makes compilation of native extensions significantly faster by disabling some optimizations. Sets
-             :ref:`DD_COMPILE_ABSEIL` to ``false``.
-
    DD_COMPILE_ABSEIL:
       type: Boolean
       default: True
       description: |
             Compile the Abseil library into the native taint tracking module. This slightly improved taint
             tracking performance in exchange for a slightly larger binary size and longer compilation times.
-            Note that by setting :ref:`DD_FAST_BUILD` to ``true``, this setting will be overridden to ``False``.
+            Note that by setting ``DD_FAST_BUILD`` to ``true``, this setting will be overridden to ``False``.
+
+   DD_FAST_BUILD:
+      type: Boolean
+      default: False
+      description: |
+            Makes compilation of native extensions significantly faster by disabling some optimizations. Sets
+             ``DD_COMPILE_ABSEIL`` to ``false``.
 
    DD_USE_SCCACHE:
       type: Boolean
