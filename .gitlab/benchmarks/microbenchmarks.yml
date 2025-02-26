@@ -86,12 +86,12 @@ baseline:build:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
-    PATH: $HOME/.cargo/bin:$PATH
   script: |
     if [ ! -f baseline.whl ];
     then
       ulimit -c unlimited
       curl -sSf https://sh.rustup.rs | sh -s -- -y;
+      export PATH="$HOME/.cargo/bin:$PATH"
       echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
       git checkout "${BASELINE_COMMIT_SHA}"
       python3.9 -m pip wheel --no-deps .
