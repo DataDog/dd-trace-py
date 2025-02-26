@@ -236,10 +236,11 @@ def test_simple_pyramid_app_endpoint():
             env=env,
         )
 
+
         client = Client("http://localhost:%d" % SERVER_PORT)
 
         # Wait for the server to start up
-        client.wait()
+        client.wait(delay=1, initial_wait=1)
 
         try:
             r = client.get("/")
