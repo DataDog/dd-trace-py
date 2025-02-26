@@ -13,6 +13,7 @@ import uuid
 
 from .._utils import HTTPResponse
 from .._utils import http_request
+from ..utils import Prompt
 
 from ..decorators import agent
 from .._llmobs import LLMObs  
@@ -624,6 +625,7 @@ class Experiment:
         name (str): Name of the experiment
         task (Callable): Function that processes each dataset record
         dataset (Dataset): Dataset to run the experiment on
+        prompt (Prompt): Prompt template for the experiment
         evaluators (List[Callable]): Functions that evaluate task outputs
         tags (List[str]): Tags for organizing experiments
         description (str): Description of the experiment
@@ -640,6 +642,7 @@ class Experiment:
         name: str,
         task: Callable,
         dataset: Dataset,
+        prompt: Prompt,
         evaluators: List[Callable],
         tags: List[str] = [],
         description: str = "",
@@ -649,6 +652,7 @@ class Experiment:
         self.name = name
         self.task = task
         self.dataset = dataset
+        self.prompt = prompt
         self.evaluators = evaluators
         self.tags = tags
         self.project_name = ENV_PROJECT_NAME
@@ -997,6 +1001,7 @@ class Experiment:
 
                     LLMObs.annotate(
                         span,
+                        prompt=self.prompt,
                         input_data=input_data,
                         output_data=output,
                         tags={
@@ -1033,6 +1038,7 @@ class Experiment:
                     LLMObs.annotate(
                         span,
                         input_data=input_data,
+                        prompt=self.prompt,
                         tags={
                             "dataset_id": self.dataset._datadog_dataset_id,
                             "dataset_record_id": row["record_id"],
