@@ -1,4 +1,5 @@
 from copy import deepcopy
+import enum
 import json
 import os
 import re
@@ -194,6 +195,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_client",
         "grpc_aio_client",
         "grpc_aio_server",
+        "yaaredis",
     }
 )
 
@@ -416,6 +418,15 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=asbool,
         ),
     }
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_LOGS_INJECTION = 1 << 13
+    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
+    APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
 class Config(object):
@@ -774,7 +785,10 @@ class Config(object):
         # use the inferred base service value, and instead use the default if included. If we
         # didn't do this, we would have a massive breaking change from adding inferred_base_service,
         # which would be replacing any integration defaults since service is no longer None.
-        if self.service and self.service == self._inferred_base_service:
+        # We also check if the service was user provided since an edge case may be that
+        # DD_SERVICE == inferred base service, which would force the default to be returned
+        # even though we want config.service in this case.
+        if self.service and self.service == self._inferred_base_service and not self._is_user_provided_service:
             return default if default is not None else self.service
 
         # TODO: This method can be replaced with `config.service`.
@@ -928,7 +942,7 @@ class Config(object):
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
         flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
         tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
-        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub, capabilities=Capabilities)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 

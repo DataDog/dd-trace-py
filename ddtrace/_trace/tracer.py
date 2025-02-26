@@ -10,7 +10,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Set
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
@@ -224,12 +223,6 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
-        # collection of services seen, used for runtime metrics tags
-        # a buffer for service info so we don't perpetually send the same things
-        self._services: Set[str] = set()
-        if config.service:
-            self._services.add(config.service)
-
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
@@ -414,7 +407,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
-        appsec_standalone_enabled: Optional[bool] = None,
+        apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
@@ -424,7 +417,7 @@ class Tracer(object):
             doesn't need to be changed from the default value.
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
-        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
+        :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
@@ -434,7 +427,7 @@ class Tracer(object):
             compute_stats_enabled=compute_stats_enabled,
             appsec_enabled=appsec_enabled,
             iast_enabled=iast_enabled,
-            appsec_standalone_enabled=appsec_standalone_enabled,
+            apm_tracing_disabled=apm_tracing_disabled,
         )
 
     def _configure(
@@ -457,7 +450,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
-        appsec_standalone_enabled: Optional[bool] = None,
+        apm_tracing_disabled: Optional[bool] = None,
     ) -> None:
         if enabled is not None:
             self.enabled = enabled
@@ -477,8 +470,8 @@ class Tracer(object):
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
 
-        if appsec_standalone_enabled is not None:
-            asm_config._appsec_standalone_enabled = appsec_standalone_enabled
+        if apm_tracing_disabled is not None:
+            asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -635,13 +628,6 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-
-        # Assume that the services of the child are not necessarily a subset of those
-        # of the parent.
-        self._services = set()
-        if config.service:
-            self._services.add(config.service)
-
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
@@ -832,10 +818,6 @@ class Tracer(object):
         if activate:
             self.context_provider.activate(span)
 
-        # update set of services handled by tracer
-        if service and service not in self._services and self._is_span_internal(span):
-            self._services.add(service)
-
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
@@ -989,9 +971,6 @@ class Tracer(object):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
-        If a ``wrap_executor`` callable has been provided in the ``Tracer.configure()``
-        method, it will be called instead of the default one when the function
-        decorator is invoked.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.

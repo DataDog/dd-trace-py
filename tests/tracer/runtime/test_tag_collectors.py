@@ -79,7 +79,6 @@ def test_tracer_tags_service_from_code():
     import ddtrace
     from ddtrace.internal.runtime import tag_collectors
     from ddtrace.trace import TraceFilter
-    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
     class DropFilter(TraceFilter):
         def process_trace(self, _):
@@ -102,10 +101,6 @@ def test_tracer_tags_service_from_code():
     values = ttc.collect()
 
     assert values is not None
-    assert set(values) == set(
-        [
-            ("service", "new-service"),
-            ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
-            ("service", "my-service"),
-        ]
-    )
+    assert values == [
+        ("service", "my-service"),
+    ], values

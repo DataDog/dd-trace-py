@@ -3,6 +3,7 @@ from typing import Tuple  # noqa:F401
 
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
+from ..constants import DEFAULT_SERVICE_NAME
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER
@@ -24,8 +25,10 @@ class TracerTagCollector(RuntimeTagCollector):
     def collect_fn(self, keys):
         ddtrace = self.modules.get("ddtrace")
 
-        # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
-        tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
+        service = DEFAULT_SERVICE_NAME
+        if ddtrace.config.service:
+            service = ddtrace.config.service
+        tags = [(SERVICE, service)]
 
         # DEV: `DD_ENV`, `DD_VERSION`, and `DD_SERVICE` get picked up automatically by
         #      dogstatsd client, but someone might configure these via `ddtrace.config`
