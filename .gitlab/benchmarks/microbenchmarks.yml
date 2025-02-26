@@ -73,12 +73,13 @@ baseline:detect:
     echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
     BASELINE_COMMIT_SHA=$(git merge-base "origin/${BASELINE_BRANCH}" "origin/${UPSTREAM_BRANCH}" || git rev-list -1 "origin/${BASELINE_BRANCH}")
     echo "BASELINE_COMMIT_SHA=${BASELINE_COMMIT_SHA}" | tee -a baseline.env
+    echo "BASELINE_COMMIT_DATE=$(git show -s --format=%ct $BASELINE_COMMIT_SHA)" | tee -a baseline.env
   artifacts:
     reports:
       dotenv: baseline.env
 
 baseline:build:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:0a50e839f4b1600f02157518b8d016451b346578@sha256:5dae9bc7872f69b31b612690f0748c7ad71ab90ef28a754b2ae93d0ba505837b
+  image: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   tags: [ "arch:amd64" ]
   needs: [ "baseline:detect" ]
   stage: build
@@ -89,8 +90,6 @@ baseline:build:
     if [ ! -f baseline.whl ];
     then
       ulimit -c unlimited
-      pyenv global 3.9
-
       echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
       git checkout "${BASELINE_COMMIT_SHA}"
       python3.9 -m pip wheel --no-deps .
@@ -98,9 +97,9 @@ baseline:build:
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     fi
 
-    echo BASELINE_WHL=$(ls *.whl | head -n 1) | tee -a baseline.env
+    echo "BASELINE_WHL=$(ls *.whl | head -n 1)" | tee -a baseline.env
   cache:
-    - key: 0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+    - key: 0_microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
         - "*.whl"
   artifacts:
@@ -116,7 +115,7 @@ latest:
   script: |
     pyenv global 3.9
     python3.9 -m pip download --no-deps ddtrace
-    echo LATEST_WHL=$(ls *.whl | head -n 1) | tee latest.env
+    echo "LATEST_WHL=$(ls *.whl | head -n 1)" | tee latest.env
   artifacts:
     reports:
       dotenv: latest.env
@@ -131,7 +130,10 @@ candidate:
       job: download_ddtrace_artifacts
   script: |
     cp pywheels/*-cp39-cp39-manylinux_*_x86_64*.whl ./
-    echo CANDIDATE_WHL=$(ls *.whl | head -n 1) | tee candidate.env
+    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_BRANCH=${UPSTREAM_BRANCH}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
   artifacts:
     reports:
       dotenv: candidate.env
