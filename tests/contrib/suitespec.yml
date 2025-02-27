@@ -265,7 +265,7 @@ suites:
     runner: riot
     services:
       - moto
-      - testagent
+      - ddagent
   aiohttp:
     parallelism: 3
     paths:
