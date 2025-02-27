@@ -6,16 +6,6 @@ from async_generator import yield_
 from ddtrace.trace import Pin
 
 
-LOCALSTACK_ENDPOINT_URL = {
-    "s3": "http://127.0.0.1:5000",
-    "ec2": "http://127.0.0.1:5000",
-    "kms": "http://127.0.0.1:5000",
-    "sqs": "http://127.0.0.1:5000",
-    "lambda": "http://127.0.0.1:5000",
-    "kinesis": "http://127.0.0.1:5000",
-}
-
-
 @asynccontextmanager
 @async_generator
 async def aiobotocore_client(service, tracer):
@@ -23,7 +13,7 @@ async def aiobotocore_client(service, tracer):
     it is closed at the end of the context manager.
     """
     session = aiobotocore.session.get_session()
-    endpoint = LOCALSTACK_ENDPOINT_URL[service]
+    endpoint = "http://127.0.0.1:5000"
     client = session.create_client(
         service,
         region_name="us-west-2",
