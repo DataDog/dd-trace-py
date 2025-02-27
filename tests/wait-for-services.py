@@ -129,7 +129,7 @@ def check_httpbin(url):
     requests.get(url).raise_for_status()
 
 
-@try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://127.0.0.1:5000/"})
+@try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://moto:5000/"})
 def check_moto(url):
     requests.get(url).raise_for_status()
 
