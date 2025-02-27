@@ -17,4 +17,4 @@ def iast_error(msg, default_prefix="[IAST] "):
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
         log.debug("%s. %s:\n%s", default_prefix, msg, frame_info)
-    _set_iast_error_metric("%s. %s" % default_prefix, msg)
+    _set_iast_error_metric("%s. %s" % (default_prefix, msg))
