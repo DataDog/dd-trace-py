@@ -60,7 +60,6 @@ def test_collect_truncate():
 
 
 def test_stack_locations(tmp_path):
-    print(f"Current thread name: {threading.current_thread().name}")
     test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -665,7 +664,6 @@ def test_max_time_usage_over():
     [True, False],
 )
 def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
-    print(f"stack_v2_enabled: {stack_v2_enabled}, ignore_profiler: {ignore_profiler}")
     test_name = "test_ignore_profiler"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
