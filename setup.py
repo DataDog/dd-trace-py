@@ -609,10 +609,7 @@ if not IS_PYSTON:
         )
 
         ext_modules.append(
-            CMakeExtension(
-                "ddtrace.appsec._iast._taint_tracking._native",
-                source_dir=IAST_DIR,
-            )
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
     if (
