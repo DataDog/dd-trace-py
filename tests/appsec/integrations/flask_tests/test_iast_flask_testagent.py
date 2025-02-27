@@ -61,15 +61,7 @@ def test_iast_stacktrace_error():
     assert len(vulnerabilities) == 1
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_STACKTRACE_LEAK
-    assert vulnerability["evidence"] == {
-        "valueParts": [
-            {
-                "value": "Module: "
-                "home.alberto.vara.projects.dd-python.dd-trace-py.tests.appsec.app\n"
-                "Exception: ValueError"
-            }
-        ]
-    }
+    assert vulnerability["evidence"]["valueParts"][0]["value"].startswith("Module: ")
     assert "path" not in vulnerability["location"]
     assert "line" not in vulnerability["location"]
-    assert vulnerability["hash"] == 2875223727
+    assert vulnerability["hash"]
