@@ -153,5 +153,5 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         gc.collect()
         collected_after = collector.collect([GC_COUNT_GEN0])
         assert len(collected_after) == 1
-        assert collected_after[0][0] == "runtime.python.gc.count.gen0"
+        assert collected_after[0][0] == "runtime.python.gauge.gc.count.gen0"
         assert isinstance(collected_after[0][1], int)

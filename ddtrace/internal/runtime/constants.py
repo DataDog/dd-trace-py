@@ -1,15 +1,15 @@
-GC_COUNT_GEN0 = "runtime.python.gc.count.gen0"
-GC_COUNT_GEN1 = "runtime.python.gc.count.gen1"
-GC_COUNT_GEN2 = "runtime.python.gc.count.gen2"
+GC_COUNT_GEN0 = "runtime.python.gauge.gc.count.gen0"
+GC_COUNT_GEN1 = "runtime.python.gauge.gc.count.gen1"
+GC_COUNT_GEN2 = "runtime.python.gauge.gc.count.gen2"
 
-THREAD_COUNT = "runtime.python.thread_count"
-MEM_RSS = "runtime.python.mem.rss"
-# `runtime.python.cpu.time.sys` metric is used to auto-enable runtime metrics dashboards in DD backend
-CPU_TIME_SYS = "runtime.python.cpu.time.sys"
-CPU_TIME_USER = "runtime.python.cpu.time.user"
-CPU_PERCENT = "runtime.python.cpu.percent"
-CTX_SWITCH_VOLUNTARY = "runtime.python.cpu.ctx_switch.voluntary"
-CTX_SWITCH_INVOLUNTARY = "runtime.python.cpu.ctx_switch.involuntary"
+THREAD_COUNT = "runtime.python.gauge.thread_count"
+MEM_RSS = "runtime.python.gauge.mem.rss"
+# `runtime.python.gauge.cpu.time.sys` metric is used to auto-enable runtime metrics dashboards in DD backend
+CPU_TIME_SYS = "runtime.python.gauge.cpu.time.sys"
+CPU_TIME_USER = "runtime.python.gauge.cpu.time.user"
+CPU_PERCENT = "runtime.python.gauge.cpu.percent"
+CTX_SWITCH_VOLUNTARY = "runtime.python.gauge.cpu.ctx_switch.voluntary"
+CTX_SWITCH_INVOLUNTARY = "runtime.python.gauge.cpu.ctx_switch.involuntary"
 
 GC_RUNTIME_METRICS = set([GC_COUNT_GEN0, GC_COUNT_GEN1, GC_COUNT_GEN2])
 
