@@ -632,7 +632,6 @@ dependencies = [
 [envs.iast_aggregated_leak_testing.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
 
