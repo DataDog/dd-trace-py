@@ -8,6 +8,7 @@ from flask import Flask
 from flask import Response
 from flask import request
 
+
 import ddtrace.auto  # noqa: F401  # isort: skip
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch  # noqa: F401
