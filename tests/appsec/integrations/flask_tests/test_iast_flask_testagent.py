@@ -42,7 +42,7 @@ def test_iast_stacktrace_error():
         )
         assert response.status_code == 500
         assert (
-            "<title>ValueError: Check my stacktrace!" in response.content
+            b"<title>ValueError: Check my stacktrace!" in response.content
         ), f"Exception doesn't found in CONTENT: {response.content}"
 
         flask_client.get("/", headers={"X-Datadog-Test-Session-Token": token})
