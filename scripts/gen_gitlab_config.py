@@ -211,8 +211,8 @@ build_base_venvs:
       echo "Using version: ${{ddtrace_version}}"
     fi
     # Run smoke test with the generated venv
-    echo "Running smoke test"
-    .riot/venv_$PYTHON_VERSION/bin/python tests/smoke_test.py
+    echo "Running smoke test for Python $PYTHON_VERSION"
+    .riot/venv_py$PYTHON_VERSION/bin/python tests/smoke_test.py
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
