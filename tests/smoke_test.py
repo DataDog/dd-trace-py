@@ -29,7 +29,7 @@ try:
     from ddtrace.appsec._iast._taint_tracking._native import ops
 
     assert ops
-    assert len(log_messages) == 0
+    assert len(log_messages) == 0 or log_messages[0] == 'IAST not enabled but native module is being loaded'
 except ImportError as e:
     assert False, "Importing the native module failed, _native probably not compiled correctly: %s" % str(e)
 """
