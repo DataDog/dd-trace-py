@@ -34,14 +34,14 @@ variables:
       - pywheels/*.tar.gz
 
 # Can be used to validate uploading of artifacts
-release_pypi_test:
-  extends: .release_pypi
-  dependencies: [ "download_ddtrace_artifacts" ]
-  variables:
-    PYPI_REPOSITORY: testpypi
-
-# release_pypi_prod:
+# release_pypi_test:
 #   extends: .release_pypi
 #   dependencies: [ "download_ddtrace_artifacts" ]
 #   variables:
-#     PYPI_REPOSITORY: pypi
+#     PYPI_REPOSITORY: testpypi
+
+release_pypi_prod:
+  extends: .release_pypi
+  dependencies: [ "download_ddtrace_artifacts" ]
+  variables:
+    PYPI_REPOSITORY: pypi
