@@ -114,7 +114,8 @@ api_as_formatted_evidence(const StrType& text,
     if (!text_ranges) {
         _ranges = api_get_ranges(text);
     } else {
-        _ranges = text_ranges.value();
+        // text_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
+        _ranges = *text_ranges;
     }
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), _ranges, tag_mapping_mode, new_ranges));
 }
