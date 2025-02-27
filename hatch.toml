@@ -201,11 +201,6 @@ dependencies = [
     "django{matrix:django}"
 ]
 
-[envs.appsec_threats_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 [envs.appsec_threats_django.scripts]
 test = [
     "uname -a",
@@ -250,11 +245,6 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}"
 ]
-
-[envs.appsec_threats_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -316,11 +306,6 @@ test = [
 [[envs.appsec_iast_default.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-[envs.appsec_iast_default.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 ## ASM IAST memcheck
 
 [envs.appsec_iast_memcheck]
@@ -347,11 +332,6 @@ test = [
 [[envs.appsec_iast_memcheck.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]
 
-[envs.appsec_iast_memcheck.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -371,11 +351,6 @@ test = [
 
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-
-[envs.appsec_iast_native.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 ## ASM appsec_iast_packages
 
@@ -402,8 +377,7 @@ test = [
 python = ["3.9", "3.10", "3.11", "3.12"]
 
 [envs.appsec_iast_packages.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
+DD_FAST_BUILD = 0  # we want to optimize this one to avoid timeouts
 
 ## ASM iast_tdd_propagation
 
@@ -464,11 +438,6 @@ django = ["~=4.0"]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=3.2"]
 
-[envs.appsec_integrations_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 ## ASM appsec_integrations_flask
 
 [envs.appsec_integrations_flask]
@@ -521,11 +490,6 @@ python = ["3.11", "3.12", "3.13"]
 flask = ["~=3.1"]
 werkzeug = ["~=3.1"]
 
-[envs.appsec_integrations_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 ## ASM appsec_integrations_fastapi
 
 [envs.appsec_integrations_fastapi]
@@ -541,11 +505,6 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
-
-[envs.appsec_integrations_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 [envs.appsec_integrations_fastapi.scripts]
 test = [
@@ -584,11 +543,6 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
-
-[envs.appsec_threats_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
@@ -629,10 +583,9 @@ dependencies = [
 ]
 
 [envs.iast_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
+DD_FAST_BUILD = "0"  # make it as optimized as possible to avoid timeouts
 
 [envs.iast_aggregated_leak_testing.scripts]
 test = [
@@ -663,9 +616,6 @@ dependencies = [
 [envs.profiling_pytorch.env-vars]
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 [envs.profiling_pytorch.scripts]
 test = [
@@ -696,7 +646,6 @@ DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
 CMAKE_BUILD_PARALLEL_LEVEL="6"
 CARGO_BUILD_JOBS = "6"
-DD_FAST_BUILD = "1"
 
 [envs.multiple_os_tests.scripts]
 test = [
@@ -796,9 +745,6 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 [envs.selenium.scripts]
 test = [
