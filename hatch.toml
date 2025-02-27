@@ -404,7 +404,6 @@ python = ["3.9", "3.10", "3.11", "3.12"]
 [envs.appsec_iast_packages.env-vars]
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 ## ASM iast_tdd_propagation
 
