@@ -514,6 +514,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="smoke_test",
+            command="python tests/smoke_test.py {cmdargs}",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                )
+            ],
+        ),
+        Venv(
             name="ddtracerun",
             env={
                 "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
