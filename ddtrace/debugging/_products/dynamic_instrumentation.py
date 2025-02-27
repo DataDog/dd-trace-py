@@ -47,15 +47,6 @@ class APMCapabilities(enum.IntFlag):
 
 
 def apm_tracing_rc(lib_config):
-    enabled = lib_config.get("dynamic_instrumentation_enabled")
-    try:
-        if enabled is not None:  # and config.spec.enabled.full_name not in config.source:
-            if (config.spec.enabled.full_name not in config.source or config.enabled) and enabled:
-                _start()
-            else:
-                stop()
-    except Exception:
-        from traceback import print_exc
-
-        print_exc()
-        raise
+    if (enabled := lib_config.get("dynamic_instrumentation_enabled")) is not None:
+        should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
+        _start() if should_start else stop()
