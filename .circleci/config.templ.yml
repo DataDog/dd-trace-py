@@ -393,15 +393,6 @@ jobs:
           run_agent_checks: false
           docker_services: "pygoat"
 
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
   aiobotocore:
     <<: *contrib_job
     docker:
