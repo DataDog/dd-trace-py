@@ -219,13 +219,11 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
+        llmobs_span_event["tags"] = cls._llmobs_tags(
+            span, ml_app, session_id, is_ragas_integration_span=is_ragas_integration_span
+        )
 
-        span_links = span._get_ctx_item(SPAN_LINKS)
-        if isinstance(span_links, list) and span_links:
-            llmobs_span_event["span_links"] = span_links
-
-        return llmobs_span_event
+        return llmobs_span_event, is_ragas_integration_span
 
     @staticmethod
     def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:

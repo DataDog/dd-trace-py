@@ -182,6 +182,25 @@ def _get_session_id(span: Span) -> Optional[str]:
     return session_id
 
 
+def _inject_llmobs_parent_id(span_context):
+    """Inject the LLMObs parent ID into the span context for reconnecting distributed LLMObs traces."""
+    span = ddtrace.tracer.current_span()
+    
+    if span is None:
+        log.warning("No active span to inject LLMObs parent ID info.")
+        return
+    if span.context is not span_context:
+        log.warning("The current active span and span_context do not match. Not injecting LLMObs parent ID.")
+        return
+
+    if span.span_type == SpanTypes.LLM:
+        llmobs_parent_id = str(span.span_id)
+    else:
+        llmobs_parent_id = _get_llmobs_parent_id(span)
+
+    span_context._meta[PROPAGATED_PARENT_ID_KEY] = llmobs_parent_id or "undefined"
+
+
 def _unserializable_default_repr(obj):
     default_repr = "[Unserializable object: {}]".format(repr(obj))
     log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
