@@ -14,12 +14,12 @@ default:
   interruptible: true
 
 include:
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
 
 tests-gen:
   stage: tests
@@ -86,6 +86,12 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
+  only:
+    # v2.10.0
+    # v2.10.1
+    # v2.10.0rc0
+    # v2.10.0rc5
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
   needs: [ release_pypi_prod ]
 
 onboarding_tests_installer:
