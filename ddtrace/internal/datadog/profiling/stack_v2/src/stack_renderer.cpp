@@ -108,7 +108,7 @@ StackRenderer::render_task_begin()
 }
 
 void
-StackRenderer::render_stack_begin()
+StackRenderer::render_stack_begin(long long, long long, const std::string&)
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
@@ -182,7 +182,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end()
+StackRenderer::render_stack_end(MetricType, uint64_t)
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;

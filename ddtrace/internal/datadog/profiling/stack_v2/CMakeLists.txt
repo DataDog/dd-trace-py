@@ -71,7 +71,7 @@ add_cppcheck_target(
 
 # Never build with native unwinding, since this is not currently used. Echion is by default configured to ignore idle
 # threads.
-target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE ECHION_OBSERVE_IDLE_THREADS)
+target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
 # Includes; echion and python are marked "system" to suppress warnings, but note in MSVC we'll have to #pragma
 # warning(push, 0 then pop for the same effect.

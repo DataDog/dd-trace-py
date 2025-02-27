@@ -44,12 +44,9 @@ class StackRenderer : public RendererInterface
     void close() override {}
     void header() override {}
     void metadata(const std::string&, const std::string&) override {}
-    void stack(mojo_int_t, mojo_int_t, const std::string&) override {};
     void frame(mojo_ref_t, mojo_ref_t, mojo_ref_t, mojo_int_t, mojo_int_t, mojo_int_t, mojo_int_t) override{};
     void frame_ref(mojo_ref_t) override{};
     void frame_kernel(const std::string&) override {};
-    void metric_time(mojo_int_t) override{};
-    void metric_memory(mojo_int_t) override{};
     void string(mojo_ref_t, const std::string&) override {};
     void string_ref(mojo_ref_t) override{};
 
@@ -60,10 +57,10 @@ class StackRenderer : public RendererInterface
                                      uintptr_t thread_id,
                                      unsigned long native_id) override;
     virtual void render_task_begin() override;
-    virtual void render_stack_begin() override;
+    virtual void render_stack_begin(long long pid, long long iid, const std::string& name) override;
     virtual void render_frame(Frame& frame) override;
     virtual void render_cpu_time(uint64_t cpu_time_us) override;
-    virtual void render_stack_end() override;
+    virtual void render_stack_end(MetricType metric_type, uint64_t value) override;
     virtual bool is_valid() override;
 };
 
