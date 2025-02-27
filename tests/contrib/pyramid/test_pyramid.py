@@ -1,5 +1,7 @@
 import os
+import shutil
 import subprocess
+from tempfile import gettempdir
 
 import pytest
 
@@ -230,11 +232,27 @@ def pyramid_client(snapshot, pyramid_app):
 
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
-    # A default service name for this subprocess test is needed
-    # Otherwise, locally, the base service name is "project" while
-    # in Gitlab, it turns to "dd-trace-py" due to the directory
-    env["DD_SERVICE"] = "project"
+
+    # Create a temp folder as if run_function_from_file was used
+    temp_dir = gettempdir()
+    custom_temp_dir = os.path.join(temp_dir, "ddtrace_subprocess_dir")
+    os.makedirs(custom_temp_dir, exist_ok=True)
+    to_directory = custom_temp_dir + "/sample_app"
+
+    # Swap out the file with the tmp file
+    if "/app" in pyramid_app:
+        from_directory = "tests/contrib/pyramid/app"
+        pyramid_app = f"ddtrace-run python {to_directory}/app.py"
+    else:
+        from_directory = "tests/contrib/pyramid/pserve_app/"
+        pyramid_app = f"ddtrace-run pserve {to_directory}/development.ini"
+
+    # Copies the tests/contrib/pyramid/app or
+    # tests/contrib/pyramid/pserve_app into this directory
+    shutil.copytree(from_directory, to_directory, dirs_exist_ok=True)
+
     cmd = pyramid_app.split(" ")
+
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -255,7 +273,12 @@ def pyramid_client(snapshot, pyramid_app):
         assert resp.status_code == 200
         proc.terminate()
 
+        # Clean up the temp directory
+        if os.path.exists(custom_temp_dir):
+            shutil.rmtree(custom_temp_dir)
 
+
+# @pytest.mark.subprocess()
 @pytest.mark.parametrize(
     "pyramid_app",
     [
