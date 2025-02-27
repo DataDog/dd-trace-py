@@ -223,7 +223,6 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     )
     span._set_ctx_item(SPAN_LINKS, current_span_links)
 
-
 @dataclass
 class ToolCall:
     """
