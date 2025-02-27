@@ -377,7 +377,7 @@ test = [
 python = ["3.9", "3.10", "3.11", "3.12"]
 
 [envs.appsec_iast_packages.env-vars]
-DD_FAST_BUILD = 0  # we want to optimize this one to avoid timeouts
+DD_FAST_BUILD = "0"
 
 ## ASM iast_tdd_propagation
 
@@ -585,7 +585,7 @@ dependencies = [
 [envs.iast_aggregated_leak_testing.env-vars]
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
-DD_FAST_BUILD = "0"  # make it as optimized as possible to avoid timeouts
+DD_FAST_BUILD = "0"
 
 [envs.iast_aggregated_leak_testing.scripts]
 test = [
