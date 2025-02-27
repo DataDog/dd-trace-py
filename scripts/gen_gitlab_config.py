@@ -218,8 +218,7 @@ build_base_venvs:
       echo "Error: No virtual environment found for Python $PYTHON_VERSION"
       exit 1
     fi
-    echo "Using venv at $VENV_DIR"
-    echo "Running smoke test"
+    echo "Running smoke test using venv at $VENV_DIR:"
     "$VENV_DIR/bin/python" tests/smoke_test.py
   cache:
     # Share pip/sccache between jobs of the same Python version
