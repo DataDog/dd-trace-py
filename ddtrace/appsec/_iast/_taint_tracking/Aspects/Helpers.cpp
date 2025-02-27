@@ -60,7 +60,8 @@ as_formatted_evidence(const string& text,
 
     for (const auto& taint_range : text_ranges) {
         string content;
-        if (!tag_mapping_mode or *tag_mapping_mode == TagMappingMode::Normal) {
+        // tag_mapping_mode.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
+        if (!tag_mapping_mode or !tag_mapping_mode.has_value() or *tag_mapping_mode == TagMappingMode::Normal) {
             content = get_default_content(taint_range);
         } else
             switch (*tag_mapping_mode) {
