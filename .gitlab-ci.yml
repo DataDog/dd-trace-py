@@ -86,6 +86,7 @@ package-oci:
 
 promote-oci-to-prod:
   stage: release
+  rules: null
   only:
     # v2.10.0
     # v2.10.1
