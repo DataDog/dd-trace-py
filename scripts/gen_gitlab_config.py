@@ -231,6 +231,7 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
+      - ddtrace/appsec/_iast/_taint_tracking/_native*
         """
         )
 
