@@ -263,9 +263,6 @@ suites:
       - '@botocore'
       - tests/contrib/aiobotocore/*
     runner: riot
-    services:
-      - moto
-    snapshot: true
   aiohttp:
     parallelism: 3
     paths:
