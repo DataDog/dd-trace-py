@@ -219,7 +219,6 @@ build_base_venvs:
       exit 1
     fi
     echo "Using venv at $VENV_DIR"
-    # Run smoke test with the correct venv's Python
     echo "Running smoke test"
     "$VENV_DIR/bin/python" tests/smoke_test.py
   cache:
