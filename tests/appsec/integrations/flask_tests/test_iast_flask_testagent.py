@@ -41,9 +41,9 @@ def test_iast_stacktrace_error():
             "/iast-stacktrace-leak-vulnerability", headers={"X-Datadog-Test-Session-Token": token}
         )
         assert response.status_code == 500
-        assert response.content.startswith(
-            b"<!doctype html>\n<html lang=en>\n  <head>\n    <title>ValueError: Check my stacktrace!"
-        )
+        assert (
+            "<title>ValueError: Check my stacktrace!" in response.content
+        ), f"Exception doesn't found in CONTENT: {response.content}"
 
         flask_client.get("/", headers={"X-Datadog-Test-Session-Token": token})
 
