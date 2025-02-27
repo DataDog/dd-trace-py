@@ -228,7 +228,7 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
     }
     // TODO: Replace this loop with a efficient function, vector.find() is O(n) too.
     TaintRangePtr null_range = nullptr;
-    // text_pyobj_opt.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
+    // taint_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
     for (const auto& range : *taint_ranges) {
         if (range_hash == range->get_hash()) {
             return range;

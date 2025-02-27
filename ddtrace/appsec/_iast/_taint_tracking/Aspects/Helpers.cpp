@@ -112,7 +112,7 @@ api_as_formatted_evidence(const StrType& text,
     }
 
     TaintRangeRefs _ranges;
-    if (!text_ranges) {
+    if (!text_ranges or !text_ranges.has_value()) {
         _ranges = api_get_ranges(text);
     } else {
         // text_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
