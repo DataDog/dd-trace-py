@@ -875,6 +875,15 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
             log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
+@trace_utils.with_traced_module
+def patch_create_user(django, pin, func, instance, args, kwargs):
+    user = func(*args, **kwargs)
+    core.dispatch(
+        "django.create_user", (django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
+    )
+    return user
+
+
 def unwrap_views(func, instance, args, kwargs):
     """
     Django channels uses path() and re_path() to route asgi applications. This broke our initial
@@ -967,6 +976,10 @@ def _patch(django):
         if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
+
+    when_imported("django.contrib.auth.models")(
+        lambda m: trace_utils.wrap(m, "UserManager.create_user", patch_create_user(django))
+    )
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
