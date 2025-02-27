@@ -60,7 +60,7 @@ as_formatted_evidence(const string& text,
 
     for (const auto& taint_range : text_ranges) {
         string content;
-        if (!tag_mapping_mode or tag_mapping_mode.value() == TagMappingMode::Normal) {
+        if (!tag_mapping_mode or *tag_mapping_mode == TagMappingMode::Normal) {
             content = get_default_content(taint_range);
         } else
             switch (*tag_mapping_mode) {
