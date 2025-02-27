@@ -266,6 +266,8 @@ suites:
     services:
       - moto
       - ddagent
+    env:
+      TEST_MOTO_PORT: '3000'
   aiohttp:
     parallelism: 3
     paths:

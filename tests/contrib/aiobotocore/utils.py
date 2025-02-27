@@ -4,6 +4,7 @@ from async_generator import asynccontextmanager
 from async_generator import yield_
 
 from ddtrace.trace import Pin
+from tests.contrib.config import MOTO_CONFIG
 
 
 @asynccontextmanager
@@ -13,7 +14,7 @@ async def aiobotocore_client(service, tracer):
     it is closed at the end of the context manager.
     """
     session = aiobotocore.session.get_session()
-    endpoint = "http://127.0.0.1:3000"
+    endpoint = "http://{host}:{port}".format(**MOTO_CONFIG)
     client = session.create_client(
         service,
         region_name="us-west-2",
