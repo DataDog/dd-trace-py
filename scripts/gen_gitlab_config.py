@@ -200,9 +200,9 @@ build_base_venvs:
       apt update && apt install -y sccache
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
-      touch cache_used.txt
       echo "Running smoke tests"
       riot -v run -s --python=$PYTHON_VERSION smoke_test
+      touch cache_used.txt
     else
       echo "Skipping build, using compiled files/venv from cache"
       echo "Fixing ddtrace versions"
