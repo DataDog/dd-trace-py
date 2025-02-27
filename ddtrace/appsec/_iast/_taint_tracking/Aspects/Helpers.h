@@ -144,16 +144,18 @@ inline string
 mapper_replace(const TaintRangePtr& taint_range, const optional<const py::dict>& new_ranges)
 {
 
-    if (!taint_range or !new_ranges.has_value() or py::len(new_ranges.value()) == 0) {
+    if (!taint_range or !new_ranges.has_value() or py::len(*new_ranges) == 0) {
         return {};
     }
 
-    const py::dict& new_ranges_value = new_ranges.value();
+    // new_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
+    const py::dict& new_ranges_value = *new_ranges;
     py::object o = py::cast(taint_range);
 
     if (!new_ranges_value.contains(o)) {
         return {};
     }
+    // new_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
     const TaintRange new_range = py::cast<TaintRange>((*new_ranges)[o]);
     return to_string(new_range.get_hash());
 }
