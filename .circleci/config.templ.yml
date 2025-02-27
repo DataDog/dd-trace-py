@@ -37,10 +37,6 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.9.4
 
-contrib_job_large: &contrib_job_large
-  executor: ddtrace_dev
-  parallelism: 10
-
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 2
