@@ -210,7 +210,7 @@ build_base_venvs:
         xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
-    
+
     # Find the generated venv directory dynamically
     echo "Locating virtual environment for Python $PYTHON_VERSION"
     VENV_DIR=$(find .riot -maxdepth 1 -type d -name "venv_py$PYTHON_VERSION//./*" | head -n 1)
