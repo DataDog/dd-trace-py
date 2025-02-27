@@ -210,16 +210,7 @@ build_base_venvs:
         xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
-    # Remove dot from PYTHON_VERSION for venv matching
-    PY_VER_NO_DOT="${{PYTHON_VERSION//./}}"
-    echo "Locating virtual environment for Python $PYTHON_VERSION (py$PY_VER_NO_DOT)"
-    VENV_DIR=$(find .riot -maxdepth 1 -type d -name "venv_py${{PY_VER_NO_DOT}}*" | head -n 1)
-    if [ -z "$VENV_DIR" ]; then
-      echo "Error: No virtual environment found for Python $PYTHON_VERSION"
-      exit 1
-    fi
-    echo "Running smoke test using venv at $VENV_DIR:"
-    "$VENV_DIR/bin/python" tests/smoke_test.py
+    riot -v run -s --python=$PYTHON_VERSION smoke_test
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
