@@ -230,7 +230,10 @@ def pyramid_client(snapshot, pyramid_app):
 
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
-
+    # A default service name for this subprocess test is needed
+    # Otherwise, locally, the base service name is "project" while
+    # in Gitlab, it turns to "dd-trace-py" due to the directory
+    env["DD_SERVICE"] = 'project'
     cmd = pyramid_app.split(" ")
     proc = subprocess.Popen(
         cmd,
