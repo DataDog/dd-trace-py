@@ -210,15 +210,16 @@ build_base_venvs:
         xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
-
-    # Find the generated venv directory dynamically
-    echo "Locating virtual environment for Python $PYTHON_VERSION"
-    VENV_DIR=$(find .riot -maxdepth 1 -type d -name "venv_py$PYTHON_VERSION//./*" | head -n 1)
+    # Remove dot from PYTHON_VERSION for venv matching
+    PY_VER_NO_DOT="${{PYTHON_VERSION//./}}"
+    echo "Locating virtual environment for Python $PYTHON_VERSION (py$PY_VER_NO_DOT)"
+    VENV_DIR=$(find .riot -maxdepth 1 -type d -name "venv_py${{PY_VER_NO_DOT}}*" | head -n 1)
     if [ -z "$VENV_DIR" ]; then
       echo "Error: No virtual environment found for Python $PYTHON_VERSION"
       exit 1
     fi
     echo "Using venv at $VENV_DIR"
+    # Run smoke test with the correct venv's Python
     echo "Running smoke test"
     "$VENV_DIR/bin/python" tests/smoke_test.py
   cache:
