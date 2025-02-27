@@ -123,7 +123,7 @@ def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
     from needs_testrun import pr_matches_patterns
 
-    if True or pr_matches_patterns(
+    if pr_matches_patterns(
         {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
     ):
         with TESTS_GEN.open("a") as f:

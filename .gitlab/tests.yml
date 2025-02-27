@@ -13,7 +13,6 @@ include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
-
 .test_base_hatch:
   extends: .testrunner
   stage: hatch
