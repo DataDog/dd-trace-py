@@ -201,6 +201,8 @@ build_base_venvs:
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
       touch cache_used.txt
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
     else
       echo "Skipping build, using compiled files/venv from cache"
       echo "Fixing ddtrace versions"
@@ -210,7 +212,6 @@ build_base_venvs:
         xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
-    riot -v run -s --python=$PYTHON_VERSION smoke_test
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
