@@ -6,8 +6,6 @@ import sys
 from typing import List
 from typing import Optional
 
-from envier import Env
-
 from ddtrace import config as tracer_config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -19,6 +17,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.settings._core import DDConfig as Env
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 

@@ -1,4 +1,4 @@
-from envier import En
+from ddtrace.settings._core import DDConfig as En
 
 
 class ThirdPartyDetectionConfig(En):

@@ -1,13 +1,12 @@
 import typing  # noqa:F401
 
-from envier import Env
-
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import formats
+from ddtrace.settings._core import DDConfig as Env
 
 
 _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]

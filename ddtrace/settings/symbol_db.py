@@ -1,7 +1,6 @@
 import re
 
-from envier import En
-
+from ddtrace.settings._core import DDConfig as En
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 

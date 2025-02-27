@@ -1,5 +1,6 @@
-from envier import En
 from envier import validators
+
+from ddtrace.settings._core import DDConfig as En
 
 
 class DatabaseMonitoringConfig(En):

@@ -1,8 +1,7 @@
 import typing as t
 
-from envier import En
-
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._core import DDConfig as En
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
