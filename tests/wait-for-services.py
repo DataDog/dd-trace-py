@@ -129,12 +129,18 @@ def check_httpbin(url):
     requests.get(url).raise_for_status()
 
 
+@try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://127.0.0.1:5000/"})
+def check_moto(url):
+    requests.get(url).raise_for_status()
+
+
 if __name__ == "__main__":
     check_functions = {
         "cassandra": check_cassandra,
         "ddagent": check_agent,
         "elasticsearch": check_elasticsearch,
         "httpbin_local": check_httpbin,
+        "moto": check_moto,
         "mysql": check_mysql,
         "opensearch": check_opensearch,
         "postgres": check_postgres,
