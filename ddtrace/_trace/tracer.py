@@ -407,7 +407,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
-        appsec_standalone_enabled: Optional[bool] = None,
+        apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
@@ -417,7 +417,7 @@ class Tracer(object):
             doesn't need to be changed from the default value.
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
-        :param bool appsec_standalone_enabled: When tracing is disabled ensures ASM support is still enabled.
+        :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
@@ -427,7 +427,7 @@ class Tracer(object):
             compute_stats_enabled=compute_stats_enabled,
             appsec_enabled=appsec_enabled,
             iast_enabled=iast_enabled,
-            appsec_standalone_enabled=appsec_standalone_enabled,
+            apm_tracing_disabled=apm_tracing_disabled,
         )
 
     def _configure(
@@ -450,7 +450,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
-        appsec_standalone_enabled: Optional[bool] = None,
+        apm_tracing_disabled: Optional[bool] = None,
     ) -> None:
         if enabled is not None:
             self.enabled = enabled
@@ -470,8 +470,8 @@ class Tracer(object):
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
 
-        if appsec_standalone_enabled is not None:
-            asm_config._appsec_standalone_enabled = appsec_standalone_enabled
+        if apm_tracing_disabled is not None:
+            asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -971,9 +971,6 @@ class Tracer(object):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
-        If a ``wrap_executor`` callable has been provided in the ``Tracer.configure()``
-        method, it will be called instead of the default one when the function
-        decorator is invoked.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.

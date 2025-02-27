@@ -76,6 +76,9 @@ components:
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
+  dd_trace_api:
+    - ddtrace/contrib/internal/dd_trace_api/*
+    - tests/snapshots/tests.contrib.dd_trace_api.*
   django:
     - ddtrace/contrib/_django.py
     - ddtrace/contrib/internal/django/*
@@ -202,6 +205,8 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/_aredis.py
     - ddtrace/contrib/internal/aredis/*
+    - ddtrace/contrib/_yaaredis.py
+    - ddtrace/contrib/internal/yaaredis/*
     - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
@@ -477,6 +482,9 @@ suites:
       - '@consul'
       - tests/contrib/consul/*
     runner: riot
+    snapshot: true
+    services:
+      - consul
   datastreams:
     paths:
       - '@bootstrap'
@@ -485,6 +493,15 @@ suites:
       - '@datastreams'
       - tests/datastreams/*
     runner: riot
+  dd_trace_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@dd_trace_api'
+      - tests/contrib/dd_trace_api/*
+    runner: riot
+    snapshot: true
   django:
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -812,6 +829,9 @@ suites:
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
     runner: riot
+    services:
+      - mariadb
+    snapshot: true
   molten:
     paths:
       - '@bootstrap'
@@ -831,6 +851,9 @@ suites:
       - '@mongo'
       - tests/contrib/mongoengine/*
     runner: riot
+    snapshot: true
+    services:
+      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -1188,6 +1211,20 @@ suites:
       - tests/contrib/uwsgi/__init__.py
       - tests/snapshots/tests.contrib.wsgi.*
     runner: riot
+    snapshot: true
+  yaaredis:
+    paths:
+      - '@core'
+      - '@bootstrap'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/yaaredis/*
+      - tests/snapshots/tests.contrib.yaaredis.*
+    pattern: yaaredis$
+    runner: riot
+    services:
+      - redis
     snapshot: true
   valkey:
     parallelism: 5

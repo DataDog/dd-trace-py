@@ -137,39 +137,15 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.11"),
-            command="pytest tests/appsec/iast_tdd_propagation/",
-            pkgs={
-                "coverage": latest,
-                "pycryptodome": latest,
-                "flask": "~=3.0",
-                "sqlalchemy": "~=2.0.23",
-                "pony": latest,
-                "aiosqlite": latest,
-                "tortoise-orm": latest,
-                "peewee": latest,
-                "requests": latest,
-                "envier": "==0.5.2",
-                "cattrs": "<23.1.1",
-                "protobuf": ">=3",
-                "typing_extensions": latest,
-                "xmltodict": ">=0.12",
-                "opentracing": ">=2.0.0",
-                "bytecode": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
             name="appsec_integrations_pygoat",
             pys=select_pys(min_version="3.10"),
             command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
             pkgs={
                 "requests": latest,
+                "bytecode": latest,
+                "protobuf": ">=3",
+                "typing_extensions": latest,
+                "xmltodict": ">=0.12",
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -652,6 +628,12 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="dd_trace_api",
+            command="pytest {cmdargs} tests/contrib/dd_trace_api",
+            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
         # 2.2     3.5, 3.6, 3.7, 3.8  3.9
@@ -2033,6 +2015,25 @@ venv = Venv(
             },
         ),
         Venv(
+            name="yaaredis",
+            command="pytest {cmdargs} tests/contrib/yaaredis",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"yaaredis": ["~=2.0.0", latest]},
+                ),
+                Venv(
+                    # yaaredis added support for Python 3.10 in 3.0
+                    pys="3.10",
+                    pkgs={"yaaredis": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
@@ -2658,7 +2659,6 @@ venv = Venv(
                 "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "envier": "==0.5.2",
             },
         ),
         Venv(
