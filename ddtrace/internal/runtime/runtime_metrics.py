@@ -130,13 +130,13 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: () -> None
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         rumtime_tags = self._format_tags(TracerTags()) + self._platform_tags
-        log.debug("Updating constant tags %s", rumtime_tags)
+        log.debug("Sending runtime metrics with the following tags: %s", rumtime_tags)
         self._dogstatsd_client.constant_tags = rumtime_tags
 
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
-                log.debug("Writing metric %s:%s", key, value)
-                self._dogstatsd_client.distribution(key, value)
+                log.debug("Writing runtime metric %s:%s", key, value)
+                self._dogstatsd_client.gauge(key, value)
 
     def _stop_service(self):
         # type: (...) -> None

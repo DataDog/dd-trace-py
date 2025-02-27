@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    runtime_metrics: Updates runtime metrics to submit guage metrics instead of distribution metrics.
