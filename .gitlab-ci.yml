@@ -8,7 +8,7 @@ stages:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
-  CI_DEBUG_SERVICES: "true"
+  # CI_DEBUG_SERVICES: "true"
 
 default:
   interruptible: true

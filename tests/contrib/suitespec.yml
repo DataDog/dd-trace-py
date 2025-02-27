@@ -265,9 +265,9 @@ suites:
     runner: riot
     services:
       - moto
-      - ddagent
     env:
       TEST_MOTO_PORT: '3000'
+    snapshot: true
   aiohttp:
     parallelism: 3
     paths:
