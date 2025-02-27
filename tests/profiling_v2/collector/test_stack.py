@@ -701,6 +701,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     else:
         assert collector_worker_thread_id in thread_ids
 
+
 # TODO: support ignore profiler with stack_v2 and update this test
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.skip(reason="ignore_profiler is not supported with stack v2")
