@@ -7,12 +7,12 @@ from ddtrace.trace import Pin
 
 
 LOCALSTACK_ENDPOINT_URL = {
-    "s3": "http://localhost:5000",
-    "ec2": "http://localhost:5000",
-    "kms": "http://localhost:5000",
-    "sqs": "http://localhost:5000",
-    "lambda": "http://localhost:5000",
-    "kinesis": "http://localhost:5000",
+    "s3": "http://127.0.0.1:5000",
+    "ec2": "http://127.0.0.1:5000",
+    "kms": "http://127.0.0.1:5000",
+    "sqs": "http://127.0.0.1:5000",
+    "lambda": "http://127.0.0.1:5000",
+    "kinesis": "http://127.0.0.1:5000",
 }
 
 
