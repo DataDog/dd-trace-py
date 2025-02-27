@@ -59,8 +59,6 @@ def attempt_to_fix_handle_retries(
             original_result.outcome = outcomes.FAILED
         return
 
-    breakpoint()
-
     retries_outcome = _do_retries(item, outcomes)
 
     final_report = pytest_TestReport(

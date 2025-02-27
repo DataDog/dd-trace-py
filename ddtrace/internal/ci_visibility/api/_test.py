@@ -502,8 +502,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             return False
 
         # Only tests that are failing should be retried
-        if self.attempt_to_fix_get_final_status() != TestStatus.FAIL:
-            return False
+        # if self.attempt_to_fix_get_final_status() != TestStatus.FAIL:
+        #     return False
 
         return len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
 
