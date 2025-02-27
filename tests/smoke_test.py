@@ -82,9 +82,8 @@ if __name__ == "__main__":
         platform.system() == "Windows"
         # libdatadog x86_64-apple-darwin has not yet been integrated to dd-trace-py
         or (platform.system() == "Darwin" and platform.machine() == "x86_64")
-        # echion crashes on musl linux with Python 3.12 for both x86_64 and
-        # aarch64
-        or (platform.system() == "Linux" and sys.version_info[:2] == (3, 12) and platform.libc_ver()[0] != "glibc")
+        # echion only works with 3.8+
+        or sys.version_info < (3, 8, 0)
     ):
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
