@@ -221,7 +221,7 @@ class ASMConfig(Env):
 
     # IAST supported on python 3.6 to 3.13 and never on windows
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
-        sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        sys.platform.startswith("win") or sys.platform.startswith("cygwin") or sys.platform.startswith("darwin")
     )
 
     def __init__(self):
