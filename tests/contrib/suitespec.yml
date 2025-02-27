@@ -263,7 +263,6 @@ suites:
       - '@botocore'
       - tests/contrib/aiobotocore/*
     runner: riot
-    snapshot: true
     services:
       - moto
   aiohttp:
