@@ -13,7 +13,7 @@ async def aiobotocore_client(service, tracer):
     it is closed at the end of the context manager.
     """
     session = aiobotocore.session.get_session()
-    endpoint = "http://127.0.0.1:5000"
+    endpoint = "http://127.0.0.1:3000"
     client = session.create_client(
         service,
         region_name="us-west-2",

@@ -118,3 +118,5 @@
   moto:
     name: registry.ddbuild.io/images/mirror/moto:5.1.0
     alias: moto
+    variables:
+      MOTO_PORT: 3000

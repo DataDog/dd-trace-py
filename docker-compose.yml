@@ -97,8 +97,10 @@ services:
             - "127.0.0.1:11211:11211"
     moto:
         image: motoserver/moto:5.1.0
+        environment:
+            - MOTO_PORT=3000
         ports:
-            - "127.0.0.1:5000:5000"
+            - "127.0.0.1:3000:3000"
     rabbitmq:
         image: rabbitmq:3.7-alpine
         ports:
