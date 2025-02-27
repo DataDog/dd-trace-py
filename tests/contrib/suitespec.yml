@@ -410,6 +410,8 @@ suites:
     pattern: ^botocore$
     runner: riot
     snapshot: true
+    services:
+      - localstack
   bottle:
     paths:
       - '@bootstrap'

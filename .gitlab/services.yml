@@ -91,6 +91,12 @@
     variables:
       MAX_HEAP_SIZE: 512M
       HEAP_NEWSIZE: 256M
+  localstack:
+    name: registry.ddbuild.io/images/mirror/localstack:1.4.0
+    alias: localstack
+    variables:
+      LAMBDA_EXECUTOR: local
+      DOCKER_HOST: unix:///var/run/docker.sock
   mariadb:
     name: registry.ddbuild.io/images/mirror/mariadb:lts
     alias: mariadb
