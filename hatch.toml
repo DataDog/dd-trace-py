@@ -383,6 +383,35 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
+## ASM iast_tdd_propagation
+
+[envs.iast_tdd_propagation]
+template = "iast_tdd_propagation"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "flask",
+    "pycryptodome",
+    "sqlalchemy~=2.0.23",
+    "pony",
+    "aiosqlite",
+    "tortoise-orm",
+    "peewee",
+    "aiosqlite",
+]
+
+[envs.iast_tdd_propagation.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_tdd_propagation",
+]
+
+[[envs.iast_tdd_propagation.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
 ## ASM appsec_integrations_django
 
 [envs.appsec_integrations_django]
