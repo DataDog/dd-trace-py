@@ -210,6 +210,9 @@ build_base_venvs:
         xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
       echo "Using version: ${{ddtrace_version}}"
     fi
+    # Run smoke test with the generated venv
+    echo "Running smoke test"
+    .riot/venv_$PYTHON_VERSION/bin/python tests/smoke_test.py
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
