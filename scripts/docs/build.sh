@@ -9,7 +9,7 @@ fi
 if [[ "$(uname)" == "Darwin" ]]; then
   export PYENCHANT_LIBRARY_PATH=/opt/homebrew/lib/libenchant-2.dylib
 fi
-# trigger doc build
+
 reno lint
 sphinx-build -vvv -W -b spelling docs docs/_build/html
 sphinx-build -vvv -W -b html docs docs/_build/html
