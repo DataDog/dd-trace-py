@@ -324,10 +324,10 @@ def _set_query_metadata(span, cmd):
     """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        span.set_tag("mongodb.query", nq)
         # needed to dump json so we don't get unicode
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
+        span.set_tag("mongodb.query", q)
         span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)
