@@ -36,10 +36,6 @@ machine_executor: &machine_executor
         command: |
           pyenv global 3.9.4
 
-contrib_job_large: &contrib_job_large
-  executor: ddtrace_dev
-  parallelism: 10
-
 contrib_job: &contrib_job
   executor: ddtrace_dev
   parallelism: 2
@@ -370,7 +366,14 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+          command: |
+            if [ "$CIRCLE_BRANCH" = "main" ]; then
+              export DD_FAST_BUILD=0
+            else
+              export DD_FAST_BUILD=1
+            fi
+            echo "DD_FAST_BUILD is set to $DD_FAST_BUILD"
+            riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
@@ -390,36 +393,6 @@ jobs:
           run_agent_checks: false
           docker_services: "pygoat"
 
-  aws_lambda:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'aws_lambda'
-          snapshot: true
-
-  datastreams:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "datastreams"
-
-  opentelemetry:
-    parallelism: 4
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'opentelemetry'
-          snapshot: true
-
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
   aiobotocore:
     <<: *contrib_job
     docker:
@@ -429,19 +402,6 @@ jobs:
     steps:
        - run_test:
           pattern: 'aiobotocore'
-
-  build_docs:
-    # build documentation and store as an artifact
-    executor: ddtrace_dev
-    steps:
-      - checkout
-      - run:
-          command: |
-             hatch run docs:build
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
-      - store_artifacts:
-          path: /tmp/docs
 
 requires_pre_check: &requires_pre_check
   requires:
