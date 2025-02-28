@@ -25,8 +25,6 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.sampler import BasePrioritySampler
-from ddtrace._trace.sampler import BaseSampler
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
@@ -107,7 +105,7 @@ def _default_span_processors_factory(
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
-    trace_sampler: BaseSampler,
+    trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -230,7 +228,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
-        self._user_sampler: Optional[BaseSampler] = DatadogSampler()
+        self._user_sampler: Optional[DatadogSampler] = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -239,9 +237,11 @@ class Tracer(object):
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
             # for the backend to consider the service as alive.
-            self._sampler: BaseSampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self._sampler: DatadogSampler = DatadogSampler(
+                rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True
+            )
         else:
-            self._sampler: BaseSampler = DatadogSampler()
+            self._sampler: DatadogSampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
         verify_url(self._agent_url)
@@ -437,7 +437,7 @@ class Tracer(object):
         port: Optional[int] = None,
         uds_path: Optional[str] = None,
         https: Optional[bool] = None,
-        sampler: Optional[BaseSampler] = None,
+        sampler: Optional[DatadogSampler] = None,
         context_provider: Optional[BaseContextProvider] = None,
         wrap_executor: Optional[Callable] = None,
         priority_sampling: Optional[bool] = None,
@@ -600,12 +600,11 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self._sampler, BasePrioritySampler):
-                self._sampler.update_rate_by_service_sample_rates(
-                    resp.rate_by_service,
-                )
-        except ValueError:
-            log.error("sample_rate is negative, cannot update the rate samplers")
+            self._sampler.update_rate_by_service_sample_rates(
+                resp.rate_by_service,
+            )
+        except ValueError as e:
+            log.error("Failed to set agent service sample rates: %s", str(e))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:

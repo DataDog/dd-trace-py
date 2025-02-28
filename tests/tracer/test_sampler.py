@@ -6,7 +6,6 @@ import mock
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateByServiceSampler
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
@@ -155,25 +154,19 @@ class RateSamplerTest(unittest.TestCase):
 
 # RateByServiceSamplerTest Cases
 def test_default_key():
-    assert (
-        "service:,env:" == RateByServiceSampler._default_key
-    ), "default key should correspond to no service and no env"
+    assert "service:,env:" == DatadogSampler._default_key, "default key should correspond to no service and no env"
 
 
 def test_key():
-    assert (
-        RateByServiceSampler._default_key == RateByServiceSampler._key()
-    ), "_key() with no arguments returns the default key"
-    assert "service:mcnulty,env:" == RateByServiceSampler._key(
+    assert DatadogSampler._default_key == DatadogSampler._key(), "_key() with no arguments returns the default key"
+    assert "service:mcnulty,env:" == DatadogSampler._key(
         service="mcnulty"
     ), "_key call with service name returns expected result"
-    assert "service:,env:test" == RateByServiceSampler._key(
-        env="test"
-    ), "_key call with env name returns expected result"
-    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+    assert "service:,env:test" == DatadogSampler._key(env="test"), "_key call with env name returns expected result"
+    assert "service:mcnulty,env:test" == DatadogSampler._key(
         service="mcnulty", env="test"
     ), "_key call with service and env name returns expected result"
-    assert "service:mcnulty,env:test" == RateByServiceSampler._key(
+    assert "service:mcnulty,env:test" == DatadogSampler._key(
         "mcnulty", "test"
     ), "_key call with service and env name as positional args returns expected result"
 
@@ -191,7 +184,7 @@ def test_sample_rate_deviation_64bit_trace_id():
 def _test_sample_rate_deviation():
     for sample_rate in [0.1, 0.25, 0.5, 1]:
         tracer = DummyTracer()
-        tracer._configure(sampler=RateByServiceSampler())
+        tracer._configure(sampler=DatadogSampler())
         tracer._sampler.set_sample_rate(sample_rate)
 
         iterations = int(1e4 / sample_rate)
@@ -890,7 +883,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     )
 
 
-@pytest.mark.parametrize("priority_sampler", [DatadogSampler(), RateByServiceSampler()])
+@pytest.mark.parametrize("priority_sampler", [DatadogSampler()])
 def test_update_rate_by_service_sample_rates(priority_sampler):
     cases = [
         {
