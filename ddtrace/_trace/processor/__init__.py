@@ -15,6 +15,7 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
@@ -260,8 +261,10 @@ class SpanAggregator(SpanProcessor):
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
 
-        # Tracks the number of spans created and tags each count with the api that was used
-        # ex: otel api, opentracing api, datadog api
+        # Tracks the number of spans created and tags each count with the api and span component that was used
+        # integration_name examples: otel api, opentracing api, datadog api
+        # component examples: flask, pymongo, etc
+        # store as tuple, ie: (integration_name, component) = 1
         self._span_metrics: Dict[str, DefaultDict] = {
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
@@ -281,12 +284,22 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            self._span_metrics["spans_created"][span._span_api] += 1
+            if COMPONENT in span._meta.keys():
+                integration_name = span._meta["component"]
+            else:
+                integration_name = span._span_api
+
+            self._span_metrics["spans_created"][(integration_name)] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
-            self._span_metrics["spans_finished"][span._span_api] += 1
+            if COMPONENT in span._meta.keys():
+                integration_name = span._meta["component"]
+            else:
+                integration_name = span._span_api
+
+            self._span_metrics["spans_finished"][(integration_name)] += 1
 
             # Calling finish on a span that we did not see the start for
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
@@ -385,13 +398,15 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
+    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 1) -> None:
         """Queues a telemetry count metric for span created and span finished"""
         # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
         # We should avoid calling this method on every invocation of span finish and span start.
         if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
-            for tag_value, count in self._span_metrics[metric_name].items():
+            for integration_name, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
-                )
+                        TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, integration_name),)
+                    )
+
+            # Reset for next batch of metrics
             self._span_metrics[metric_name] = defaultdict(int)
