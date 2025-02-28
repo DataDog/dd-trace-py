@@ -13,8 +13,11 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
+from .constants import DEFAULT_RUNTIME_METRICS_V2
 from .metric_collectors import GCRuntimeMetricCollector
+from .metric_collectors import GCRuntimeMetricCollectorV2
 from .metric_collectors import PSUtilRuntimeMetricCollector
+from .metric_collectors import PSUtilRuntimeMetricCollectorV2
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import TracerTagCollector
 
@@ -59,6 +62,14 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
+class RuntimeMetricsV2(RuntimeMetrics):
+    ENABLED = DEFAULT_RUNTIME_METRICS_V2
+    COLLECTORS = [
+        GCRuntimeMetricCollectorV2,
+        PSUtilRuntimeMetricCollectorV2,
+    ]
+
+
 def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
@@ -79,7 +90,12 @@ class RuntimeWorker(periodic.PeriodicService):
             self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
         )
         self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
-        self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+        if "runtime_metrics" in ddtrace.config._experimental_features_enabled:
+            self._runtime_metrics: RuntimeMetrics = RuntimeMetricsV2()
+            self.send_metric = self._dogstatsd_client.gauge
+        else:
+            self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+            self.send_metric = self._dogstatsd_client.distribution
         self._platform_tags: List[str] = self._format_tags(PlatformTags())
 
     @classmethod
@@ -136,7 +152,7 @@ class RuntimeWorker(periodic.PeriodicService):
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
                 log.debug("Writing runtime metric %s:%s", key, value)
-                self._dogstatsd_client.gauge(key, value)
+                self.send_metric(key, value)
 
     def _stop_service(self):
         # type: (...) -> None
