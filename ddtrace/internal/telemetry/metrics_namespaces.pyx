@@ -16,7 +16,7 @@ from ddtrace.internal.telemetry.metrics import MetricTagType  # noqa:F401
 NamespaceMetricType = Dict[str, Dict[str, Dict[str, Any]]]
 
 
-class MetricNamespace:
+cdef class MetricNamespace:
     def __init__(self):
         # type: () -> None
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
@@ -49,7 +49,7 @@ class MetricNamespace:
         The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name
         """
         namespace_str = namespace.value
-        metric_id = Metric.get_id(name, namespace_str, tags, metric_class.metric_type)
+        metric_id = (name, namespace_str, tags, metric_class.metric_type)
         if metric_class is DistributionMetric:
             metrics_type_payload = TELEMETRY_TYPE_DISTRIBUTION
         else:

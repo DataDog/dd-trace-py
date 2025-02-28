@@ -9,14 +9,19 @@ from typing import Tuple  # noqa:F401
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
-
-class Metric(metaclass=abc.ABCMeta):
+cdef class Metric(object):
     """
     Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer
     """
-
-    metric_type = ""
-    __slots__ = ["namespace", "name", "_tags", "is_common_to_all_tracers", "interval", "_points", "_count"]
+    cdef str namespace
+    cdef str name
+    cdef object _tags
+    cdef object is_common_to_all_tracers
+    cdef object interval
+    cdef list _points
+    cdef float _count
+    cdef str metric_type
+    # __slots__ = ["namespace", "name", "_tags", "is_common_to_all_tracers", "interval", "_points", "_count"]
 
     def __init__(self, namespace, name, tags, common, interval=None):
         # type: (str, str, MetricTagType, bool, Optional[float]) -> None
@@ -34,6 +39,7 @@ class Metric(metaclass=abc.ABCMeta):
         self._tags = tags
         self._count = 0.0
         self._points = []  # type: List
+        self.metric_type = ""
 
     @classmethod
     def get_id(cls, name, namespace, tags, metric_type):
@@ -46,7 +52,7 @@ class Metric(metaclass=abc.ABCMeta):
     def __hash__(self):
         return self.get_id(self.name, self.namespace, self._tags, self.metric_type)
 
-    @abc.abstractmethod
+    # @abc.abstractmethod
     def add_point(self, value=1.0):
         # type: (float) -> None
         """adds timestamped data point associated with a metric"""
@@ -67,7 +73,7 @@ class Metric(metaclass=abc.ABCMeta):
         return data
 
 
-class CountMetric(Metric):
+cdef class CountMetric(Metric):
     """
     A count type adds up all the submitted values in a time interval. This would be suitable for a
     metric tracking the number of website hits, for instance.
@@ -84,7 +90,7 @@ class CountMetric(Metric):
             self._points = [[time.time(), value]]
 
 
-class GaugeMetric(Metric):
+cdef class GaugeMetric(Metric):
     """
     A gauge type takes the last value reported during the interval. This type would make sense for tracking RAM or
     CPU usage, where taking the last value provides a representative picture of the host’s behavior during the time
@@ -100,7 +106,7 @@ class GaugeMetric(Metric):
         self._points = [(time.time(), value)]
 
 
-class RateMetric(Metric):
+cdef class RateMetric(Metric):
     """
     The rate type takes the count and divides it by the length of the time interval. This is useful if you’re
     interested in the number of hits per second.
@@ -118,7 +124,7 @@ class RateMetric(Metric):
         self._points = [(time.time(), rate)]
 
 
-class DistributionMetric(Metric):
+cdef class DistributionMetric(Metric):
     """
     The rate type takes the count and divides it by the length of the time interval. This is useful if you’re
     interested in the number of hits per second.

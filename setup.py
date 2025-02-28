@@ -668,6 +668,7 @@ setup(
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=ext_modules
+    # ext_module=[]
     + cythonize(
         [
             Cython.Distutils.Extension(
@@ -683,6 +684,20 @@ setup(
             Extension(
                 "ddtrace.internal._encoding",
                 ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=encoding_macros,
+            ),
+            Extension(
+                "ddtrace.internal.telemetry.metrics",
+                ["ddtrace/internal/telemetry/metrics.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=encoding_macros,
+            ),
+            Extension(
+                "ddtrace.internal.telemetry.metrics_namespaces",
+                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
