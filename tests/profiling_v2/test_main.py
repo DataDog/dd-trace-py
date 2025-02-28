@@ -166,7 +166,7 @@ def test_multiprocessing(method, tmp_path):
     assert len(child_samples) > 0
 
 
-@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
+@flaky(1742580778)  # Marking as flaky so it will show up in flaky reports
 @pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,

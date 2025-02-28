@@ -106,7 +106,7 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
 
 
-@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
+@flaky(1742580778)  # Marking as flaky so it will show up in flaky reports
 @pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,

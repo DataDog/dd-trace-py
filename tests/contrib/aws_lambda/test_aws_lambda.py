@@ -52,7 +52,7 @@ def setup():
     unpatch()
 
 
-@flaky(1735812000)
+@flaky(1742580778)
 @pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot
 def test_timeout_traces(context, customApmFlushDeadline):
