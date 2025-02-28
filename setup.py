@@ -536,7 +536,9 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+        )
 
     if (
         platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
