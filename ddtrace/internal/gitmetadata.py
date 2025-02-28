@@ -6,7 +6,7 @@ from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import formats
-from ddtrace.settings._core import DDConfig as Env
+from ddtrace.settings._core import DDConfig
 
 
 _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
@@ -14,23 +14,23 @@ _GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
 log = get_logger(__name__)
 
 
-class GitMetadataConfig(Env):
+class GitMetadataConfig(DDConfig):
     __prefix__ = "dd"
 
     # DD_TRACE_GIT_METADATA_ENABLED
-    enabled = Env.var(bool, "trace_git_metadata_enabled", default=True)
+    enabled = DDConfig.var(bool, "trace_git_metadata_enabled", default=True)
 
     # DD_GIT_REPOSITORY_URL
-    repository_url = Env.var(str, "git_repository_url", default="")
+    repository_url = DDConfig.var(str, "git_repository_url", default="")
 
     # DD_GIT_COMMIT_SHA
-    commit_sha = Env.var(str, "git_commit_sha", default="")
+    commit_sha = DDConfig.var(str, "git_commit_sha", default="")
 
     # DD_MAIN_PACKAGE
-    main_package = Env.var(str, "main_package", default="")
+    main_package = DDConfig.var(str, "main_package", default="")
 
     # DD_TAGS
-    tags = Env.var(str, "tags", default="")
+    tags = DDConfig.var(str, "tags", default="")
 
 
 def _get_tags_from_env(config):

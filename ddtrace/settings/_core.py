@@ -28,9 +28,10 @@ class DDConfig(Env):
     ) -> None:
         self.fleet_source = FLEET_CONFIG
         self.local_source = LOCAL_CONFIG
-        # Order of precedence: local stable config < environment variables < fleet stable config < provided source
-        source = ChainMap(source or {}, self.fleet_source, os.environ, self.local_source)  # type: ignore
-        super().__init__(source=source, parent=parent, dynamic=dynamic)
+        self.env_source = os.environ
+        # Order of precedence: provided source < local stable config < environment variables < fleet stable config
+        full_source = ChainMap(self.fleet_source, self.env_source, self.local_source, source or {})  # type: ignore
+        super().__init__(source=full_source, parent=parent, dynamic=dynamic)
 
 
 def get_config(
