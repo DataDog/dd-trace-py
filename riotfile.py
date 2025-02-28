@@ -2613,6 +2613,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="crewai",
+            command="pytest {cmdargs} tests/contrib/crewai",
+            pys=select_pys(min_version="3.10", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "openai": latest,
+                "crewai": [latest],
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
