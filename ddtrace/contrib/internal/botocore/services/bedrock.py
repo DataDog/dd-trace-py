@@ -449,7 +449,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
             result = original_func(*args, **kwargs)
             result = handle_bedrock_response(ctx, result)
             return result
-        except Exception as e:
+        except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, sys.exc_info()])            
-            raise e
+            raise
 

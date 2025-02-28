@@ -41,16 +41,11 @@ class BedrockIntegration(BaseLLMIntegration):
         if span.get_tag("bedrock.request.top_p"):
             parameters["top_p"] = float(span.get_tag("bedrock.request.top_p") or 0.0)
 
-        # Handle different input formats from different API calls
         prompt = kwargs.get("prompt", "")
-
         input_messages = self._extract_input_message(prompt)
-
-        # Handle output
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
@@ -73,7 +68,6 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [{"content": ""}]
-
         input_messages = []
         for p in prompt:
             if not isinstance(p, dict):
