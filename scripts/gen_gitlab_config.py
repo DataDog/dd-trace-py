@@ -124,7 +124,7 @@ def gen_build_docs() -> None:
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
     ):
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
@@ -228,6 +228,8 @@ build_base_venvs:
       apt update && apt install -y sccache
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
       touch cache_used.txt
     else
       echo "Skipping build, using compiled files/venv from cache"

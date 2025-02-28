@@ -48,7 +48,7 @@ atomic_add_clamped(uint64_t* target, uint64_t amount, uint64_t max)
     // consumer CPU generally used by our customers.
     int attempts = 96;
     while (attempts--) {
-        uint64_t old_val = (volatile uint64_t)*target;
+        uint64_t old_val = (volatile uint64_t) * target;
 
         // CAS loop + saturation check
         uint64_t new_val = old_val + amount;
