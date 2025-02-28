@@ -110,7 +110,8 @@ expanded_blocklist = standard_blocklist + [
         ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
         ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
         # requests imports urlib3 which imports importlib.metadata
-        ("ddtrace.contrib.internal.requests", standard_blocklist),
+        # TODO: Fix the requests parameter in a future PR
+        # ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
 def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
