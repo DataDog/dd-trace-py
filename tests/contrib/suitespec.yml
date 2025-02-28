@@ -256,6 +256,11 @@ suites:
       - '@botocore'
       - tests/contrib/aiobotocore/*
     runner: riot
+    services:
+      - moto
+    env:
+      TEST_MOTO_PORT: '3000'
+    snapshot: true
   aiohttp:
     parallelism: 3
     paths:

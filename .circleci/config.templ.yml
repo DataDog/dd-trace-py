@@ -5,7 +5,6 @@ ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
 ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
-moto_image: &moto_image datadog/docker-library:moto_1_0_1@sha256:58c15f03141073629f4ff2a78910b812205324579c76f8bcac87e8e89af2e673
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image vertica/vertica-ce:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
@@ -413,80 +412,6 @@ jobs:
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
-
-  aws_lambda:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'aws_lambda'
-          snapshot: true
-
-  datastreams:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "datastreams"
-
-  opentelemetry:
-    parallelism: 4
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'opentelemetry'
-          snapshot: true
-
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
-  aiobotocore:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *moto_image
-      - *testagent
-    steps:
-       - run_test:
-          pattern: 'aiobotocore'
-
-  aiomysql:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'mysql'
-          wait: mysql
-          pattern: 'aiomysql'
-          snapshot: true
-
-  aiopg:
-    <<: *contrib_job_small
-    parallelism: 4
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: postgres
-          pattern: 'aiopg'
-
-  build_docs:
-    # build documentation and store as an artifact
-    executor: ddtrace_dev
-    steps:
-      - checkout
-      - run:
-          command: |
-             hatch run docs:build
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
-      - store_artifacts:
-          path: /tmp/docs
 
 requires_pre_check: &requires_pre_check
   requires:
