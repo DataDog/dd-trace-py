@@ -17,6 +17,25 @@ def test_runtime_metrics_api():
     assert RuntimeWorker._instance is None
 
 
+@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_FEATURES_ENABLED": "runtime_metrics,someotherfeature"})
+def test_runtime_metrics_v2():
+    """
+    When importing and manually starting runtime metrics
+        Runtime metrics worker starts and there are no errors
+    """
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeMetricsV2
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.internal.service import ServiceStatus
+
+    RuntimeWorker.enable()
+    assert RuntimeWorker._instance is not None
+
+    worker_instance = RuntimeWorker._instance
+    assert worker_instance.status == ServiceStatus.RUNNING
+    assert isinstance(worker_instance._runtime_metrics, RuntimeMetricsV2)
+    assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
+
+
 def test_runtime_metrics_api_idempotency():
     RuntimeMetrics.enable()
     instance = RuntimeWorker._instance

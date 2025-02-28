@@ -1,11 +1,15 @@
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS_V2
 from ddtrace.internal.runtime.constants import MEM_RSS
 from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS_V2
 from ddtrace.internal.runtime.constants import THREAD_COUNT
 from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
+from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollectorV2
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
+from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollectorV2
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from tests.utils import BaseTestCase
 from tests.utils import flaky
@@ -29,8 +33,9 @@ class TestRuntimeMetricCollector(BaseTestCase):
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
-        for _, value in collector.collect(PSUTIL_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
     @flaky(1717343326)
     def test_static_metrics(self):
@@ -126,11 +131,20 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         """
 
 
+class TestPSUtilRuntimeMetricCollectorV2(BaseTestCase):
+    def test_metrics(self):
+        collector = PSUtilRuntimeMetricCollectorV2()
+        for metric_name, value in collector.collect(PSUTIL_RUNTIME_METRICS_V2):
+            self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python.gauge\..*")
+
+
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for _, value in collector.collect(GC_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
     def test_gen1_changes(self):
         # disable gc
@@ -153,5 +167,13 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         gc.collect()
         collected_after = collector.collect([GC_COUNT_GEN0])
         assert len(collected_after) == 1
-        assert collected_after[0][0] == "runtime.python.gauge.gc.count.gen0"
+        assert collected_after[0][0] == "runtime.python.gc.count.gen0"
         assert isinstance(collected_after[0][1], int)
+
+
+class TestGCRuntimeMetricCollectorV2(BaseTestCase):
+    def test_metrics(self):
+        collector = GCRuntimeMetricCollectorV2()
+        for metric_name, value in collector.collect(GC_RUNTIME_METRICS_V2):
+            self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python.gauge\..*")
