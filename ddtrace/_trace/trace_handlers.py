@@ -723,10 +723,9 @@ def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    print("FINISHING SPAN")
-    integration = ctx["bedrock_integration"]
-    integration.llmobs_set_tags(ctx.span, args=[], kwargs={"prompt": ctx["prompt"]}, response=result)
+    ctx["bedrock_integration"].llmobs_set_tags(ctx.span, args=[ctx], kwargs={}, response=result)
     ctx.span.finish()
+
 
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
@@ -743,11 +742,17 @@ def _on_botocore_bedrock_process_response(
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
     integration = ctx["bedrock_integration"]
     if metadata is not None:
+        usage = {}
         for k, v in metadata.items():
             if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
+                if k == "usage.completion_tokens":
+                    usage["output_tokens"] = int(v)
+                else:
+                    usage["input_tokens"] = int(v)
                 span.set_metric("bedrock.response.{}".format(k), int(v))
             else:
                 span.set_tag_str("bedrock.{}".format(k), str(v))
+        ctx["usage"] = usage
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
@@ -761,7 +766,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
+    integration.llmobs_set_tags(span, args=[], kwargs={"ctx": ctx}, response=formatted_response)
     span.finish()
 
 

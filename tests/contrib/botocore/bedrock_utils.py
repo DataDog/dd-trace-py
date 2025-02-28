@@ -68,18 +68,8 @@ _REQUEST_BODIES = {
     "converse": {
         # Converse API request parameters
         "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
-        "messages": [
-            {
-                "role": "user",
-                "content": "Explain the concept of distributed tracing in a simple way"
-            }
-        ],
-        "inferenceConfig": {
-            "temperature": 0.7,
-            "topP": 0.9,
-            "maxTokens": 50,
-            "stopSequences": []
-        }
+        "messages": [{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
+        "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []},
     },
 }
 
