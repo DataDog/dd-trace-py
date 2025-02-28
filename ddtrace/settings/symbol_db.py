@@ -1,14 +1,13 @@
 import re
 
-from envier import En
-
+from ddtrace.settings._core import DDConfig
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
-class SymbolDatabaseConfig(En):
+class SymbolDatabaseConfig(DDConfig):
     __prefix__ = "dd.symbol_database"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "upload_enabled",
         default=True,
@@ -16,18 +15,20 @@ class SymbolDatabaseConfig(En):
         help="Whether to upload source code symbols to the Datadog backend",
     )
 
-    includes = En.v(
+    includes = DDConfig.v(
         set,
         "includes",
         default=set(),
         help_type="List",
         help="List of modules/packages to include in the symbol uploads",
     )
-    _includes_re = En.d(re.Pattern, lambda c: re.compile("(" + "|".join(f"^{p}$|^{p}[.]" for p in c.includes) + ")"))
+    _includes_re = DDConfig.d(
+        re.Pattern, lambda c: re.compile("(" + "|".join(f"^{p}$|^{p}[.]" for p in c.includes) + ")")
+    )
 
     # ---- Private settings ----
 
-    _force = En.v(
+    _force = DDConfig.v(
         bool,
         "force_upload",
         default=False,

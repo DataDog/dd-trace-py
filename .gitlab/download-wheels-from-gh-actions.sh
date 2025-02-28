@@ -29,7 +29,7 @@ if [ -z "$RUN_ID" ]; then
 fi
 
 if [ -z "$RUN_ID" ]; then
-  echo "RUN_ID not found"
+  echo "RUN_ID not found. Check if the GitHub build jobs were successfully triggered on your PR. Usually closing and re-opening your PR will resolve this issue."
   exit 1
 fi
 

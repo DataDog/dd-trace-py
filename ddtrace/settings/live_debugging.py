@@ -1,10 +1,10 @@
-from envier import En
+from ddtrace.settings._core import DDConfig
 
 
-class LiveDebuggerConfig(En):
+class LiveDebuggerConfig(DDConfig):
     __prefix__ = "dd.live_debugging"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=False,
