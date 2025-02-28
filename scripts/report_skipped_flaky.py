@@ -49,7 +49,7 @@ def extract_flaky_tests(file_path):
                 flaky_match = FLAKY_PATTERN.match(line)
 
             func_match = TEST_FUNCTION_PATTERN.match(line)
-            if func_match:
+            if flaky_match and func_match:
                 test_name = func_match.group(1)
 
             if flaky_match and test_name:
