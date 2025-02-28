@@ -93,9 +93,11 @@ promote-oci-to-prod:
 
 promote-oci-to-prod-beta:
   stage: release
+  rules: null
 
 promote-oci-to-staging:
   stage: release
+  rules: null
 
 publish-lib-init-ghcr-tags:
   stage: release
