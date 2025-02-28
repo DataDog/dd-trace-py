@@ -12,7 +12,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -533,9 +532,15 @@ class Config(object):
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
-        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+
+        self._extra_services_queue = None
+        if self._remote_config_enabled and not in_aws_lambda():
+            # lazy load slow import
+            from ddtrace.internal._file_queue import File_Queue
+
+            self._extra_services_queue = File_Queue()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
