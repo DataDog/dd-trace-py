@@ -45,6 +45,14 @@ class BedrockIntegration(BaseLLMIntegration):
         if ctx.get_item("usage"):
             usage_metrics = ctx["usage"]
 
+        # Translate raw usage metrics returned from bedrock to the standardized metrics.
+        if "inputTokens" in usage_metrics:
+            usage_metrics["input_tokens"] = usage_metrics.pop("inputTokens")
+        if "outputTokens" in usage_metrics:
+            usage_metrics["output_tokens"] = usage_metrics.pop("outputTokens")
+        if "totalTokens" in usage_metrics:
+            usage_metrics["total_tokens"] = usage_metrics.pop("totalTokens")
+
         if request_params.get("temperature"):
             metadata["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
         if request_params.get("max_tokens"):

@@ -752,7 +752,7 @@ def _on_botocore_bedrock_process_response(
                 span.set_metric("bedrock.response.{}".format(k), int(v))
             else:
                 span.set_tag_str("bedrock.{}".format(k), str(v))
-        ctx["usage"] = usage
+        ctx.set_item("usage", usage)
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
