@@ -113,7 +113,7 @@ def gen_build_docs() -> None:
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
     ):
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
