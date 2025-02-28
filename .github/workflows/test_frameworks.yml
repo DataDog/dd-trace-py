@@ -5,14 +5,14 @@ on:
   # we investigate the value of framework tests.
   # They will run nightly instead, and manual
   # workflow dispatch will be enabled
-  push:
-    branches:
-      - main
-      - 'mq-working-branch**'
-  pull_request:
+  # push:
+  #   branches:
+  #     - main
+  #     - 'mq-working-branch**'
+  # pull_request:
   workflow_dispatch: {}
-  # schedule:
-  #   - cron: '0 5 * * *'
+  schedule:
+    - cron: '0 5 * * *'
 
 
 concurrency:
@@ -44,10 +44,10 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          # - suffix: IAST
-          #   profiling: 0
-          #   iast: 1
-          #   appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -103,28 +103,22 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         run: pip install ../ddtrace
         # Allows tests to continue through deprecation warnings for jinja2 and mako
-      # - name: Run tests
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   # Disable all test_simple tests because they check for
-      #   # log output and it contains phony error messages.
-      #   run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
-      # - name: Debugger exploration result
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   run: cat debugger-expl.txt
-      # - name: Run Bytecode injection tests
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   # Disable all test_simple tests because they check for
-      #   # log output and it contains phony error messages.
-      #   run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
-      # - name: Bytecode injection result
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   run: cat bytecode-injection.txt
-      - name: Run Handled exceptions reporting tests
+      - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # Disable all test_simple tests because they check for
         # log output and it contains phony error messages.
-        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
-
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      - name: Debugger exploration result
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
+      - name: Run Bytecode injection tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        # Disable all test_simple tests because they check for
+        # log output and it contains phony error messages.
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      - name: Bytecode injection result
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   django-testsuite:
     strategy:
@@ -240,28 +234,23 @@ jobs:
           sed -i'' 's/test_class_attributes/class_attributes/' tests/generic_views/test_base.py
           sed -i'' 's/test_aauthenticate_sensitive_variables/aauthenticate_sensitive_variables/' tests/auth_tests/test_auth_backends.py
 
-      # - name: Run tests
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-      #   run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
-
-      # - name: Debugger exploration results
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   run: cat debugger-expl.txt
-
-      # - name: Run Bytecode injection tests
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-      #   run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
-
-      # - name: Bytecode injection results
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   run: cat bytecode-injection.txt
-
-      - name: Run Handled exceptions r‡eporting tests
+      - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+
+      - name: Debugger exploration results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat debugger-expl.txt
+
+      - name: Run Bytecode injection tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   graphene-testsuite-3_0:
     strategy:
@@ -341,10 +330,10 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          # - suffix: IAST
-          #   profiling: 0
-          #   iast: 1
-          #   appsec: 0
+          - suffix: IAST
+            profiling: 0
+            iast: 1
+            appsec: 0
           - suffix: APPSEC
             profiling: 0
             iast: 0
@@ -403,17 +392,13 @@ jobs:
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
-      # - name: Bytecode injection Test
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   # https://github.com/tiangolo/fastapi/pull/10876
-      #   run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
-      # - name: Bytecode injection results
-      #   if: needs.needs-run.outputs.outcome == 'success'
-      #   run: cat bytecode-injection.txt
-      - name: Run Handled exceptions reporting tests
+      - name: Bytecode injection Test
         if: needs.needs-run.outputs.outcome == 'success'
         # https://github.com/tiangolo/fastapi/pull/10876
-        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   flask-testsuite:
     strategy:
