@@ -397,24 +397,9 @@ def _default_config() -> Dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_profiling_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_PROFILING_ENABLED"],
-            modifier=asbool,
-        ),
-        "_asm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_APPSEC_ENABLED"],
-            modifier=asbool,
-        ),
         "_sca_enabled": _ConfigItem(
             default=None,
             envs=["DD_APPSEC_SCA_ENABLED"],
-            modifier=asbool,
-        ),
-        "_dsm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_DATA_STREAMS_ENABLED"],
             modifier=asbool,
         ),
     }
