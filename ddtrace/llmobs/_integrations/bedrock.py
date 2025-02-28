@@ -38,27 +38,19 @@ class BedrockIntegration(BaseLLMIntegration):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
         if span.get_tag("bedrock.request.max_tokens"):
             parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
-        
+        if span.get_tag("bedrock.request.top_p"):
+            parameters["top_p"] = float(span.get_tag("bedrock.request.top_p") or 0.0)
+
         # Handle different input formats from different API calls
         prompt = kwargs.get("prompt", "")
-        
-        # Special handling for Converse API which passes the messages directly
-        if isinstance(prompt, list) and all(isinstance(msg, dict) and "role" in msg for msg in prompt):
-            # This is already in the messages format
-            input_messages = self._extract_input_message(prompt)
-        # Special case for raw messages array from Converse API
-        elif "messages" in kwargs and isinstance(kwargs["messages"], list):
-            # If we got raw messages directly from the Converse API
-            input_messages = self._extract_input_message(kwargs["messages"])
-        else:
-            # Default handling
-            input_messages = self._extract_input_message(prompt)
-            
+
+        input_messages = self._extract_input_message(prompt)
+
         # Handle output
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-            
+
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
@@ -75,23 +67,20 @@ class BedrockIntegration(BaseLLMIntegration):
     def _extract_input_message(prompt):
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
-        Bedrock's Converse API uses a specific message format that needs special handling.
         """
         if isinstance(prompt, str):
             return [{"content": prompt}]
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [{"content": ""}]
-        
+
         input_messages = []
         for p in prompt:
             if not isinstance(p, dict):
                 continue
-                
+
             role = str(p.get("role", ""))
             content = p.get("content", "")
-            
-            # Handle different content formats
             if isinstance(content, list):
                 # Structured content array with multiple parts
                 if content and isinstance(content[0], dict):
@@ -100,14 +89,11 @@ class BedrockIntegration(BaseLLMIntegration):
                         # Text content
                         if entry.get("type") == "text":
                             combined_text += entry.get("text", "") + " "
-                        # Direct text field
-                        elif "text" in entry:
-                            combined_text += entry.get("text", "") + " "
                         # Image content
                         elif entry.get("type") == "image":
                             # Store a placeholder for potentially enormous binary image data
                             input_messages.append({"content": "([IMAGE DETECTED])", "role": role})
-                    
+
                     if combined_text:
                         input_messages.append({"content": combined_text.strip(), "role": role})
                 # Array of strings
@@ -117,7 +103,7 @@ class BedrockIntegration(BaseLLMIntegration):
             # String content
             elif isinstance(content, str):
                 input_messages.append({"content": content, "role": role})
-                
+
         return input_messages
 
     @staticmethod
@@ -130,29 +116,17 @@ class BedrockIntegration(BaseLLMIntegration):
         if "output" in response and "message" in response.get("output", {}):
             message = response.get("output", {}).get("message", {})
             role = message.get("role", "assistant")
-            
-            # Handle structured content array
+
             if message.get("content") and isinstance(message["content"], list):
                 content_texts = []
                 for content_part in message["content"]:
-                    # Handle text content parts
                     if content_part.get("type", "") == "text" or "text" in content_part:
                         content_texts.append(content_part.get("text", ""))
-                # Join all text content parts
                 content = " ".join(content_texts)
                 return [{"content": content, "role": role}]
-            # Handle string content
             elif isinstance(message.get("content", ""), str):
                 return [{"content": message.get("content", ""), "role": role}]
-        
-        # Handle older Converse API format
-        elif "message" in response:
-            # Converse API response
-            message = response.get("message", {})
-            content = message.get("content", "")
-            role = message.get("role", "assistant")
-            return [{"content": content, "role": role}]
-            
+
         # Standard InvokeModel API response format
         if isinstance(response.get("text", ""), str):
             return [{"content": response["text"]}]
@@ -161,6 +135,6 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
-                
+
         # Default empty response if format is not recognized
         return [{"content": ""}]
