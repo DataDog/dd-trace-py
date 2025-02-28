@@ -403,8 +403,8 @@ def get_user_info(info_retriever, django_config, kwargs={}):
 
     user_id_found, user_extra = info_retriever.get_user_info(
         login=True,
-        email=getattr(django_config, "include_user_email", False),
-        name=getattr(django_config, "include_user_realname", False),
+        email=django_config.include_user_email,
+        name=django_config.include_user_realname,
     )
     if user_extra.get("login") is None and user_id:
         user_extra["login"] = user_id

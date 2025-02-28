@@ -879,7 +879,7 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
 def patch_create_user(django, pin, func, instance, args, kwargs):
     user = func(*args, **kwargs)
     core.dispatch(
-        "django.create_user", (django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
+        "django.create_user", (config.django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
     )
     return user
 
