@@ -853,7 +853,7 @@ Other
 
    DD_RUNTIME_METRICS_ENABLED:
      type: Boolean
-     default: False
+     default: True
      
      description: |
          When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
