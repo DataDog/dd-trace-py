@@ -113,7 +113,29 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    """
+    messages = params.get("messages", [])
+    inference_config = params.get("inferenceConfig", {})
+    prompt = []
+    system_prompts = params.get("system", None)
+    if system_prompts:
+        for system_prompt in system_prompts:
+            if "text" in system_prompt:
+                prompt.append({"role": "system", "content": system_prompt.get("text", "")})
+    prompt += messages
+    return {
+        "prompt": prompt,
+        "temperature": inference_config.get("temperature", ""),
+        "top_p": inference_config.get("topP", ""),
+        "max_tokens": inference_config.get("maxTokens", ""),
+        "stop_sequences": inference_config.get("stopSequences", []),
+    }
+
+
+def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
     """
@@ -299,13 +321,15 @@ def _extract_streamed_response_metadata(
 
 def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
-    request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
+    request_params = (
+        _extract_request_params_for_converse(ctx["params"])
+        if ctx["resource"] == "Converse"
+        else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
+    )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    prompt = None
-    for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
-            prompt = v
-    ctx.set_item("prompt", prompt)
+    ctx.set_item(
+        "request_params", request_params if ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span) else None
+    )
 
 
 def handle_bedrock_response(
@@ -315,16 +339,42 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
+    input_token_count = http_headers.get("x-amzn-bedrock-input-token-count", None)
+    output_token_count = http_headers.get("x-amzn-bedrock-output-token-count", None)
+    request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
+
+    # For Converse API, check for usage information in the response body
+    if ctx["resource"] == "Converse":
+        # Check for usage in the result top level
+        if "metrics" in result:
+            latency = result.get("metrics", {}).get("latencyMs", "")
+            request_latency = str(latency) if latency else request_latency
+        if "usage" in result:
+            usage = result.get("usage", {})
+            if usage:
+                # Store usage information in context for later use
+                ctx.set_item("usage", usage)
+                # Override token counts from usage data if available
+                input_token_count = str(usage.get("inputTokens", input_token_count))
+                output_token_count = str(usage.get("outputTokens", output_token_count))
+        if "stopReason" in result:
+            ctx.set_item("stop_reason", result.get("stopReason"))
+
+    # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
         "botocore.patched_bedrock_api_call.success",
         [
             ctx,
             str(metadata.get("RequestId", "")),
-            str(http_headers.get("x-amzn-bedrock-invocation-latency", "")),
-            str(http_headers.get("x-amzn-bedrock-input-token-count", "")),
-            str(http_headers.get("x-amzn-bedrock-output-token-count", "")),
+            request_latency,
+            input_token_count,
+            output_token_count,
         ],
     )
+
+    if ctx["resource"] == "Converse":
+        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        return result
 
     body = result["body"]
     result["body"] = TracedBotocoreStreamingBody(body, ctx)
