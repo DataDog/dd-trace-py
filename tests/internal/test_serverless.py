@@ -1,3 +1,5 @@
+import os
+
 import mock
 import pytest
 
@@ -109,7 +111,7 @@ expanded_blocklist = standard_blocklist + [
         ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
         ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
         # requests imports urlib3 which imports importlib.metadata
-        ("ddtrace.contrib.requests", standard_blocklist),
+        ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
 def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
@@ -117,11 +119,14 @@ def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
 
-    env = {
-        "AWS_LAMBDA_FUNCTION_NAME": "foobar",
-        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
-        "DD_API_SECURITY_ENABLED": "False",
-    }
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
 
     code = f"""
 import sys
