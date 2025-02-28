@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    runtime_metrics: Introduces support for runtime metrics v2. This feature can be enabled by setting ``DD_TRACE_EXPERIMENTAL_ENABLED=runtime_metrics``.
+    runtime_metrics: Introduces support for runtime metrics v2. This feature can be enabled by setting ``DD_TRACE_EXPERIMENTAL_ENABLED=DD_RUNTIME_METRICS_ENABLED``.
     The runtime metrics v2 feature allows users to send runtime metrics as Gauge metrics and tags metrics with ``runtime-id`` to provide more context about the runtime environment.
     Note: This feature replaces `runtime.python.` metric prefix with `runtime.python.guage`.

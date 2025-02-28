@@ -17,7 +17,7 @@ def test_runtime_metrics_api():
     assert RuntimeWorker._instance is None
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_EXPERIMENTAL_ENABLED": "runtime_metrics,someotherfeature"})
+@pytest.mark.subprocess(env={"DD_TRACE_EXPERIMENTAL_ENABLED": "DD_RUNTIME_METRICS_ENABLED,someotherfeature"}, err=None)
 def test_runtime_metrics_v2():
     """
     When importing and manually starting runtime metrics

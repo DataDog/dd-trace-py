@@ -8,6 +8,7 @@ from typing import Optional  # noqa:F401
 import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
+from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -98,7 +99,7 @@ class RuntimeWorker(periodic.PeriodicService):
             self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
         )
         self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
-        if "runtime_metrics" in ddtrace.config._experimental_features_enabled:
+        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in ddtrace.config._experimental_features_enabled:
             self._runtime_metrics: RuntimeMetrics = RuntimeMetricsV2()
             self.send_metric: Callable = self._dogstatsd_client.gauge
             self._platform_tags: List[str] = self._format_tags(PlatformTagsV2())
