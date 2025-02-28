@@ -45,7 +45,8 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
         elif "all_third_party" in checks:
             # Third party package
             def should_report(file_name: str, file_path: Path) -> bool:
-                return is_third_party(file_path) and filename_to_package(file_path).name != "ddtrace"
+                # if the second part of the condition is eval it means filename_to_package does not return none
+                return is_third_party(file_path) and filename_to_package(file_path).name != "ddtrace"  # type: ignore
 
     return should_report
 
