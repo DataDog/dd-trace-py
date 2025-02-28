@@ -456,11 +456,17 @@ def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, use
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, "true")
         if "login" in user_extra:
-            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERNAME, user_extra["login"])
-            span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, user_extra["login"])
+            login = user_extra["login"]
+            if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
+                login = _hash_user_id(login)
+            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERNAME, login)
+            span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, login)
         if user_id:
-            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERID, str(user_id))
-            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            user_id = str(user_id)
+            if asm_config._user_event_mode == LOGIN_EVENTS_MODE.ANON:
+                user_id = _hash_user_id(str(user_id))
+            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERID, user_id)
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, user_id)
 
 
 def listen():
