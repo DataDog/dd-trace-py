@@ -420,6 +420,8 @@ suites:
     pattern: ^botocore$
     runner: riot
     snapshot: true
+    services:
+      - localstack
   bottle:
     paths:
       - '@bootstrap'
@@ -482,6 +484,9 @@ suites:
       - '@consul'
       - tests/contrib/consul/*
     runner: riot
+    snapshot: true
+    services:
+      - consul
   datastreams:
     paths:
       - '@bootstrap'
@@ -826,6 +831,9 @@ suites:
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
     runner: riot
+    services:
+      - mariadb
+    snapshot: true
   molten:
     paths:
       - '@bootstrap'
@@ -845,6 +853,9 @@ suites:
       - '@mongo'
       - tests/contrib/mongoengine/*
     runner: riot
+    snapshot: true
+    services:
+      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
