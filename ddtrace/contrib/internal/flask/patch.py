@@ -224,10 +224,17 @@ def patch():
     _w("flask.templating", "_render", patched_render)
     _w("flask", "render_template", _build_render_template_wrapper("render_template"))
     _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
+    # werkzeug >= 2.1.0
     try:
         _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
     except AttributeError:
         log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
+
+    # werkzeug <= 2.0.3
+    try:
+        _w("werkzeug.debug.tbtools", "Traceback.render_summary", patched_render_debugger_html)
+    except AttributeError:
+        log.debug("Failed to patch Traceback.render_summary, not supported by this werkzeug version")
 
     bp_hooks = [
         "after_app_request",
