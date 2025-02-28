@@ -41,14 +41,14 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
-   
+
 microbenchmarks:
   stage: benchmarks
   needs: [ ]
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
-   
+
 macrobenchmarks:
   stage: benchmarks
   needs: [ ]
