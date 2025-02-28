@@ -31,6 +31,8 @@ from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.internal.utils.formats import asbool
+import os
 
 
 logger = get_logger(__name__)
@@ -208,12 +210,18 @@ class LLMObsSpanEncoder(BufferedEncoder):
             events = self._buffer
             self._init_buffer()
         data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
+            data["_dd.scope"] = "experiments"
         try:
             enc_llm_events = safe_json(data)
+            if isinstance(enc_llm_events, str):
+                enc_llm_events = enc_llm_events.encode('utf-8')
             logger.debug("encode %d LLMObs span events to be sent", len(events))
+            
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
             return None, 0
+        # print(enc_llm_events)
         return enc_llm_events, len(events)
 
 
