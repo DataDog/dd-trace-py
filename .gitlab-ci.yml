@@ -84,6 +84,41 @@ requirements_json_test:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
+promote-oci-to-prod:
+  stage: release
+  rules: null
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  needs: [ release_pypi_prod ]
+
+promote-oci-to-prod-beta:
+  stage: release
+  rules: null
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  needs: null
+
+promote-oci-to-staging:
+  stage: release
+  rules: null
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  needs: null
+
+publish-lib-init-ghcr-tags:
+  stage: release
+  rules: null
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  needs: [release_pypi_prod]
+
+publish-lib-init-pinned-tags:
+  stage: release
+  rules: null
+  only:
+    - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+  needs: [release_pypi_prod]
+
 onboarding_tests_installer:
   parallel:
     matrix:
