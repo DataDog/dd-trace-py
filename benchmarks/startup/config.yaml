@@ -1,0 +1,60 @@
+baseline: &defaults
+  env: {}
+  ddtrace_run: false
+  import_ddtrace: false
+  import_ddtrace_auto: false
+  import_flask: false
+  import_django: false
+baseline_flask:
+  <<: *defaults
+  import_flask: true
+baseline_django:
+  <<: *defaults
+  import_django: true
+ddtrace_run:
+  <<: *defaults
+  ddtrace_run: true
+ddtrace_run_flask:
+  <<: *defaults
+  ddtrace_run: true
+  import_flask: true
+ddtrace_run_django:
+  <<: *defaults
+  ddtrace_run: true
+  import_django: true
+import_ddtrace:
+  <<: *defaults
+  import_ddtrace: true
+import_ddtrace_flask:
+  <<: *defaults
+  import_ddtrace: true
+  import_flask: true
+import_ddtrace_django:
+  <<: *defaults
+  import_ddtrace: true
+  import_django: true
+import_ddtrace_auto:
+  <<: *defaults
+  import_ddtrace_auto: true
+import_ddtrace_auto_flask:
+  <<: *defaults
+  import_ddtrace_auto: true
+  import_flask: true
+import_ddtrace_auto_django:
+  <<: *defaults
+  import_ddtrace_auto: true
+  import_django: true
+ddtrace_run_import_ddtrace_auto:
+  <<: *defaults
+  ddtrace_run: true
+  import_ddtrace_auto: true
+ddtrace_run_import_ddtrace_auto_flask:
+  <<: *defaults
+  ddtrace_run: true
+  import_ddtrace_auto: true
+  import_flask: true
+ddtrace_run_import_ddtrace_auto_django:
+  <<: *defaults
+  ddtrace_run: true
+  import_ddtrace_auto: true
+  import_django: true
