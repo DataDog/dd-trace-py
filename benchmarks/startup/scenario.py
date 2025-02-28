@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 
@@ -9,11 +10,13 @@ class Startup(bm.Scenario):
     import_ddtrace: bool
     import_ddtrace_auto: bool
     import_flask: bool
-    env: dict[str, str]
+    env: str
 
     def run(self):
         env = os.environ.copy()
-        env.update(self.env)
+        if self.env:
+            parsed_env: dict[str, str] = json.loads(self.env)
+            env.update(parsed_env)
 
         commands: list[str] = []
         if self.import_ddtrace:
