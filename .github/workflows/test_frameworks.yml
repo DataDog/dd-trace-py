@@ -123,7 +123,7 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         # Disable all test_simple tests because they check for
         # log output and it contains phony error messages.
-        run: DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS=True ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
 
   django-testsuite:
@@ -261,7 +261,7 @@ jobs:
       - name: Run Handled exceptions r‡eporting tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS=True DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
 
   graphene-testsuite-3_0:
     strategy:
@@ -413,7 +413,7 @@ jobs:
       - name: Run Handled exceptions reporting tests
         if: needs.needs-run.outputs.outcome == 'success'
         # https://github.com/tiangolo/fastapi/pull/10876
-        run: DD_TRACE_EXPERIMENTAL_REPORTED_HANDLED_EXCEPTIONS=True ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+        run: DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL=True ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
 
   flask-testsuite:
     strategy:
