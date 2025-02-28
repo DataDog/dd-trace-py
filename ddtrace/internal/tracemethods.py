@@ -1,3 +1,4 @@
+import inspect
 from typing import List
 from typing import Tuple
 
@@ -83,6 +84,16 @@ def trace_wrapper(wrapped, instance, args, kwargs):
     resource = wrapped.__name__
     if hasattr(instance, "__class__") and instance.__class__ is not type(None):  # noqa: E721
         resource = "%s.%s" % (instance.__class__.__name__, resource)
+
+    # Check for async
+    if inspect.iscoroutinefunction(wrapped):
+
+        async def async_wrapper(*a, **kw):
+            with tracer.trace("trace.annotation", resource=resource) as span:
+                span.set_tag_str("component", "trace")
+                return await wrapped(*a, **kw)
+
+        return async_wrapper(*args, **kwargs)
 
     with tracer.trace("trace.annotation", resource=resource) as span:
         span.set_tag_str("component", "trace")

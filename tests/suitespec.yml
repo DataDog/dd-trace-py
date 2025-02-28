@@ -58,7 +58,7 @@ components:
     - ddtrace/internal/logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
-    - ddtrace/internal/injection.py
+    - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
@@ -66,6 +66,7 @@ components:
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
