@@ -41,7 +41,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "ed744987f224fae3f93c842b2b5ffb083984ff8b"
+    "merge-downstream"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
@@ -54,7 +54,8 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
+add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
+                                     src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -71,7 +72,8 @@ add_cppcheck_target(
     SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Never build with native unwinding, since this is not currently used
+# Never build with native unwinding, since this is not currently used. Echion is by default configured to ignore idle
+# threads.
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
 # Includes; echion and python are marked "system" to suppress warnings, but note in MSVC we'll have to #pragma
