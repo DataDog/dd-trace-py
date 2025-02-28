@@ -128,7 +128,7 @@ def gen_build_docs() -> None:
     ):
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
-            print("  extends: .testrunner", file=f)
+            print("  extends: .test_base_hatch", file=f)
             print("  stage: hatch", file=f)
             print("  needs: []", file=f)
             print("  script:", file=f)
