@@ -200,12 +200,6 @@ exclude_dirs = [
   "ddtrace/sourcecode/_utils.py",
 ]
 
-[tool.cibuildwheel]
-build = ["cp27-*", "cp35-*", "cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*"]
-test-command = ["python {project}/tests/smoke_test.py"]
-# Skip trying to test arm64 builds on Intel Macs
-test-skip = "*-macosx_universal2:arm64"
-
 [tool.ruff]
 exclude = [
     ".riot",
