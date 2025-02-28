@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import typing
 from typing import Any
 import uuid
 
@@ -103,17 +104,17 @@ class _UserInfoRetriever:
             "FIRST_NAME",
         ]
 
-    def find_in_user_model(self, possible_fields):
+    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[str]:
         for field in possible_fields:
             value = getattr(self.user, field, None)
-            if value:
+            if value is not None:
                 return value
 
         return None  # explicit to make clear it has a meaning
 
     def get_userid(self):
         user_login = getattr(self.user, asm_config._user_model_login_field, None)
-        if user_login:
+        if user_login is not None:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
@@ -121,7 +122,7 @@ class _UserInfoRetriever:
 
     def get_username(self):
         username = getattr(self.user, asm_config._user_model_name_field, None)
-        if username:
+        if username is not None:
             return username
 
         if hasattr(self.user, "get_username"):
@@ -134,14 +135,14 @@ class _UserInfoRetriever:
 
     def get_user_email(self):
         email = getattr(self.user, asm_config._user_model_email_field, None)
-        if email:
+        if email is not None:
             return email
 
         return self.find_in_user_model(self.possible_email_fields)
 
     def get_name(self):
         name = getattr(self.user, asm_config._user_model_name_field, None)
-        if name:
+        if name is not None:
             return name
 
         return self.find_in_user_model(self.possible_name_fields)
@@ -155,7 +156,7 @@ class _UserInfoRetriever:
         user_extra_info = {}
 
         user_id = self.get_userid()
-        if not user_id:
+        if user_id is None:
             return None, {}
 
         if login:
