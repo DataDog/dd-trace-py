@@ -576,7 +576,7 @@ class Config(object):
             "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
         )
         self._experimental_features_enabled = _get_config(
-            "DD_EXPERIMENTAL_FEATURES_ENABLED", [], lambda x: x.strip().lower().split(",")
+            "DD_TRACE_EXPERIMENTAL_ENABLED", [], lambda x: x.strip().lower().split(",")
         )
 
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
