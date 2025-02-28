@@ -7,7 +7,7 @@ import os  # noqa:I001
 
 from ddtrace import config  # noqa:F401
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
-from ddtrace.settings.error_reporting import config as error_reporting_config
+from ddtrace.settings.errortracking import config as errortracking_config
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
@@ -68,10 +68,10 @@ if profiling_config.enabled:
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
 
-if error_reporting_config.enabled:
+if errortracking_config.enabled:
     log.debug("handled exceptions reporting enabled via environment variable")
     try:
-        import ddtrace.internal.errortracker.handled_exceptions_reporting  # noqa: F401
+        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
     except Exception:
         log.error("failed to enable handled exceptions reporting", exc_info=True)
 

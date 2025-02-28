@@ -3,16 +3,16 @@ import sys
 import types
 from types import ModuleType
 
+from ddtrace.errortracking.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
+from ddtrace.errortracking.handled_exceptions_callbacks import _default_datadog_exc_callback
+from ddtrace.errortracking.handled_exceptions_callbacks import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
-from ddtrace.internal.errortracker.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
-from ddtrace.internal.errortracker.hook import _default_datadog_exc_callback
-from ddtrace.internal.errortracker.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.packages import is_user_code
-from ddtrace.settings.error_reporting import config
+from ddtrace.settings.errortracking import config
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
@@ -38,16 +38,18 @@ class HandledExceptionReportingInjector:
 
     def instrument_module_conditionally(self, module_name: str):
         module = sys.modules[module_name]
+        # Do not instrument ddtrace code
         if self._has_file(module) is False or "ddtrace" in module_name:
             return
         module_path = Path(module.__file__).resolve()  # type: ignore
+        # Filtering of the modules based on the configuration
         if (
             (config.enable_handled_exceptions_reporting and is_stdlib(module_path) is False)
-            or config._instrument_user_code
-            and is_user_code(module_path)
+            or (config._instrument_user_code and is_user_code(module_path))
         ) or (config._instrument_third_party_code and is_third_party(module_path)):
             self._instrument_module(module_name)
         else:
+            # only if MODULES env variables is enabled
             for enabled_module in self._configured_modules:
                 if module_name.startswith(enabled_module):
                     self._instrument_module(module_name)
@@ -76,7 +78,7 @@ class HandledExceptionReportingInjector:
         # Prevent infinite recursion
         self._instrumented_obj.add(hash(obj))
 
-        # Instrument only functions of the module
+        # Instrument only the functions of a module
         if (
             type(obj) in (types.FunctionType, types.MethodType, staticmethod)
             and hasattr(obj, "__name__")
@@ -98,15 +100,15 @@ class HandledExceptionReportingInjector:
 
 _injector: HandledExceptionReportingInjector | None = None
 
-"""
-__main__module is never imported, therefore we can instrument
-its function only after the def code is executed. This is a helper
-function in case a client really need to instrument its main file.
-This is also the reason why _injector is a global object
-"""
-
 
 def instrument_main() -> None:
+    """
+    __main__module is never imported, therefore we can instrument
+    its function only after the def code is executed. This is a helper
+    function in case a client really need to instrument its main file.
+    This is also the reason why _injector is a global object
+    """
+
     if _injector is not None:
         _injector.instrument_module_conditionally("__main__")
 
@@ -118,7 +120,7 @@ class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_install(self):
         global _injector
 
-        # Init injector
+        # Init injector, which in charge of the bytecode injection
         if config._report_after_unhandled is False:
             _injector = HandledExceptionReportingInjector(config._configured_modules)
         else:

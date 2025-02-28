@@ -4,32 +4,30 @@ from types import CodeType
 from types import ModuleType
 from typing import Callable
 
+from ddtrace.errortracking.handled_exceptions_callbacks import _default_datadog_exc_callback
+from ddtrace.errortracking.handled_exceptions_callbacks import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.compat import Path
-from ddtrace.internal.errortracker.hook import _default_datadog_exc_callback
-from ddtrace.internal.errortracker.hook import _unhandled_exc_datadog_exc_callback
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
 from ddtrace.internal.packages import is_stdlib  # noqa: F401
 from ddtrace.internal.packages import is_third_party  # noqa: F401
 from ddtrace.internal.packages import is_user_code  # noqa: F401
-from ddtrace.settings.error_reporting import config
+from ddtrace.settings.errortracking import config
 
 
 INSTRUMENTED_FILE_PATHS = []
 
-"""
-sys.monitoring reports EVERY handled exceptions, including python internal ones.
-Therefore we need to filter based on the file_name/file_path. If this check is called
-many times (it is the case), it becomes costly. Therefore create should_report will create
-a function that only checks what is needed
-"""
-
 
 def create_should_report_exception_optimized(checks: set[str | None]) -> Callable[[str, Path], bool]:
     """
-    Generate a precompiled version of `should_report_exception` that is as fast as static logic.
+    sys.monitoring reports EVERY handled exceptions, including python internal ones.
+    Therefore we need to filter based on the file_name/file_path. If this check is called
+    many times (it is the case), it becomes costly.
+    This function generates a precompiled version of `should_report_exception` that is as fast
+    as static logic.
     """
     logic = ""
+    # It means that all exceptions should be reported. We still want to exclude python internals and ddtrace
     if len(checks) == 0:
         logic = "'frozen' not in file_name and is_stdlib(file_path) is False and 'ddtrace' not in file_name"
     elif "modules" in checks:
@@ -41,8 +39,9 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
             conditions.append("is_user_code(file_path)")
         if "all_third_party" in checks:
             conditions.append("(is_third_party(file_path) and filename_to_package(file_path).name != 'ddtrace')")
-        logic += " and (" + " or ".join(conditions) + ")"
+        logic += f" and ({' or '.join(conditions)})"
 
+    print(logic)
     namespace = {}  # type: ignore
     exec(
         f"def _should_report_exception(file_name: str, file_path: Path): return {logic}", globals(), namespace
@@ -68,45 +67,49 @@ def _install_sys_monitoring_reporting():
     if (not config._configured_modules) is False:
         MonitorHandledExceptionReportingWatchdog.install()
 
-    def _exc_default_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-        if cached_should_report_exception(code.co_filename):
-            _default_datadog_exc_callback(exc=exception)
-        return True
-
-    def _exc_after_unhandled_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-        if cached_should_report_exception(code.co_filename):
-            _unhandled_exc_datadog_exc_callback(exc=exception)
-        return True
-
     sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
+    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
-    # Report handled exception only if an unhandled exceptions occurred
     if config._report_after_unhandled:
+        # Report handled exception only if an unhandled exceptions occurred
+        def _exc_after_unhandled_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
+            if cached_should_report_exception(code.co_filename):
+                _unhandled_exc_datadog_exc_callback(exc=exception)
+            return True
+
         sys.monitoring.register_callback(
             config.HANDLED_EXCEPTIONS_MONITORING_ID,
             sys.monitoring.events.EXCEPTION_HANDLED,
             _exc_after_unhandled_event_handler,
         )
+
     else:
         # Report every handled exceptions
+        def _exc_default_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
+            if cached_should_report_exception(code.co_filename):
+                _default_datadog_exc_callback(exc=exception)
+            return True
+
         sys.monitoring.register_callback(
             config.HANDLED_EXCEPTIONS_MONITORING_ID,
             sys.monitoring.events.EXCEPTION_HANDLED,
             _exc_default_event_handler,
         )
 
-    sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
+    """
+    This watchdog will be installed only if the MODULES env variables is enabled.
+
+    Using sys.monitoring, we cannot iinstrument modules directly.
+    This watchdog will add the path of the files we want to instrument to a list.
+    The sys.monitoring callback will then check that the file of the error belongs to this list.
+    """
+
     _instrumented_modules: set[str] = set()
     _configured_modules: list[str] = config._configured_modules
 
-    """
-    With sys.monitoring, we cannot instrument modules, directly.
-    Here, we add the path of the files we want to instrument.
-    """
-
+    # Instrumenting a module is adding its file path to INSTRUMENTED_FILE_PATHS
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):

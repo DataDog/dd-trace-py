@@ -10,7 +10,7 @@ on:
       - main
       - 'mq-working-branch**'
   pull_request:
-  # workflow_dispatch: {}
+  workflow_dispatch: {}
   # schedule:
   #   - cron: '0 5 * * *'
 

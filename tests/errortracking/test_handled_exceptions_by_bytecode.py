@@ -4,7 +4,7 @@ import pytest
 
 
 if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
-    from ddtrace.internal.errortracker.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
+    from ddtrace.errortracking.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),
@@ -65,6 +65,63 @@ def test_generic_finally():
     func()
 
     assert value == "<try><error><except><finally>"
+
+
+@skipif_bytecode_injection_not_supported
+def test_nested_function_definition():
+    value = ""
+
+    def callback(*args):
+        nonlocal value
+        _, e, _ = sys.exc_info()
+        value += str(e)
+
+    def func():
+        nonlocal value
+
+        def func2():
+            nonlocal value
+            try:
+                value += "<nested_try>"
+                raise ValueError("<nested_error>")
+            except ValueError:
+                value += "<nested_except>"
+
+        try:
+            value += "<try>"
+            raise ValueError("<error>")
+        except ValueError:
+            value += "<except>"
+        func2()
+
+    _inject_handled_exception_reporting(func, callback)
+    func()
+
+    assert value == "<try><error><except><nested_try><nested_error><nested_except>"
+
+
+@skipif_bytecode_injection_not_supported
+@pytest.mark.xfail
+def test_uncovered_except_last_line_of_func():
+    value = ""
+
+    def callback(*args):
+        nonlocal value
+        _, e, _ = sys.exc_info()
+        value += str(e)
+
+    def func():
+        nonlocal value
+        try:
+            value += "<try>"
+            raise ValueError("<error>")
+        except ValueError:
+            value += "<except>"
+
+    _inject_handled_exception_reporting(func, callback)
+    func()
+
+    assert value == "<try><error><except>"
 
 
 @skipif_bytecode_injection_not_supported

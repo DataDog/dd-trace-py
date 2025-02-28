@@ -494,8 +494,10 @@ class Span(object):
         self._exception_events[exception] = event
 
     def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None], name: str):
+        """Add an errortracking related callback to the on_finish_callback array"""
         if name not in self._meta:
             self._on_finish_callbacks.insert(0, cb)
+            # prevent to add multiple times the same callback
             self._meta[name] = ""
 
     def get_metrics(self) -> _MetricDictType:

@@ -431,6 +431,7 @@ class BaseModuleWatchdog(abc.ABC):
             return
         cls._instance = cls()
         cls._instance._add_to_meta_path()
+        cls._instance.after_install()
         log.debug("%s installed", cls)
 
     @classmethod

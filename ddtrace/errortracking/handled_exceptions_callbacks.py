@@ -10,18 +10,18 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.settings.error_reporting import config as error_reporting_config
+from ddtrace.settings.errortracking import config as errortracking_config
 
 
 _error_tuple_info = (None, None, None)
 
-"""Most of the overhead of automatic reporting is added by traceback formatting
-Cache was added to try to be faster is the same error is reported several times
-"""
-
 
 @cached(maxsize=8192)
 def _get_formatted_traceback(tb_hash):
+    """Most of the overhead of automatic reporting is added by traceback formatting
+    Cache was added to try to be faster is the same error is reported several times
+    """
+
     exc_type, exc_val, exc_tb = _error_tuple_info
     buff = io.StringIO()
     limit = int(config._span_traceback_max_size)
@@ -30,6 +30,7 @@ def _get_formatted_traceback(tb_hash):
 
 
 def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
+    """Generate the exception span event"""
     global _error_tuple_info
 
     span = ddtrace.tracer.current_span()
@@ -65,36 +66,33 @@ def _generate_span_event(exc=None) -> tuple[Exception, Span, SpanEvent] | None:
     )
 
 
-"""
-If the same error is handled/risen multiple times, we want
-to report only one span events. Therefore, we do not add directly
-a span event for every handled exceptions, we store them and add them
-at the end. The below functions are implemented in that sense
-"""
-
-
 def _add_span_events(span: Span) -> None:
+    """
+    If the same error is handled/rethrown multiple times, we want
+    to report only one span events. Therefore, we do not add directly
+    a span event for every handled exceptions, we store them in the span
+    and add them when the span finishes.
+    """
     for event in span._exception_events.values():
         span._events.append(event)
     del span._meta["EXCEPTION_CB"]
 
 
-"""
-This function drops all the span events if no unhandled
-exception occurred.
-"""
-
-
 def _conditionally_pop_span_events(span: Span) -> None:
+    """
+    This function drops all the span events if no unhandled
+    exception occurred.
+    """
+
     if span.error == 1:
         for event in span._exception_events.values():
             span._events.append(event)
     del span._meta["EXCEPTION_CB"]
 
 
-# Will be removed when error track is on
 def _log_span_events(span: Span) -> None:
-    if error_reporting_config._internal_logger:
+    """Log the handled exceptions. Will be removed when error track is on"""
+    if errortracking_config._internal_logger:
         logger = _get_logger()
         if not logger:
             return
@@ -108,6 +106,7 @@ def _default_datadog_exc_callback(*args, exc=None):
     if generated is not None:
         exc, span, span_event = generated
         span._add_exception_event(exc, span_event)
+        # Add callbacks to be called on span finish.
         span._add_on_finish_exception_cb(_log_span_events, "EXCEPTION_LOG_CB")
         span._add_on_finish_exception_cb(_add_span_events, "EXCEPTION_CB")
 
@@ -117,11 +116,12 @@ def _unhandled_exc_datadog_exc_callback(*args, exc=None):
     if generated is not None:
         exc, span, span_event = generated
         span._add_exception_event(exc, span_event)
+        # Add callbacks to be called on span finish.
         span._add_on_finish_exception_cb(_log_span_events, "EXCEPTION_LOG_CB")
         span._add_on_finish_exception_cb(_conditionally_pop_span_events, "EXCEPTION_CB")
 
 
 @callonce
 def _get_logger():
-    logger_name: str = error_reporting_config._internal_logger
+    logger_name: str = errortracking_config._internal_logger
     return logging.getLogger(logger_name)
