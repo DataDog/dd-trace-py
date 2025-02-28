@@ -1,6 +1,7 @@
 """
 Class based views used for Django tests.
 """
+
 import hashlib
 import os
 from typing import Any
@@ -332,3 +333,14 @@ def stacktrace_leak_500_view(request):
         from django.views.debug import technical_500_response
 
         return technical_500_response(request, *sys.exc_info())
+
+
+def signup(request):
+    from django.contrib.auth.models import User
+
+    login = request.GET.get("login")
+    passwd = request.GET.get("pwd")
+    if login and passwd:
+        User.objects.create_user(username=login, password=passwd)
+        return HttpResponse("OK", status=200)
+    return HttpResponse("Error", status=400)
