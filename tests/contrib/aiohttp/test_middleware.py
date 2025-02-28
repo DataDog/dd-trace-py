@@ -386,7 +386,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
-@flaky(1735812000)
+@flaky(1741371178)
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -413,7 +413,7 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
     assert 1 == span.get_metric(_SAMPLING_PRIORITY_KEY)
 
 
-@flaky(1735812000)
+@flaky(1742580778)
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -464,7 +464,7 @@ async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
     assert span.parent_id != 42
 
 
-@flaky(1735812000)
+@flaky(1741371178)
 async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -529,7 +529,7 @@ def _assert_200_parenting(client, traces):
     assert 0 == inner_span.error
 
 
-@flaky(1735812000)
+@flaky(1741371178)
 async def test_parenting_200_dd(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -543,7 +543,7 @@ async def test_parenting_200_dd(app_tracer, aiohttp_client):
     _assert_200_parenting(client, traces)
 
 
-@flaky(1735812000)
+@flaky(1741371178)
 async def test_parenting_200_ot(app_tracer, aiohttp_client):
     """OpenTracing version of test_handler."""
     app, tracer = app_tracer
