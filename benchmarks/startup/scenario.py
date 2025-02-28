@@ -10,6 +10,7 @@ class Startup(bm.Scenario):
     import_ddtrace: bool
     import_ddtrace_auto: bool
     import_flask: bool
+    import_django: bool
     env: str
 
     def run(self):
@@ -29,6 +30,9 @@ class Startup(bm.Scenario):
         #      with and without patching. We have other benchmarks to test overhead of requests.
         if self.import_flask:
             commands.append("import flask")
+        if self.import_django:
+            # `import django` doesn't really do anything, `django.core.management` is what `manage.py` uses
+            commands.append("import django.core.management")
 
         args = ["python", "-c"] + [";".join(commands)]
         if self.ddtrace_run:
