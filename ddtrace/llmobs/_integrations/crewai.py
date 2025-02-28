@@ -1,0 +1,211 @@
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+
+from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.trace import Pin
+from ddtrace.trace import Span
+
+
+log = get_logger(__name__)
+
+
+class CrewAIIntegration(BaseLLMIntegration):
+    _integration_name = "crewai"
+    _traces_to_task_span_ids = {}  # maps trace_id to list of task span_ids
+    _traces_to_tasks = {}  # maps trace_id to dictionary of task_id to span_id and span_links
+
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+        if kwargs.get("_ddtrace_ctx"):
+            tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
+            pin.tracer.context_provider.activate(tracer_ctx)
+            if self.llmobs_enabled:
+                LLMObs._instance._llmobs_context_provider.activate(llmobs_ctx)
+
+        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+
+        if kwargs.get("operation") == "crew":
+            self._traces_to_task_span_ids[span.trace_id] = []
+            self._traces_to_tasks[span.trace_id] = {}
+            return span
+        if kwargs.get("operation") == "task":
+            task_id = kwargs.get("instance_id")
+            self._traces_to_task_span_ids[span.trace_id].append(str(span.span_id))
+            task_node = self._traces_to_tasks[span.trace_id].setdefault(task_id, {})
+            task_node["span_id"] = str(span.span_id)
+        return span
+
+    def _get_current_ctx(self, pin):
+        """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
+        curr_trace_ctx = pin.tracer.current_trace_context()
+        curr_llmobs_ctx = LLMObs._instance._current_trace_context() if self.llmobs_enabled else None
+        return curr_trace_ctx, curr_llmobs_ctx
+
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        span._set_ctx_item(SPAN_KIND, "workflow" if operation == "crew" else operation)
+        if operation == "crew":
+            self._llmobs_set_tags_crew(span, args, kwargs, response)
+            self._traces_to_task_span_ids.pop(span.trace_id, None)
+            self._traces_to_tasks.pop(span.trace_id, None)
+        elif operation == "task":
+            self._llmobs_set_tags_task(span, args, kwargs, response)
+        elif operation == "agent":
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
+        elif operation == "tool":
+            self._llmobs_set_tags_tool(span, args, kwargs, response)
+
+    def _llmobs_set_tags_crew(self, span, args, kwargs, response):
+        task_span_ids = self._traces_to_task_span_ids[span.trace_id]
+        if self.span_linking_enabled and task_span_ids:
+            last_task_span_id = task_span_ids[-1]
+            span_link = {
+                "span_id": last_task_span_id,
+                "trace_id": "{:x}".format(span.trace_id),
+                "attributes": {"from": "output", "to": "output"},
+            }
+            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
+            span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
+        span._set_ctx_items({INPUT_VALUE: args, NAME: "CrewAI Crew"})
+        if span.error:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
+
+    def _llmobs_set_tags_task(self, span, args, kwargs, response):
+        task_instance = kwargs.get("instance")
+        task_id = getattr(task_instance, "id", None)
+        task_name = getattr(task_instance, "name", "")
+        task_expected_output = getattr(task_instance, "expected_output", "")
+        task_description = getattr(task_instance, "description", "")
+        task_context = args[1] if args and len(args) >= 2 else ""
+        if self.span_linking_enabled and task_id:
+            span_links = self._traces_to_tasks[span.trace_id].get(task_id, {}).get("span_links", [])
+            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
+            span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
+        span._set_ctx_items(
+            {
+                NAME: task_name if task_name else "CrewAI Task",
+                METADATA: {"expected_output": task_expected_output, "context": task_context},
+                INPUT_VALUE: task_description,
+            }
+        )
+        if span.error:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
+
+    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+        """Set span links and metadata for agent spans.
+        Agent spans are 1:1 with task spans, so we can link them directly here, even on the task span itself.
+        """
+        agent_instance = kwargs.get("instance")
+        agent_role = getattr(agent_instance, "role", "")
+        agent_goal = getattr(agent_instance, "goal", "")
+        agent_backstory = getattr(agent_instance, "backstory", "")
+        task_description = getattr(kwargs.get("task"), "description", "")
+        if self.span_linking_enabled:
+            task_span = _get_nearest_llmobs_ancestor(span)
+            task_span_link = {
+                "span_id": str(span.span_id),
+                "trace_id": "{:x}".format(span.trace_id),
+                "attributes": {"from": "output", "to": "output"},
+            }
+            curr_span_links = task_span._get_ctx_item(SPAN_LINKS) or []
+            task_span._set_ctx_item(SPAN_LINKS, curr_span_links + [task_span_link])
+            span_link = {
+                "span_id": str(task_span.span_id),
+                "trace_id": "{:x}".format(span.trace_id),
+                "attributes": {"from": "input", "to": "input"},
+            }
+            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
+            span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
+        span._set_ctx_items(
+            {
+                NAME: agent_role if agent_role else "CrewAI Agent",
+                METADATA: {"description": agent_goal, "backstory": agent_backstory},
+                INPUT_VALUE: {"context": kwargs.get("context", ""), "input": task_description},
+            }
+        )
+        if span.error:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, response)
+
+    def _llmobs_set_tags_tool(self, span, args, kwargs, response):
+        tool_instance = kwargs.get("instance")
+        tool_name = getattr(tool_instance, "name", "")
+        description = getattr(tool_instance, "description", "")
+        span._set_ctx_items(
+            {
+                NAME: tool_name if tool_name else "CrewAI Tool",
+                METADATA: {"description": description},
+                INPUT_VALUE: kwargs.get("input", ""),
+            }
+        )
+        if span.error:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, response)
+
+    def _llmobs_set_span_link_on_task(self, span, queued_task, finished_task_outputs):
+        """Set span links for the next queued task in a CrewAI workflow.
+        This happens between task executions, (the current span is the crew span and the task span hasn't started yet)
+        so we create span links to be set on the task span once it starts later.
+        We rely on 3 cases to determine the appropriate span links:
+        1. queued_task.context is set with the most recently finished tasks that directly feed into the queued task.
+        2. queued_task.context is empty and there are no finished task outputs,
+            meaning this is the first task (tasks if async) in the crew workflow.
+        3. queued_task.context is empty, but there are n finished task outputs,
+            meaning that the last n task outputs should be the pre-requisite tasks for the queued task.
+        """
+        if not self.llmobs_enabled or not self.span_linking_enabled:
+            return
+        queued_task_node = self._traces_to_tasks[span.trace_id].setdefault(queued_task.id, {})
+        span_links = []
+        if queued_task.context:
+            for finished_task in queued_task.context:
+                finished_task_node = self._traces_to_tasks[span.trace_id].get(finished_task.id, {})
+                finished_task_span_id = finished_task_node.get("span_id")
+                span_links.append(
+                    {
+                        "span_id": finished_task_span_id,
+                        "trace_id": "{:x}".format(span.trace_id),
+                        "attributes": {"from": "output", "to": "input"},
+                    }
+                )
+            queued_task_node["span_links"] = span_links
+            return
+        if not finished_task_outputs:
+            queued_task_node["span_links"] = [
+                {
+                    "span_id": str(span.span_id) if span else ROOT_PARENT_ID,
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "attributes": {"from": "input", "to": "input"},
+                }
+            ]
+            return
+        for i in range(len(finished_task_outputs)):
+            finished_task_span_id = self._traces_to_task_span_ids[span.trace_id][-i]
+            span_links.append(
+                {
+                    "span_id": finished_task_span_id,
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "attributes": {"from": "output", "to": "input"},
+                }
+            )
+        queued_task_node["span_links"] = span_links
+        return
