@@ -153,6 +153,7 @@ reno,0
 requests,~=2.22.0
 requests-mock,>=1.4
 responses,~=0.16.0
+respx,0
 rich,0
 rq,~=1.8.0
 ruamel.yaml,0

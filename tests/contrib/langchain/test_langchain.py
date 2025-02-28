@@ -9,7 +9,6 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.utils import flaky
 
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
@@ -28,6 +27,7 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai.parameters.max_completion_tokens",
     "meta.langchain.request.openai-chat.parameters.max_completion_tokens"
     "meta.langchain.request.openai-chat.parameters.max_tokens",
+    "meta.langchain.request.api_key",
 ]
 
 
@@ -36,62 +36,61 @@ def request_vcr():
     yield get_request_vcr()
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_sync(langchain_openai, request_vcr):
+def test_openai_llm_sync(langchain_openai, openai_completion):
     llm = langchain_openai.OpenAI()
-    with request_vcr.use_cassette("openai_completion_sync.yaml"):
-        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_sync_multiple_prompts(langchain_openai, request_vcr):
+def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_completion_multiple):
     llm = langchain_openai.OpenAI()
-    with request_vcr.use_cassette("openai_completion_sync_multi_prompt.yaml"):
-        llm.generate(
-            prompts=[
-                "What is the best way to teach a baby multiple languages?",
-                "How many times has Spongebob failed his road test?",
-            ]
-        )
+    llm.generate(
+        prompts=[
+            "What is the best way to teach a baby multiple languages?",
+            "How many times has Spongebob failed his road test?",
+        ]
+    )
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_openai_llm_async(langchain_openai, request_vcr):
+async def test_openai_llm_async(langchain_openai, openai_completion):
     llm = langchain_openai.OpenAI()
-    with request_vcr.use_cassette("openai_completion_async.yaml"):
-        await llm.agenerate(["Which team won the 2019 NBA finals?"])
+    await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_error(langchain, langchain_openai, request_vcr):
+def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
     llm = langchain_openai.OpenAI()
 
-    if parse_version(openai.__version__) >= (1, 0, 0):
-        invalid_error = openai.BadRequestError
-    else:
-        invalid_error = openai.InvalidRequestError
-    with pytest.raises(invalid_error):
-        with request_vcr.use_cassette("openai_completion_error.yaml"):
-            llm.generate([12345, 123456])
+    with pytest.raises(openai.BadRequestError):
+        llm.generate([12345, 123456])
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 2), reason="Requires separate cassette for langchain v0.1")
+@pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
 @pytest.mark.snapshot
-def test_cohere_llm_sync(langchain_cohere, request_vcr):
+def test_cohere_llm_sync_0_2(langchain_cohere, request_vcr):
     llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
-    with request_vcr.use_cassette("cohere_completion_sync.yaml"):
+    with request_vcr.use_cassette("cohere_completion_sync_0_2.yaml"):
         llm.invoke("What is the secret Krabby Patty recipe?")
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
+@pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
+@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Compatible with langchain>=0.3 only")
+@pytest.mark.snapshot
+def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
+    with request_vcr.use_cassette("cohere_completion_sync_latest.yaml"):
+        llm = langchain_cohere.llms.Cohere(
+            cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            max_tokens=256,
+            temperature=0.75,
+        )
+        llm.invoke("What is the secret Krabby Patty recipe?")
+
+
 @pytest.mark.skipif(
     LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
     reason="Requires separate cassette for langchain v0.1, Python 3.9",
@@ -105,38 +104,45 @@ def test_ai21_llm_sync(langchain_community, request_vcr):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, request_vcr):
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_sync_call.yaml"):
-        chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, openai_chat_completion):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
+    chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
+@pytest.mark.asyncio
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_openai, openai_chat_completion):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
+    await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+
+# TODO: come back and clean this one up... seems like we tag 4 responses
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_generate(langchain_openai, request_vcr):
+def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completion_multiple):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_sync_generate.yaml"):
-        chat.generate(
+    chat.generate(
+        [
             [
-                [
-                    langchain.schema.SystemMessage(content="Respond like a frat boy."),
-                    langchain.schema.HumanMessage(
-                        content="Where's the nearest equinox gym from Hudson Yards manhattan?"
-                    ),
-                ],
-                [
-                    langchain.schema.SystemMessage(content="Respond with a pirate accent."),
-                    langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
-                ],
-            ]
-        )
+                langchain.schema.SystemMessage(content="Respond like a frat boy."),
+                langchain.schema.HumanMessage(content="Where's the nearest equinox gym from Hudson Yards manhattan?"),
+            ],
+            [
+                langchain.schema.SystemMessage(content="Respond with a pirate accent."),
+                langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+            ],
+        ]
+    )
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    variants={
+        "0_2": LANGCHAIN_VERSION < (0, 3),
+        "latest": LANGCHAIN_VERSION >= (0, 3),
+    },
+)
 def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     """
     Test that input messages with nested contents are still tagged without error
@@ -165,9 +171,18 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         )
 
 
-@flaky(until=1735812000, reason="Batch call has a non-deterministic response order.")
+@pytest.mark.skipif(
+    LANGCHAIN_VERSION < (0, 3), reason="Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136"
+)
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS
+    + [
+        # async batch requests can result in a non-deterministic order
+        "meta.langchain.response.completions.0.0.content",
+        "meta.langchain.response.completions.1.0.content",
+    ]
+)
 async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
@@ -188,7 +203,7 @@ async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
 
 
 @pytest.mark.snapshot
-def test_openai_embedding_query(langchain_openai, request_vcr):
+def test_openai_embedding_query(langchain_openai, openai_embedding):
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         embeddings.embed_query("this is a test query.")
@@ -231,27 +246,24 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_chain_simple(langchain_core, langchain_openai, request_vcr):
+def test_lcel_chain_simple(langchain_core, langchain_openai, openai_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
     llm = langchain_openai.OpenAI()
 
     chain = prompt | llm
-    with request_vcr.use_cassette("lcel_openai_chain_call.yaml"):
-        chain.invoke({"input": "how can langsmith help with testing?"})
+    chain.invoke({"input": "how can langsmith help with testing?"})
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
+def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_chat_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
         "Tell me a short joke about {topic} in the style of {style}"
     )
 
-    chat_openai = langchain_openai.ChatOpenAI()
+    chat_openai = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
     openai = langchain_openai.OpenAI()
 
     model = chat_openai.configurable_alternatives(
@@ -270,60 +282,42 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, request_vcr):
         | langchain_core.output_parsers.StrOutputParser()
     )
 
-    with request_vcr.use_cassette("lcel_openai_chain_call_complicated.yaml"):
-        chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
+    chain.invoke({"topic": "chickens", "style": "a 90s rapper"})
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_lcel_chain_simple_async(langchain_core, langchain_openai, request_vcr):
+async def test_lcel_chain_simple_async(langchain_core, langchain_openai, openai_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
     llm = langchain_openai.OpenAI()
 
     chain = prompt | llm
-    with request_vcr.use_cassette("lcel_openai_chain_acall.yaml"):
-        await chain.ainvoke({"input": "how can langsmith help with testing?"})
+    await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
-@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 test")
-def test_lcel_chain_batch(langchain_core, langchain_openai, request_vcr):
+def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completion):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
     with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    with request_vcr.use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(inputs=["chickens", "pigs"])
+    chain.batch(inputs=["chickens"])
 
 
-@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="Python 3.11+ required")
-def test_lcel_chain_batch_311(langchain_core, langchain_openai, request_vcr):
-    """
-    Test that invoking a chain with a batch of inputs will result in a 4-span trace,
-    with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
-    """
-    prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
-    output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI()
-    chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
-
-    with request_vcr.use_cassette("lcel_openai_chain_batch_311.yaml"):
-        chain.batch(inputs=["chickens", "pigs"])
-
-
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=IGNORE_FIELDS,
+    variants={
+        "0_2": LANGCHAIN_VERSION < (0, 3),
+        "latest": LANGCHAIN_VERSION >= (0, 3),
+    },
+)
 def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
@@ -346,21 +340,19 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, request_vcr):
         complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
 
-@flaky(1735812000, reason="batch() is non-deterministic in which order it processes inputs")
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_lcel_chain_batch_async(langchain_core, langchain_openai, request_vcr):
+async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_chat_completion):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
     with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    with request_vcr.use_cassette("lcel_openai_chain_batch_async.yaml"):
-        await chain.abatch(inputs=["chickens", "pigs"])
+    await chain.abatch(inputs=["chickens"])
 
 
 @pytest.mark.snapshot
@@ -375,9 +367,8 @@ def test_lcel_chain_non_dict_input(langchain_core):
     sequence.invoke(1)
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
+def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_completion_tools):
     import langchain_core.tools
 
     @langchain_core.tools.tool
@@ -390,13 +381,11 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, request_vcr):
         """
         return a + b
 
-    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125")
+    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, n=1)
     llm_with_tools = llm.bind_tools([add])
-    with request_vcr.use_cassette("lcel_with_tools_openai.yaml"):
-        llm_with_tools.invoke("What is the sum of 1 and 2?")
+    llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
     import langchain_core.tools
@@ -424,15 +413,20 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
     pytest.importorskip("faiss", reason="faiss required for this test.")
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
         faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
-            ["this is a test query."], embedding=langchain_openai.OpenAIEmbeddings()
+            ["this is a test query."],
+            embedding=langchain_openai.OpenAIEmbeddings(),
         )
         retriever = faiss.as_retriever()
         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
             retriever.invoke("What was the message of the last test query?")
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=(
+        ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
+        + IGNORE_FIELDS
+    )
+)
 def test_streamed_chain(langchain_core, langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
@@ -453,8 +447,12 @@ def test_streamed_chain(langchain_core, langchain_openai, streamed_response_resp
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@pytest.mark.snapshot(
+    ignores=(
+        ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
+        + IGNORE_FIELDS
+    )
+)
 def test_streamed_chat(langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
@@ -469,7 +467,6 @@ def test_streamed_chat(langchain_openai, streamed_response_responder):
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_streamed_llm(langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
@@ -486,9 +483,11 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS,
+    ignores=(
+        ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
+        + IGNORE_FIELDS
+    ),
     token="tests.contrib.langchain.test_langchain.test_streamed_chain",
 )
 async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
@@ -511,9 +510,11 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(
-    ignores=IGNORE_FIELDS,
+    ignores=(
+        ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
+        + IGNORE_FIELDS
+    ),
     token="tests.contrib.langchain.test_langchain.test_streamed_chat",
 )
 async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
@@ -531,7 +532,6 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
 @pytest.mark.snapshot(
     ignores=IGNORE_FIELDS,
     token="tests.contrib.langchain.test_langchain.test_streamed_llm",
@@ -551,8 +551,16 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         pass
 
 
-@flaky(until=1754218112, reason="Problematic test that needs fixing")
-@pytest.mark.snapshot(ignores=(IGNORE_FIELDS + ["meta.langchain.request.inputs.0"]))
+@pytest.mark.snapshot(
+    ignores=(
+        IGNORE_FIELDS
+        + [
+            "meta.langchain.request.inputs.0",
+            "meta.langchain.request.openai-chat.parameters.max_completion_tokens",
+            "meta.langchain.request.openai-chat.parameters.max_tokens",
+        ]
+    )
+)
 def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
@@ -562,7 +570,7 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
         file="lcel_openai_chat_streamed_response_json_output_parser.txt",
     )
 
-    model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, client=client)
+    model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, client=client, n=1, temperature=0.7)
     parser = langchain_core.output_parsers.JsonOutputParser()
 
     chain = model | parser
@@ -606,7 +614,7 @@ async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core,
     ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
-def test_base_tool_invoke(langchain_core, request_vcr):
+def test_base_tool_invoke(langchain_core):
     """
     Test that invoking a tool with langchain will
     result in a 1-span trace with a tool span.
@@ -638,7 +646,7 @@ def test_base_tool_invoke(langchain_core, request_vcr):
     ignores=["meta.langchain.request.tool.description"],
     token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
-async def test_base_tool_ainvoke(langchain_core, request_vcr):
+async def test_base_tool_ainvoke(langchain_core):
     """
     Test that invoking a tool with langchain will
     result in a 1-span trace with a tool span. Async mode
@@ -670,7 +678,7 @@ async def test_base_tool_ainvoke(langchain_core, request_vcr):
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description", "meta.langchain.request.config"],
 )
-def test_base_tool_invoke_non_json_serializable_config(langchain_core, request_vcr):
+def test_base_tool_invoke_non_json_serializable_config(langchain_core):
     """
     Test that invoking a tool with langchain will
     result in a 1-span trace with a tool span. Async mode
