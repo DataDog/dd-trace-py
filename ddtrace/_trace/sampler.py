@@ -235,11 +235,6 @@ class DatadogSampler(RateByServiceSampler):
         """
         # Use default sample rate of 1.0
         super(DatadogSampler, self).__init__()
-        self.default_sample_rate = default_sample_rate
-        effective_sample_rate = default_sample_rate
-        if default_sample_rate is None:
-            if config._get_source("_trace_sample_rate") != "default":
-                effective_sample_rate = float(config._trace_sample_rate)
 
         if rate_limit is None:
             rate_limit = int(config._trace_rate_limit)
@@ -265,8 +260,8 @@ class DatadogSampler(RateByServiceSampler):
                     )
 
         # DEV: sampling rule must come last
-        if effective_sample_rate is not None:
-            self.rules.append(SamplingRule(sample_rate=effective_sample_rate))
+        if default_sample_rate is not None:
+            self.rules.append(SamplingRule(sample_rate=default_sample_rate))
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit, rate_limit_window)
