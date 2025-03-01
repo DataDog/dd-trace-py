@@ -279,29 +279,30 @@ def is_single_span_sampled(span):
 
 
 def _set_sampling_tags(span, sampled, sample_rate, priority_category):
-    # type: (Span, bool, float, str) -> None
-    mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+    # type: (Span, bool, float, str) -> None    
+    # Set the sampling mechanism
     if priority_category == PriorityCategory.RULE_DEFAULT:
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
-    if priority_category == PriorityCategory.RULE_CUSTOMER:
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
+    elif priority_category == PriorityCategory.RULE_CUSTOMER:
         mechanism = SamplingMechanism.REMOTE_USER_RULE
     if priority_category == PriorityCategory.RULE_DYNAMIC:
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
         mechanism = SamplingMechanism.REMOTE_DYNAMIC_RULE
     elif priority_category == PriorityCategory.DEFAULT:
         mechanism = SamplingMechanism.DEFAULT
     elif priority_category == PriorityCategory.AUTO:
         mechanism = SamplingMechanism.AGENT_RATE
-        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
-    priorities = _CATEGORY_TO_PRIORITIES[priority_category]
-    _set_priority(span, priorities[_KEEP_PRIORITY_INDEX] if sampled else priorities[_REJECT_PRIORITY_INDEX])
+    else:
+        mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
     set_sampling_decision_maker(span.context, mechanism)
-
-
-def _set_priority(span, priority):
-    # type: (Span, int) -> None
-    span.context.sampling_priority = priority
+    # Set the sampling psr rate
+    if priority_category in (PriorityCategory.RULE_DEFAULT, PriorityCategory.RULE_CUSTOMER, PriorityCategory.RULE_DYNAMIC):
+        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+    elif priority_category == PriorityCategory.AUTO:
+        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+    # Set the sampling priority
+    priority = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
+    priorities = _CATEGORY_TO_PRIORITIES[priority_category]
+    span.context.sampling_priority = priorities[priority]
 
 
 def _get_highest_precedence_rule_matching(span, rules):

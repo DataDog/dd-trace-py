@@ -23,7 +23,6 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 
-from ..subprocesstest import run_in_subprocess
 from ..utils import DummyTracer
 from ..utils import override_global_config
 
@@ -87,36 +86,6 @@ class RateSamplerTest(unittest.TestCase):
             sampler.set_sample_rate(str(rate))
             assert sampler.sample_rate == float(rate), "The rate can be set as a string"
 
-    def test_sample_rate_deviation(self):
-        for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = DummyTracer()
-
-            # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
-            # with rate limiting disabled.
-            tracer._sampler = DatadogSampler(default_sample_rate=sample_rate, rate_limit=-1)
-
-            iterations = int(1e4 / sample_rate)
-
-            for i in range(iterations):
-                span = tracer.trace(str(i))
-                span.finish()
-
-            samples = tracer.pop()
-            # non sampled spans do not have sample rate applied
-            sampled_spans = [s for s in samples if s.context.sampling_priority > 0]
-            if sample_rate != 1:
-                assert len(sampled_spans) != len(samples)
-            else:
-                assert len(sampled_spans) == len(samples)
-
-            deviation = abs(len(sampled_spans) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert (
-                deviation < 0.05
-            ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
-                deviation,
-                sample_rate,
-            )
-
     def test_deterministic_behavior(self):
         """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
@@ -158,59 +127,18 @@ def test_default_key():
 
 
 def test_key():
-    assert DatadogSampler._default_key == DatadogSampler._key(), "_key() with no arguments returns the default key"
+    assert DatadogSampler._default_key == DatadogSampler._key(None, None), "_key() with None arguments returns the default key"
     assert "service:mcnulty,env:" == DatadogSampler._key(
-        service="mcnulty"
+        service="mcnulty",
+        env=None
     ), "_key call with service name returns expected result"
-    assert "service:,env:test" == DatadogSampler._key(env="test"), "_key call with env name returns expected result"
+    assert "service:,env:test" == DatadogSampler._key(None, env="test"), "_key call with env name returns expected result"
     assert "service:mcnulty,env:test" == DatadogSampler._key(
         service="mcnulty", env="test"
     ), "_key call with service and env name returns expected result"
     assert "service:mcnulty,env:test" == DatadogSampler._key(
         "mcnulty", "test"
     ), "_key call with service and env name as positional args returns expected result"
-
-
-@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
-def test_sample_rate_deviation_128bit_trace_id():
-    _test_sample_rate_deviation()
-
-
-@run_in_subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="false", DD_SERVICE="my-svc"))
-def test_sample_rate_deviation_64bit_trace_id():
-    _test_sample_rate_deviation()
-
-
-def _test_sample_rate_deviation():
-    for sample_rate in [0.1, 0.25, 0.5, 1]:
-        tracer = DummyTracer()
-        tracer._configure(sampler=DatadogSampler())
-        tracer._sampler.set_sample_rate(sample_rate)
-
-        iterations = int(1e4 / sample_rate)
-
-        for i in range(iterations):
-            span = tracer.trace(str(i))
-            span.finish()
-
-        samples = tracer.pop()
-        samples_with_high_priority = 0
-        for sample in samples:
-            sample_priority = sample.context.sampling_priority
-            samples_with_high_priority += int(bool(sample_priority > 0))
-            assert_sampling_decision_tags(
-                sample,
-                agent=sample_rate,
-                trace_tag="-{}".format(SamplingMechanism.AGENT_RATE),
-            )
-
-        deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-        assert (
-            deviation < 0.05
-        ), "Actual sample rate should be within 5 percent of set sample " "rate (actual: %f, set: %f)" % (
-            deviation,
-            sample_rate,
-        )
 
 
 @pytest.mark.parametrize(

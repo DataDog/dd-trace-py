@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 from ddtrace import config
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
@@ -125,7 +124,6 @@ class DatadogSampler:
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
         """
-        self._default_sampler = RateSampler(1.0)
         self._by_service_samplers = {}  # type: Dict[str, RateSampler]
 
         self.default_sample_rate = default_sample_rate
@@ -167,15 +165,9 @@ class DatadogSampler:
         log.debug("initialized %r", self)
 
     @staticmethod
-    def _key(
-        service=None,  # type: Optional[str]
-        env=None,  # type: Optional[str]
-    ):
-        # type: (...) -> str
+    def _key(service: Optional[str], env: Optional[str]):
         """Compute a key with the same format used by the Datadog agent API."""
-        service = service or ""
-        env = env or ""
-        return "service:" + service + ",env:" + env
+        return f"service:{service or ''},env:{env or ''}"
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
@@ -233,18 +225,22 @@ class DatadogSampler:
 
     def sample(self, span):
         span.context._update_tags(span)
-
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
-
-        agent_service_sampled = False
-        sample_rate = self.sample_rate
+        # Default sampling
+        agent_service_based = False
+        sampled = True
+        sample_rate = 1.0
         if matched_rule:
-            # Client based sampling
+            # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
         else:
-            # Agent based sampling
-            sampled, sample_rate, agent_service_sampled = self._make_sampling_decision(span)
+            key = self._key(span.service, span.get_tag(ENV_KEY))
+            if key in self._by_service_samplers:
+                # Agent service based sampling
+                agent_service_based = True
+                sampled = self._by_service_samplers[key].sample(span)
+                sample_rate = self._by_service_samplers[key].sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -253,52 +249,29 @@ class DatadogSampler:
             if sampled:
                 sampled = self.limiter.is_allowed()
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+
+        priority_category = self._choose_priority_category_with_rule(matched_rule, agent_service_based)
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
-            self._choose_priority_category_with_rule(matched_rule, agent_service_sampled),
+            priority_category,
         )
-
         return sampled
 
-    def _choose_priority_category_with_rule(self, rule, agent_service_sampled):
+    def _choose_priority_category_with_rule(self, rule, agent_service_based):
         # type: (Optional[SamplingRule], bool) -> str
-        if rule:
-            provenance = rule.provenance
-            if provenance == "customer":
-                return _PRIORITY_CATEGORY.RULE_CUSTOMER
-            if provenance == "dynamic":
-                return _PRIORITY_CATEGORY.RULE_DYNAMIC
+        if rule and rule.provenance == "customer":
+            return _PRIORITY_CATEGORY.RULE_CUSTOMER
+        elif rule and rule.provenance == "dynamic":
+            return _PRIORITY_CATEGORY.RULE_DYNAMIC
+        elif rule:
             return _PRIORITY_CATEGORY.RULE_DEF
         elif self._rate_limit_always_on:
             # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
             # we want spans to be set to a MANUAL priority to avoid agent based sampling
             return _PRIORITY_CATEGORY.USER
-        elif agent_service_sampled:
+        elif agent_service_based:
             return _PRIORITY_CATEGORY.AUTO
         else:
             return _PRIORITY_CATEGORY.DEFAULT
-
-    def set_sample_rate(
-        self,
-        sample_rate,  # type: float
-        service=None,  # type: Optional[str]
-        env=None,  # type: Optional[str]
-    ):
-        # type: (...) -> None
-
-        # if we have a blank service, we need to match it to the config.service
-        if service is None:
-            service = config.service
-        if env is None:
-            env = config.env
-        self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
-
-    def _make_sampling_decision(self, span):
-        # type: (Span) -> Tuple[bool, float, bool]
-        env = span.get_tag(ENV_KEY)
-        key = self._key(span.service, env)
-        sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span)
-        return sampled, sampler.sample_rate, key in self._by_service_samplers
