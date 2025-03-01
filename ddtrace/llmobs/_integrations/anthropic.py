@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import BASE_URL
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -76,6 +77,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
                 METRICS: get_llmobs_metrics_tags("anthropic", span),
+                BASE_URL: span.get_tag("anthropic.base_url"),
             }
         )
 
