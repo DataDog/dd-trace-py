@@ -743,7 +743,7 @@ dependencies = [
     "webdriver-manager"
 ]
 
-[evs.selenium.env-vars]
+[envs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
 
 [envs.selenium.scripts]
