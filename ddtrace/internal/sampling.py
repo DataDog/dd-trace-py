@@ -285,7 +285,7 @@ def _set_sampling_tags(span, sampled, sample_rate, priority_category):
         mechanism = SamplingMechanism.TRACE_SAMPLING_RULE
     elif priority_category == PriorityCategory.RULE_CUSTOMER:
         mechanism = SamplingMechanism.REMOTE_USER_RULE
-    if priority_category == PriorityCategory.RULE_DYNAMIC:
+    elif priority_category == PriorityCategory.RULE_DYNAMIC:
         mechanism = SamplingMechanism.REMOTE_DYNAMIC_RULE
     elif priority_category == PriorityCategory.DEFAULT:
         mechanism = SamplingMechanism.DEFAULT
