@@ -12,9 +12,9 @@ from ddtrace import config
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 
 from ..constants import ENV_KEY
-from ..internal.constants import _PRIORITY_CATEGORY
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
 from ..internal.sampling import _get_highest_precedence_rule_matching
@@ -250,28 +250,28 @@ class DatadogSampler:
                 sampled = self.limiter.is_allowed()
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
-        priority_category = self._choose_priority_category_with_rule(matched_rule, agent_service_based)
+        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
-            priority_category,
+            sampling_mechanism,
         )
         return sampled
 
-    def _choose_priority_category_with_rule(self, rule, agent_service_based):
-        # type: (Optional[SamplingRule], bool) -> str
-        if rule and rule.provenance == "customer":
-            return _PRIORITY_CATEGORY.RULE_CUSTOMER
-        elif rule and rule.provenance == "dynamic":
-            return _PRIORITY_CATEGORY.RULE_DYNAMIC
-        elif rule:
-            return _PRIORITY_CATEGORY.RULE_DEF
+    def _get_sampling_mechanism(self, matched_rule, agent_service_based):
+        # type: (Optional[SamplingRule], bool) -> int
+        if matched_rule and matched_rule.provenance == "customer":
+            return SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE
+        elif matched_rule and matched_rule.provenance == "dynamic":
+            return SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE
+        elif matched_rule:
+            return SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE
         elif self._rate_limit_always_on:
             # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
             # we want spans to be set to a MANUAL priority to avoid agent based sampling
-            return _PRIORITY_CATEGORY.USER
+            return SamplingMechanism.MANUAL
         elif agent_service_based:
-            return _PRIORITY_CATEGORY.AUTO
+            return SamplingMechanism.AGENT_RATE_BY_SERVICE
         else:
-            return _PRIORITY_CATEGORY.DEFAULT
+            return SamplingMechanism.DEFAULT

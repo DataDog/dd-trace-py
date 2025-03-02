@@ -127,12 +127,15 @@ def test_default_key():
 
 
 def test_key():
-    assert DatadogSampler._default_key == DatadogSampler._key(None, None), "_key() with None arguments returns the default key"
+    assert DatadogSampler._default_key == DatadogSampler._key(
+        None, None
+    ), "_key() with None arguments returns the default key"
     assert "service:mcnulty,env:" == DatadogSampler._key(
-        service="mcnulty",
-        env=None
+        service="mcnulty", env=None
     ), "_key call with service name returns expected result"
-    assert "service:,env:test" == DatadogSampler._key(None, env="test"), "_key call with env name returns expected result"
+    assert "service:,env:test" == DatadogSampler._key(
+        None, env="test"
+    ), "_key call with env name returns expected result"
     assert "service:mcnulty,env:test" == DatadogSampler._key(
         service="mcnulty", env="test"
     ), "_key call with service and env name returns expected result"
@@ -655,7 +658,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_KEEP,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1.0,
             None,
         ),
@@ -669,7 +672,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_KEEP,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
             None,
         ),
@@ -683,7 +686,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_KEEP,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
             None,
         ),
@@ -697,7 +700,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
             None,
         ),
@@ -706,7 +709,7 @@ class MatchNoSample(SamplingRule):
                 default_sample_rate=0,
             ),
             USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0,
             None,
         ),
@@ -716,7 +719,7 @@ class MatchNoSample(SamplingRule):
                 rate_limit=0,
             ),
             USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1.0,
             0.0,
         ),
@@ -727,7 +730,7 @@ class MatchNoSample(SamplingRule):
                 ],
             ),
             USER_KEEP,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1,
             None,
         ),
@@ -739,7 +742,7 @@ class MatchNoSample(SamplingRule):
                 rate_limit=0,
             ),
             USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             1,
             None,
         ),
@@ -748,7 +751,7 @@ class MatchNoSample(SamplingRule):
                 rules=[SamplingRule(sample_rate=0, name="span")],
             ),
             USER_REJECT,
-            SamplingMechanism.TRACE_SAMPLING_RULE,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0,
             None,
         ),
@@ -784,14 +787,14 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
+        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
     )
     assert_sampling_decision_tags(
         spans[1],
         agent=None,
         rule=None,
         limit=None,
-        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
+        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
     )
 
 
@@ -807,7 +810,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-{}".format(SamplingMechanism.TRACE_SAMPLING_RULE),
+        trace_tag="-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
     )
 
 
@@ -855,8 +858,8 @@ def context():
 @pytest.mark.parametrize(
     "sampling_mechanism,expected",
     [
-        (SamplingMechanism.AGENT_RATE, "-1"),
-        (SamplingMechanism.TRACE_SAMPLING_RULE, "-3"),
+        (SamplingMechanism.AGENT_RATE_BY_SERVICE, "-1"),
+        (SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE, "-3"),
         (SamplingMechanism.DEFAULT, "-0"),
         (SamplingMechanism.MANUAL, "-4"),
         (SamplingMechanism.DEFAULT, "-0"),
