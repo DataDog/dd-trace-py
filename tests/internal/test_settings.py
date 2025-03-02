@@ -51,12 +51,12 @@ def _deleted_rc_config():
     [
         {
             "expected": {
-                "_trace_sample_rate": 1.0,
+                "_trace_sampling_rules": "",
                 "_logs_injection": False,
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
-                "_trace_sample_rate": "default",
+                "_trace_sampling_rules": "default",
                 "_logs_injection": "default",
                 "_trace_http_header_tags": "default",
             },
@@ -234,7 +234,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
 
 
 def test_config_subscription(config):
-    for s in ("_trace_sample_rate", "_logs_injection", "_trace_http_header_tags"):
+    for s in ("_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags"):
         _handler = mock.MagicMock()
         config._subscribe([s], _handler)
         setattr(config, s, "1")
