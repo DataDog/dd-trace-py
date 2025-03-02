@@ -137,15 +137,12 @@ class DatadogSampler:
 
         self._rate_limit_always_on = rate_limit_always_on
 
+        self.rules: List[SamplingRule] = []
         if rules is None:
             env_sampling_rules = config._trace_sampling_rules
             if env_sampling_rules:
-                rules = self._parse_rules_from_str(env_sampling_rules)
-            else:
-                rules = []
-            self.rules = rules
+                self.rules = self._parse_rules_from_str(env_sampling_rules)
         else:
-            self.rules = []
             # Validate that rules is a list of SampleRules
             for rule in rules:
                 if isinstance(rule, SamplingRule):
