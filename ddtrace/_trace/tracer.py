@@ -1165,7 +1165,7 @@ class Tracer(object):
 
         if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
             try:
-                sample_rate = self._user_sampler.default_sample_rate  # type: ignore[attr-defined]
+                sample_rate = self._user_sampler.default_sample_rate
             except AttributeError:
                 log.debug("Custom non-DatadogSampler is being used, cannot pull default sample rate")
                 sample_rate = None
@@ -1176,7 +1176,7 @@ class Tracer(object):
 
         if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
             try:
-                sampling_rules = self._user_sampler.rules  # type: ignore[attr-defined]
+                sampling_rules = self._user_sampler.rules
                 # we need to chop off the default_sample_rate rule so the new sample_rate can be applied
                 sampling_rules = sampling_rules[:-1]
             except AttributeError:
