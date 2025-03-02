@@ -37,15 +37,13 @@ class BedrockIntegration(BaseLLMIntegration):
 
         ctx = args[0]
         request_params = ctx.get_item("request_params") or {}
-        print("REQUEST PARAMS")
-        print(request_params)
 
         if ctx.get_item("stop_reason"):
             metadata["stop_reason"] = ctx["stop_reason"]
         if ctx.get_item("usage"):
             usage_metrics = ctx["usage"]
 
-        # Translate raw usage metrics returned from bedrock to the standardized metrics.
+        # Translate raw usage metrics returned from bedrock to the standardized metrics format.
         if "inputTokens" in usage_metrics:
             usage_metrics["input_tokens"] = usage_metrics.pop("inputTokens")
         if "outputTokens" in usage_metrics:
@@ -67,7 +65,6 @@ class BedrockIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-        print(input_messages)
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",

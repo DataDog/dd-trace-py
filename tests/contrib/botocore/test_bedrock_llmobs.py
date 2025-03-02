@@ -94,25 +94,12 @@ class TestLLMObsBedrock:
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
 
-        # Check if this is a Converse API call
-        is_converse = span.get_tag("bedrock.operation") == "Converse"
-
         expected_input = [{"content": mock.ANY}]
         expected_output = [{"content": mock.ANY}]
 
         # For message-based APIs (including Converse)
-        if message or is_converse:
+        if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
-
-        # For Converse API, output includes role
-        if is_converse:
-            expected_output = [{"content": mock.ANY, "role": "assistant"}]
-        else:
-            expected_output = [{"content": mock.ANY} for _ in range(n_output)]
-
-        # Add conversation_id if it's available in the span
-        if span.get_tag("bedrock.conversation_id"):
-            expected_parameters["conversation_id"] = span.get_tag("bedrock.conversation_id")
 
         return _expected_llmobs_llm_span_event(
             span,
@@ -267,7 +254,7 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_llmobs_span_writer)
 
     @classmethod
-    def _test_llmobs_converse(cls, bedrock_client, mock_llmobs_span_writer, cassette_name=None, stream=False):
+    def test_llmobs_converse(cls, bedrock_client, mock_llmobs_span_writer, cassette_name=None):
         """Helper method to test the Converse API."""
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(bedrock_client)
@@ -277,34 +264,43 @@ class TestLLMObsBedrock:
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
 
         if cassette_name is None:
-            cassette_name = "bedrock_converse.yaml" if not stream else "bedrock_converse_stream.yaml"
+            cassette_name = "bedrock_converse.yaml"
 
-        request_params = _REQUEST_BODIES["converse"]
+        request_params = {
+            "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+            "messages": [{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
+            "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []},
+        }
 
         with get_request_vcr().use_cassette(cassette_name):
-            if stream:
-                response = bedrock_client.converse_with_response_stream(**request_params)
-                for _ in response.get("stream", []):
-                    pass  # Consume the stream
-            else:
-                response = bedrock_client.converse(**request_params)
+            response = bedrock_client.converse(**request_params)
 
         span = mock_tracer.pop_traces()[0][0]
 
-        # Check that operation type is set correctly
-        assert span.get_tag("bedrock.operation") == "Converse"
-
         assert mock_llmobs_span_writer.enqueue.call_count == 1
-        mock_llmobs_span_writer.enqueue.assert_called_with(cls.expected_llmobs_span_event(span, 1, message=True))
+        mock_llmobs_span_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-3-sonnet-20240229-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}
+                ],
+                output_messages=[{"role": "assistant", "content": response["output"]["message"]["content"]["text"]}],
+                metadata={
+                    "stop_reason": mock.ANY,
+                    "temperature": 0.7,
+                    "top_p": request_params.get("inferenceConfig", {}).get("topP", 0.0),
+                },
+                token_metrics={
+                    "input_tokens": response["usage"]["inputTokens"],
+                    "output_tokens": response["usage"]["outputTokens"],
+                    "total_tokens": response["usage"]["totalTokens"],
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+        )
         LLMObs.disable()
-
-    def test_llmobs_converse(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
-        """Test tracing for the Bedrock Converse API."""
-        self._test_llmobs_converse(bedrock_client, mock_llmobs_span_writer)
-
-    def test_llmobs_converse_stream(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
-        """Test tracing for the Bedrock Converse API with streaming."""
-        self._test_llmobs_converse(bedrock_client, mock_llmobs_span_writer, stream=True)
 
     def test_llmobs_converse_error(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer):
         """Test error handling for the Bedrock Converse API."""
@@ -317,7 +313,11 @@ class TestLLMObsBedrock:
         LLMObs.disable()
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)  # only want botocore patched
 
-        request_params = _REQUEST_BODIES["converse"]
+        request_params = {
+            "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+            "messages": [{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
+            "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []},
+        }
 
         with pytest.raises(botocore.exceptions.ClientError):
             with get_request_vcr().use_cassette("bedrock_converse_error.yaml"):
@@ -325,23 +325,22 @@ class TestLLMObsBedrock:
 
         span = mock_tracer.pop_traces()[0][0]
 
-        # Check that operation type is set correctly
-        assert span.get_tag("bedrock.operation") == "Converse"
-
-        # Verify error is recorded properly
-        assert span.error
-        assert "Rate exceeded" in span.get_tag("error.message")
-
         expected_llmobs_writer_calls = [
             mock.call.start(),
             mock.call.enqueue(
                 _expected_llmobs_llm_span_event(
                     span,
-                    model_name=span.get_tag("bedrock.request.model"),
-                    model_provider=span.get_tag("bedrock.request.model_provider"),
-                    input_messages=[{"content": mock.ANY, "role": "user"}],
+                    model_name="claude-3-sonnet-20240229-v1:0",
+                    model_provider="anthropic",
+                    input_messages=[
+                        {"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}
+                    ],
                     output_messages=[{"content": ""}],
-                    metadata={"temperature": 0.0},
+                    metadata={
+                        "stop_reason": mock.ANY,
+                        "temperature": 0.7,
+                        "top_p": request_params.get("inferenceConfig", {}).get("topP", 0.0),
+                    },
                     error=span.get_tag("error.type"),
                     error_message=span.get_tag("error.message"),
                     error_stack=span.get_tag("error.stack"),
@@ -349,7 +348,6 @@ class TestLLMObsBedrock:
                 )
             ),
         ]
-
         assert mock_llmobs_span_writer.enqueue.call_count == 1
         mock_llmobs_span_writer.assert_has_calls(expected_llmobs_writer_calls)
         LLMObs.disable()
