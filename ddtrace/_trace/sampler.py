@@ -185,6 +185,7 @@ class DatadogSampler:
     def _parse_rules_from_str(rules):
         # type: (str) -> List[SamplingRule]
         sampling_rules = []
+        json_rules = []
         try:
             json_rules = json.loads(rules)
         except JSONDecodeError:
