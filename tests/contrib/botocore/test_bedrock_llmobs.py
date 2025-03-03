@@ -31,23 +31,6 @@ def request_vcr():
     yield get_request_vcr()
 
 
-@pytest.fixture(autouse=True)
-def patch_vcr_response(monkeypatch):
-    # this fixes an issue where the botocore library attempts to access
-    # a `version_string` attribute in the response, which is not present
-    # on the VCRHTTPResponse object. We patch the VCRHTTPResponse object
-    # to have a dummy `version_string` attribute.
-    from vcr.stubs import VCRHTTPResponse
-
-    original_init = VCRHTTPResponse.__init__
-
-    def patched_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        self.version_string = "dummy-version-string"
-
-    monkeypatch.setattr(VCRHTTPResponse, "__init__", patched_init)
-
-
 @pytest.fixture
 def ddtrace_global_config():
     config = {}

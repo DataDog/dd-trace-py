@@ -1267,7 +1267,7 @@ venv = Venv(
             pkgs={
                 "moto[all]": "<5.0",
                 "pytest-randomly": latest,
-                "vcrpy": "==4.2.1",
+                "vcrpy": "==6.0.1",
             },
             venvs=[
                 Venv(
@@ -1275,8 +1275,8 @@ venv = Venv(
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"botocore": ">=1.34.131", "boto3": ">=1.34.131"},
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
                 ),
             ],
         ),
