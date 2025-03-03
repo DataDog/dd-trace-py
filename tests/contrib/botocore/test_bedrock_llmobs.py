@@ -157,6 +157,8 @@ class TestLLMObsBedrock:
         expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
+        if span.get_tag("bedrock.request.top_p"):
+            expected_parameters["top_p"] = int(span.get_tag("bedrock.request.top_p"))
         expected_input = [{"content": mock.ANY}]
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
