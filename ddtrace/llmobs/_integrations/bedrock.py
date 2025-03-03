@@ -34,6 +34,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
         ctx is a require argument is of the shape:
         {
+            "resource": str, # oneof("Converse", "InvokeModel")
             "model_name": str,
             "model_provider": str,
             "request_params": {"prompt": str | list[dict],

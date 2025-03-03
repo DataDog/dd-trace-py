@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: This introduces tracing for the Bedrock Converse API. Invocations to `converse` method are traced as 
+                      LLM spans. The following information is stored on the LLM span:
+                          - inference parameters captured from `inferenceConfig` argument
+                          - input messages & system prompts captured from `messages` and `system` arguments
+                          - output messages & tool calls returned in the response
+  - |
+    LLM Observability: This introduces capturing `top_p` inference parameters for `invoke_model` calls for the bedrock API.
+
