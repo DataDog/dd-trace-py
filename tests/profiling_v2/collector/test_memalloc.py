@@ -228,8 +228,14 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
     # We seed the RNG to reduce flakiness. This doesn't actually diminish the
     # quality of the test much. A broken sampling implementation is unlikely to
     # pass for an arbitrary seed.
-    os.putenv("_DD_MEMALLOC_DEBUG_RNG_SEED", "42")
+    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
+    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
     _memalloc.start(32, 1000, sample_interval)
+    # Put the env var back in the state we found it
+    if old is not None:
+        os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
+    else:
+        del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
     tracemalloc.start()
 
