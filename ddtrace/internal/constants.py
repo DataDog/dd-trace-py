@@ -69,7 +69,8 @@ EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 MESSAGING_SYSTEM = "messaging.system"
-MESSAGING_DESTINATION = "messaging.destination"
+
+TOPICNAME = "topicname"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"

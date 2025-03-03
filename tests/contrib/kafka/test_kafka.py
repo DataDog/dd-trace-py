@@ -258,8 +258,7 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
-    assert produce_span.get_tag("messaging.destination") == BOOTSTRAP_SERVERS
-
+    assert produce_span.get_tag("topicname") == kafka_topic
 
 def test_produce_none_key(dummy_tracer, producer, kafka_topic):
     Pin._override(producer, tracer=dummy_tracer)
@@ -281,8 +280,18 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
-    assert produce_span.get_tag("messaging.destination") == BOOTSTRAP_SERVERS
     Pin._override(producer, tracer=None)
+
+
+def test_produce_topicname(dummy_tracer, producer, kafka_topic):
+    Pin._override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("topicname") == kafka_topic
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
