@@ -97,7 +97,7 @@ class SamplingMechanism(object):
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
 
 
-_MECHANISM_TO_PRIORITIES = {
+SAMPLING_MECHANISM_TO_PRIORITIES = {
     # TODO(munir): Update mapping to include single span sampling and appsec sampling mechaisms
     SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
     SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),

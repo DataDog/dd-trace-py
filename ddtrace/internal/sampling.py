@@ -23,7 +23,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
-from ddtrace.internal.constants import _MECHANISM_TO_PRIORITIES
+from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
@@ -279,7 +279,7 @@ def _set_sampling_tags(span, sampled, sample_rate, mechanism):
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
     # Set the sampling priority
-    priorities = _MECHANISM_TO_PRIORITIES[mechanism]
+    priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
     span.context.sampling_priority = priorities[priority_index]
 
