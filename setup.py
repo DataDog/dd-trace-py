@@ -9,6 +9,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+from unicodedata import category
 
 import cmake
 from setuptools_rust import Binding
@@ -23,6 +24,8 @@ from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 
+from ddtrace import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 try:
     # ORDER MATTERS
@@ -43,7 +46,18 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+COMPILE_MODE = "Release"
+if "DD_COMPILE_DEBUG" in os.environ:
+    deprecate(
+        prefix="The DD_COMPILE_DEBUG env var is deprecated.",
+        message="The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
+        category=DDTraceDeprecationWarning,
+        removal_version="4.0.0",
+    )
+    COMPILE_MODE = "Debug"
+else:
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
     print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
@@ -336,7 +350,7 @@ class CMakeBuild(build_ext):
         else:
             super().build_extension(ext)
 
-        if not DEBUG_COMPILE:
+        if COMPILE_MODE == "release":
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
@@ -452,7 +466,7 @@ class DebugMetadata:
             f.write("Environment:\n")
             f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
             f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
+            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
             f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
             f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
             f.write("Extension build times:\n")
@@ -497,7 +511,7 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
 
 
@@ -556,7 +570,7 @@ else:
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     fast_build_args = ["-O0"] if FAST_BUILD else []
-    if DEBUG_COMPILE:
+    if COMPILE_MODE in ("Debug", "RelWithDebInfo"):
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
