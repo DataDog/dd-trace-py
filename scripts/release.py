@@ -437,7 +437,7 @@ def create_notebook(dd_repo, name, rn, base):
     data = json.loads(data)
     errors = data.get("errors")
     if errors:
-        if errors.lower() == 'forbidden':
+        if errors.lower() == "forbidden":
             raise ValueError(
                 "Forbidden error. Check the API and APP keys are correct and have the right permissions as documented"
                 "in the script"
