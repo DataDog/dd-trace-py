@@ -464,26 +464,6 @@ class TracerTestCases(TracerTestCase):
             _parent=None,
         )
 
-    @run_in_subprocess()
-    def test_adding_services(self):
-        assert self.tracer._services == set(), self.tracer._services
-        with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one"]), self.tracer._services
-            with self.start_span("child", service="two", child_of=root):
-                pass
-        assert self.tracer._services == set(["one", "two"]), self.tracer._services
-
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="two:three"))
-    def test_adding_mapped_services(self):
-        assert self.tracer._services == set()
-        with self.start_span("root", service="one") as root:
-            assert self.tracer._services == set(["one"])
-
-            # service "two" gets remapped to "three"
-            with self.start_span("child", service="two", child_of=root):
-                pass
-        assert self.tracer._services == set(["one", "three"])
-
     def test_tracer_set_user(self):
         with self.trace("fake_span") as span:
             set_user(
@@ -1900,7 +1880,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
         tracer = DummyTracer()
-        tracer._configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, appsec_standalone_enabled=True)
+        tracer._configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
         if sca_enabled == "true":
             assert bool(ddtrace.config._sca_enabled) is True
         assert tracer.enabled is False
@@ -1914,7 +1894,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
         ddtrace.config._reset()
-        tracer._configure(appsec_enabled=False, iast_enabled=False, appsec_standalone_enabled=False)
+        tracer._configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
 
 
 def test_gc_not_used_on_root_spans():

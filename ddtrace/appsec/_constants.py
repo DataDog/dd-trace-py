@@ -57,7 +57,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
-    STANDALONE_ENV: Literal["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
+    APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
@@ -86,6 +86,11 @@ class APPSEC(metaclass=Constant_Class):
         "appsec.events.users.login.failure.track"
     ] = "appsec.events.users.login.failure.track"
     USER_SIGNUP_EVENT: Literal["appsec.events.users.signup.track"] = "appsec.events.users.signup.track"
+    USER_SIGNUP_EVENT_USERNAME: Literal["appsec.events.users.signup.usr.login"] = "appsec.events.users.signup.usr.login"
+    USER_SIGNUP_EVENT_USERID: Literal["appsec.events.users.signup.usr.id"] = "appsec.events.users.signup.usr.id"
+    USER_SIGNUP_EVENT_MODE: Literal[
+        "_dd.appsec.events.users.signup.auto.mode"
+    ] = "_dd.appsec.events.users.signup.auto.mode"
     AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal[
         "_dd.appsec.events.users.login.success.auto.mode"
     ] = "_dd.appsec.events.users.login.success.auto.mode"
@@ -104,7 +109,7 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
-    PROPAGATION_HEADER: Literal["_dd.p.appsec"] = "_dd.p.appsec"
+    PROPAGATION_HEADER: Literal["_dd.p.ts"] = "_dd.p.ts"
     OBFUSCATION_PARAMETER_KEY_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"

@@ -48,7 +48,6 @@ tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
 tests/opentelemetry                 @DataDog/apm-core-python
 tests/opentracer                    @DataDog/apm-core-python
-tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
@@ -166,7 +165,7 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # API SDK
-ddtrace/trace/                                    @DataDog/apm-sdk-api-python
+ddtrace/trace/                                     @DataDog/apm-sdk-api-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
@@ -179,12 +178,18 @@ ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
 ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
 ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
-ddttace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
+ddtrace/runtime/                                   @DataDog/apm-sdk-api-python
+ddtrace/internal/runtime/                          @DataDog/apm-sdk-api-python
+ddtrace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-api-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-api-python
+tests/runtime/                                     @DataDog/apm-sdk-api-python
 tests/test_sampling.py                             @DataDog/apm-sdk-api-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-api-python
 tests/opentelemetry/                               @DataDog/apm-sdk-api-python
 tests/tracer/                                      @DataDog/apm-sdk-api-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+
+# Serverless
+tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless

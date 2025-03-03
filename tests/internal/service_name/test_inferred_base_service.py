@@ -1,6 +1,9 @@
+import os
 import pathlib
 import shlex
+import subprocess
 import tempfile
+import textwrap
 from unittest.mock import patch
 
 import pytest
@@ -32,6 +35,7 @@ def mock_file_system():
         (base_path / "modules" / "no" / "python_files").mkdir(parents=True)
         (base_path / "apps" / "app1").mkdir(parents=True)
         (base_path / "apps" / "app2" / "cmd").mkdir(parents=True)
+        (base_path / "app" / "app2" / "cmd").mkdir(parents=True)
 
         # Create Python and other files
         (base_path / "__pycache__" / "app.cpython-311.pyc").touch()
@@ -182,3 +186,57 @@ def test_module_exists(module_name, should_exist):
     exists = _module_exists(module_name)
 
     assert exists == should_exist, f"Module {module_name} existence check failed."
+
+
+@pytest.mark.parametrize(
+    "cmd,default,expected",
+    [
+        ("ddtrace-run python app/web.py", None, "app"),
+        ("ddtrace-run python app/web.py", "test-app", "test-app"),
+        ("DD_SERVICE=app ddtrace-run python app/web.py", None, "app"),
+        ("DD_SERVICE=app ddtrace-run python app/web.py", "test-appp", "app"),
+    ],
+)
+def test_get_service(cmd, default, expected, testdir):
+    cmd_parts = shlex.split(cmd)
+
+    env = os.environ.copy()
+    # Extract environment variables from the command (e.g., DD_SERVICE=app)
+    env_vars = {}
+    command = []
+    for part in cmd_parts:
+        if "=" in part and not part.startswith(("'", '"')):
+            key, value = part.split("=", 1)
+            env_vars[key] = value
+        else:
+            command.append(part)
+    env.update(env_vars)
+
+    app_dir = testdir.mkdir("app")
+
+    web_py_content = textwrap.dedent(
+        f"""
+        from ddtrace import config
+
+        # Retrieve the service name using the _get_service method
+        service = config._get_service(default={repr(default)})
+
+        # Assert that the detected service name matches the expected value
+        assert service == {repr(expected)}, f"Expected service '{repr(expected)}', but got '{{service}}'"
+    """
+    )
+
+    # Create the web.py file within the app directory
+    app_dir.join("web.py").write(web_py_content)
+    app_dir.join("__init__.py").write("# Init for web package")
+
+    # Execute the command using subprocess
+    result = subprocess.run(command, cwd=testdir.tmpdir, capture_output=True, text=True, env=env)
+
+    assert result.returncode == 0, (
+        f"Command failed with return code {result.returncode}\n"
+        f"STDOUT:\n{result.stdout}\n"
+        f"STDERR:\n{result.stderr}"
+    )
+
+    assert "AssertionError" not in result.stderr, "AssertionError found in stderr"

@@ -145,6 +145,13 @@ def _root_module(path: Path) -> str:
         except IndexError:
             pass
 
+    # Bazel runfiles support: we assume that these paths look like
+    # /some/path.runfiles/.../site-packages/<root_module>/...
+    if any(p.suffix == ".runfiles" for p in path.parents):
+        for s in path.parents:
+            if s.parent.name == "site-packages":
+                return s.name
+
     msg = f"Could not find root module for path {path}"
     raise ValueError(msg)
 
