@@ -1,5 +1,6 @@
-import csv
 import concurrent.futures
+from copy import deepcopy
+import csv
 from enum import Enum
 from functools import wraps
 import inspect
@@ -11,30 +12,20 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import quote
 import uuid
 
-from .._utils import HTTPResponse
-from .._utils import http_request
-
-from ..decorators import agent
-from .._llmobs import LLMObs
-
 import ddtrace
-from ddtrace import patch_all
 
-# TODO: Clean up this, move logic to init
-DD_SITE = os.getenv("DD_SITE", "datadoghq.com")
-if DD_SITE == "datadoghq.com":
-    BASE_URL = f"https://api.{DD_SITE}"
-else:
-    BASE_URL = f"https://{DD_SITE}"
+from .._llmobs import LLMObs
+from .._utils import HTTPResponse, http_request
 
 
 IS_INITIALIZED = False
 ENV_PROJECT_NAME = None
-ENV_SITE = None
-ENV_API_KEY = None
-ENV_APPLICATION_KEY = None
+ENV_DD_SITE = "datadoghq.com"
+ENV_DD_API_KEY = None
+ENV_DD_APPLICATION_KEY = None
 ML_APP = "dne"
 RUN_LOCALLY = False
+BASE_URL = f"https://api.{ENV_DD_SITE}"
 
 
 def init(
@@ -44,17 +35,26 @@ def init(
     application_key: str = None,
     run_locally: bool = False,
 ) -> None:
-    """Initialize an experiment environment.
+    """
+    Initialize an experiment environment for pushing and retrieving data from Datadog.
+
+    This function configures global settings needed to interact with the Datadog LLM Observability API.
+    If 'run_locally' is True, no data will be sent; otherwise, this function ensures that all required
+    credentials are available. If no credentials are passed in, it attempts to read them from environment
+    variables.
 
     Args:
-        project_name: Name of the project
-        site: Datadog site
-        api_key: Datadog API key
-        application_key: Datadog application key
-        run_locally: If True, run locally and don't send any data to Datadog
+        project_name (str): Name of the project to be associated with any experiments.
+        site (str, optional): Datadog site domain (e.g., "datadoghq.com"). Defaults to "datadoghq.com".
+        api_key (str, optional): Datadog API key. Reads from environment variable DD_API_KEY if None.
+        application_key (str, optional): Datadog Application key. Reads from environment variable DD_APPLICATION_KEY if None.
+        run_locally (bool, optional): If True, disables communication with Datadog and runs locally.
+
+    Raises:
+        ValueError: If required environment variables or parameters are missing when run_locally is False.
     """
 
-    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_SITE, ENV_API_KEY, ENV_APPLICATION_KEY, RUN_LOCALLY
+    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_DD_SITE, ENV_DD_API_KEY, ENV_DD_APPLICATION_KEY, RUN_LOCALLY
 
     if run_locally:
         RUN_LOCALLY = True
@@ -75,6 +75,13 @@ def init(
                 "DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)"
             )
 
+    if site is None:
+        site = os.getenv("DD_SITE")
+        if site is None:
+            raise ValueError(
+                "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
+            )
+
     if IS_INITIALIZED is False:
         LLMObs.enable(
             ml_app=ML_APP,
@@ -85,13 +92,19 @@ def init(
         )
 
     ENV_PROJECT_NAME = project_name
-    ENV_SITE = site
-    ENV_API_KEY = api_key
-    ENV_APPLICATION_KEY = application_key
+    ENV_DD_SITE = site
+    ENV_DD_API_KEY = api_key
+    ENV_DD_APPLICATION_KEY = application_key
     IS_INITIALIZED = True
 
 
 def _validate_init() -> None:
+    """
+    Check if the environment has been initialized.
+
+    Raises:
+        ValueError: If the environment is not yet initialized (init() has not been called).
+    """
     if IS_INITIALIZED is False:
         raise ValueError(
             "Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions"
@@ -99,29 +112,44 @@ def _validate_init() -> None:
 
 
 def _is_locally_initialized() -> bool:
+    """
+    Check if the environment is configured to run locally.
+
+    Returns:
+        bool: True if running locally, False otherwise.
+    """
     return RUN_LOCALLY
 
 
 class Dataset:
-    """A container for LLM experiment data that can be pushed to and retrieved from Datadog.
+    """
+    A container for LLM experiment data that can be pushed to and retrieved from Datadog.
 
-    This class manages collections of input/output pairs used for LLM experiments,
-    with functionality to validate, push to Datadog, and retrieve from Datadog.
+    This class manages collections of input-output pairs used for LLM experiments,
+    providing functionality to validate data, pull or push datasets to Datadog, and
+    retrieve them as Pandas DataFrames.
 
     Attributes:
-        name (str): Name of the dataset
-        description (str): Optional description of the dataset
+        name (str): Name of the dataset.
+        description (str): Optional description of the dataset.
+        version (int): Version of the dataset (not necessarily the same as the Datadog dataset version).
     """
 
     def __init__(
         self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = ""
     ) -> None:
         """
+        Initialize a Dataset instance, optionally loading data from Datadog if none is provided.
+
         Args:
-            name: Name of the dataset
-            data: List of dictionaries where 'input' and 'expected_output' values can be
-                 either strings or dictionaries of strings. If None, attempts to pull from Datadog.
-            description: Optional description of the dataset
+            name (str): Name of the dataset.
+            data (List[Dict[str, Union[str, Dict[str, Any]]]], optional): List of records where each record
+                must contain 'input' and 'expected_output' fields. Both values can be strings or dictionaries.
+                If None, attempts to pull the dataset from Datadog.
+            description (str, optional): Optional description of the dataset. Defaults to "".
+
+        Raises:
+            ValueError: If the data is invalid (violates structure or size constraints).
         """
         self.name = name
         self.description = description
@@ -142,32 +170,45 @@ class Dataset:
             self._version = 0
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
+        """
+        Create an iterator over the dataset records.
+
+        Returns:
+            Iterator[Dict[str, Union[str, Dict[str, Any]]]]: An iterator of dataset records.
+        """
         return iter(self._data)
 
     def __len__(self) -> int:
+        """
+        Return the number of records in the dataset.
+
+        Returns:
+            int: The size of the dataset.
+        """
         return len(self._data)
 
     def __getitem__(self, index: int) -> Dict[str, Union[str, Dict[str, Any]]]:
-        """Get a dataset record.
+        """
+        Retrieve a specific dataset record by index.
 
         Args:
-            index: Index of the record to retrieve
+            index (int): Index of the record to retrieve.
 
         Returns:
-            Dict containing the record.
+            Dict[str, Union[str, Dict[str, Any]]]: A copy of the dataset record at the given index.
         """
         record = self._data[index].copy()
         return record
 
     def _validate_data(self, data: List[Dict[str, Union[str, Dict[str, Any]]]]) -> None:
-        """Validate the format and structure of dataset records.
+        """
+        Validate the structure and size of dataset records.
 
         Args:
-            data: List of dataset records to validate
+            data (List[Dict[str, Union[str, Dict[str, Any]]]]): List of dataset records.
 
         Raises:
-            ValueError: If data is empty, contains non-dictionary rows,
-                       has inconsistent keys, or exceeds 50,000 rows
+            ValueError: If the data is empty, exceeds 50,000 records, or records are inconsistent in keys or data type.
         """
         if not data:
             raise ValueError("Data cannot be empty.")
@@ -185,18 +226,19 @@ class Dataset:
 
     @classmethod
     def pull(cls, name: str, version: int = None) -> "Dataset":
-        """Create a dataset from a dataset hosted in Datadog.
+        """
+        Create a dataset from an existing dataset hosted in Datadog.
 
         Args:
-            name: Name of the dataset to retrieve from Datadog
-            version: Version of the dataset to retrieve from Datadog
+            name (str): Name of the dataset to retrieve from Datadog.
+            version (int, optional): Specific version of the dataset to retrieve. If None, uses the latest version.
 
         Returns:
-            Dataset: A new Dataset instance populated with the records from Datadog
+            Dataset: A new Dataset instance populated with the records from Datadog.
 
         Raises:
-            ValueError: If the dataset is not found or if the specified version doesn't exist
-            Exception: If there are HTTP errors during the request
+            ValueError: If the dataset is not found or if the specified version doesn't exist.
+            Exception: If any HTTP or unexpected error occurs during the request.
         """
         _validate_init()
         # Get dataset ID
@@ -281,13 +323,24 @@ class Dataset:
         return dataset
 
     def push(self, overwrite: bool = False) -> None:
-        """Push the dataset to Datadog and refresh with pulled data.
+        """
+        Push the dataset to Datadog, optionally overwriting an existing dataset.
+
+        This method either updates an existing dataset (if found and 'overwrite' is True)
+        or creates a new dataset. If the dataset is newly created, a new version is also created
+        in Datadog. After pushing, the local dataset is refreshed with the latest information
+        from Datadog, including record IDs and metadata.
 
         Args:
-            overwrite: If True, overwrite the dataset if it already exists. If False, create a new version. This is ignored if the dataset does not exist.
+            overwrite (bool, optional): If True, overwrite the existing dataset if found instead
+                of creating a new version. Defaults to False.
+
+        Raises:
+            ValueError: If environment is not initialized or any other HTTP error occurs during push.
         """
         _validate_init()
 
+        # Reasonable chunk size for batching requests
         chunk_size: int = 300
 
         # First check if dataset exists
@@ -396,22 +449,25 @@ class Dataset:
         input_columns: List[str] = None,
         expected_output_columns: List[str] = None,
     ) -> "Dataset":
-        """Create a Dataset from a CSV file.
+        """
+        Create a Dataset from a CSV file by specifying which columns correspond
+        to inputs and which columns correspond to expected outputs.
 
         Args:
-            filepath: Path to the CSV file
-            name: Name of the dataset
-            description: Optional description of the dataset
-            delimiter: CSV delimiter character, defaults to comma
-            input_columns: List of column names to use as input data
-            expected_output_columns: List of column names to use as expected output data
+            filepath (str): Path to the CSV file.
+            name (str): Name of the dataset (this will be used in Datadog).
+            description (str, optional): Optional description of the dataset. Defaults to "".
+            delimiter (str, optional): CSV delimiter character, defaults to comma.
+            input_columns (List[str], optional): List of column names that should be treated as input data.
+            expected_output_columns (List[str], optional): List of column names that should be treated as expected output data.
 
         Returns:
-            Dataset: A new Dataset instance containing the CSV data
+            Dataset: A new Dataset instance containing the CSV data, structured for LLM experiments.
 
         Raises:
-            ValueError: If input_columns or expected_output_columns are not provided
-            Exception: If there are issues reading the CSV file
+            ValueError: If input_columns or expected_output_columns are not provided,
+                or if the CSV is missing those columns, or if the file is empty.
+            DatasetFileError: If there are issues reading the CSV file (e.g., file not found or IO permission error).
         """
         if input_columns is None or expected_output_columns is None:
             raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
@@ -474,11 +530,13 @@ class Dataset:
         return cls(name=name, data=data, description=description)
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
-        """Convert the dataset to a pandas DataFrame.
+        """
+        Convert the dataset to a pandas DataFrame for further analysis and manipulation.
 
         Args:
-            multiindex (bool): If True, expand 'input' and 'expected_output' dictionaries into columns with MultiIndex.
-                            If False, keep 'input' and 'expected_output' as columns containing dictionaries.
+            multiindex (bool, optional): If True, expand 'input' and 'expected_output' dictionaries
+                into columns using a pandas MultiIndex. If False, keep them as columns containing
+                raw dictionaries.
 
         Returns:
             pd.DataFrame: DataFrame representation of the dataset.
@@ -553,26 +611,14 @@ class Dataset:
             data.append(new_record)
         return pd.DataFrame(data)
 
-    def export_to_jsonl(self, file_path):
-        """
-        Exports the dataset to a JSONL file.
-
-        Args:
-            file_path (str): The path to the output JSONL file.
-        """
-        import json
-
-        with open(file_path, "w") as f:
-            for record in self._data:
-                json_line = json.dumps(record)
-                f.write(json_line + "\n")
-
     def __repr__(self) -> str:
-        """Rich string representation of the Dataset.
-
-        Shows dataset name, size, structure, and Datadog sync status.
         """
-        # Get basic dataset info
+        Return a readable string representation of the Dataset object, including information such as
+        dataset name, size, structure, and synchronization status with Datadog.
+
+        Returns:
+            str: A human-friendly representation of the Dataset.
+        """
         name = f"{Color.CYAN}{self.name}{Color.RESET}"
         record_count = len(self._data)
 
@@ -602,7 +648,7 @@ class Dataset:
                 structure.append(f"metadata: {len(metadata)} fields")
 
         # Datadog sync status
-        if self._datadog_dataset_id:
+        if getattr(self, "_datadog_dataset_id", None):
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
             dd_url = f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
         else:
@@ -630,24 +676,26 @@ class Dataset:
 
 
 class Experiment:
-    """Manages the execution and evaluation of tasks on a dataset.
+    """
+    Manages the execution and evaluation of tasks over a Dataset.
 
-    This class handles running tasks against datasets, applying evaluators,
-    and collecting results for analysis.
+    This class ties together a dataset, a task function, and a set of evaluators,
+    providing methods to run tasks concurrently, evaluate results, and persist them
+    to Datadog for analysis.
 
     Attributes:
-        name (str): Name of the experiment
-        task (Callable): Function that processes each dataset record
-        dataset (Dataset): Dataset to run the experiment on
-        evaluators (List[Callable]): Functions that evaluate task outputs
-        tags (List[str]): Tags for organizing experiments
-        description (str): Description of the experiment
-        metadata (Dict[str, Any]): Additional metadata for the experiment
-        config (Optional[Dict[str, Any]]): Configuration for the task
-        has_run (bool): Whether the experiment has been executed
-        has_evaluated (bool): Whether the evaluations have been performed
-        outputs (List[Dict]): Outputs after running the task
-        evaluations (List[Dict]): Evaluation results after running evaluators
+        name (str): Name of the experiment.
+        task (Callable): Function that processes each dataset record (decorated with @task).
+        dataset (Dataset): Dataset to run the experiment on.
+        evaluators (List[Callable]): List of evaluation functions (decorated with @evaluator).
+        tags (List[str]): Tags useful for categorizing or querying the experiment.
+        description (str): Description of the experiment.
+        metadata (Dict[str, Any]): Additional metadata about the experiment.
+        config (Optional[Dict[str, Any]]): Configuration passed to the task, if it accepts it.
+        has_run (bool): Indicates whether the experiment task has been executed.
+        has_evaluated (bool): Indicates whether the experiment evaluations have been performed.
+        outputs (List[Dict]): Stores outputs after running the task.
+        evaluations (List[Dict]): Stores evaluation results after running evaluators.
     """
 
     def __init__(
@@ -656,19 +704,35 @@ class Experiment:
         task: Callable,
         dataset: Dataset,
         evaluators: List[Callable],
-        tags: List[str] = [],
+        tags: Optional[List[str]] = None,
         description: str = "",
-        metadata: Dict[str, Any] = {},
+        metadata: Dict[str, Any] = None,
         config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """
+        Initialize an Experiment that will run a task on a Dataset and evaluate it with evaluators.
+
+        Args:
+            name (str): Name of the experiment.
+            task (Callable): Callable decorated with @task that processes each record.
+            dataset (Dataset): The dataset over which the task will be run.
+            evaluators (List[Callable]): List of callables decorated with @evaluator.
+            tags (List[str], optional): Tags for categorization of the experiment. Defaults to None.
+            description (str, optional): Description of the experiment. Defaults to "".
+            metadata (Dict[str, Any], optional): Additional metadata about the experiment. Defaults to None.
+            config (Dict[str, Any], optional): Configuration passed to the task, if it accepts 'config'. Defaults to None.
+
+        Raises:
+            TypeError: If either the task or any of the evaluators are not properly decorated.
+        """
         self.name = name
         self.task = task
         self.dataset = dataset
         self.evaluators = evaluators
-        self.tags = tags
+        self.tags = tags if tags is not None else []
         self.project_name = ENV_PROJECT_NAME
         self.description = description
-        self.metadata = metadata
+        self.metadata = metadata if metadata is not None else {}
         self.config = config
 
         # Make sure the task is decorated with @task
@@ -692,7 +756,13 @@ class Experiment:
 
     def _get_or_create_project(self) -> str:
         """
-        Internal helper to retrieve or create a project in Datadog, returning the project_id.
+        Retrieve or create a project in Datadog based on the global 'project_name'.
+
+        Returns:
+            str: The Datadog project ID for the current project name.
+
+        Raises:
+            ValueError: If any HTTP request fails or returns invalid data.
         """
         url = f"/api/unstable/llm-obs/v1/projects?filter[name]={self.project_name}"
         resp = exp_http_request("GET", url)
@@ -717,13 +787,18 @@ class Experiment:
             )
             response_data = resp.json()
             return response_data["data"]["id"]
-        else:
-            return projects[0]["id"]
+
+        return projects[0]["id"]
 
     def _create_experiment_in_datadog(self) -> str:
         """
-        Internal helper to create an experiment in Datadog, returning the new experiment_id.
-        Raises ValueError if the dataset hasn't been pushed (no _datadog_dataset_id).
+        Create a new experiment in Datadog, tied to the dataset in this Experiment.
+
+        Returns:
+            str: The new Datadog experiment ID.
+
+        Raises:
+            ValueError: If the dataset is not yet pushed to Datadog (missing _datadog_dataset_id).
         """
         if not self.dataset._datadog_dataset_id:
             raise ValueError(
@@ -770,14 +845,26 @@ class Experiment:
         sample_size: Optional[int] = None,
     ) -> "ExperimentResults":
         """
-        Execute the task and evaluations, returning the results.
-        If sample_size is provided, run on just that many rows from the dataset (subset).
-        Otherwise, run on the entire dataset.
+        Execute the entire experiment by running the task on each record (optionally on a subset),
+        annotating results, and then evaluating them with the configured evaluators.
+
+        Args:
+            jobs (int, optional): Number of concurrent threads to use for the task. Defaults to 10.
+            raise_errors (bool, optional): If True, raises an exception upon the first error encountered
+                instead of continuing through all records. Defaults to False.
+            sample_size (int, optional): If provided, only runs on the first 'sample_size' records from the dataset.
+                Useful for quick tests without processing the entire dataset.
+
+        Returns:
+            ExperimentResults: An object that contains and manages the results of the task execution and evaluations.
+
+        Raises:
+            ValueError: If the dataset is not pushed to Datadog (when not running locally).
+            RuntimeError: If raise_errors is True and an error occurs while processing any record.
         """
         if not _is_locally_initialized():
             _validate_init()
 
-        # Handle logging/feedback:
         if sample_size is not None:
             print(f"\n{Color.BOLD}Running experiment (subset of {sample_size} rows){Color.RESET}")
         else:
@@ -786,7 +873,7 @@ class Experiment:
         print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}")
         print(f"  raise_errors={raise_errors}\n")
 
-        # 1) Make sure the dataset is pushed
+        # 1) Make sure the dataset is pushed if not running locally
         if not _is_locally_initialized():
             if not self.dataset._datadog_dataset_id:
                 raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
@@ -798,10 +885,7 @@ class Experiment:
             experiment_id = self._create_experiment_in_datadog()
             self._datadog_experiment_id = experiment_id
 
-        # If a sample_size is given, slice the dataset to that many records
-        # to create a temporary subset that lines up with the partial output.
-        from copy import deepcopy
-
+        # If a sample_size is given, slice the dataset
         if sample_size is not None and sample_size < len(self.dataset._data):
             subset_data = [deepcopy(r) for r in self.dataset._data[:sample_size]]
             subset_dataset = Dataset(
@@ -953,7 +1037,7 @@ class Experiment:
             evaluations_partial.append({"idx": idx, "evaluations": evaluations_dict})
             progress_eval.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
-        # If sample_size was not used, we can store these as the main experiment outputs/evals:
+        # If sample_size was not used, store these as the main experiment outputs/evals:
         if sample_size is None:
             self.outputs = outputs_buffer
             self.has_run = True
@@ -971,8 +1055,15 @@ class Experiment:
 
     def run_task(self, jobs: int = 10, raise_errors: bool = False) -> None:
         """
-        Execute the task function on the dataset concurrently, terminating early if raise_errors is True
-        and an exception occurs (on the first error).
+        Execute only the task function on the dataset concurrently, without running the evaluators.
+
+        Args:
+            jobs (int, optional): Number of concurrent threads to use. Defaults to 10.
+            raise_errors (bool, optional): If True, raises an exception upon the first error. Defaults to False.
+
+        Raises:
+            ValueError: If Datadog environment is not initialized.
+            RuntimeError: If raise_errors is True and an error occurs while processing a record.
         """
         if not _is_locally_initialized():
             _validate_init()
@@ -1069,7 +1160,6 @@ class Experiment:
                         },
                     }
 
-        # Using ThreadPoolExecutor.map to process rows concurrently
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(process_row, list(enumerate(self.dataset))):
                 outputs_buffer.append(result)
@@ -1092,16 +1182,21 @@ class Experiment:
     def run_evaluations(
         self, evaluators: Optional[List[Callable]] = None, raise_errors: bool = False
     ) -> "ExperimentResults":
-        """Run evaluators on the outputs and return ExperimentResults.
+        """
+        Execute evaluators on the already-run experiment outputs, returning an ExperimentResults object.
+
+        This method allows you to run just the evaluation step after the task has been run on the dataset.
+
         Args:
-            evaluators (Optional[List[Callable]]): List of evaluators to use. If None, uses the experiment's evaluators.
-            raise_errors (bool): If True, raises exceptions encountered during evaluation.
+            evaluators (List[Callable], optional): If provided, override the experiment's evaluators
+                for this run. Must be decorated with @evaluator. Defaults to None.
+            raise_errors (bool, optional): If True, raises exceptions encountered during evaluation.
 
         Returns:
             ExperimentResults: A new ExperimentResults instance with the evaluation results.
 
         Raises:
-            ValueError: If task has not been run yet
+            ValueError: If the task has not been run yet
         """
         if not _is_locally_initialized():
             _validate_init()
@@ -1158,16 +1253,16 @@ class Experiment:
         return experiment_results
 
     def __repr__(self) -> str:
-        """Rich string representation of the Experiment.
-
-        Shows experiment configuration, task details, evaluators, and run status
-        with color-coded indicators and formatted statistics.
         """
-        # Basic experiment info with color
+        Return a comprehensive string representation of the Experiment,
+        including its name, project, task, dataset, evaluators, tags, and run status.
+
+        Returns:
+            str: A rich, color-coded representation helpful in debugging or logging.
+        """
         name = f"{Color.CYAN}{self.name}{Color.RESET}"
         project = f"{Color.CYAN}{self.project_name}{Color.RESET}"
 
-        # Task info
         task_name = self.task.__name__
         task_doc = self.task.__doc__
         task_preview = f"{task_name}"
@@ -1176,33 +1271,25 @@ class Experiment:
             first_line = task_doc.splitlines()[0].strip()
             task_preview += f" ({first_line})"
 
-        # Dataset info
-        dataset_info = f"{self.dataset.name} " f"({len(self.dataset):,} records)"
-
-        # Evaluators info
+        dataset_info = f"{self.dataset.name} ({len(self.dataset):,} records)"
         evaluator_names = [e.__name__ for e in self.evaluators]
-        evaluator_info = f"{len(evaluator_names)} evaluator" f"{'s' if len(evaluator_names) != 1 else ''}"
+        evaluator_info = f"{len(evaluator_names)} evaluator{'s' if len(evaluator_names) != 1 else ''}"
 
-        # Config preview
         config_preview = ""
         if self.config:
-            # Format first few config items
             items = list(self.config.items())[:3]
             preview = ", ".join(f"{k}: {repr(v)}" for k, v in items)
             if len(self.config) > 3:
                 preview += f" + {len(self.config) - 3} more"
             config_preview = f"\n  Config: {preview}"
 
-        # Tags
         tags_info = ""
         if self.tags:
             tags = " ".join(f"{Color.GREY}#{tag}{Color.RESET}" for tag in self.tags)
             tags_info = f"\n  Tags: {tags}"
 
-        # Execution status
         status_indicators = []
 
-        # Run status
         if self.has_run:
             run_status = f"{Color.GREEN}✓ Run complete{Color.RESET}"
             if self.outputs:
@@ -1214,7 +1301,6 @@ class Experiment:
             run_status = f"{Color.YELLOW}Not run{Color.RESET}"
         status_indicators.append(run_status)
 
-        # Evaluation status
         if self.has_evaluated:
             eval_status = f"{Color.GREEN}✓ Evaluated{Color.RESET}"
         elif self.has_run:
@@ -1223,7 +1309,6 @@ class Experiment:
             eval_status = f"{Color.DIM}Pending run{Color.RESET}"
         status_indicators.append(eval_status)
 
-        # Datadog sync status
         if self._datadog_experiment_id:
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET}"
             dd_url = (
@@ -1234,13 +1319,11 @@ class Experiment:
             dd_url = ""
         status_indicators.append(dd_status)
 
-        # Description (if present)
         desc_info = ""
         if self.description:
             desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
             desc_info = f"\n  Description: {desc_preview}"
 
-        # Build the final representation
         info = [
             f"Experiment(name={name})",
             f"  Project: {project}",
@@ -1250,7 +1333,6 @@ class Experiment:
             f"  Status: {' | '.join(status_indicators)}",
         ]
 
-        # Add optional sections if present
         if desc_info:
             info.insert(2, desc_info)
         if config_preview:
@@ -1264,34 +1346,49 @@ class Experiment:
 
 
 class ExperimentResults:
-    """Contains and manages the results of an experiment run.
+    """
+    Contains and manages the results (both outputs and evaluations) after an Experiment is run.
 
-    Stores the outputs, evaluations, and metadata for each record processed
-    in an experiment, with functionality to analyze and push results to Datadog.
+    This class merges the observed outputs and evaluation metrics for each record in the dataset,
+    providing methods to convert these merged results into a DataFrame, export them, or push them to Datadog.
 
     Attributes:
-        dataset (Dataset): The dataset used in the experiment
-        experiment (Experiment): The experiment that generated these results
-        outputs (List[Dict]): Outputs after running the task
-        evaluations (List[Dict]): Evaluation results after running evaluators
+        dataset (Dataset): The dataset used in the experiment.
+        experiment (Experiment): The experiment that generated these results.
+        outputs (List[Dict]): Outputs after running the task on the dataset.
+        evaluations (List[Dict]): Evaluation results after running evaluators on the outputs.
+        merged_results (List[Dict]): A combined list of outputs + evaluations for each record.
     """
 
     def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict]) -> None:
+        """
+        Initialize an ExperimentResults object, merging outputs and evaluations for each dataset record.
+
+        Args:
+            dataset (Dataset): The dataset used for the experiment.
+            experiment (Experiment): The experiment instance that produced these results.
+            outputs (List[Dict]): List of dictionaries containing output data for each record.
+            evaluations (List[Dict]): List of dictionaries containing evaluation data for each record.
+        """
         self.dataset = dataset
         self.experiment = experiment
-        self.outputs = outputs  # List of outputs from run_task
-        self.evaluations = evaluations  # List of evaluations from run_evaluations
-        self.merged_results = self._merge_results()  # Merged outputs and evaluations
+        self.outputs = outputs
+        self.evaluations = evaluations
+        self.merged_results = self._merge_results()
 
     def _merge_results(self) -> List[Dict[str, Any]]:
-        """Merge outputs and evaluations into a single list of results."""
+        """
+        Merge outputs and evaluations into a single list of dictionaries, one per dataset record.
+
+        Returns:
+            List[Dict[str, Any]]: The combined data, each containing input, output, evaluations, and metadata.
+        """
         merged_results = []
         for idx in range(len(self.outputs)):
             output_data = self.outputs[idx]
             evaluation_data = self.evaluations[idx]
             dataset_record = self.dataset._data[idx]
 
-            # Get base metadata and add tags to it
             metadata = output_data.get("metadata", {})
             metadata["tags"] = self.experiment.tags
 
@@ -1309,29 +1406,43 @@ class ExperimentResults:
         return merged_results
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
+        """
+        Enable iteration over merged experiment results.
+
+        Yields:
+            Iterator[Dict[str, Any]]: An iterator of merged result dictionaries.
+        """
         return iter(self.merged_results)
 
     def __len__(self) -> int:
+        """
+        Return the number of merged results (should be equal to the number of records in the dataset).
+
+        Returns:
+            int: Number of merged results.
+        """
         return len(self.merged_results)
 
     def __getitem__(self, index: int) -> Any:
-        """Get a result record.
+        """
+        Retrieve a specific merged result by index.
 
         Args:
-            index: Index of the record to retrieve
+            index (int): Index of the merged result to retrieve.
 
         Returns:
-            Dict containing the record.
+            Dict[str, Any]: A dictionary containing input, output, evaluations, metadata, and error info.
         """
         result = self.merged_results[index].copy()
         return result
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
-        """Convert the experiment results to a pandas DataFrame.
+        """
+        Convert the experiment results into a pandas DataFrame for analysis and visualization.
 
         Args:
-            multiindex (bool): If True, expand input/output/expected_output dictionaries into MultiIndex columns.
-                            If False, keep the nested dictionaries as they are.
+            multiindex (bool, optional): If True, expand input, output, and expected_output dictionaries
+                into separate columns using a MultiIndex. If False, keep the nested dictionaries as they are.
 
         Returns:
             pd.DataFrame: DataFrame representation of the experiment results.
@@ -1347,17 +1458,14 @@ class ExperimentResults:
                 "Please install it with `pip install pandas`"
             )
 
-        # Convert merged_results to DataFrame directly
         df = pd.DataFrame(self.merged_results)
 
         if not multiindex:
             return df
 
-        # Process input, output, and expected_output with MultiIndex
         special_fields = ["input", "output", "expected_output"]
         result_dfs = []
 
-        # Handle special fields (input, output, expected_output)
         for field in special_fields:
             if field not in df.columns:
                 continue
@@ -1366,59 +1474,53 @@ class ExperimentResults:
             first_value = next((v for v in df[field] if v is not None), None)
 
             if isinstance(first_value, dict):
-                # For dictionary values, expand into columns
                 field_df = pd.json_normalize(df[field].values)
             else:
-                # For simple values, use 'value' as the subcolumn
                 field_df = pd.DataFrame({"value": df[field].values})
 
-            # Create MultiIndex columns for this field
             field_df.columns = pd.MultiIndex.from_tuples([(field, col) for col in field_df.columns])
             result_dfs.append(field_df)
 
-        # Add all other columns as-is
         other_cols = [col for col in df.columns if col not in special_fields]
         if other_cols:
             other_df = df[other_cols]
             result_dfs.append(other_df)
 
-        # Combine all DataFrames
         final_df = pd.concat(result_dfs, axis=1)
-
-        # Replace NaN with None
         final_df = final_df.where(pd.notna(final_df), None)
 
         return final_df
 
     def _push_evals(self, chunk_size: int = 300) -> None:
-        """Push the experiment evaluations to Datadog."""
+        """
+        Push the experiment evaluations (metrics) to Datadog for further analysis.
+
+        Args:
+            chunk_size (int, optional): Number of records to push per HTTP request batch. Defaults to 300.
+
+        Raises:
+            ValueError: If the dataset or experiment is not synchronized with Datadog.
+        """
         _validate_init()
 
-        # Ensure the dataset is hosted in Datadog
         if not self.experiment.dataset._datadog_dataset_id:
             raise ValueError(
                 "Dataset has not been pushed to Datadog. "
                 "Please call dataset.push() before pushing experiment results."
             )
 
-        # Ensure the experiment was already created (via run())
         if not self.experiment._datadog_experiment_id:
             raise ValueError(
-                "Experiment has not been created in Datadog. " "Please call experiment.run() before pushing results."
+                "Experiment has not been created in Datadog. Please call experiment.run() before pushing results."
             )
 
-        # Grab IDs from the already-created experiment
         experiment_id = self.experiment._datadog_experiment_id
         project_id = self.experiment._datadog_project_id
         experiment_name = self.experiment.name
 
-        # Now proceed with chunked uploading of your results — no project or experiment creation here.
-
         total_results = len(self.merged_results)
-        # Optional progress bar
         show_progress = total_results > chunk_size
 
-        # Just an example of how you'd do chunked uploads:
         chunks = [self.merged_results[i : i + chunk_size] for i in range(0, total_results, chunk_size)]
         total_chunks = len(chunks)
 
@@ -1430,13 +1532,12 @@ class ExperimentResults:
             spans: List[Dict[str, Any]] = []
             metrics: List[Dict[str, Any]] = []
 
-            # Process each result in the chunk
             for result in chunk:
                 idx = result["idx"]
                 merged_result = result
                 output = merged_result.get("output")
                 record_id = merged_result.get("record_id")
-                input = merged_result.get("input", {})
+                input_data = merged_result.get("input", {})
                 evaluations = merged_result.get("evaluations", {})
                 expected_output = merged_result.get("expected_output", {})
                 error = merged_result.get("error", {})
@@ -1497,40 +1598,24 @@ class ExperimentResults:
             if show_progress:
                 _print_progress_bar(chunk_idx + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
-        # Print completion message with link
         print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
         print(f"{Color.BLUE}  {BASE_URL}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
 
-    def export_to_jsonl(self, file_path):
-        """
-        Exports the experiment results to a JSONL file.
-
-        Args:
-            file_path (str): The path to the output JSONL file.
-        """
-        import json
-
-        with open(file_path, "w") as f:
-            for result in self.merged_results:
-                json_line = json.dumps(result)
-                f.write(json_line + "\n")
-
     def __repr__(self) -> str:
-        """Rich string representation of the ExperimentResults.
-
-        Shows experiment name, dataset info, evaluation statistics, and error rates
-        with color-coded indicators and formatted metrics.
         """
-        # Basic experiment info with color
+        Return a detailed, color-coded string summary of the experiment results, including
+        error counts, evaluator statistics, and Datadog links if available.
+
+        Returns:
+            str: A descriptive string representing the experiment results.
+        """
         exp_name = f"{Color.CYAN}{self.experiment.name}{Color.RESET}"
         dataset_name = f"{Color.CYAN}{self.dataset.name}{Color.RESET}"
 
-        # Count records and errors
         total_records = len(self.merged_results)
         errors = sum(1 for r in self.merged_results if r.get("error", {}).get("message"))
         error_rate = (errors / total_records) * 100 if total_records > 0 else 0
 
-        # Get evaluator names and stats
         evaluator_names = set()
         eval_stats = {}
 
@@ -1539,35 +1624,27 @@ class ExperimentResults:
             for eval_name, eval_data in evals.items():
                 evaluator_names.add(eval_name)
 
-                # Track stats for this evaluator
                 if eval_name not in eval_stats:
                     eval_stats[eval_name] = {"count": 0, "errors": 0, "values": []}
 
-                # Count evaluations and errors
                 eval_stats[eval_name]["count"] += 1
                 if eval_data.get("error"):
                     eval_stats[eval_name]["errors"] += 1
 
-                # Collect values for numeric metrics
                 value = eval_data.get("value")
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     eval_stats[eval_name]["values"].append(value)
 
-        # Format evaluator statistics
         eval_info = []
         for name in sorted(evaluator_names):
             stats = eval_stats[name]
             eval_error_rate = (stats["errors"] / stats["count"]) * 100 if stats["count"] > 0 else 0
 
-            # Format differently based on whether we have numeric values
             if stats["values"]:
-                # Calculate statistics for numeric metrics
                 values = stats["values"]
                 avg = sum(values) / len(values) if values else 0
                 min_val = min(values) if values else 0
                 max_val = max(values) if values else 0
-
-                # Format with color based on error rate
                 if eval_error_rate > 0:
                     eval_info.append(
                         f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f} "
@@ -1576,7 +1653,6 @@ class ExperimentResults:
                 else:
                     eval_info.append(f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f}")
             else:
-                # Format for non-numeric metrics
                 if eval_error_rate > 0:
                     eval_info.append(
                         f"    {name}: {stats['count']} evaluations "
@@ -1618,7 +1694,6 @@ class ExperimentResults:
             f"  Task: {self.experiment.task.__name__}",
         ]
 
-        # Add error info if present
         if error_info:
             info.append(error_info)
 
@@ -1631,7 +1706,6 @@ class ExperimentResults:
             info.append(f"  Evaluations:")
             info.extend(eval_info)
 
-        # Add URL if experiment is synced with Datadog
         if self.experiment._datadog_experiment_id:
             info.append(
                 f"\n  {Color.BLUE}URL: {BASE_URL}/llm/testing/experiments/{self.experiment._datadog_experiment_id}{Color.RESET}"
@@ -1641,7 +1715,8 @@ class ExperimentResults:
 
 
 def _make_id() -> str:
-    """Generate a unique identifier.
+    """
+    Generate a unique identifier used for internal references in results or records.
 
     Returns:
         str: A random UUID as a hexadecimal string
@@ -1650,19 +1725,36 @@ def _make_id() -> str:
 
 
 def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTTPResponse:
-    """Make an HTTP request to the Datadog experiments API."""
+    """
+    Make an HTTP request to the Datadog LLM Observability/Experiments API.
+
+    Args:
+        method (str): HTTP method (e.g., "GET", "POST", "PATCH").
+        url (str): The full endpoint URL (path is appended to BASE_URL).
+        body (Optional[bytes]): Request body in bytes (for POST/PATCH).
+
+    Returns:
+        HTTPResponse: A wrapper object containing the response status code, headers, and body.
+
+    Raises:
+        ValueError: If the request fails with a 4xx or 5xx response from Datadog.
+    """
     headers: Dict[str, str] = {
-        "DD-API-KEY": os.getenv("DD_API_KEY", ""),
-        "DD-APPLICATION-KEY": os.getenv("DD_APPLICATION_KEY", ""),
+        "DD-API-KEY": os.getenv(ENV_DD_API_KEY, ""),
+        "DD-APPLICATION-KEY": os.getenv(ENV_DD_APPLICATION_KEY, ""),
         "Content-Type": "application/json",
     }
     full_url = BASE_URL + url
     resp = http_request(method, full_url, headers=headers, body=body)
     if resp.status_code == 403:
-        if not DD_SITE:
-            raise ValueError("DD_SITE may be incorrect. Please check your DD_SITE environment variable.")
+        if not ENV_DD_SITE:
+            raise ValueError(
+                "DD_SITE may be incorrect. Please check your DD_SITE environment variable or pass it as an argument to init(...site=...)"
+            )
         else:
-            raise ValueError("DD_API_KEY or DD_APPLICATION_KEY is incorrect.")
+            raise ValueError(
+                "DD_API_KEY or DD_APPLICATION_KEY is incorrect. Please check your DD_API_KEY and DD_APPLICATION_KEY environment variables or pass them as arguments to init(...api_key=..., application_key=...)"
+            )
     if resp.status_code >= 400:
         try:
             error_details = resp.json()
@@ -1715,23 +1807,44 @@ def evaluator(func):
 
 
 def _print_progress_bar(iteration, total, prefix="", suffix="", decimals=1, length=50, fill="█"):
+    """
+    Print a simple progress bar to the console (commonly used for chunked uploads).
+
+    Args:
+        iteration (int): Current iteration or chunk number.
+        total (int): Total number of iterations or chunks.
+        prefix (str, optional): Optional prefix string. Defaults to "".
+        suffix (str, optional): Optional suffix string. Defaults to "".
+        decimals (int, optional): Number of decimal places to display in the percentage. Defaults to 1.
+        length (int, optional): Character length of the progress bar. Defaults to 50.
+        fill (str, optional): Character used to fill the progress bar. Defaults to "█".
+    """
     percent = f"{100 * (iteration / float(total)):.{decimals}f}"
     filled_length = int(length * iteration // total)
     bar = fill * filled_length + "-" * (length - filled_length)
-    # Use carriage return '\r' to overwrite the line
     print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r", flush=True)
     if iteration == total:
-        print()  # Move to the next line after completion
+        print()
 
 
 class DatasetFileError(Exception):
-    """Exception raised when there are errors reading or processing dataset files."""
+    """
+    Exception raised when there are errors reading or processing dataset files,
+    such as CSV or JSON errors or file permission issues.
+    """
 
     pass
 
 
 class ExperimentTaskError(Exception):
-    """Exception raised when a task fails during experiment execution."""
+    """
+    Exception raised when a task fails during experiment execution.
+
+    Attributes:
+        message (str): Error message describing the failure.
+        row_idx (int): The index of the dataset record on which the task failed.
+        original_error (Exception): The original error object (if any).
+    """
 
     def __init__(self, message: str, row_idx: int, original_error: Optional[Exception] = None) -> None:
         self.row_idx = row_idx
@@ -1740,7 +1853,10 @@ class ExperimentTaskError(Exception):
 
 
 class Color:
-    """ANSI color codes for terminal output."""
+    """
+    ANSI color codes for terminal output, which can be used to highlight or style text
+    in logs or console applications.
+    """
 
     GREY = "\033[90m"
     RED = "\033[91m"
@@ -1756,22 +1872,45 @@ class Color:
 
 
 class Spinner:
-    """Animated spinner patterns."""
+    """
+    Contains patterns for displaying animated spinners in the console,
+    used alongside progress or waiting states.
+    """
 
     DOTS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     ARROW = ["▹▹▹▹▹", "▸▹▹▹▹", "▹▸▹▹▹", "▹▹▸▹▹", "▹▹▹▸▹", "▹▹▹▹▸"]
 
 
 class ProgressState(Enum):
+    """
+    Enumeration indicating overall progress states for console animations or logs.
+
+    Values:
+        RUNNING: The progress is currently in progress.
+        SUCCESS: The progress has completed successfully.
+        ERROR: The progress encountered an error.
+    """
+
     RUNNING = "running"
     SUCCESS = "success"
     ERROR = "error"
 
 
 class ProgressReporter:
-    """Enhanced progress reporter with animations and color."""
+    """
+    An enhanced progress reporter with color-coded output and optional "spinner"
+    animations, used for interactive console feedback during dataset processing.
+    """
 
     def __init__(self, total: int, desc: str = "", width: Optional[int] = None) -> None:
+        """
+        Create a ProgressReporter to track completion and errors over a specified total.
+
+        Args:
+            total (int): The total number of items or iterations.
+            desc (str, optional): A short description of what is being tracked. Defaults to "".
+            width (int, optional): The width of the progress bar. If None, attempts to auto-detect terminal width.
+        """
         self.total = total
         self.current = 0
         self.width: int = self._get_width(width)
@@ -1784,16 +1923,31 @@ class ProgressReporter:
         self._state = ProgressState.RUNNING
 
     def _get_width(self, width: Optional[int]) -> int:
+        """
+        Determine the width of the progress bar, trying to respect terminal size if not specified.
+
+        Args:
+            width (int, optional): The desired progress bar width. Defaults to None.
+
+        Returns:
+            int: The width of the progress bar in characters.
+        """
         if width is None:
             try:
                 terminal_width = os.get_terminal_size().columns
-                return min(40, terminal_width - 50)  # Leave room for stats
+                return min(40, terminal_width - 50)
             except OSError:
-                return 40  # Fallback if terminal size can't be detected
+                return 40
         return width
 
     def update(self, advance: int = 1, error: bool = False) -> None:
-        """Update progress with optional error tracking."""
+        """
+        Update progress with optional error tracking.
+
+        Args:
+            advance (int, optional): Number of items completed since last update. Defaults to 1.
+            error (bool, optional): Whether an error occurred. Defaults to False.
+        """
         self.current += advance
         if error:
             self.error_count += 1
@@ -1809,19 +1963,35 @@ class ProgressReporter:
         self._print_progress()
 
     def _format_time(self, seconds: float) -> str:
-        """Format time in a human-readable way."""
+        """
+        Return a user-friendly time format (e.g., 13.2s, 2m 4s, 1h 15m).
+
+        Args:
+            seconds (float): Elapsed time in seconds.
+
+        Returns:
+            str: A formatted time string.
+        """
         if seconds < 60:
             return f"{seconds:.1f}s"
-        minutes = int(seconds / 60)
-        seconds = seconds % 60
-        if minutes < 60:
-            return f"{minutes}m {int(seconds)}s"
-        hours = int(minutes / 60)
-        minutes = minutes % 60
-        return f"{hours}h {minutes}m"
+
+        total_minutes = int(seconds / 60)
+        remaining_seconds = seconds % 60
+
+        if total_minutes < 60:
+            return f"{total_minutes}m {int(remaining_seconds)}s"
+
+        total_hours = int(total_minutes / 60)
+        remaining_minutes = total_minutes % 60
+        return f"{total_hours}h {remaining_minutes}m"
 
     def _format_speed(self) -> str:
-        """Calculate and format processing speed."""
+        """
+        Calculate and format processing speed.
+
+        Returns:
+            str: Formatted speed string.
+        """
         elapsed = time.time() - self.start_time
         if elapsed == 0:
             return "0/s"
@@ -1831,7 +2001,15 @@ class ProgressReporter:
         return f"{speed:.1f}/s"
 
     def _get_gradient_color(self, progress: float) -> str:
-        """Return a color based on progress and state."""
+        """
+        Return a color based on progress and state.
+
+        Args:
+            progress (float): A float between 0 and 1 indicating progress fraction.
+
+        Returns:
+            str: An ANSI color code string.
+        """
         if self._state == ProgressState.ERROR:
             return Color.RED
         elif progress >= 1:
@@ -1840,11 +2018,12 @@ class ProgressReporter:
             return Color.BLUE
 
     def _print_progress(self) -> None:
-        """Print the progress bar and statistics with color and animation."""
+        """
+        Print the current progress bar state to the console, including elapsed time, ETA, and error count.
+        """
         elapsed = time.time() - self.start_time
+        progress = self.current / self.total if self.total > 0 else 1
 
-        # Calculate times and progress
-        progress = self.current / self.total
         if self.current == 0:
             eta = 0
         else:
@@ -1852,7 +2031,6 @@ class ProgressReporter:
             remaining_items = self.total - self.current
             eta = remaining_items / speed if speed > 0 else 0
 
-        # Get color theme based on state
         color = self._get_gradient_color(progress)
 
         # Build animated progress bar
@@ -1893,7 +2071,7 @@ class ProgressReporter:
 
         # Clear previous line if needed
         if self._last_len > len(status):
-            print("\r" + " " * self._last_len, end="")
+            print(f"\r{' ' * self._last_len}", end="")
 
         print(status, end="")
         self._last_len = len(status)
