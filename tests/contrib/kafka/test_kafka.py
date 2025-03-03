@@ -291,7 +291,7 @@ def test_produce_topicname(dummy_tracer, producer, kafka_topic):
     traces = dummy_tracer.pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
-    assert produce_span.get_tag("topicname") == kafka_topic
+    assert produce_span.get_tag("messaging.destination.name") == kafka_topic
 
 
 @pytest.mark.parametrize("tombstone", [False, True])

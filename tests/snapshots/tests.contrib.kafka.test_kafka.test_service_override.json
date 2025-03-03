@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "67c624f400000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.group_id": "test_group",
@@ -21,8 +21,8 @@
       "kafka.topic": "test_service_override_config",
       "language": "python",
       "messaging.system": "kafka",
-      "pathway.hash": "12287106206303188703",
-      "runtime-id": "9beacd9920df4a5fa0d39cfeaa812223",
+      "pathway.hash": "12368502031671261057",
+      "runtime-id": "e443e81c096d441e88e2e7d34cb3bc67",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -32,10 +32,10 @@
       "_sampling_priority_v1": 1,
       "kafka.message_offset": -1,
       "kafka.partition": 0,
-      "process_id": 26320
+      "process_id": 12603
     },
-    "duration": 531550000,
-    "start": 1699562135399583000
+    "duration": 3737214000,
+    "start": 1741038832964856000
   }],
 [
   {
@@ -50,17 +50,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "67c624f000000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.message_key": "test_key",
       "kafka.tombstone": "False",
       "kafka.topic": "test_service_override_config",
       "language": "python",
-      "messaging.kafka.bootstrap.servers": "localhost:29092",
+      "messaging.destination.name": "test_service_override_config",
+      "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
-      "pathway.hash": "13447811290512507935",
-      "runtime-id": "9beacd9920df4a5fa0d39cfeaa812223",
+      "pathway.hash": "10939476495125388789",
+      "runtime-id": "e443e81c096d441e88e2e7d34cb3bc67",
       "span.kind": "producer"
     },
     "metrics": {
@@ -69,8 +70,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 26320
+      "process_id": 12603
     },
-    "duration": 380000,
-    "start": 1699562132365708000
+    "duration": 2700000,
+    "start": 1741038832957731000
   }]]
