@@ -33,9 +33,10 @@ def request_vcr():
 
 @pytest.fixture(autouse=True)
 def patch_vcr_response(monkeypatch):
-    # bedrock-runtime returns a `version_string` in the response
-    # which is not present in the VCR cassettes. We need to patch
-    # the VCRHTTPResponse class to add this.
+    # this fixes an issue where the botocore library attempts to access
+    # a `version_string` attribute in the response, which is not present
+    # on the VCRHTTPResponse object. We patch the VCRHTTPResponse object
+    # to have a dummy `version_string` attribute.
     from vcr.stubs import VCRHTTPResponse
 
     original_init = VCRHTTPResponse.__init__
