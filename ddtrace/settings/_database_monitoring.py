@@ -1,11 +1,12 @@
-from envier import En
 from envier import validators
 
+from ddtrace.settings._core import DDConfig
 
-class DatabaseMonitoringConfig(En):
+
+class DatabaseMonitoringConfig(DDConfig):
     __prefix__ = "dd_dbm"
 
-    propagation_mode = En.v(
+    propagation_mode = DDConfig.v(
         str,
         "propagation_mode",
         default="disabled",

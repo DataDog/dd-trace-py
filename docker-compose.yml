@@ -96,17 +96,11 @@ services:
         ports:
             - "127.0.0.1:11211:11211"
     moto:
-        # container that executes mocked AWS services; this is a custom
-        # build that runs all of them in a single container. It is built
-        # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
-        image: datadog/docker-library:moto_1_0_1
+        image: motoserver/moto:5.1.0
+        environment:
+            - MOTO_PORT=3000
         ports:
-            - "127.0.0.1:5000:5000"
-            - "127.0.0.1:5001:5001"
-            - "127.0.0.1:5002:5002"
-            - "127.0.0.1:5003:5003"
-            - "127.0.0.1:5004:5004"
-            - "127.0.0.1:5005:5005"
+            - "127.0.0.1:3000:3000"
     rabbitmq:
         image: rabbitmq:3.7-alpine
         ports:
