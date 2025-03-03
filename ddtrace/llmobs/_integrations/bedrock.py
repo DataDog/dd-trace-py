@@ -62,7 +62,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if "totalTokens" in usage_metrics:
             usage_metrics["total_tokens"] = usage_metrics.pop("totalTokens")
 
-        if "output_tokens" not in usage_metrics and (
+        if "total_tokens" not in usage_metrics and (
             "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
         ):
             usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get("output_tokens", 0)
