@@ -230,7 +230,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
-        self._user_sampler: Optional[BaseSampler] = DatadogSampler()
+        self._user_sampler: BaseSampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -1155,21 +1155,11 @@ class Tracer(object):
                 unpatch()
 
     def _handle_sampler_update(self, cfg: Config) -> None:
-        if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
-            # if we get empty configs from rc for both sample rate and rules, we should revert to the user sampler
+        # FIXME(munir): Recreating the sampler will overwrite agent service based sampling rules
+        if cfg._get_source("_trace_sampling_rules") != "remote_config":
+            # if trace sampling rules is not set by remote config, we should use the sampler configured
+            # on tracer startup (this sampler has "local" sampling rules)
             self._sampler = self._user_sampler
-            return
-
-        sampling_rules = None
-        if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
-            try:
-                sampling_rules = self._user_sampler.rules  # type: ignore[attr-defined]
-                # we need to chop off the default_sample_rate rule so the new sample_rate can be applied
-                sampling_rules = sampling_rules[:-1]
-            except AttributeError:
-                log.debug("Custom non-DatadogSampler is being used, cannot pull sampling rules")
-        elif cfg._get_source("_trace_sampling_rules") != "default":
-            sampling_rules = DatadogSampler._parse_rules_from_str(cfg._trace_sampling_rules)
-
-        sampler = DatadogSampler(rules=sampling_rules)
-        self._sampler = sampler
+        else:
+            # if we get a config from rc, we should create the sampler with the new sampling rules
+            self._sampler = DatadogSampler()
