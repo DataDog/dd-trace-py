@@ -31,23 +31,6 @@ def request_vcr():
     yield get_request_vcr()
 
 
-@pytest.fixture(autouse=True)
-def patch_vcr_response(monkeypatch):
-    # this fixes an issue where the botocore library attempts to access
-    # a `version_string` attribute in the response, which is not present
-    # on the VCRHTTPResponse object. We patch the VCRHTTPResponse object
-    # to have a dummy `version_string` attribute.
-    from vcr.stubs import VCRHTTPResponse
-
-    original_init = VCRHTTPResponse.__init__
-
-    def patched_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        self.version_string = "dummy-version-string"
-
-    monkeypatch.setattr(VCRHTTPResponse, "__init__", patched_init)
-
-
 @pytest.fixture
 def ddtrace_global_config():
     config = {}
@@ -124,18 +107,19 @@ def mock_tracer(bedrock_client):
 
 
 @pytest.fixture
-def llmobs(tracer, mock_tracer, llmobs_span_writer):
+def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
+    llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
     ):
-        llmobs_service.enable(_tracer=tracer)
+        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
 
 
 @pytest.fixture
-def llmobs_events(llmobs, llmobs_span_writer):
+def llmobs_events(bedrock_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
 
 
@@ -155,11 +139,12 @@ class TestLLMObsBedrock:
         if prompt_tokens is not None and completion_tokens is not None:
             token_metrics["total_tokens"] = prompt_tokens + completion_tokens
 
-        expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
+        if span.get_tag("bedrock.request.temperature"):
+            expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
         if span.get_tag("bedrock.request.top_p"):
-            expected_parameters["top_p"] = int(span.get_tag("bedrock.request.top_p"))
+            expected_parameters["top_p"] = float(span.get_tag("bedrock.request.top_p"))
         expected_input = [{"content": mock.ANY}]
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
@@ -366,9 +351,9 @@ class TestLLMObsBedrock:
             ],
             metadata={
                 "stop_reason": "tool_use",
-                "temperature": request_params.get("inferenceConfig", {}).get("temperature", 0.0),
-                "top_p": request_params.get("inferenceConfig", {}).get("topP", 0.0),
-                "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens", 0),
+                "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
+                "top_p": request_params.get("inferenceConfig", {}).get("topP"),
+                "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
             token_metrics={
                 "input_tokens": response["usage"]["inputTokens"],
@@ -377,7 +362,6 @@ class TestLLMObsBedrock:
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-        LLMObs.disable()
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_error(
@@ -411,7 +395,6 @@ class TestLLMObsBedrock:
             error_stack=span.get_tag("error.stack"),
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-        LLMObs.disable()
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_stream(
@@ -429,7 +412,6 @@ class TestLLMObsBedrock:
                     chunk["contentBlockDelta"]["delta"]["text"]
 
         assert len(llmobs_events) == 0
-        LLMObs.disable()
 
     def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_llmobs_span_writer, request_vcr):
         import botocore
@@ -458,6 +440,7 @@ class TestLLMObsBedrock:
                     metadata={
                         "temperature": float(span.get_tag("bedrock.request.temperature")),
                         "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
+                        "top_p": float(span.get_tag("bedrock.request.top_p")),
                     },
                     output_messages=[{"content": ""}],
                     error=span.get_tag("error.type"),

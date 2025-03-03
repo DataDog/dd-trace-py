@@ -70,11 +70,11 @@ class BedrockIntegration(BaseLLMIntegration):
         ):
             usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get("output_tokens", 0)
 
-        if request_params.get("temperature"):
+        if "temperature" in request_params and request_params.get("temperature") != "":
             metadata["temperature"] = float(request_params.get("temperature") or 0.0)
-        if request_params.get("max_tokens"):
+        if "max_tokens" in request_params and request_params.get("max_tokens") != "":
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
-        if request_params.get("top_p"):
+        if "top_p" in request_params and request_params.get("top_p") != "":
             metadata["top_p"] = float(request_params.get("top_p") or 0.0)
 
         prompt = request_params.get("prompt", "")
