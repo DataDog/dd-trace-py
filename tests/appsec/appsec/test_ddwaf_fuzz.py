@@ -60,16 +60,16 @@ def test_small_objects(obj, res):
 @pytest.mark.parametrize(
     "obj, res, trunc",
     [
-        (324, 324, 0),  # integers are no more formatted into strings by libddwaf and are not truncated
-        (True, True, 0),
-        ("toast", "to", 1),
-        (b"toast", "to", 1),
-        (1.034, 1.034, 0),
-        ([1, 2], [1], 2),
-        ({"toast": "touch", "tomato": "tommy"}, {"to": "to"}, 3),
-        (None, None, 0),
-        (_AnyObject(), _AnyObject.cst[:2], 1),
-        ([[[1, 2], 3], 4], [[]], 6),
+        (324, 324, (0, 0, 0)),  # integers are no more formatted into strings by libddwaf and are not truncated
+        (True, True, (0, 0, 0)),
+        ("toast", "to", (6, 0, 0)),
+        (b"toast", "to", (6, 0, 0)),
+        (1.034, 1.034, (0, 0, 0)),
+        ([1, 2], [1], (0, 2, 0)),
+        ({"toast": "touch", "tomato": "tommy"}, {"to": "to"}, (6, 2, 0)),
+        (None, None, (0, 0, 0)),
+        (_AnyObject(), _AnyObject.cst[:2], (15, 0, 0)),
+        ([[[1, 2], 3], 4], [[]], (0, 2, 20)),
     ],
 )
 def test_limits(obj, res, trunc):
@@ -77,7 +77,7 @@ def test_limits(obj, res, trunc):
     obs = _observator()
     dd_obj = ddwaf_object(obj, observator=obs, max_objects=1, max_depth=1, max_string_length=3)
     assert dd_obj.struct == res
-    assert obs.truncation == trunc
+    assert (obs.string_length, obs.container_size, obs.container_depth) == trunc
 
 
 if __name__ == "__main__":
