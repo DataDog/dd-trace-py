@@ -558,7 +558,8 @@ def test_dont_trace_websocket_by_default(client, test_spans):
         assert len(spans) <= initial_event_count
 
 
-# @flaky(1735812000)
+
+# @flaky(1741975978)
 # Ignoring span link attributes until values are
 # normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
