@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -32,7 +31,6 @@ class BedrockIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        LLMObs._instance._activate_llmobs_span(span)
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
