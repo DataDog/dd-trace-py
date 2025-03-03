@@ -188,4 +188,6 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
     def is_default_base_url(self, base_url: str) -> bool:
-        return 'api.anthropic.com' in base_url
+        from urllib.parse import urlparse
+        parsed_url = urlparse(base_url)
+        return parsed_url.hostname == 'api.anthropic.com'
