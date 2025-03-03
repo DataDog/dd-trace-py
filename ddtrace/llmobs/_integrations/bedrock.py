@@ -45,9 +45,6 @@ class BedrockIntegration(BaseLLMIntegration):
         LLMObs._instance._activate_llmobs_span(span)
         metadata = {}
         usage_metrics = {}
-        """
-
-        """
         ctx = args[0]
 
         request_params = ctx.get_item("request_params") or {}
@@ -82,8 +79,8 @@ class BedrockIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("bedrock.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("bedrock.request.model_provider") or "",
+                MODEL_NAME: ctx.get_item("model_name") or "",
+                MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
                 METADATA: metadata,
                 METRICS: usage_metrics,
