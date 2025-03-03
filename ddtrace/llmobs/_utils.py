@@ -189,6 +189,8 @@ def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            obj = obj.model_dump()
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
