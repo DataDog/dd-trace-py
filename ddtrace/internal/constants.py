@@ -85,7 +85,7 @@ DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 class SamplingMechanism(object):
     DEFAULT = 0
     AGENT_RATE_BY_SERVICE = 1
-    REMOTE_RATE = 2
+    REMOTE_RATE = 2  # not used
     LOCAL_USER_TRACE_SAMPLING_RULE = 3
     MANUAL = 4
     APPSEC = 5
