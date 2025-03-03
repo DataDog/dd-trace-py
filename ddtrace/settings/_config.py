@@ -861,11 +861,11 @@ class Config(object):
             lib_config = config["lib_config"]
             if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
                 global_sampling_rate = lib_config.get("tracing_sampling_rate")
-                trace_sampling_rules = lib_config.get("tracing_sampling_rules", [])
+                trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
                 # returns None if no rules
                 trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
                 if trace_sampling_rules:
-                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules  # type: ignore[assignment]
 
             if "log_injection_enabled" in lib_config:
                 base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
