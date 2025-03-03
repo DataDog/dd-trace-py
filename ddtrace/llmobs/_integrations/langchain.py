@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -29,6 +30,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import auto_infer_name
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
@@ -57,6 +59,9 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+
+ESCAPE_DD_TRACE_FRAMES = 5
+IGNORES = [("step", "langchain_core"), ("instance", "ddtrace")]
 
 
 def _extract_instance(instance):
@@ -180,6 +185,10 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_similarity_search(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "tool":
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
+
+        instance = self._instances.get(span)
+        auto_infered_named = auto_infer_name(instance, ignores=IGNORES)
+        span._set_ctx_item(NAME, auto_infered_named)
 
     def _set_links(self, span: Span) -> None:
         """

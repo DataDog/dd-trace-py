@@ -123,6 +123,9 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
 
 
 def _get_span_name(span: Span) -> str:
+    name = span._get_ctx_item(NAME)
+    if isinstance(name, str) and name:
+        return name
     if span.name in (LANGCHAIN_APM_SPAN_NAME, GEMINI_APM_SPAN_NAME, VERTEXAI_APM_SPAN_NAME) and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":

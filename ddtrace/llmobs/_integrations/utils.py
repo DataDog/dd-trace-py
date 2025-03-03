@@ -1,3 +1,7 @@
+import sys
+from types import FrameType
+from typing import List
+from typing import Optional
 from typing import Tuple
 from typing import Union
 
@@ -213,3 +217,39 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return (role, content) if role else content
     except AttributeError:
         return str(message)
+
+
+def auto_infer_name(instance, ignores: List = [Tuple[str, str]]) -> Optional[str]:
+    """
+    Infer the name of the instance from the frame it was called in.
+
+    Ignores is a list of key names and their corresponding files they're found in that we want to ignore.
+    """
+
+    all_frames = sys._current_frames()
+    for frame in all_frames.values():
+        current_frame: Optional[FrameType] = frame
+        while current_frame is not None:
+            for name, item in current_frame.f_locals.items():
+                if item is instance and not _check_for_ignores(current_frame, name, ignores):
+                    return name
+            if current_frame.f_locals != current_frame.f_globals:
+                for name, item in current_frame.f_globals.items():
+                    if item is instance and not _check_for_ignores(current_frame, name, ignores):
+                        return name
+            current_frame = current_frame.f_back
+
+    return None
+
+
+def _check_for_ignores(frame: FrameType, name: str, ignores: List = [Tuple[str, str]]) -> bool:
+    """
+    Check if the frame is in the ignore list.
+    """
+    if name == "self":
+        return True
+
+    for ignore in ignores:
+        if ignore[1] in frame.f_code.co_filename and ignore[0] == name:
+            return True
+    return False
