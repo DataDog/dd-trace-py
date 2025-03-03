@@ -92,19 +92,17 @@ class SamplingMechanism(object):
     REMOTE_RATE_USER = 6  # not used
     REMOTE_RATE_DATADOG = 7  # not used
     SPAN_SAMPLING_RULE = 8
+    # TODO(munir): document why sampling mechanism is not set to 9 or 10
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
 
 
-# intermediate mapping of priority categories to actual priority values
-# used to simplify code that selects sampling priority based on many factors
-
 _MECHANISM_TO_PRIORITIES = {
-    # TODO: Update mapping to include all mechanisms (or move this to a function)
-    SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+    # TODO(munir): Update mapping to include single span sampling and appsec sampling mechaisms
     SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
-    SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
     SamplingMechanism.MANUAL: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
     SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
     SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
 }
