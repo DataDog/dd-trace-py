@@ -196,26 +196,19 @@ class DatadogSampler:
                 if config._raise:
                     raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
                 continue
-            sample_rate = float(rule["sample_rate"])
-            service = rule.get("service", SamplingRule.NO_RULE)
-            name = rule.get("name", SamplingRule.NO_RULE)
-            resource = rule.get("resource", SamplingRule.NO_RULE)
-            tags = rule.get("tags", SamplingRule.NO_RULE)
-            provenance = rule.get("provenance", "default")
             try:
                 sampling_rule = SamplingRule(
-                    sample_rate=sample_rate,
-                    service=service,
-                    name=name,
-                    resource=resource,
-                    tags=tags,
-                    provenance=provenance,
+                    sample_rate=float(rule["sample_rate"]),
+                    service=rule.get("service", SamplingRule.NO_RULE),
+                    name=rule.get("name", SamplingRule.NO_RULE),
+                    resource=rule.get("resource", SamplingRule.NO_RULE),
+                    tags=rule.get("tags", SamplingRule.NO_RULE),
+                    provenance=rule.get("provenance", "default"),
                 )
+                sampling_rules.append(sampling_rule)
             except ValueError as e:
                 if config._raise:
                     raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-                continue
-            sampling_rules.append(sampling_rule)
 
         # Sort the sampling_rules list using a lambda function as the key
         sampling_rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
