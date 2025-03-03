@@ -47,7 +47,8 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.is_default_base_url(instance._client._base_url),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
@@ -119,7 +120,8 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.is_default_base_url(instance._client._base_url),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
