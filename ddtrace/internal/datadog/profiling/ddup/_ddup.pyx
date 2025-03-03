@@ -127,7 +127,8 @@ cdef call_code_provenance_add_packages(distributions):
     dist_names = []
     dist_versions = []
     dist_paths = []
-    cdef unordered_map[string_view, pair[string_view, string_view]] names_and_versions = unordered_map[string_view, pair[string_view, string_view]]()
+    cdef unordered_map[string_view, pair[string_view, string_view]] names_and_versions = \
+        unordered_map[string_view, pair[string_view, string_view]]()
 
     cdef const char* dist_name_utf8_data
     cdef Py_ssize_t dist_name_utf8_size
