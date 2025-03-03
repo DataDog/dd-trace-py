@@ -25,9 +25,6 @@ class Sampler
     // Parameters
     uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
 
-    // Helper function; implementation of the echion sampling thread
-    void sampling_thread(const uint64_t seq_num);
-
     // This is a singleton, so no public constructor
     Sampler();
 
@@ -37,7 +34,7 @@ class Sampler
   public:
     // Singleton instance
     static Sampler& get();
-    void start();
+    bool start();
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
@@ -46,6 +43,7 @@ class Sampler
                       PyObject* _asyncio_scheduled_tasks,
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
+    void sampling_thread(const uint64_t seq_num);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
