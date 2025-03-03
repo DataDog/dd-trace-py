@@ -58,6 +58,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_INPUT
 from ddtrace.llmobs._constants import EXPERIMENT_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_ID_BAGGAGE_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
@@ -239,6 +240,12 @@ class LLMObs(Service):
             "language": "python",
             "error": span.error,
         }
+        
+        # Add experiment_id from baggage if present
+        experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY)
+        if experiment_id:
+            tags["experiment_id"] = experiment_id
+        
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
@@ -719,7 +726,7 @@ class LLMObs(Service):
         return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
     
     @classmethod
-    def _experiment(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+    def _experiment(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None, experiment_id: Optional[str] = None) -> Span:
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
@@ -727,12 +734,19 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str experiment_id: The ID of the experiment to associate with this span and its children.
 
         :returns: The Span object representing the traced operation.
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+        
+        # Set experiment_id in baggage if provided
+        if experiment_id:
+            span.context.set_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY, experiment_id)
+        
+        return span
 
     @classmethod
     def workflow(

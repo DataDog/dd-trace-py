@@ -805,7 +805,10 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(name=self.task.__name__) as span:
+            with LLMObs._experiment(
+                name=self.task.__name__, 
+                experiment_id=self._datadog_experiment_id
+            ) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
@@ -978,7 +981,10 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(name=self.task.__name__) as span:
+            with LLMObs._experiment(
+                name=self.task.__name__, 
+                experiment_id=self._datadog_experiment_id
+            ) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
