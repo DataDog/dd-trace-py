@@ -120,7 +120,7 @@ jobs:
 
       - name: Build wheels
         if: always() && matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@ee63bf16da6cddfb925f542f2c7b59ad50e93969 # v2.22.0
+        uses: pypa/cibuildwheel@6cccd09a31908ffd175b012fb8bf4e1dbda3bc6c # v2.23.0
         with:
           only: ${{ matrix.only }}
         env:
