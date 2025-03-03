@@ -163,7 +163,7 @@ async def test_service_override_pin(patched_conn):
     await patched_conn.execute("SELECT 1")
 
 
-@flaky(1735812000)
+@flaky(1741975978)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_parenting(patched_conn):
