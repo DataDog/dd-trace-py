@@ -165,6 +165,7 @@ def gen_pre_checks() -> None:
         paths={"**.py"},
     )
 
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
