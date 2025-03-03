@@ -30,7 +30,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 
 4. Use dd-auth to get the APP and API keys for staging:
 - Install `dd-auth` if not previously installed, see: https://datadoghq.atlassian.net/wiki/spaces/COBS/pages/4094591351/Datadog+Authentication+CLI+dd-auth-cli+dd-auth
-  Note that for Linux you need the `update-tool` binary to install `dd-auth` which is in the `bin/` subdirectory of the devtools 
+  Note that for Linux you need the `update-tool` binary to install `dd-auth` which is in the `bin/` subdirectory of the devtools
   repo: https://github.com/DataDog/devtools. Then set `DATADOG_ROOT` to the directory over the one you cloned `devtools` and then the `devtools/bin/update-tool dd-auth`
   command should work.
 - Run `dd-auth --domain ddstaging.datadoghq.com --output`. If a web browser opens, choose staging.
