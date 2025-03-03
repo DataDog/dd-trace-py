@@ -343,18 +343,16 @@ def handle_bedrock_response(
     output_token_count = http_headers.get("x-amzn-bedrock-output-token-count", None)
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
-    # For Converse API, check for usage information in the response body
     if ctx["resource"] == "Converse":
-        # Check for usage in the result top level
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
             request_latency = str(latency) if latency else request_latency
         if "usage" in result:
             usage = result.get("usage", {})
             if usage:
-                # Store usage information in context for later use
-                ctx.set_item("usage", usage)
-                # Override token counts from usage data if available
+                # Make a copy of the usage data to avoid modifying the original
+                # in downstream processing of the response
+                ctx.set_item("usage", usage.copy())
                 input_token_count = str(usage.get("inputTokens", input_token_count))
                 output_token_count = str(usage.get("outputTokens", output_token_count))
         if "stopReason" in result:
@@ -373,7 +371,7 @@ def handle_bedrock_response(
     )
 
     if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result.copy()])
         return result
 
     body = result["body"]

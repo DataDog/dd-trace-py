@@ -129,16 +129,30 @@ class BedrockIntegration(BaseLLMIntegration):
         if "output" in response and "message" in response.get("output", {}):
             message = response.get("output", {}).get("message", {})
             role = message.get("role", "assistant")
-
+            tool_calls_info = []
             if message.get("content") and isinstance(message["content"], list):
-                content_texts = []
-                for content_part in message["content"]:
-                    if content_part.get("type", "") == "text" or "text" in content_part:
-                        content_texts.append(content_part.get("text", ""))
-                content = " ".join(content_texts)
-                return [{"content": content, "role": role}]
-            elif isinstance(message.get("content", ""), str):
-                return [{"content": message.get("content", ""), "role": role}]
+                content_blocks = []
+                for content_block in message["content"]:
+                    if content_block.get("text") is not None:
+                        content_blocks.append(content_block.get("text", ""))
+                    elif content_block.get("toolUse") is not None:
+                        tool_calls_info.append(
+                            {
+                                "name": content_block.get("toolUse", {}).get("name", ""),
+                                "arguments": content_block.get("toolUse", {}).get("input", ""),
+                                "tool_id": content_block.get("toolUse", {}).get("toolUseId", ""),
+                            }
+                        )
+                    else:
+                        log.debug(
+                            "LLM Obs tracing is unsupported for content block type: %s", ",".join(content_block.keys())
+                        )
+                        content_blocks.append("[Unsupported content type: {}]".format(",".join(content_block.keys())))
+
+                output_message = {"content": " ".join(content_blocks), "role": role}
+                if tool_calls_info:
+                    output_message["tool_calls"] = tool_calls_info
+                return [output_message]
 
         # Standard InvokeModel API response format
         if isinstance(response.get("text", ""), str):
