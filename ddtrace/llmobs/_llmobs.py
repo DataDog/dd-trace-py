@@ -240,12 +240,12 @@ class LLMObs(Service):
             "language": "python",
             "error": span.error,
         }
-        
+
         # Add experiment_id from baggage if present
         experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY)
         if experiment_id:
             tags["experiment_id"] = experiment_id
-        
+
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
@@ -724,9 +724,15 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
-    
+
     @classmethod
-    def _experiment(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None, experiment_id: Optional[str] = None) -> Span:
+    def _experiment(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Span:
         """
         Trace an LLM experiment, only used internally by the experiments SDK.
 
@@ -741,11 +747,11 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
-        
+
         # Set experiment_id in baggage if provided
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY, experiment_id)
-        
+
         return span
 
     @classmethod

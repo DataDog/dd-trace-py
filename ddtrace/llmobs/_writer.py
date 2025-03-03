@@ -215,13 +215,12 @@ class LLMObsSpanEncoder(BufferedEncoder):
         try:
             enc_llm_events = safe_json(data)
             if isinstance(enc_llm_events, str):
-                enc_llm_events = enc_llm_events.encode('utf-8')
+                enc_llm_events = enc_llm_events.encode("utf-8")
             logger.debug("encode %d LLMObs span events to be sent", len(events))
-            
+
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
             return None, 0
-        # print(enc_llm_events)
         return enc_llm_events, len(events)
 
 

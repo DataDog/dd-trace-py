@@ -15,7 +15,7 @@ from .._utils import HTTPResponse
 from .._utils import http_request
 
 from ..decorators import agent
-from .._llmobs import LLMObs  
+from .._llmobs import LLMObs
 
 import ddtrace
 from ddtrace import patch_all
@@ -37,7 +37,13 @@ ML_APP = "dne"
 RUN_LOCALLY = False
 
 
-def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, application_key: str = None, run_locally: bool = False) -> None:
+def init(
+    project_name: str,
+    site: str = "datadoghq.com",
+    api_key: str = None,
+    application_key: str = None,
+    run_locally: bool = False,
+) -> None:
     """Initialize an experiment environment.
 
     Args:
@@ -52,19 +58,22 @@ def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, ap
 
     if run_locally:
         RUN_LOCALLY = True
-       
+
         return
 
     if api_key is None:
         api_key = os.getenv("DD_API_KEY")
         if api_key is None:
-            raise ValueError("DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(...api_key=...)")
-        
+            raise ValueError(
+                "DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(...api_key=...)"
+            )
+
     if application_key is None:
         application_key = os.getenv("DD_APPLICATION_KEY")
         if application_key is None:
-            raise ValueError("DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)")
-
+            raise ValueError(
+                "DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)"
+            )
 
     if IS_INITIALIZED is False:
         LLMObs.enable(
@@ -74,19 +83,24 @@ def init(project_name: str, site: str = "datadoghq.com", api_key: str = None, ap
             site=site,
             api_key=api_key,
         )
-        
+
     ENV_PROJECT_NAME = project_name
     ENV_SITE = site
     ENV_API_KEY = api_key
     ENV_APPLICATION_KEY = application_key
     IS_INITIALIZED = True
 
+
 def _validate_init() -> None:
     if IS_INITIALIZED is False:
-        raise ValueError("Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions")
-    
+        raise ValueError(
+            "Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions"
+        )
+
+
 def _is_locally_initialized() -> bool:
     return RUN_LOCALLY
+
 
 class Dataset:
     """A container for LLM experiment data that can be pushed to and retrieved from Datadog.
@@ -99,7 +113,9 @@ class Dataset:
         description (str): Optional description of the dataset
     """
 
-    def __init__(self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = "") -> None:
+    def __init__(
+        self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = ""
+    ) -> None:
         """
         Args:
             name: Name of the dataset
@@ -110,13 +126,10 @@ class Dataset:
         self.name = name
         self.description = description
         self.version = 0
-        
 
         # If no data provided, attempt to pull from Datadog
         if data is None:
-            print(
-                f"No data provided, pulling dataset '{name}' from Datadog..."
-            )
+            print(f"No data provided, pulling dataset '{name}' from Datadog...")
             pulled_dataset = self.pull(name)
             print(pulled_dataset._datadog_dataset_id)
             self._data = pulled_dataset._data
@@ -136,10 +149,10 @@ class Dataset:
 
     def __getitem__(self, index: int) -> Dict[str, Union[str, Dict[str, Any]]]:
         """Get a dataset record.
-        
+
         Args:
             index: Index of the record to retrieve
-            
+
         Returns:
             Dict containing the record.
         """
@@ -189,7 +202,7 @@ class Dataset:
         # Get dataset ID
         encoded_name = quote(name)
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-        
+
         resp = exp_http_request("GET", url)
         response_data = resp.json()
         datasets = response_data.get("data", [])
@@ -209,15 +222,14 @@ class Dataset:
                 versions_resp = exp_http_request("GET", versions_url)
                 versions_data = versions_resp.json()
                 available_versions = [v["attributes"]["version_number"] for v in versions_data.get("data", [])]
-                
+
                 if not available_versions:
                     raise ValueError(f"No versions found for dataset '{name}'")
-                
+
                 if version not in available_versions:
                     versions_str = ", ".join(str(v) for v in sorted(available_versions))
                     raise ValueError(
-                        f"Version {version} not found for dataset '{name}'. "
-                        f"Available versions: {versions_str}"
+                        f"Version {version} not found for dataset '{name}'. " f"Available versions: {versions_str}"
                     )
                 dataset_version = version
             except ValueError as e:
@@ -229,7 +241,7 @@ class Dataset:
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
         if version is not None:
             url += f"?filter[version]={version}"
-        
+
         try:
             resp = exp_http_request("GET", url)
             records_data = resp.json()
@@ -238,8 +250,7 @@ class Dataset:
                 if version is not None:
                     versions_str = ", ".join(str(v) for v in sorted(available_versions))
                     raise ValueError(
-                        f"Version {version} not found for dataset '{name}'. "
-                        f"Available versions: {versions_str}"
+                        f"Version {version} not found for dataset '{name}'. " f"Available versions: {versions_str}"
                     ) from e
                 raise ValueError(f"Dataset '{name}' not found") from e
             raise
@@ -253,13 +264,15 @@ class Dataset:
             attrs = record.get("attributes", {})
             input_data = attrs.get("input")
             expected_output = attrs.get("expected_output")
-                
-            class_records.append({
-                "record_id": record.get("id"),
-                "input": input_data,
-                "expected_output": expected_output,
-                **attrs.get("metadata", {}),
-            })
+
+            class_records.append(
+                {
+                    "record_id": record.get("id"),
+                    "input": input_data,
+                    "expected_output": expected_output,
+                    **attrs.get("metadata", {}),
+                }
+            )
 
         # Create new dataset instance
         dataset = cls(name, class_records)
@@ -293,18 +306,18 @@ class Dataset:
             url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
             resp = exp_http_request("GET", url)
             existing_records = resp.json().get("data", [])
-            
+
             # Update records in chunks
             total_records = len(self._data)
-            chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
+            chunks = [self._data[i : i + chunk_size] for i in range(0, total_records, chunk_size)]
             total_chunks = len(chunks)
 
             show_progress = total_records > chunk_size
             if show_progress:
-                _print_progress_bar(0, total_chunks, prefix='Updating:', suffix='Complete')
+                _print_progress_bar(0, total_chunks, prefix="Updating:", suffix="Complete")
 
             for i, chunk in enumerate(chunks):
-                for record, existing in zip(chunk, existing_records[i*chunk_size:(i+1)*chunk_size]):
+                for record, existing in zip(chunk, existing_records[i * chunk_size : (i + 1) * chunk_size]):
                     record_id = existing["id"]
                     payload = {
                         "data": {
@@ -312,16 +325,19 @@ class Dataset:
                             "attributes": {
                                 "input": record["input"],
                                 "expected_output": record["expected_output"],
-                                "metadata": {k: v for k, v in record.items() 
-                                           if k not in ["input", "expected_output", "record_id"]}
-                            }
+                                "metadata": {
+                                    k: v
+                                    for k, v in record.items()
+                                    if k not in ["input", "expected_output", "record_id"]
+                                },
+                            },
                         }
                     }
                     url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/{record_id}"
                     resp = exp_http_request("PATCH", url, body=json.dumps(payload).encode("utf-8"))
 
                 if show_progress:
-                    _print_progress_bar(i + 1, total_chunks, prefix='Updating:', suffix='Complete')
+                    _print_progress_bar(i + 1, total_chunks, prefix="Updating:", suffix="Complete")
 
         else:
             # Create new dataset
@@ -344,23 +360,23 @@ class Dataset:
 
             # Split records into chunks and upload
             total_records = len(self._data)
-            chunks = [self._data[i:i + chunk_size] for i in range(0, total_records, chunk_size)]
+            chunks = [self._data[i : i + chunk_size] for i in range(0, total_records, chunk_size)]
             total_chunks = len(chunks)
 
             # Only show progress bar for large datasets
             show_progress = total_records > chunk_size
             if show_progress:
-                _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
+                _print_progress_bar(0, total_chunks, prefix="Uploading:", suffix="Complete")
 
             for i, chunk in enumerate(chunks):
                 records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk}}}
                 url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
                 resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
-                
-                if show_progress:
-                    _print_progress_bar(i + 1, total_chunks, prefix='Uploading:', suffix='Complete')
 
-            time.sleep(1) # Sleep to allow for processing after ingestion.
+                if show_progress:
+                    _print_progress_bar(i + 1, total_chunks, prefix="Uploading:", suffix="Complete")
+
+            time.sleep(1)  # Sleep to allow for processing after ingestion.
             # Pull the dataset to get all record IDs and metadata
             pulled_dataset = self.pull(self.name)
             self._data = pulled_dataset._data
@@ -402,7 +418,7 @@ class Dataset:
 
         data = []
         try:
-            with open(filepath, mode='r', encoding='utf-8') as csvfile:
+            with open(filepath, mode="r", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile, delimiter=delimiter)
                 rows = list(reader)
                 if not rows:
@@ -419,7 +435,9 @@ class Dataset:
                     raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
 
                 # Get metadata columns (all columns not used for input or expected output)
-                metadata_columns = [col for col in header_columns if col not in input_columns and col not in expected_output_columns]
+                metadata_columns = [
+                    col for col in header_columns if col not in input_columns and col not in expected_output_columns
+                ]
 
                 for row in rows:
                     # Handle input data
@@ -437,11 +455,13 @@ class Dataset:
                     # Handle metadata (all remaining columns)
                     metadata = {col: row[col] for col in metadata_columns}
 
-                    data.append({
-                        'input': input_data,
-                        'expected_output': expected_output_data,
-                        **metadata,
-                    })
+                    data.append(
+                        {
+                            "input": input_data,
+                            "expected_output": expected_output_data,
+                            **metadata,
+                        }
+                    )
         except FileNotFoundError as e:
             raise DatasetFileError(f"CSV file not found: {filepath}") from e
         except PermissionError as e:
@@ -452,7 +472,6 @@ class Dataset:
             raise DatasetFileError(f"Unexpected error reading CSV file: {e}") from e
 
         return cls(name=name, data=data, description=description)
-
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
         """Convert the dataset to a pandas DataFrame.
@@ -471,8 +490,7 @@ class Dataset:
             import pandas as pd
         except ImportError:
             raise ImportError(
-                "pandas is required to convert dataset to DataFrame. "
-                "Please install it with `pip install pandas`"
+                "pandas is required to convert dataset to DataFrame. " "Please install it with `pip install pandas`"
             )
 
         if multiindex:
@@ -482,30 +500,30 @@ class Dataset:
                 flat_record = {}
 
                 # Handle 'input' fields
-                input_data = record.get('input', {})
-                if isinstance(input_data, dict):        
+                input_data = record.get("input", {})
+                if isinstance(input_data, dict):
                     for k, v in input_data.items():
-                        flat_record[('input', k)] = v
-                        column_tuples.add(('input', k))
+                        flat_record[("input", k)] = v
+                        column_tuples.add(("input", k))
                 else:
-                    flat_record[('input', '')] = input_data
-                    column_tuples.add(('input', ''))
+                    flat_record[("input", "")] = input_data
+                    column_tuples.add(("input", ""))
 
                 # Handle 'expected_output' fields
-                expected_output = record.get('expected_output', {})
+                expected_output = record.get("expected_output", {})
                 if isinstance(expected_output, dict):
                     for k, v in expected_output.items():
-                        flat_record[('expected_output', k)] = v
-                        column_tuples.add(('expected_output', k))
+                        flat_record[("expected_output", k)] = v
+                        column_tuples.add(("expected_output", k))
                 else:
-                    flat_record[('expected_output', '')] = expected_output
-                    column_tuples.add(('expected_output', ''))
+                    flat_record[("expected_output", "")] = expected_output
+                    column_tuples.add(("expected_output", ""))
 
                 # Handle any other top-level fields
                 for k, v in record.items():
-                    if k not in ['input', 'expected_output']:
-                        flat_record[('metadata', k)] = v
-                        column_tuples.add(('metadata', k))
+                    if k not in ["input", "expected_output"]:
+                        flat_record[("metadata", k)] = v
+                        column_tuples.add(("metadata", k))
                 data_rows.append(flat_record)
 
             # Convert column_tuples to a sorted list to maintain consistent column order
@@ -524,13 +542,13 @@ class Dataset:
         data = []
         for record in self._data:
             new_record = {}
-            input_data = record.get('input', {})
-            new_record['input'] = input_data
-            expected_output = record.get('expected_output', {})
-            new_record['expected_output'] = expected_output
+            input_data = record.get("input", {})
+            new_record["input"] = input_data
+            expected_output = record.get("expected_output", {})
+            new_record["expected_output"] = expected_output
             # Copy other fields
             for k, v in record.items():
-                if k not in ['input', 'expected_output']:
+                if k not in ["input", "expected_output"]:
                     new_record[k] = v
             data.append(new_record)
         return pd.DataFrame(data)
@@ -544,46 +562,45 @@ class Dataset:
         """
         import json
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             for record in self._data:
                 json_line = json.dumps(record)
-                f.write(json_line + '\n')
+                f.write(json_line + "\n")
 
     def __repr__(self) -> str:
         """Rich string representation of the Dataset.
-        
+
         Shows dataset name, size, structure, and Datadog sync status.
         """
         # Get basic dataset info
         name = f"{Color.CYAN}{self.name}{Color.RESET}"
         record_count = len(self._data)
-        
+
         # Get sample structure from first record
         structure = []
         if self._data:
             sample = self._data[0]
             # Input structure
-            input_data = sample.get('input', {})
+            input_data = sample.get("input", {})
             if isinstance(input_data, dict):
                 input_desc = f"dict[{len(input_data)} keys]"
             else:
                 input_desc = type(input_data).__name__
             structure.append(f"input: {input_desc}")
-            
+
             # Expected output structure
-            expected = sample.get('expected_output', {})
+            expected = sample.get("expected_output", {})
             if isinstance(expected, dict):
                 output_desc = f"dict[{len(expected)} keys]"
             else:
                 output_desc = type(expected).__name__
             structure.append(f"expected_output: {output_desc}")
-            
+
             # Metadata fields
-            metadata = {k: v for k, v in sample.items() 
-                       if k not in ['input', 'expected_output', 'record_id']}
+            metadata = {k: v for k, v in sample.items() if k not in ["input", "expected_output", "record_id"]}
             if metadata:
                 structure.append(f"metadata: {len(metadata)} fields")
-        
+
         # Datadog sync status
         if self._datadog_dataset_id:
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
@@ -591,25 +608,25 @@ class Dataset:
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
             dd_url = ""
-        
+
         # Build the representation
         info = [
             f"Dataset(name={name})",
             f"  Records: {record_count:,}",
             f"  Structure: {', '.join(structure)}",
-            f"  Datadog: {dd_status}"
+            f"  Datadog: {dd_status}",
         ]
-        
+
         # Add description if present
         if self.description:
-            desc_preview = (self.description[:47] + '...') if len(self.description) > 50 else self.description
+            desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
             info.insert(1, f"  Description: {desc_preview}")
-        
+
         # Add URL if dataset is synced
         if dd_url:
             info.append(dd_url)
-        
-        return '\n'.join(info)
+
+        return "\n".join(info)
 
 
 class Experiment:
@@ -661,9 +678,7 @@ class Experiment:
         # Make sure every evaluator is decorated with @evaluator
         for evaluator_func in self.evaluators:
             if not hasattr(evaluator_func, "_is_evaluator"):
-                raise TypeError(
-                    f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator."
-                )
+                raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
 
         # Post-run attributes
         self.has_run = False
@@ -749,11 +764,11 @@ class Experiment:
         return experiment_id
 
     def run(
-    self,
-    jobs: int = 10,
-    raise_errors: bool = False,
-    sample_size: Optional[int] = None,
-) -> "ExperimentResults":
+        self,
+        jobs: int = 10,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> "ExperimentResults":
         """
         Execute the task and evaluations, returning the results.
         If sample_size is provided, run on just that many rows from the dataset (subset).
@@ -786,6 +801,7 @@ class Experiment:
         # If a sample_size is given, slice the dataset to that many records
         # to create a temporary subset that lines up with the partial output.
         from copy import deepcopy
+
         if sample_size is not None and sample_size < len(self.dataset._data):
             subset_data = [deepcopy(r) for r in self.dataset._data[:sample_size]]
             subset_dataset = Dataset(
@@ -805,10 +821,7 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(
-                name=self.task.__name__, 
-                experiment_id=self._datadog_experiment_id
-            ) as span:
+            with LLMObs._experiment(name=self.task.__name__, experiment_id=self._datadog_experiment_id) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
@@ -883,7 +896,7 @@ class Experiment:
                             "message": error_message,
                             "stack": traceback.format_exc(),
                             "type": type(e).__name__,
-                        }
+                        },
                     }
 
         _jobs = 5 if sample_size else jobs
@@ -924,10 +937,7 @@ class Experiment:
                     )
                 try:
                     evaluation_result = evaluator_func(input_data, output, expected_output)
-                    evaluations_dict[evaluator_func.__name__] = {
-                        "value": evaluation_result,
-                        "error": None
-                    }
+                    evaluations_dict[evaluator_func.__name__] = {"value": evaluation_result, "error": None}
                 except Exception as e:
                     evaluations_dict[evaluator_func.__name__] = {
                         "value": None,
@@ -935,17 +945,12 @@ class Experiment:
                             "message": str(e),
                             "type": type(e).__name__,
                             "stack": traceback.format_exc(),
-                        }
+                        },
                     }
                     if raise_errors:
-                        raise RuntimeError(
-                            f"Evaluator '{evaluator_func.__name__}' failed on row {idx}: {e}"
-                        ) from e
+                        raise RuntimeError(f"Evaluator '{evaluator_func.__name__}' failed on row {idx}: {e}") from e
 
-            evaluations_partial.append({
-                "idx": idx,
-                "evaluations": evaluations_dict
-            })
+            evaluations_partial.append({"idx": idx, "evaluations": evaluations_dict})
             progress_eval.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
         # If sample_size was not used, we can store these as the main experiment outputs/evals:
@@ -964,7 +969,6 @@ class Experiment:
         print(f"\n{Color.RESET} Run complete.\n")
         return experiment_results
 
-
     def run_task(self, jobs: int = 10, raise_errors: bool = False) -> None:
         """
         Execute the task function on the dataset concurrently, terminating early if raise_errors is True
@@ -981,10 +985,7 @@ class Experiment:
         def process_row(idx_row):
             idx, row = idx_row
             start_time = time.time()
-            with LLMObs._experiment(
-                name=self.task.__name__, 
-                experiment_id=self._datadog_experiment_id
-            ) as span:
+            with LLMObs._experiment(name=self.task.__name__, experiment_id=self._datadog_experiment_id) as span:
                 span.context.set_baggage_item("is_experiment_task", True)
                 span_context = LLMObs.export_span(span=span)
                 span_id = span_context["span_id"]
@@ -1065,7 +1066,7 @@ class Experiment:
                             "message": error_message,
                             "stack": traceback.format_exc(),
                             "type": type(e).__name__,
-                        }
+                        },
                     }
 
         # Using ThreadPoolExecutor.map to process rows concurrently
@@ -1089,24 +1090,22 @@ class Experiment:
         os.environ["DD_LLMOBS_ENABLED"] = "False"
 
     def run_evaluations(
-        self,
-        evaluators: Optional[List[Callable]] = None,
-        raise_errors: bool = False
+        self, evaluators: Optional[List[Callable]] = None, raise_errors: bool = False
     ) -> "ExperimentResults":
         """Run evaluators on the outputs and return ExperimentResults.
         Args:
             evaluators (Optional[List[Callable]]): List of evaluators to use. If None, uses the experiment's evaluators.
             raise_errors (bool): If True, raises exceptions encountered during evaluation.
-        
+
         Returns:
             ExperimentResults: A new ExperimentResults instance with the evaluation results.
-        
+
         Raises:
             ValueError: If task has not been run yet
         """
         if not _is_locally_initialized():
             _validate_init()
-        
+
         if not self.has_run:
             raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
@@ -1115,30 +1114,27 @@ class Experiment:
 
         # Validate that all evaluators have the @evaluator decorator
         for evaluator_func in evaluators_to_use:
-            if not hasattr(evaluator_func, '_is_evaluator'):
+            if not hasattr(evaluator_func, "_is_evaluator"):
                 raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
 
         evaluations = []
         total_rows = len(self.outputs)
-        
+
         progress = ProgressReporter(total_rows, desc="Evaluating")
 
         for idx, output_data in enumerate(self.outputs):
             output = output_data["output"]
             dataset_row = self.dataset[idx]
-            input_data = dataset_row.get('input', {})
-            expected_output = dataset_row.get('expected_output', {})
-            
+            input_data = dataset_row.get("input", {})
+            expected_output = dataset_row.get("expected_output", {})
+
             evaluations_dict = {}
 
             # Run all evaluators for this output
             for evaluator in evaluators_to_use:
                 try:
                     evaluation_result = evaluator(input_data, output, expected_output)
-                    evaluations_dict[evaluator.__name__] = {
-                        "value": evaluation_result,
-                        "error": None
-                    }
+                    evaluations_dict[evaluator.__name__] = {"value": evaluation_result, "error": None}
                 except Exception as e:
                     evaluations_dict[evaluator.__name__] = {
                         "value": None,
@@ -1146,38 +1142,31 @@ class Experiment:
                             "message": str(e),
                             "type": type(e).__name__,
                             "stack": traceback.format_exc(),
-                        }
+                        },
                     }
                     if raise_errors:
                         raise e
 
             # Add single evaluation entry for this output
-            evaluations.append({
-                "idx": idx,
-                "evaluations": evaluations_dict
-            })
-            
+            evaluations.append({"idx": idx, "evaluations": evaluations_dict})
+
             progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
         self.has_evaluated = True
         experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
         experiment_results._push_evals()
         return experiment_results
-    
-
-
-
 
     def __repr__(self) -> str:
         """Rich string representation of the Experiment.
-        
+
         Shows experiment configuration, task details, evaluators, and run status
         with color-coded indicators and formatted statistics.
         """
         # Basic experiment info with color
         name = f"{Color.CYAN}{self.name}{Color.RESET}"
         project = f"{Color.CYAN}{self.project_name}{Color.RESET}"
-        
+
         # Task info
         task_name = self.task.__name__
         task_doc = self.task.__doc__
@@ -1186,20 +1175,14 @@ class Experiment:
             # Get first line of docstring
             first_line = task_doc.splitlines()[0].strip()
             task_preview += f" ({first_line})"
-        
+
         # Dataset info
-        dataset_info = (
-            f"{self.dataset.name} "
-            f"({len(self.dataset):,} records)"
-        )
-        
+        dataset_info = f"{self.dataset.name} " f"({len(self.dataset):,} records)"
+
         # Evaluators info
         evaluator_names = [e.__name__ for e in self.evaluators]
-        evaluator_info = (
-            f"{len(evaluator_names)} evaluator"
-            f"{'s' if len(evaluator_names) != 1 else ''}"
-        )
-        
+        evaluator_info = f"{len(evaluator_names)} evaluator" f"{'s' if len(evaluator_names) != 1 else ''}"
+
         # Config preview
         config_preview = ""
         if self.config:
@@ -1209,16 +1192,16 @@ class Experiment:
             if len(self.config) > 3:
                 preview += f" + {len(self.config) - 3} more"
             config_preview = f"\n  Config: {preview}"
-        
+
         # Tags
         tags_info = ""
         if self.tags:
             tags = " ".join(f"{Color.GREY}#{tag}{Color.RESET}" for tag in self.tags)
             tags_info = f"\n  Tags: {tags}"
-        
+
         # Execution status
         status_indicators = []
-        
+
         # Run status
         if self.has_run:
             run_status = f"{Color.GREEN}✓ Run complete{Color.RESET}"
@@ -1230,7 +1213,7 @@ class Experiment:
         else:
             run_status = f"{Color.YELLOW}Not run{Color.RESET}"
         status_indicators.append(run_status)
-        
+
         # Evaluation status
         if self.has_evaluated:
             eval_status = f"{Color.GREEN}✓ Evaluated{Color.RESET}"
@@ -1239,22 +1222,24 @@ class Experiment:
         else:
             eval_status = f"{Color.DIM}Pending run{Color.RESET}"
         status_indicators.append(eval_status)
-        
+
         # Datadog sync status
         if self._datadog_experiment_id:
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET}"
-            dd_url = f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
+            dd_url = (
+                f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
+            )
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
             dd_url = ""
         status_indicators.append(dd_status)
-        
+
         # Description (if present)
         desc_info = ""
         if self.description:
-            desc_preview = (self.description[:47] + '...') if len(self.description) > 50 else self.description
+            desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
             desc_info = f"\n  Description: {desc_preview}"
-        
+
         # Build the final representation
         info = [
             f"Experiment(name={name})",
@@ -1262,9 +1247,9 @@ class Experiment:
             f"  Task: {task_preview}",
             f"  Dataset: {dataset_info}",
             f"  Evaluators: {evaluator_info} ({', '.join(evaluator_names)})",
-            f"  Status: {' | '.join(status_indicators)}"
+            f"  Status: {' | '.join(status_indicators)}",
         ]
-        
+
         # Add optional sections if present
         if desc_info:
             info.insert(2, desc_info)
@@ -1274,10 +1259,9 @@ class Experiment:
             info.append(tags_info)
         if dd_url:
             info.append(dd_url)
-        
-        return '\n'.join(info)
 
- 
+        return "\n".join(info)
+
 
 class ExperimentResults:
     """Contains and manages the results of an experiment run.
@@ -1308,18 +1292,18 @@ class ExperimentResults:
             dataset_record = self.dataset._data[idx]
 
             # Get base metadata and add tags to it
-            metadata = output_data.get('metadata', {})
-            metadata['tags'] = self.experiment.tags
+            metadata = output_data.get("metadata", {})
+            metadata["tags"] = self.experiment.tags
 
             merged_result = {
                 "idx": idx,
-                "record_id": dataset_record.get('record_id'),
-                "input": dataset_record.get('input', {}),
-                "expected_output": dataset_record.get('expected_output', {}),
-                "output": output_data.get('output'),
-                "evaluations": evaluation_data.get('evaluations', {}),
+                "record_id": dataset_record.get("record_id"),
+                "input": dataset_record.get("input", {}),
+                "expected_output": dataset_record.get("expected_output", {}),
+                "output": output_data.get("output"),
+                "evaluations": evaluation_data.get("evaluations", {}),
                 "metadata": metadata,
-                "error": output_data.get('error'),
+                "error": output_data.get("error"),
             }
             merged_results.append(merged_result)
         return merged_results
@@ -1332,10 +1316,10 @@ class ExperimentResults:
 
     def __getitem__(self, index: int) -> Any:
         """Get a result record.
-        
+
         Args:
             index: Index of the record to retrieve
-            
+
         Returns:
             Dict containing the record.
         """
@@ -1365,51 +1349,51 @@ class ExperimentResults:
 
         # Convert merged_results to DataFrame directly
         df = pd.DataFrame(self.merged_results)
-        
+
         if not multiindex:
             return df
-        
+
         # Process input, output, and expected_output with MultiIndex
-        special_fields = ['input', 'output', 'expected_output']
+        special_fields = ["input", "output", "expected_output"]
         result_dfs = []
-        
+
         # Handle special fields (input, output, expected_output)
         for field in special_fields:
             if field not in df.columns:
                 continue
-                
+
             # Get the first non-null value to check type
             first_value = next((v for v in df[field] if v is not None), None)
-            
+
             if isinstance(first_value, dict):
                 # For dictionary values, expand into columns
                 field_df = pd.json_normalize(df[field].values)
             else:
                 # For simple values, use 'value' as the subcolumn
-                field_df = pd.DataFrame({'value': df[field].values})
-            
+                field_df = pd.DataFrame({"value": df[field].values})
+
             # Create MultiIndex columns for this field
             field_df.columns = pd.MultiIndex.from_tuples([(field, col) for col in field_df.columns])
             result_dfs.append(field_df)
-        
+
         # Add all other columns as-is
         other_cols = [col for col in df.columns if col not in special_fields]
         if other_cols:
             other_df = df[other_cols]
             result_dfs.append(other_df)
-        
+
         # Combine all DataFrames
         final_df = pd.concat(result_dfs, axis=1)
-        
+
         # Replace NaN with None
         final_df = final_df.where(pd.notna(final_df), None)
-        
+
         return final_df
 
     def _push_evals(self, chunk_size: int = 300) -> None:
         """Push the experiment evaluations to Datadog."""
         _validate_init()
-        
+
         # Ensure the dataset is hosted in Datadog
         if not self.experiment.dataset._datadog_dataset_id:
             raise ValueError(
@@ -1420,8 +1404,7 @@ class ExperimentResults:
         # Ensure the experiment was already created (via run())
         if not self.experiment._datadog_experiment_id:
             raise ValueError(
-                "Experiment has not been created in Datadog. "
-                "Please call experiment.run() before pushing results."
+                "Experiment has not been created in Datadog. " "Please call experiment.run() before pushing results."
             )
 
         # Grab IDs from the already-created experiment
@@ -1436,34 +1419,30 @@ class ExperimentResults:
         show_progress = total_results > chunk_size
 
         # Just an example of how you'd do chunked uploads:
-        chunks = [
-            self.merged_results[i : i + chunk_size]
-            for i in range(0, total_results, chunk_size)
-        ]
+        chunks = [self.merged_results[i : i + chunk_size] for i in range(0, total_results, chunk_size)]
         total_chunks = len(chunks)
 
         if show_progress:
             print(f"\nUploading {total_results} results in {total_chunks} chunks...")
-            _print_progress_bar(0, total_chunks, prefix='Uploading:', suffix='Complete')
+            _print_progress_bar(0, total_chunks, prefix="Uploading:", suffix="Complete")
 
         for chunk_idx, chunk in enumerate(chunks):
-            spans = []
-            metrics = []
-            
+            spans: List[Dict[str, Any]] = []
+            metrics: List[Dict[str, Any]] = []
+
             # Process each result in the chunk
             for result in chunk:
-                idx = result['idx']
+                idx = result["idx"]
                 merged_result = result
-                output = merged_result.get('output')
-                record_id = merged_result.get('record_id')
-                input = merged_result.get('input', {})
-                evaluations = merged_result.get('evaluations', {})
-                expected_output = merged_result.get('expected_output', {})
-                error = merged_result.get('error', {})
-                metadata = merged_result.get('metadata', {})
-                span_id = metadata.get('span_id')
-                trace_id = metadata.get('trace_id')
-
+                output = merged_result.get("output")
+                record_id = merged_result.get("record_id")
+                input = merged_result.get("input", {})
+                evaluations = merged_result.get("evaluations", {})
+                expected_output = merged_result.get("expected_output", {})
+                error = merged_result.get("error", {})
+                metadata = merged_result.get("metadata", {})
+                span_id = metadata.get("span_id")
+                trace_id = metadata.get("trace_id")
 
                 # Add evaluation metrics
                 for metric_payload_name, metric_payload_value in evaluations.items():
@@ -1471,7 +1450,7 @@ class ExperimentResults:
                     if metric_payload_value is None:
                         print(f"Skipping None value for metric: {metric_payload_name}")
                         continue
-                        
+
                     timestamp_ms = int(metadata.get("timestamp", time.time()) * 1000)
 
                     if metric_payload_value["value"] == None:
@@ -1488,8 +1467,6 @@ class ExperimentResults:
                         metric_type = "categorical"
                         metric_value = str(metric_payload_value["value"])
 
-
-                
                     metric = {
                         "span_id": str(span_id),
                         "trace_id": str(trace_id),
@@ -1501,12 +1478,16 @@ class ExperimentResults:
                     }
 
                     metrics.append(metric)
-                    
 
             chunk_payload = {
                 "data": {
                     "type": "experiments",
-                    "attributes": {"scope": "experiments", "metrics": metrics, "tags": self.experiment.tags + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + experiment_id]}, 
+                    "attributes": {
+                        "scope": "experiments",
+                        "metrics": metrics,
+                        "tags": self.experiment.tags
+                        + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + experiment_id],
+                    },
                 }
             }
 
@@ -1514,9 +1495,7 @@ class ExperimentResults:
             exp_http_request("POST", url, body=json.dumps(chunk_payload).encode("utf-8"))
 
             if show_progress:
-                _print_progress_bar(
-                    chunk_idx + 1, total_chunks, prefix='Uploading:', suffix='Complete'
-                )
+                _print_progress_bar(chunk_idx + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
         # Print completion message with link
         print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
@@ -1531,55 +1510,55 @@ class ExperimentResults:
         """
         import json
 
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             for result in self.merged_results:
                 json_line = json.dumps(result)
-                f.write(json_line + '\n')
+                f.write(json_line + "\n")
 
     def __repr__(self) -> str:
         """Rich string representation of the ExperimentResults.
-        
+
         Shows experiment name, dataset info, evaluation statistics, and error rates
         with color-coded indicators and formatted metrics.
         """
         # Basic experiment info with color
         exp_name = f"{Color.CYAN}{self.experiment.name}{Color.RESET}"
         dataset_name = f"{Color.CYAN}{self.dataset.name}{Color.RESET}"
-        
+
         # Count records and errors
         total_records = len(self.merged_results)
         errors = sum(1 for r in self.merged_results if r.get("error", {}).get("message"))
         error_rate = (errors / total_records) * 100 if total_records > 0 else 0
-        
+
         # Get evaluator names and stats
         evaluator_names = set()
         eval_stats = {}
-        
+
         for result in self.merged_results:
             evals = result.get("evaluations", {})
             for eval_name, eval_data in evals.items():
                 evaluator_names.add(eval_name)
-                
+
                 # Track stats for this evaluator
                 if eval_name not in eval_stats:
                     eval_stats[eval_name] = {"count": 0, "errors": 0, "values": []}
-                
+
                 # Count evaluations and errors
                 eval_stats[eval_name]["count"] += 1
                 if eval_data.get("error"):
                     eval_stats[eval_name]["errors"] += 1
-                
+
                 # Collect values for numeric metrics
                 value = eval_data.get("value")
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     eval_stats[eval_name]["values"].append(value)
-        
+
         # Format evaluator statistics
         eval_info = []
         for name in sorted(evaluator_names):
             stats = eval_stats[name]
             eval_error_rate = (stats["errors"] / stats["count"]) * 100 if stats["count"] > 0 else 0
-            
+
             # Format differently based on whether we have numeric values
             if stats["values"]:
                 # Calculate statistics for numeric metrics
@@ -1587,7 +1566,7 @@ class ExperimentResults:
                 avg = sum(values) / len(values) if values else 0
                 min_val = min(values) if values else 0
                 max_val = max(values) if values else 0
-                
+
                 # Format with color based on error rate
                 if eval_error_rate > 0:
                     eval_info.append(
@@ -1595,9 +1574,7 @@ class ExperimentResults:
                         f"({Color.RED}{stats['errors']} errors, {eval_error_rate:.1f}%{Color.RESET})"
                     )
                 else:
-                    eval_info.append(
-                        f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f}"
-                    )
+                    eval_info.append(f"    {name}: avg={avg:.2f} min={min_val:.2f} max={max_val:.2f}")
             else:
                 # Format for non-numeric metrics
                 if eval_error_rate > 0:
@@ -1607,16 +1584,21 @@ class ExperimentResults:
                     )
                 else:
                     eval_info.append(f"    {name}: {stats['count']} evaluations")
-        
+
         # Format execution time if available
-        time_info = ""
-        if self.merged_results and "metadata" in self.merged_results[0]:
-            durations = [r.get("metadata", {}).get("duration", 0) for r in self.merged_results]
-            if any(durations):
-                avg_time = sum(durations) / len(durations)
-                total_time = sum(durations)
-                time_info = f"\n  Time: {total_time:.1f}s total, {avg_time:.3f}s per record"
-        
+        durations: List[float] = []
+        for r in self.merged_results:
+            duration = r.get("metadata", {}).get("duration", 0.0)
+            if isinstance(duration, (int, float)):
+                durations.append(float(duration))
+
+        if durations:
+            avg_time = sum(durations) / len(durations)
+            total_time = sum(durations)
+            time_info = f"\n  Time: {total_time:.1f}s total, {avg_time:.3f}s per record"
+        else:
+            time_info = ""
+
         # Format error information
         error_info = ""
         if errors > 0:
@@ -1625,37 +1607,37 @@ class ExperimentResults:
             for result in self.merged_results:
                 error_msg = result.get("error", {}).get("message")
                 if error_msg:
-                    preview = (error_msg[:60] + '...') if len(error_msg) > 60 else error_msg
+                    preview = (error_msg[:60] + "...") if len(error_msg) > 60 else error_msg
                     error_info += f"\n    First error: {preview}"
                     break
-        
+
         # Build the representation
         info = [
             f"ExperimentResults({exp_name})",
             f"  Dataset: {dataset_name} ({total_records:,} records)",
             f"  Task: {self.experiment.task.__name__}",
         ]
-        
+
         # Add error info if present
         if error_info:
             info.append(error_info)
-        
+
         # Add time info if available
         if time_info:
             info.append(time_info)
-        
+
         # Add evaluator section if we have evaluations
         if evaluator_names:
             info.append(f"  Evaluations:")
             info.extend(eval_info)
-        
+
         # Add URL if experiment is synced with Datadog
         if self.experiment._datadog_experiment_id:
             info.append(
                 f"\n  {Color.BLUE}URL: {BASE_URL}/llm/testing/experiments/{self.experiment._datadog_experiment_id}{Color.RESET}"
             )
-        
-        return '\n'.join(info)
+
+        return "\n".join(info)
 
 
 def _make_id() -> str:
@@ -1669,20 +1651,9 @@ def _make_id() -> str:
 
 def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTTPResponse:
     """Make an HTTP request to the Datadog experiments API."""
-    missing_keys = []
-    for key in ["DD_API_KEY", "DD_APPLICATION_KEY"]:
-        if not os.getenv(key):
-            missing_keys.append(key)
-
-    if missing_keys:
-        raise ValueError(
-            f"Missing required Datadog API keys in environment variables: {', '.join(missing_keys)}. "
-            "Please set these environment variables before pushing to Datadog."
-        )
-
-    headers = {
-        "DD-API-KEY": os.getenv("DD_API_KEY"),
-        "DD-APPLICATION-KEY": os.getenv("DD_APPLICATION_KEY"),
+    headers: Dict[str, str] = {
+        "DD-API-KEY": os.getenv("DD_API_KEY", ""),
+        "DD-APPLICATION-KEY": os.getenv("DD_APPLICATION_KEY", ""),
         "Content-Type": "application/json",
     }
     full_url = BASE_URL + url
@@ -1695,7 +1666,7 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
     if resp.status_code >= 400:
         try:
             error_details = resp.json()
-            error_message = error_details.get('errors', [{}])[0].get('detail', resp.text())
+            error_message = error_details.get("errors", [{}])[0].get("detail", resp.text())
         except Exception:
             error_message = resp.text()
         raise ValueError(f"Request failed with status code {resp.status_code}: {error_message}")
@@ -1705,60 +1676,72 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
 def task(func):
     if func.__name__ == "task":
         raise ValueError("Function name 'task' is reserved. Please use a different name for your task function.")
+
     @wraps(func)
     def wrapper(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> Any:
         # Call the original function with or without config
-        if 'config' in inspect.signature(func).parameters:
+        if "config" in inspect.signature(func).parameters:
             return func(input, config)
         return func(input)
+
     # Enforce signature compliance
     sig = inspect.signature(func)
     params = sig.parameters
-    if 'input' not in params:
+    if "input" not in params:
         raise TypeError("Task function must have an 'input' parameter.")
     # Set attribute to indicate whether the function accepts config
-    wrapper._accepts_config = 'config' in params
+    wrapper._accepts_config = "config" in params
     wrapper._is_task = True  # Set attribute to indicate decoration
     return wrapper
 
 
 def evaluator(func):
     @wraps(func)
-    def wrapper(input: Union[str, Dict[str, Any]] = None, output: Union[str, Dict[str, Any]] = None, expected_output: Union[str, Dict[str, Any]] = None) -> Any:
+    def wrapper(
+        input: Union[str, Dict[str, Any]] = None,
+        output: Union[str, Dict[str, Any]] = None,
+        expected_output: Union[str, Dict[str, Any]] = None,
+    ) -> Any:
         return func(input, output, expected_output)
+
     # Enforce signature compliance
     sig = inspect.signature(func)
     params = sig.parameters
-    required_params = ['input', 'output', 'expected_output']
+    required_params = ["input", "output", "expected_output"]
     if not all(param in params for param in required_params):
         raise TypeError(f"Evaluator function must have parameters {required_params}.")
     wrapper._is_evaluator = True  # Set attribute to indicate decoration
     return wrapper
 
 
-def _print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
+def _print_progress_bar(iteration, total, prefix="", suffix="", decimals=1, length=50, fill="█"):
     percent = f"{100 * (iteration / float(total)):.{decimals}f}"
     filled_length = int(length * iteration // total)
-    bar = fill * filled_length + '-' * (length - filled_length)
+    bar = fill * filled_length + "-" * (length - filled_length)
     # Use carriage return '\r' to overwrite the line
-    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r', flush=True)
+    print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r", flush=True)
     if iteration == total:
         print()  # Move to the next line after completion
 
+
 class DatasetFileError(Exception):
     """Exception raised when there are errors reading or processing dataset files."""
+
     pass
 
 
 class ExperimentTaskError(Exception):
     """Exception raised when a task fails during experiment execution."""
-    def __init__(self, message: str, row_idx: int, original_error: Exception = None):
-        self.row_idx = row_id
+
+    def __init__(self, message: str, row_idx: int, original_error: Optional[Exception] = None) -> None:
+        self.row_idx = row_idx
         self.original_error = original_error
         super().__init__(message)
 
+
 class Color:
     """ANSI color codes for terminal output."""
+
     GREY = "\033[90m"
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -1771,22 +1754,27 @@ class Color:
     DIM = "\033[2m"
     RESET = "\033[0m"
 
+
 class Spinner:
     """Animated spinner patterns."""
+
     DOTS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     ARROW = ["▹▹▹▹▹", "▸▹▹▹▹", "▹▸▹▹▹", "▹▹▸▹▹", "▹▹▹▸▹", "▹▹▹▹▸"]
-    
+
+
 class ProgressState(Enum):
     RUNNING = "running"
     SUCCESS = "success"
     ERROR = "error"
 
+
 class ProgressReporter:
     """Enhanced progress reporter with animations and color."""
-    
-    def __init__(self, total: int, desc: str = "", width: int = None):
+
+    def __init__(self, total: int, desc: str = "", width: Optional[int] = None) -> None:
         self.total = total
         self.current = 0
+        self.width: int = self._get_width(width)
         self.start_time = time.time()
         self.desc = desc
         self.error_count = 0
@@ -1794,33 +1782,32 @@ class ProgressReporter:
         self._last_update = self.start_time
         self._spinner_idx = 0
         self._state = ProgressState.RUNNING
-        
-        # Auto-detect terminal width if not specified
+
+    def _get_width(self, width: Optional[int]) -> int:
         if width is None:
             try:
                 terminal_width = os.get_terminal_size().columns
-                self.width = min(40, terminal_width - 50)  # Leave room for stats
+                return min(40, terminal_width - 50)  # Leave room for stats
             except OSError:
-                self.width = 40  # Fallback if terminal size can't be detected
-        else:
-            self.width = width
-            
+                return 40  # Fallback if terminal size can't be detected
+        return width
+
     def update(self, advance: int = 1, error: bool = False) -> None:
         """Update progress with optional error tracking."""
         self.current += advance
         if error:
             self.error_count += 1
             self._state = ProgressState.ERROR
-        
+
         # Throttle updates to max 15 per second
         now = time.time()
         if now - self._last_update < 0.066 and self.current < self.total:
             return
-            
+
         self._last_update = now
         self._spinner_idx = (self._spinner_idx + 1) % len(Spinner.DOTS)
         self._print_progress()
-    
+
     def _format_time(self, seconds: float) -> str:
         """Format time in a human-readable way."""
         if seconds < 60:
@@ -1832,7 +1819,7 @@ class ProgressReporter:
         hours = int(minutes / 60)
         minutes = minutes % 60
         return f"{hours}h {minutes}m"
-    
+
     def _format_speed(self) -> str:
         """Calculate and format processing speed."""
         elapsed = time.time() - self.start_time
@@ -1842,7 +1829,7 @@ class ProgressReporter:
         if speed >= 100:
             return f"{speed:.0f}/s"
         return f"{speed:.1f}/s"
-    
+
     def _get_gradient_color(self, progress: float) -> str:
         """Return a color based on progress and state."""
         if self._state == ProgressState.ERROR:
@@ -1851,11 +1838,11 @@ class ProgressReporter:
             return Color.GREEN
         else:
             return Color.BLUE
-            
+
     def _print_progress(self) -> None:
         """Print the progress bar and statistics with color and animation."""
         elapsed = time.time() - self.start_time
-        
+
         # Calculate times and progress
         progress = self.current / self.total
         if self.current == 0:
@@ -1864,10 +1851,10 @@ class ProgressReporter:
             speed = self.current / elapsed
             remaining_items = self.total - self.current
             eta = remaining_items / speed if speed > 0 else 0
-        
+
         # Get color theme based on state
         color = self._get_gradient_color(progress)
-        
+
         # Build animated progress bar
         filled_width = int(self.width * progress)
         if progress < 1:
@@ -1878,23 +1865,23 @@ class ProgressReporter:
             bar += "░" * (self.width - filled_width)
         else:
             bar = "█" * self.width
-        
+
         # Format statistics
         percent = f"{progress * 100:.1f}%"
         counts = f"{self.current}/{self.total}"
         speed = self._format_speed()
         elapsed_str = self._format_time(elapsed)
         eta_str = self._format_time(eta)
-        
+
         # Build error indicator if needed
         if self.error_count > 0:
             error_str = f" {Color.RED}({self.error_count} errors){Color.RESET}"
         else:
             error_str = ""
-        
+
         # Get spinner frame
         spinner = Spinner.DOTS[self._spinner_idx] if progress < 1 else "✓"
-        
+
         # Construct status line with color
         status = (
             f"\r{spinner} {Color.BOLD}{self.desc}{Color.RESET} "
@@ -1903,14 +1890,14 @@ class ProgressReporter:
             f"{counts}{error_str} • "
             f"{Color.DIM}{speed} • {elapsed_str}<{eta_str}{Color.RESET}"
         )
-        
+
         # Clear previous line if needed
         if self._last_len > len(status):
             print("\r" + " " * self._last_len, end="")
-        
+
         print(status, end="")
         self._last_len = len(status)
-        
+
         # Print final status on completion
         if self.current >= self.total:
             print()
@@ -1920,4 +1907,3 @@ class ProgressReporter:
                 print(f"{Color.DIM}   Set .run(raise_errors=True) to halt and see full error traces{Color.RESET}")
             else:
                 print(f"{Color.GREEN}✓ Completed successfully{Color.RESET}")
-
