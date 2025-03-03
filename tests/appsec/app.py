@@ -1,6 +1,5 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
-
 import os
 import re
 import subprocess  # nosec
@@ -11,7 +10,9 @@ from flask import request
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
+from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch  # noqa: F401
+from ddtrace.internal.utils.formats import asbool
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
@@ -193,8 +194,19 @@ def iast_cmdi_vulnerability():
     subp.communicate()
     subp.wait()
     resp = Response("OK")
-    resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
     return resp
+
+
+@app.route("/shutdown", methods=["GET"])
+def shutdown_view():
+    tracer._writer.flush_queue()
+    return "OK"
+
+
+@app.route("/iast-stacktrace-leak-vulnerability", methods=["GET"])
+def iast_stacktrace_vulnerability():
+    raise ValueError("Check my stacktrace!")
+    return "OK"
 
 
 @app.route("/iast-weak-hash-vulnerability", methods=["GET"])
@@ -970,5 +982,6 @@ def iast_ast_patching_non_re_search():
 
 if __name__ == "__main__":
     env_port = os.getenv("FLASK_RUN_PORT", 8000)
+    debug = asbool(os.getenv("FLASK_DEBUG", "false"))
     ddtrace_iast_flask_patch()
-    app.run(debug=False, port=env_port)
+    app.run(debug=debug, port=env_port)
