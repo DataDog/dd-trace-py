@@ -327,9 +327,8 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    ctx.set_item(
-        "request_params", request_params if ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span) else None
-    )
+    if ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
+        ctx.set_item("request_params", request_params)
 
 
 def handle_bedrock_response(

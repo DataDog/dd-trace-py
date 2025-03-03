@@ -30,12 +30,26 @@ class BedrockIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
+        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags.
+
+        ctx is a require argument is of the shape:
+        {
+            "request_params": {"prompt": str | list[dict],
+                                "temperature": Optional[float],
+                                "max_tokens": Optional[int]
+                                "top_p": Optional[int]}
+            "usage": Optional[dict],
+            "stop_reason": Optional[str]
+        }
+        """
         LLMObs._instance._activate_llmobs_span(span)
         metadata = {}
         usage_metrics = {}
+        """
 
+        """
         ctx = args[0]
+
         request_params = ctx.get_item("request_params") or {}
 
         if ctx.get_item("stop_reason"):
@@ -52,11 +66,11 @@ class BedrockIntegration(BaseLLMIntegration):
             usage_metrics["total_tokens"] = usage_metrics.pop("totalTokens")
 
         if request_params.get("temperature"):
-            metadata["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
+            metadata["temperature"] = float(request_params.get("temperature") or 0.0)
         if request_params.get("max_tokens"):
-            metadata["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
+            metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
         if request_params.get("top_p"):
-            metadata["top_p"] = float(span.get_tag("bedrock.request.top_p") or 0.0)
+            metadata["top_p"] = float(request_params.get("top_p") or 0.0)
 
         prompt = request_params.get("prompt", "")
 
@@ -78,7 +92,7 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
     @staticmethod
-    def _extract_input_message(prompt):
+    def _extract_input_message(prompt: str | List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -120,7 +134,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response):
+    def _extract_output_message(response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         Bedrock's Converse API returns a different response format.

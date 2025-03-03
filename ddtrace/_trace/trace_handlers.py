@@ -680,7 +680,11 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[ctx], kwargs={"prompt": ctx.get_item("prompt")})
+        integration.llmobs_set_tags(
+            span,
+            args=[ctx],
+            kwargs={},
+        )
     span.finish()
 
 
@@ -723,7 +727,12 @@ def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    ctx["bedrock_integration"].llmobs_set_tags(ctx.span, args=[ctx], kwargs={}, response=result)
+    ctx["bedrock_integration"].llmobs_set_tags(
+        ctx.span,
+        args=[ctx],
+        kwargs={},
+        response=result,
+    )
     ctx.span.finish()
 
 
@@ -741,18 +750,18 @@ def _on_botocore_bedrock_process_response(
         for i in range(len(text)):
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
     integration = ctx["bedrock_integration"]
+    usage_metrics = {}
     if metadata is not None:
-        usage = {}
         for k, v in metadata.items():
             if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
                 if k == "usage.completion_tokens":
-                    usage["output_tokens"] = int(v)
+                    usage_metrics["output_tokens"] = int(v)
                 else:
-                    usage["input_tokens"] = int(v)
+                    usage_metrics["input_tokens"] = int(v)
                 span.set_metric("bedrock.response.{}".format(k), int(v))
             else:
                 span.set_tag_str("bedrock.{}".format(k), str(v))
-        ctx.set_item("usage", usage)
+        ctx.set_item("usage", usage_metrics)
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
@@ -766,7 +775,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"ctx": ctx}, response=formatted_response)
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
 
