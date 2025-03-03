@@ -1267,7 +1267,7 @@ venv = Venv(
             pkgs={
                 "moto[all]": "<5.0",
                 "pytest-randomly": latest,
-                "vcrpy": "==7.0.0",
+                "vcrpy": "==4.2.1",
             },
             venvs=[
                 Venv(
