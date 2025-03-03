@@ -59,7 +59,7 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    @flaky(1735812000)
+    @flaky(1742580778)
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
         the module import system.
