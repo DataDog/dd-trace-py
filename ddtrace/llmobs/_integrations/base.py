@@ -11,9 +11,8 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
@@ -81,15 +80,7 @@ class BaseLLMIntegration:
         self._set_base_span_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
             LLMObs._instance._activate_llmobs_span(span)
-            telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_NAMESPACE.MLOBS,
-                name="span.start",
-                value=1,
-                tags=(
-                    ("integration", self._integration_name),
-                    ("autoinstrumented", "true"),
-                ),
-            )
+            telemetry.record_span_start(span=span, autoinstrumented=True, integration=self._integration_name)
         return span
 
     def trunc(self, text: str) -> str:

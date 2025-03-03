@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -32,7 +33,16 @@ class BedrockIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
+        # FIXME: Activating the bedrock span context and recording span start here is a workaround for the fact that
+        #  we don't have a way to activate the span immediately after starting it in the core API.
         LLMObs._instance._activate_llmobs_span(span)
+        telemetry.record_span_start(
+            span=span,
+            autoinstrumented=True,
+            span_kind="llm",
+            model_provider=span.get_tag("bedrock.request.model_provider") or None,
+            integration=self._integration_name,
+        )
         parameters = {}
         if span.get_tag("bedrock.request.temperature"):
             parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
