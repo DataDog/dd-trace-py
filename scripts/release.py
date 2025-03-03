@@ -33,7 +33,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
   Note that for Linux you need the `update-tool` binary to install `dd-auth` which is in the `bin/` subdirectory of the devtools 
   repo: https://github.com/DataDog/devtools. Then set `DATADOG_ROOT` to the directory over the one you cloned `devtools` and then the `devtools/bin/update-tool dd-auth`
   command should work.
-- Run `dd-auth --domain ddstaging.datadoghq.com --output`. If a web browser opens, shoose staging.
+- Run `dd-auth --domain ddstaging.datadoghq.com --output`. If a web browser opens, choose staging.
 5. Export the shown keys adding `_STAGING` so `DD_API_KEY -> DD_API_KEY_STAGING` and `DD_APP_KEY -> DD_APP_KEY_STAGING` (or add it to your .bashrc/.zshrc).
 6. Install pandoc with `brew install pandoc` or `apt install pandoc`.
 7. Ensure you have the previous branch on your local git tracking the remote branch, e.g. if you are releasing 3.2 do a `git checkout 3.1`.
