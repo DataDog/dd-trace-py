@@ -11,3 +11,8 @@
   artifacts:
     reports:
       junit: test-results/junit*.xml
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      interruptible: false
+    - if: '$CI_COMMIT_BRANCH =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/'
+      interruptible: false
