@@ -9,7 +9,6 @@ import sys
 import sysconfig
 import tarfile
 import time
-from unicodedata import category
 
 import cmake
 from setuptools_rust import Binding
@@ -26,6 +25,7 @@ from distutils.command.clean import clean as CleanCommand  # isort: skip
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
+
 
 try:
     # ORDER MATTERS
@@ -50,7 +50,8 @@ COMPILE_MODE = "Release"
 if "DD_COMPILE_DEBUG" in os.environ:
     deprecate(
         prefix="The DD_COMPILE_DEBUG env var is deprecated.",
-        message="The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
+        message="The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
+        + "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
         category=DDTraceDeprecationWarning,
         removal_version="4.0.0",
     )
@@ -605,9 +606,11 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
-            if CURRENT_OS != "Windows"
-            else ["/std:c++20", "/MT"],
+            extra_compile_args=(
+                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                if CURRENT_OS != "Windows"
+                else ["/std:c++20", "/MT"]
+            ),
         ),
     ]
     if platform.system() not in ("Windows", ""):
