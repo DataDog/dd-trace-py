@@ -15,6 +15,7 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
+from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
@@ -318,33 +319,25 @@ class TestLLMObsBedrock:
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse(cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events):
-        request_params = {
-            "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
-            "system": [{"text": "You are an expert swe that is to use the tool fetch_concept"}],
-            "messages": [
-                {"role": "user", "content": [{"text": "Explain the concept of distributed tracing in a simple way"}]}
-            ],
-            "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
-            "toolConfig": {
-                "tools": [
-                    {
-                        "toolSpec": {
-                            "name": "fetch_concept",
-                            "description": "Fetch an expert explanation for a concept",
-                            "inputSchema": {
-                                "json": {
-                                    "type": "object",
-                                    "properties": {
-                                        "concept": {"type": "string", "description": "The concept to explain"}
-                                    },
-                                    "required": ["concept"],
-                                }
-                            },
+        system_content = "You are an expert swe that is to use the tool fetch_concept"
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        tools = [
+            {
+                "toolSpec": {
+                    "name": "fetch_concept",
+                    "description": "Fetch an expert explanation for a concept",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                            "required": ["concept"],
                         }
-                    }
-                ]
-            },
-        }
+                    },
+                }
+            }
+        ]
+
+        request_params = create_bedrock_converse_request(user_message=user_content, tools=tools, system=system_content)
 
         with request_vcr.use_cassette("bedrock_converse.yaml"):
             response = bedrock_client.converse(**request_params)
@@ -357,8 +350,8 @@ class TestLLMObsBedrock:
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
             input_messages=[
-                {"role": "system", "content": "You are an expert swe that is to use the tool fetch_concept"},
-                {"role": "user", "content": "Explain the concept of distributed tracing in a simple way"},
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
             ],
             output_messages=[
                 {
@@ -395,13 +388,8 @@ class TestLLMObsBedrock:
         """Test error handling for the Bedrock Converse API."""
         import botocore
 
-        request_params = {
-            "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
-            "messages": [
-                {"role": "user", "content": [{"text": "Explain the concept of distributed tracing in a simple way"}]}
-            ],
-            "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []},
-        }
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        request_params = create_bedrock_converse_request(user_message=user_content)
 
         with pytest.raises(botocore.exceptions.ClientError):
             with request_vcr.use_cassette("bedrock_converse_error.yaml"):
@@ -432,14 +420,8 @@ class TestLLMObsBedrock:
         cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events
     ):
         """Documents behavior for streaming (currently unsupported)"""
-        request_params = {
-            "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
-            "system": [{"text": "You are an expert swe"}],
-            "messages": [
-                {"role": "user", "content": [{"text": "Explain the concept of distributed tracing in a simple way"}]}
-            ],
-            "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []},
-        }
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        request_params = create_bedrock_converse_request(user_message=user_content)
 
         with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
             response = bedrock_client.converse_stream(**request_params)

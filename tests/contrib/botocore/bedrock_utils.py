@@ -8,6 +8,19 @@ except ImportError:
     get_request_vcr = None
 
 
+def create_bedrock_converse_request(user_message, tools=None, system=None):
+    request_params = {
+        "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "messages": [{"role": "user", "content": [{"text": user_message}]}],
+        "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+    }
+    if system:
+        request_params["system"] = [{"text": system}]
+    if tools:
+        request_params["toolConfig"] = {"tools": tools}
+    return request_params
+
+
 _MODELS = {
     "ai21": "ai21.j2-mid-v1",
     "amazon": "amazon.titan-tg1-large",
@@ -15,7 +28,6 @@ _MODELS = {
     "anthropic_message": "anthropic.claude-3-sonnet-20240229-v1:0",
     "cohere": "cohere.command-light-text-v14",
     "meta": "meta.llama2-13b-chat-v1",
-    "converse": "anthropic.claude-3-sonnet-20240229-v1:0",  # Using Claude 3 Sonnet for converse tests
 }
 
 _REQUEST_BODIES = {
