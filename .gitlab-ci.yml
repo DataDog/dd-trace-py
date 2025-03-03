@@ -60,6 +60,7 @@ macrobenchmarks:
       when: always
     - when: manual
 
+# trivial commit
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
