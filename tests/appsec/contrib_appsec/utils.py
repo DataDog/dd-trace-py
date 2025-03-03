@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import itertools
 import json
 import sys
+from typing import Any
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -166,9 +167,11 @@ class Contrib_TestClass_For_Threats:
     def test_truncation_tags(self, interface: Interface, get_metric):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
+            body: Dict[str, Any] = {"val": "x" * 5000}
+            body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
-                data=json.dumps({"val": "x" * 5000} | {f"a_{i}": i for i in range(517)}),
+                data=json.dumps(body),
                 content_type="application/json",
             )
             assert self.status(response) == 200

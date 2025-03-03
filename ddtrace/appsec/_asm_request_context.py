@@ -430,6 +430,9 @@ def set_waf_telemetry_results(
     truncation: _observator,
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    from ddtrace.appsec._metrics import _report_waf_truncations
+
+    _report_waf_truncations(truncation)
     if result is not None:
         for key in ["container_size", "container_depth", "string_length"]:
             res = getattr(truncation, key)

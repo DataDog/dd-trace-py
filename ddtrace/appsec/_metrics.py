@@ -12,6 +12,8 @@ log = get_logger(__name__)
 
 DDWAF_VERSION = ddwaf.version()
 
+bool_str = ("false", "true")
+
 
 @deduplication
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
@@ -73,6 +75,39 @@ _TYPES_AND_TAGS = {
     _constants.EXPLOIT_PREVENTION.TYPE.SQLI: (("rule_type", "sql_injection"),),
 }
 
+TAGS_STRING_LENGTH = (("truncation_reason", "1"),)
+TAGS_CONTAINER_SIZE = (("truncation_reason", "2"),)
+TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
+
+
+def _report_waf_truncations(observator):
+    try:
+        bitfield = 0
+        for v in observator.string_length:
+            bitfield |= 1
+            telemetry.telemetry_writer.add_distribution_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_STRING_LENGTH
+            )
+        for v in observator.container_size:
+            bitfield |= 2
+            telemetry.telemetry_writer.add_distribution_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_CONTAINER_SIZE
+            )
+        for v in observator.container_depth:
+            bitfield |= 4
+            telemetry.telemetry_writer.add_distribution_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_CONTAINER_DEPTH
+            )
+        if bitfield:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC,
+                "waf.input_truncated",
+                1,
+                tags=(("truncation_reason", str(bitfield)),),
+            )
+    except Exception:
+        log.warning("Error reporting ASM WAF truncation metrics", exc_info=True)
+
 
 def _set_waf_request_metrics(*args):
     try:
@@ -81,13 +116,21 @@ def _set_waf_request_metrics(*args):
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
 
-            tags_request = (
+            truncation = result["truncation"]
+            input_truncated = (
+                truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
+            )
+            tags_request = [
                 ("event_rules_version", result["version"]),
                 ("waf_version", DDWAF_VERSION),
-                ("rule_triggered", str(result["triggered"]).lower()),
-                ("request_blocked", str(result["blocked"]).lower()),
-                ("waf_timeout", str(result["timeout"]).lower()),
-            )
+                ("rule_triggered", bool_str[result["triggered"]]),
+                ("request_blocked", bool_str[result["blocked"]]),
+                ("waf_timeout", bool_str[result["timeout"]]),
+                ("input_truncated", bool_str[input_truncated]),
+            ]
+
+            if truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]:
+                tags_request.append(("unput_truncated", "true"))
 
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC,
