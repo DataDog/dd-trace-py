@@ -2,6 +2,10 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
+
+import json
+from ddtrace.llmobs._utils import safe_json
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -19,10 +23,81 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Span
 
+from contextlib import suppress
+from collections import Counter
+
+class ProxyState(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._accessed_items = []
+
+    def __getitem__(self, key):
+        self._accessed_items.append(key)
+        return super().__getitem__(key)
+    
+    def get(self, key, default=None):
+        self._accessed_items.append(key)
+        return super().get(key, default)
+
+class LangGraphRoutingContext:
+    def __init__(self, args, kwargs, router_name: str, node_metadata: dict):
+        self.args = list(args)
+        self.kwargs = kwargs
+        self.return_value = None
+
+        self.node_metadata = node_metadata
+        self.router_name = router_name
+
+    def __enter__(self):
+        self._do_enter()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._do_exit()
+
+    async def __aenter__(self):
+        self._do_enter()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._do_exit()
+
+    def set_return_value(self, return_value):
+        self.return_value = return_value
+
+    def get_fn_args(self):
+        return self.args
+    
+    def _do_enter(self):
+        self.args[0] = ProxyState(self.args[0])
+
+    def _do_exit(self):
+        state = dict(self.args[0])
+        routing_results = self.node_metadata.setdefault("routing_results", {})
+
+        routing_results["router"] = self.router_name
+        routing_results["inputs"] = safe_json(state)
+        routing_results["accessed"] = safe_json(dict(Counter(self.args[0]._accessed_items)))
+        routing_results["outputs"] = safe_json(self.return_value)
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_by_task_id: Dict[str, Any] = {}  # maps task_id to dictionary of name, span, and span_links
+
+    def routing_context(self, node_name, args, kwargs) -> Union[LangGraphRoutingContext, suppress]:
+        if not self.llmobs_enabled:
+            return suppress()
+        
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        task_id = config.get("metadata", {}).get("langgraph_checkpoint_ns", "").split(":")[-1]
+        current_node_metadata = self._graph_nodes_by_task_id.get(task_id, {})
+        current_node_name = current_node_metadata.get("name", None)
+
+        if node_name in ("_write", "_route", "_control_branch") or (node_name == current_node_name):
+            return suppress()
+        
+        return LangGraphRoutingContext(args, kwargs, node_name, current_node_metadata)
 
     def _llmobs_set_tags(
         self,
@@ -47,6 +122,8 @@ class LangGraphIntegration(BaseLLMIntegration):
         if invoked_node_span_links is not None:
             span_links = invoked_node_span_links
         current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+
+        # print(f"setting span links: {span_links}")
 
         span._set_ctx_items(
             {
@@ -79,7 +156,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         for task_id, task in next_tasks.items():
             self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
 
-    def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph_node):
+    def _handle_finished_graph(self, graph_span: Span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
         If the graph isn't a subgraph, add a span link from the graph span to the calling LLMObs parent span.
@@ -87,10 +164,18 @@ class LangGraphIntegration(BaseLLMIntegration):
          not whether it is a standalone graph (called internally during a node execution).
         """
         graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
-        output_span_links = [
-            {**self._graph_nodes_by_task_id[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
-            for task_id in finished_tasks.keys()
-        ]
+        output_span_links = []
+        for task_id in finished_tasks.keys():
+            graph_node = self._graph_nodes_by_task_id.get(task_id, {})
+            graph_node_span = graph_node.get("span")
+            graph_node_routing_results = graph_node.get("routing_results", {})
+
+            output_span_links.append(
+                {
+                    **graph_node_span,
+                    "attributes": {"from": "output", "to": "output", **graph_node_routing_results},
+                }
+            )
         graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
         if graph_caller_span is not None and not is_subgraph_node:
@@ -123,7 +208,8 @@ class LangGraphIntegration(BaseLLMIntegration):
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            trigger_node_span = self._graph_nodes_by_task_id.get(node_id, {}).get("span")
+            trigger_node: dict = self._graph_nodes_by_task_id.get(node_id, {})
+            trigger_node_span = trigger_node.get("span")
             if not trigger_node_span:
                 # Subgraphs that are called at the start of the graph need to be named, but don't need any span links
                 continue
@@ -131,7 +217,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_link = {
                 "span_id": trigger_node_span.get("span_id", ""),
                 "trace_id": trigger_node_span.get("trace_id", ""),
-                "attributes": {"from": "output", "to": "input"},
+                "attributes": {"from": "output", "to": "input", **trigger_node.get("routing_results", {})},
             }
             span_links = queued_node.setdefault("span_links", [])
             span_links.append(span_link)

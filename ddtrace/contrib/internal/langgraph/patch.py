@@ -8,7 +8,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
+from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration, LangGraphRoutingContext
 from ddtrace.trace import Pin
 
 
@@ -207,6 +207,22 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
     return result
 
 
+@with_traced_module
+def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs):
+    integration: LangGraphIntegration = langgraph._datadog_integration
+
+    if not integration.llmobs_enabled:
+        return func(*args, **kwargs)
+
+    node_name = getattr(instance, "name", None) or getattr(getattr(instance, "func", None), "__name__", None)
+    with integration.routing_context(node_name, args, kwargs) as ctx:
+        fn_args = ctx.get_fn_args() if isinstance(ctx, LangGraphRoutingContext) else args
+        result = func(*fn_args, **kwargs)
+        if isinstance(ctx, LangGraphRoutingContext):
+            ctx.set_return_value(result)
+    return result
+
+
 def patch():
     should_patch = os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false").lower() in ("true", "1")
     if not should_patch or getattr(langgraph, "_datadog_patch", False):
@@ -221,12 +237,15 @@ def patch():
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
     from langgraph.utils.runnable import RunnableSeq
+    from langgraph.utils.runnable import RunnableCallable
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
     wrap(Pregel, "stream", traced_pregel_stream(langgraph))
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
+
+    wrap(RunnableCallable, "invoke", traced_runnable_callable_invoke(langgraph))
 
 
 def unpatch():
@@ -238,11 +257,14 @@ def unpatch():
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
     from langgraph.utils.runnable import RunnableSeq
+    from langgraph.utils.runnable import RunnableCallable
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
     unwrap(Pregel, "stream")
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
+
+    unwrap(RunnableCallable, "invoke")
 
     delattr(langgraph, "_datadog_integration")
