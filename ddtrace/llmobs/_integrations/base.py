@@ -117,8 +117,7 @@ class BaseLLMIntegration:
             return
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
-        except Exception as e:
-            print(e)
+        except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
 
     @abc.abstractmethod
