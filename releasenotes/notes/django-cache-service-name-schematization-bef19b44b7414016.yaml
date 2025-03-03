@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(django): Fixes issue where django cache is represented as a django service rather than the third party service.

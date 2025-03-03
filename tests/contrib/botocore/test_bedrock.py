@@ -223,6 +223,15 @@ def test_meta_invoke(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
+    body = json.dumps(_REQUEST_BODIES["amazon"])
+    model = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
+    with request_vcr.use_cassette("amazon_invoke_model_arn.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
 def test_amazon_invoke_stream(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["amazon"]), _MODELS["amazon"]
     with request_vcr.use_cassette("amazon_invoke_stream.yaml"):

@@ -56,32 +56,16 @@ from urllib.parse import urlencode  # noqa: E402
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
     if isinstance(s, str):
         return s
-
     if isinstance(s, bytes):
         return s.decode(encoding, errors)
-
-    # Skip the check for Mock objects as they are used in tests
-    from unittest.mock import Mock
-
-    if isinstance(s, Mock):
-        return str(s)
-
     raise TypeError("Expected str or bytes but received %r" % (s.__class__))
 
 
 def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
     if isinstance(s, bytes):
         return s
-
-    # Skip the check for Mock objects as they are used in tests
-    from unittest.mock import Mock
-
-    if isinstance(s, Mock):
-        return bytes(s)
-
     if not isinstance(s, str):
         raise TypeError("Expected str or bytes but received %r" % (s.__class__))
-
     return s.encode(encoding, errors)
 
 

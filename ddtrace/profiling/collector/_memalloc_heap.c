@@ -9,13 +9,13 @@
 typedef struct
 {
     /* Granularity of the heap profiler in bytes */
-    uint32_t sample_size;
+    uint64_t sample_size;
     /* Current sample size of the heap profiler in bytes */
-    uint32_t current_sample_size;
+    uint64_t current_sample_size;
     /* Tracked allocations */
     traceback_array_t allocs;
     /* Allocated memory counter in bytes */
-    uint32_t allocated_memory;
+    uint64_t allocated_memory;
     /* True if the heap tracker is frozen */
     bool frozen;
     /* Contains the ongoing heap allocation/deallocation while frozen */
@@ -26,7 +26,63 @@ typedef struct
     } freezer;
 } heap_tracker_t;
 
+static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMHEAP_CRASH_ON_MUTEX_PASS";
+static const char* g_truthy_values[] = { "1", "true", "yes", "on", "enable", "enabled", NULL }; // NB the sentinel NULL
+static memlock_t g_memheap_lock;
+
 static heap_tracker_t global_heap_tracker;
+
+// This is a multiplatform way to define an operation to happen at static initialization time
+static void
+memheap_init(void);
+
+static void
+memheap_prefork(void)
+{
+    // See memalloc_prefork for an explanation of why this is here
+    memlock_lock(&g_memheap_lock);
+}
+
+static void
+memheap_postfork_parent(void)
+{
+    memlock_unlock(&g_memheap_lock);
+}
+
+static void
+memheap_postfork_child(void)
+{
+    memlock_unlock(&g_memheap_lock);
+}
+
+#ifdef _MSC_VER
+#pragma section(".CRT$XCU", read)
+__declspec(allocate(".CRT$XCU")) void (*memheap_init_func)(void) = memheap_init;
+
+#elif defined(__GNUC__) || defined(__clang__)
+__attribute__((constructor))
+#else
+#error Unsupported compiler
+#endif
+static void
+memheap_init()
+{
+    // Check if we should crash the process on mutex pass
+    char* crash_on_mutex_pass_str = getenv(g_crash_on_mutex_pass_str);
+    bool crash_on_mutex_pass = false;
+    if (crash_on_mutex_pass_str) {
+        for (int i = 0; g_truthy_values[i]; i++) {
+            if (strcmp(crash_on_mutex_pass_str, g_truthy_values[i]) == 0) {
+                crash_on_mutex_pass = true;
+                break;
+            }
+        }
+    }
+    memlock_init(&g_memheap_lock, crash_on_mutex_pass);
+#ifndef _WIN32
+    pthread_atfork(memheap_prefork, memheap_postfork_parent, memheap_postfork_child);
+#endif
+}
 
 static uint32_t
 heap_tracker_next_sample_size(uint32_t sample_size)
@@ -119,20 +175,30 @@ heap_tracker_thaw(heap_tracker_t* heap_tracker)
 void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
-    heap_tracker_init(&global_heap_tracker);
-    global_heap_tracker.sample_size = sample_size;
-    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
+
+    if (memlock_trylock(&g_memheap_lock)) {
+        heap_tracker_init(&global_heap_tracker);
+        global_heap_tracker.sample_size = sample_size;
+        global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
+        memlock_unlock(&g_memheap_lock);
+    }
 }
 
 void
 memalloc_heap_tracker_deinit(void)
 {
-    heap_tracker_wipe(&global_heap_tracker);
+    if (memlock_trylock(&g_memheap_lock)) {
+        heap_tracker_wipe(&global_heap_tracker);
+        memlock_unlock(&g_memheap_lock);
+    }
 }
 
 void
 memalloc_heap_untrack(void* ptr)
 {
+    if (!memlock_trylock(&g_memheap_lock)) {
+        return;
+    }
     if (global_heap_tracker.frozen) {
         /* Check that we still have space to store the free. If we don't have
            enough space, we ignore the untrack. That's sad as there is a change
@@ -144,6 +210,8 @@ memalloc_heap_untrack(void* ptr)
             ptr_array_append(&global_heap_tracker.freezer.frees, ptr);
     } else
         heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
+
+    memlock_unlock(&g_memheap_lock);
 }
 
 /* Track a memory allocation in the heap profiler.
@@ -157,26 +225,36 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return false;
 
     /* Check for overflow */
-    global_heap_tracker.allocated_memory = Py_MIN(global_heap_tracker.allocated_memory + size, MAX_HEAP_SAMPLE_SIZE);
+    uint64_t res = atomic_add_clamped(&global_heap_tracker.allocated_memory, size, MAX_HEAP_SAMPLE_SIZE);
+    if (0 == res)
+        return false;
+
+    // Take the lock
+    if (!memlock_trylock(&g_memheap_lock)) {
+        return false;
+    }
 
     /* Check if we have enough sample or not */
-    if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size)
+    if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size) {
+        memlock_unlock(&g_memheap_lock);
         return false;
+    }
 
     /* Check if we can add more samples: the sum of the freezer + alloc tracker
      cannot be greater than what the alloc tracker can handle: when the alloc
      tracker is thawed, all the allocs in the freezer will be moved there!*/
-    if ((global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= TRACEBACK_ARRAY_MAX_COUNT)
+    if (global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count >= TRACEBACK_ARRAY_MAX_COUNT) {
+        memlock_unlock(&g_memheap_lock);
         return false;
+    }
 
     /* Avoid loops */
-    if (memalloc_get_reentrant())
+    if (!memalloc_take_guard()) {
+        memlock_unlock(&g_memheap_lock);
         return false;
+    }
 
-    memalloc_set_reentrant(true);
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
-    memalloc_set_reentrant(false);
-
     if (tb) {
         if (global_heap_tracker.frozen)
             traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
@@ -189,15 +267,23 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         /* Compute the new target sample size */
         global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
 
+        memalloc_yield_guard();
+        memlock_unlock(&g_memheap_lock);
         return true;
     }
 
+    memalloc_yield_guard();
+    memlock_unlock(&g_memheap_lock);
     return false;
 }
 
 PyObject*
 memalloc_heap()
 {
+    if (!memlock_trylock(&g_memheap_lock)) {
+        return NULL;
+    }
+
     heap_tracker_freeze(&global_heap_tracker);
 
     PyObject* heap_list = PyList_New(global_heap_tracker.allocs.count);
@@ -213,5 +299,6 @@ memalloc_heap()
 
     heap_tracker_thaw(&global_heap_tracker);
 
+    memlock_unlock(&g_memheap_lock);
     return heap_list;
 }

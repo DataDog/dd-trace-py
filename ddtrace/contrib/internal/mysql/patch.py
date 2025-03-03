@@ -5,8 +5,6 @@ import wrapt
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import _convert_to_string
 from ddtrace.ext import db
@@ -51,6 +49,9 @@ def patch():
         mysql.connector.Connect = mysql.connector.connect
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
     mysql.connector._datadog_patch = True
 

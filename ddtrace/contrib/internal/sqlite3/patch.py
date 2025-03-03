@@ -6,8 +6,6 @@ import sys
 import wrapt
 
 from ddtrace import config
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -48,6 +46,9 @@ def patch():
     sqlite3.dbapi2.connect = wrapped
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 

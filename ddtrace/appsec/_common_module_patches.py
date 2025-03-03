@@ -1,5 +1,4 @@
-# This module must not import other modules inconditionnaly that
-# require iast, ddwaf or any native optional module.
+# This module must not import other modules unconditionally that require iast
 
 import ctypes
 import os
@@ -14,14 +13,20 @@ from wrapt import resolve_path
 import ddtrace
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
+
+
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+else:
+
+    def is_iast_request_enabled() -> bool:
+        return False
 
 
 log = get_logger(__name__)
@@ -34,6 +39,16 @@ def patch_common_modules():
     global _is_patched
     if _is_patched:
         return
+    # for testing purposes, we need to update is_iast_request_enabled
+    if asm_config._iast_enabled:
+        global is_iast_request_enabled
+        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
+    else:
+        global is_iast_request_enabled
+
+        def is_iast_request_enabled() -> bool:
+            return False
+
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
@@ -41,6 +56,9 @@ def patch_common_modules():
     try_wrap_function_wrapper("os", "system", wrapped_system_5542593D237084A7)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
     _is_patched = True
 
@@ -60,8 +78,6 @@ def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs
     """
     wrapper for _io.BytesIO and _io.StringIO read function
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     result = original_read_callable(*args, **kwargs)
     if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -89,8 +105,6 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
@@ -180,8 +194,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
     if asm_config._iast_enabled and is_iast_request_enabled():
         from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 
@@ -222,8 +234,6 @@ def wrapped_system_5542593D237084A7(original_command_callable, instance, args, k
     """
     command = args[0] if args else kwargs.get("command", None)
     if command is not None:
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
         if asm_config._iast_enabled and is_iast_request_enabled():
             from ddtrace.appsec._iast.taint_sinks.command_injection import _iast_report_cmdi
 

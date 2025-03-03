@@ -43,6 +43,8 @@ class UploaderBuilder
     static void set_output_filename(std::string_view _output_filename);
 
     static std::variant<Uploader, std::string> build();
+
+    static void postfork_child();
 };
 
 } // namespace Datadog

@@ -27,9 +27,6 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
-from ddtrace.appsec._metrics import _set_waf_init_metric
-from ddtrace.appsec._metrics import _set_waf_request_metrics
-from ddtrace.appsec._metrics import _set_waf_updates_metric
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import ORIGIN_KEY
@@ -141,7 +138,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def __post_init__(self) -> None:
         from ddtrace.appsec import load_appsec
-        from ddtrace.appsec._ddwaf import DDWaf
 
         load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
@@ -170,14 +166,18 @@ class AppSecSpanProcessor(SpanProcessor):
             log.error("[DDAS-0001-03] ASM could not read the rule file %s.", self.rule_filename)
             raise
         try:
-            self._ddwaf = DDWaf(
-                self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
-            )
-            _set_waf_init_metric(self._ddwaf.info)
-        except ValueError:
+            if self._rules is not None and not hasattr(self, "_ddwaf"):
+                from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
+                import ddtrace.appsec._metrics as metrics  # noqa: E402
+
+                self.metrics = metrics
+                self._ddwaf = DDWaf(
+                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+                )
+                self.metrics._set_waf_init_metric(self._ddwaf.info)
+        except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
-            raise
         self._update_required()
 
     def _update_required(self):
@@ -194,7 +194,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(new_rules)
-        _set_waf_updates_metric(self._ddwaf.info)
+        self.metrics._set_waf_updates_metric(self._ddwaf.info)
         self._update_required()
         return result
 
@@ -235,7 +235,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
-        _asm_request_context.add_context_callback(_set_waf_request_metrics)
+        _asm_request_context.add_context_callback(self.metrics._set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(

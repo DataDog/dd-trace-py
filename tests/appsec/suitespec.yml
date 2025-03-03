@@ -73,20 +73,7 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
-  appsec_iast_packages:
-    parallelism: 5
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/iast/*
-      - tests/appsec/iast_packages/*
-    runner: riot
-    snapshot: true
-  appsec_integrations:
+  appsec_integrations_pygoat:
     parallelism: 7
     paths:
       - '@bootstrap'
@@ -95,11 +82,24 @@ suites:
       - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
-      - tests/appsec/*
+      - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
     runner: riot
     snapshot: true
+  appsec_integrations_flask:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/integrations/flask_tests/*
+    retry: 2
+    runner: hatch
+    timeout: 30m
   appsec_threats_django:
     parallelism: 12
     paths:

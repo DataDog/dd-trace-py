@@ -1,22 +1,3 @@
-build_base_venvs:
-  extends: .testrunner
-  stage: package
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    PIP_VERBOSE: 1
-  script:
-    - pip install riot==0.20.0
-    - riot -P -v generate --python=$PYTHON_VERSION
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]

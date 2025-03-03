@@ -215,7 +215,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         "django.cache",
         span_name="django.cache",
         span_type=SpanTypes.CACHE,
-        service=config.django.cache_service_name,
+        service=schematize_service_name(config.django.cache_service_name),
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,

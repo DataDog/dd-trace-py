@@ -14,9 +14,8 @@ namespace Datadog {
 void
 Datadog::CodeProvenance::postfork_child()
 {
-    get_instance().mtx.~mutex();            // Destroy the mutex
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&get_instance().mtx) std::mutex(); // Recreate the mutex
-    get_instance().reset();                 // Reset the state
 }
 
 void
