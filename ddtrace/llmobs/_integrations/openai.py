@@ -53,8 +53,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
-            submit_to_llmobs = True
+        submit_to_llmobs = submit_to_llmobs and (operation_id.endswith("Completion") or operation_id == "createEmbedding")
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -247,3 +246,11 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
+
+    @classmethod
+    def is_default_base_url(cls, base_url: str | None) -> bool:
+        if base_url is None:
+            return True
+        from urllib.parse import urlparse
+        parsed_url = urlparse(base_url)
+        return parsed_url.hostname == 'api.openai.com'

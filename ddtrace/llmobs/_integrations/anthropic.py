@@ -187,7 +187,9 @@ class AnthropicIntegration(BaseLLMIntegration):
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
-    def is_default_base_url(self, base_url: str) -> bool:
+    def is_default_base_url(self, base_url: str | None) -> bool:
+        if base_url is None:
+            return True
         from urllib.parse import urlparse
         parsed_url = urlparse(base_url)
         return parsed_url.hostname == 'api.anthropic.com'

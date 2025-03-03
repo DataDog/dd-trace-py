@@ -173,7 +173,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -228,7 +228,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -282,7 +282,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
@@ -375,7 +375,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),

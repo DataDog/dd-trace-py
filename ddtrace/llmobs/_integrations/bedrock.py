@@ -93,7 +93,9 @@ class BedrockIntegration(BaseLLMIntegration):
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
     
-    def is_default_base_url(self, base_url: str) -> bool:
+    def is_default_base_url(self, base_url: str | None) -> bool:
+        if base_url is None:
+            return True
         from urllib.parse import urlparse
         import re
         parsed_url = urlparse(base_url)

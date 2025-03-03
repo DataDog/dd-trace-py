@@ -28,6 +28,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -721,3 +722,7 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
+
+    def has_default_base_url(self, instance) -> bool:
+        openai_api_base = instance.openai_api_base
+        return not openai_api_base or OpenAIIntegration.is_default_base_url(openai_api_base)
