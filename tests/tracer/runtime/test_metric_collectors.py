@@ -32,7 +32,6 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         for _, value in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
 
-    @flaky(1741371178)
     def test_static_metrics(self):
         import os
         import threading
