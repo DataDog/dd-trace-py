@@ -9,6 +9,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import warnings
 
 import cmake
 from setuptools_rust import Binding
@@ -22,9 +23,6 @@ from setuptools.command.build_py import build_py as BuildPyCommand  # isort: ski
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-
-from ddtrace import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
 
 
 try:
@@ -48,12 +46,9 @@ HERE = Path(__file__).resolve().parent
 
 COMPILE_MODE = "Release"
 if "DD_COMPILE_DEBUG" in os.environ:
-    deprecate(
-        prefix="The DD_COMPILE_DEBUG env var is deprecated.",
-        message="The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
-        + "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
-        category=DDTraceDeprecationWarning,
-        removal_version="4.0.0",
+    warnings.warn(
+        "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
+        "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
     )
     COMPILE_MODE = "Debug"
 else:
