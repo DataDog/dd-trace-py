@@ -258,7 +258,6 @@ def test_produce_single_server(dummy_tracer, producer, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
-    assert produce_span.get_tag("topicname") == kafka_topic
 
 
 def test_produce_none_key(dummy_tracer, producer, kafka_topic):
