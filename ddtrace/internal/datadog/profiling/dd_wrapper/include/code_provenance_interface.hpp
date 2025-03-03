@@ -2,6 +2,7 @@
 
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 #ifdef __cplusplus
 extern "C"
@@ -11,7 +12,8 @@ extern "C"
     void code_provenance_enable(bool enable);
     void code_provenance_set_runtime_version(std::string_view runtime_version);
     void code_provenance_set_stdlib_path(std::string_view stdlib_path);
-    void code_provenance_add_packages(std::unordered_map<std::string_view, std::string_view> packages);
+    void code_provenance_add_packages(
+      std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages);
 
 #ifdef __cplusplus
 } // extern "C"
