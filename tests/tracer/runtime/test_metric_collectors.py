@@ -8,7 +8,6 @@ from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from tests.utils import BaseTestCase
-from tests.utils import flaky
 
 
 class TestRuntimeMetricCollector(BaseTestCase):

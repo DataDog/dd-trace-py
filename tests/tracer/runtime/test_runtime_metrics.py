@@ -17,7 +17,6 @@ from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 @contextlib.contextmanager
