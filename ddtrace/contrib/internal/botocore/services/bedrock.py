@@ -371,6 +371,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     model_id = params.get("modelId")
     model_provider, model_name = _parse_model_id(model_id)
     integration = function_vars.get("integration")
+    # only report LLM Obs spans if base_url has not been changed
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name and integration.is_default_base_url(instance._endpoint.host)
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
