@@ -4,10 +4,11 @@ import time
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Sequence  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 
-MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
+MetricTagType = Optional[Sequence[Tuple[str, str]]]
 
 
 class Metric(metaclass=abc.ABCMeta):
