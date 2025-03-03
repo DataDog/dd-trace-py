@@ -163,6 +163,20 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             assert not core.get_item("http.request.query", span=root_span())
 
+    def test_truncation_tags(self, interface: Interface, get_metric):
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.post(
+                "/asm/",
+                data=json.dumps({"val": "x" * 5000} | {f"a_{i}": i for i in range(517)}),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)) >= 5001
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
         ("cookies", "attack"),
