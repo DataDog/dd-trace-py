@@ -20,6 +20,26 @@ from ddtrace.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+_TRUNC_STRING_LENGTH = 1
+_TRUNC_CONTAINER_DEPTH = 4
+_TRUNC_CONTAINER_SIZE = 2
+
+
+class _observator:
+    def __init__(self):
+        self.string_length = 0
+        self.container_size = 0
+        self.container_depth = 0
+
+    def set_string_length(self, length: int):
+        self.string_length = max(self.string_length, length)
+
+    def set_container_size(self, size: int):
+        self.container_size = max(self.container_size, size)
+
+    def set_container_depth(self, depth: int):
+        self.container_depth = max(self.container_depth, depth)
+
 
 def parse_response_body(raw_body):
     import xmltodict
