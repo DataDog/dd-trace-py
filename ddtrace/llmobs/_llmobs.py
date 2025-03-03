@@ -28,6 +28,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -334,7 +335,7 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
         error = None
-        start_ts = time.time_ns()
+        start_ns = time.time_ns()
         try:
             # validate required values for LLMObs
             if not config._llmobs_ml_app:
@@ -391,7 +392,7 @@ class LLMObs(Service):
         except:
             raise
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ts)
+            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns)
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
@@ -610,14 +611,20 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         ml_app: Optional[str] = None,
     ) -> Span:
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.MLOBS,
+            name="span.start",
+            value=1,
+            tags=(
+                ("autoinstrumented", "false"),
+                ("kind", operation_kind),
+            ),
+        )
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
         self._activate_llmobs_span(span)
         span._set_ctx_item(SPAN_KIND, operation_kind)
-        telemetry.record_span_start(
-            span=span, autoinstrumented=False, span_kind=operation_kind, model_provider=model_provider
-        )
         if model_name is not None:
             span._set_ctx_item(MODEL_NAME, model_name)
         if model_provider is not None:
