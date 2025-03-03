@@ -18,19 +18,30 @@ from .._llmobs import LLMObs
 from .._utils import HTTPResponse, http_request
 
 
+# Default configuration values
+DEFAULT_SITE = "datadoghq.com"
+DEFAULT_ML_APP = "dne"
+MAX_DATASET_ROWS = 50000
+MAX_PROGRESS_BAR_WIDTH = 40
+DEFAULT_CHUNK_SIZE = 300
+DEFAULT_CONCURRENT_JOBS = 10
+
+# Global state (initialized by init())
 IS_INITIALIZED = False
 ENV_PROJECT_NAME = None
-ENV_DD_SITE = "datadoghq.com"
+ENV_DD_SITE = DEFAULT_SITE
 ENV_DD_API_KEY = None
 ENV_DD_APPLICATION_KEY = None
-ML_APP = "dne"
+ML_APP = DEFAULT_ML_APP
 RUN_LOCALLY = False
+
+# Derived values
 BASE_URL = f"https://api.{ENV_DD_SITE}"
 
 
 def init(
     project_name: str,
-    site: str = "datadoghq.com",
+    site: str = DEFAULT_SITE,
     api_key: str = None,
     application_key: str = None,
     run_locally: bool = False,
@@ -213,8 +224,8 @@ class Dataset:
         if not data:
             raise ValueError("Data cannot be empty.")
 
-        if len(data) > 50000:
-            raise ValueError("Dataset cannot exceed 50,000 rows.")
+        if len(data) > MAX_DATASET_ROWS:
+            raise ValueError(f"Dataset cannot exceed {MAX_DATASET_ROWS} rows.")
 
         if not all(isinstance(row, dict) for row in data):
             raise ValueError("All rows must be dictionaries.")
@@ -341,7 +352,7 @@ class Dataset:
         _validate_init()
 
         # Reasonable chunk size for batching requests
-        chunk_size: int = 300
+        chunk_size: int = DEFAULT_CHUNK_SIZE
 
         # First check if dataset exists
         encoded_name = quote(self.name)
@@ -840,7 +851,7 @@ class Experiment:
 
     def run(
         self,
-        jobs: int = 10,
+        jobs: int = DEFAULT_CONCURRENT_JOBS,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> "ExperimentResults":
@@ -983,7 +994,7 @@ class Experiment:
                         },
                     }
 
-        _jobs = 5 if sample_size else jobs
+        _jobs = DEFAULT_CONCURRENT_JOBS if sample_size else jobs
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
             for result in executor.map(process_row, enumerate(subset_dataset)):
                 outputs_buffer.append(result)
@@ -1053,7 +1064,7 @@ class Experiment:
         print(f"\n{Color.RESET} Run complete.\n")
         return experiment_results
 
-    def run_task(self, jobs: int = 10, raise_errors: bool = False) -> None:
+    def run_task(self, jobs: int = DEFAULT_CONCURRENT_JOBS, raise_errors: bool = False) -> None:
         """
         Execute only the task function on the dataset concurrently, without running the evaluators.
 
@@ -1491,7 +1502,7 @@ class ExperimentResults:
 
         return final_df
 
-    def _push_evals(self, chunk_size: int = 300) -> None:
+    def _push_evals(self, chunk_size: int = DEFAULT_CHUNK_SIZE) -> None:
         """
         Push the experiment evaluations (metrics) to Datadog for further analysis.
 
@@ -1935,9 +1946,9 @@ class ProgressReporter:
         if width is None:
             try:
                 terminal_width = os.get_terminal_size().columns
-                return min(40, terminal_width - 50)
+                return min(MAX_PROGRESS_BAR_WIDTH, terminal_width - 50)
             except OSError:
-                return 40
+                return MAX_PROGRESS_BAR_WIDTH
         return width
 
     def update(self, advance: int = 1, error: bool = False) -> None:
