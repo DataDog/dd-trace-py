@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca8f00000000",
+      "_dd.p.tid": "67ab8c0100000000",
       "langchain.request.ai21.parameters.countPenalty.applyToEmojis": "True",
       "langchain.request.ai21.parameters.countPenalty.applyToNumbers": "True",
       "langchain.request.ai21.parameters.countPenalty.applyToPunctuations": "True",
@@ -43,15 +43,15 @@
       "langchain.request.type": "llm",
       "langchain.response.completions.0.text": "\\nPlankton is trying to steal the Krabby Patty secret formula from Mr. Krabs, so Mr. Krabs wants him gone.",
       "language": "python",
-      "runtime-id": "8eb5b60d8a5747e8b4b74b5a0bd313b5"
+      "runtime-id": "8a5bfd3fb48044a987fe738f946dcfb6"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 84563
+      "process_id": 62151
     },
-    "duration": 4171000,
-    "start": 1738263183039739000
+    "duration": 4323000,
+    "start": 1739295745133705000
   }]]
