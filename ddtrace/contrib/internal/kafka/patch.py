@@ -13,6 +13,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
+from ddtrace.internal.constants import MESSAGING_DESTINATION
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
@@ -194,6 +195,7 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         span.set_tag(_SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
+            span.set_tag_str(MESSAGING_DESTINATION, instance._dd_bootstrap_servers)
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
