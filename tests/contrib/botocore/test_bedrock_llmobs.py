@@ -154,23 +154,18 @@ class TestLLMObsBedrock:
         if prompt_tokens is not None and completion_tokens is not None:
             token_metrics["total_tokens"] = prompt_tokens + completion_tokens
 
-        expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature") or 0.0)}
+        expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
-
         expected_input = [{"content": mock.ANY}]
-        expected_output = [{"content": mock.ANY}]
-
-        # For message-based APIs (including Converse)
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
-
         return _expected_llmobs_llm_span_event(
             span,
             model_name=span.get_tag("bedrock.request.model"),
             model_provider=span.get_tag("bedrock.request.model_provider"),
             input_messages=expected_input,
-            output_messages=expected_output,
+            output_messages=[{"content": mock.ANY} for _ in range(n_output)],
             metadata=expected_parameters,
             token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
