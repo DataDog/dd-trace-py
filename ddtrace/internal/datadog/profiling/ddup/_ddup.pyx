@@ -90,7 +90,7 @@ cdef extern from "code_provenance_interface.hpp":
     void code_provenance_enable(bint enable)
     void code_provenance_set_runtime_version(string_view runtime_version)
     void code_provenance_set_stdlib_path(string_view stdlib_path)
-    void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
+    void code_provenance_add_packages(unordered_map[string_view, pair[string_view, string_view]] packages)
 
 # Create wrappers for cython
 cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
@@ -126,35 +126,48 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
 cdef call_code_provenance_add_packages(distributions):
     dist_names = []
     dist_versions = []
-    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
+    dist_paths = []
+    cdef unordered_map[string_view, pair[string_view, string_view]] names_and_versions = unordered_map[string_view, pair[string_view, string_view]]()
 
     cdef const char* dist_name_utf8_data
     cdef Py_ssize_t dist_name_utf8_size
     cdef const char* dist_version_utf8_data
     cdef Py_ssize_t dist_version_utf8_size
+    cdef const char* dist_path_utf8_data
+    cdef Py_ssize_t dist_path_utf8_size
 
     for dist in distributions:
         dist_name = dist.name
         dist_version = dist.version
+        dist_path = dist.path
+        # dist_path can be optional
         if not dist_name or not dist_version:
             continue
         dist_names.append(dist_name)
         dist_versions.append(dist_version)
-        if isinstance(dist_name, bytes) and isinstance(dist_version, bytes):
+        dist_paths.append(dist_path)
+        if isinstance(dist_name, bytes) and isinstance(dist_version, bytes) and isinstance(dist_path, bytes):
             names_and_versions.insert(
-                pair[string_view, string_view](
+                pair[string_view, pair[string_view, string_view]](
                     string_view(<const char*>dist_name, len(dist_name)),
-                    string_view(<const char*>dist_version, len(dist_version))
+                    pair[string_view, string_view](
+                        string_view(<const char*>dist_version, len(dist_version)),
+                        string_view(<const char*>dist_path, len(dist_path))
+                    )
                 )
             )
             continue
         dist_name_utf8_data = PyUnicode_AsUTF8AndSize(dist_name, &dist_name_utf8_size)
         dist_version_utf8_data = PyUnicode_AsUTF8AndSize(dist_version, &dist_version_utf8_size)
+        dist_path_utf8_data = PyUnicode_AsUTF8AndSize(dist_path, &dist_path_utf8_size)
         if dist_name_utf8_data != NULL and dist_version_utf8_data != NULL:
             names_and_versions.insert(
-                pair[string_view, string_view](
+                pair[string_view, pair[string_view, string_view]](
                     string_view(dist_name_utf8_data, dist_name_utf8_size),
-                    string_view(dist_version_utf8_data, dist_version_utf8_size)
+                    pair[string_view, string_view](
+                        string_view(dist_version_utf8_data, dist_version_utf8_size),
+                        string_view(dist_path_utf8_data, dist_path_utf8_size)
+                    )
                 )
             )
     code_provenance_add_packages(names_and_versions)
