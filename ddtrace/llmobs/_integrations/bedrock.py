@@ -92,3 +92,10 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
+    
+    def is_default_base_url(self, base_url: str) -> bool:
+        from urllib.parse import urlparse
+        import re
+        parsed_url = urlparse(base_url)
+        default_url_regex = re.compile('^bedrock-runtime[\\w.-]*.com$')
+        return default_url_regex.match(parsed_url.hostname) is not None
