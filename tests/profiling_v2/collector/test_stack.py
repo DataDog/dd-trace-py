@@ -13,6 +13,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.utils import flaky
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -663,6 +664,7 @@ def test_max_time_usage_over():
     "ignore_profiler",
     [True, False],
 )
+@flaky(until=1743713962, reason="assert collector_worker_thread_id not in thread_ids")
 def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     test_name = "test_ignore_profiler"
     pprof_prefix = str(tmp_path / test_name)
