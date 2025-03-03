@@ -160,7 +160,7 @@ CodeProvenance::add_new_package(std::string_view package_name, std::string_view 
     std::unique_ptr<Package> package = std::make_unique<Package>();
     package->name = package_name;
     package->version = version;
-    package->path = path;
+    package->path = path + "/" + package_name;
 
     const Package* ret_val = package.get();
     packages[std::string_view(package->name)] = std::move(package);
