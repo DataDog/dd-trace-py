@@ -26,6 +26,7 @@ from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
+DEFAULT_OPENAI_HOSTNAME = "api.openai.com"
 
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
@@ -253,4 +254,4 @@ class OpenAIIntegration(BaseLLMIntegration):
             return True
         from urllib.parse import urlparse
         parsed_url = urlparse(base_url)
-        return parsed_url.hostname == 'api.openai.com'
+        return parsed_url.hostname == DEFAULT_OPENAI_HOSTNAME

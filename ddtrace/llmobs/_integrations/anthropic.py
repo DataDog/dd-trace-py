@@ -24,6 +24,7 @@ log = get_logger(__name__)
 
 API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
+DEFAULT_ANTHROPIC_HOSTNAME = "api.anthropic.com"
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -192,4 +193,4 @@ class AnthropicIntegration(BaseLLMIntegration):
             return True
         from urllib.parse import urlparse
         parsed_url = urlparse(base_url)
-        return parsed_url.hostname == 'api.anthropic.com'
+        return parsed_url.hostname == DEFAULT_ANTHROPIC_HOSTNAME
