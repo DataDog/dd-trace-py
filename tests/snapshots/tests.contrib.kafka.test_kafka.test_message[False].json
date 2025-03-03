@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67c624dd00000000",
+      "_dd.p.tid": "67c62be500000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.message_key": "test_key",
@@ -21,8 +21,8 @@
       "messaging.destination.name": "test_message_False",
       "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
-      "pathway.hash": "10193967368662112756",
-      "runtime-id": "48f818270b614e8f9a9fb40969bec203",
+      "pathway.hash": "8706906378765489227",
+      "runtime-id": "559a40be08084fe3ba6c3dbbe5a60e52",
       "span.kind": "producer"
     },
     "metrics": {
@@ -31,8 +31,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 12464
+      "process_id": 20454
     },
-    "duration": 2985000,
-    "start": 1741038813769123000
+    "duration": 1790000,
+    "start": 1741040613928912000
   }]]

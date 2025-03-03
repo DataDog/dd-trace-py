@@ -273,7 +273,9 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            span.set_tag_str(kafkax.TOPIC, str(first_message.topic()))
+            topic = str(first_message.topic())
+            span.set_tag_str(kafkax.TOPIC, topic)
+            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function

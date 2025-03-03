@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67c625c700000000",
+      "_dd.p.tid": "67c62bcc00000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.group_id": "test_group",
@@ -20,9 +20,10 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_commit",
       "language": "python",
+      "messaging.destination.name": "test_commit",
       "messaging.system": "kafka",
       "pathway.hash": "10556923411835555897",
-      "runtime-id": "e443e81c096d441e88e2e7d34cb3bc67",
+      "runtime-id": "559a40be08084fe3ba6c3dbbe5a60e52",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -32,10 +33,10 @@
       "_sampling_priority_v1": 1,
       "kafka.message_offset": -1,
       "kafka.partition": 0,
-      "process_id": 12603
+      "process_id": 20454
     },
-    "duration": 3864734000,
-    "start": 1741039043863664000
+    "duration": 3525351000,
+    "start": 1741040585951498000
   }],
 [
   {
@@ -50,7 +51,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.kafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67c625c300000000",
+      "_dd.p.tid": "67c62bc900000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.message_key": "test_key",
@@ -60,8 +61,8 @@
       "messaging.destination.name": "test_commit",
       "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
-      "pathway.hash": "18114026547969776814",
-      "runtime-id": "e443e81c096d441e88e2e7d34cb3bc67",
+      "pathway.hash": "3511129099946523222",
+      "runtime-id": "559a40be08084fe3ba6c3dbbe5a60e52",
       "span.kind": "producer"
     },
     "metrics": {
@@ -70,8 +71,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 12603
+      "process_id": 20454
     },
-    "duration": 2498000,
-    "start": 1741039043856465000
+    "duration": 1388000,
+    "start": 1741040585947037000
   }]]
