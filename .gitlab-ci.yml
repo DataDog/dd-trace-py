@@ -13,6 +13,7 @@ variables:
 default:
   interruptible: true
 
+# trivial comment
 workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "erikayasuda/no-interrupt-on-main"' # mock for main
