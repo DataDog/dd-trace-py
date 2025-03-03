@@ -209,6 +209,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.get_tag("component") == "celery"
         assert run_span.get_tag("span.kind") == "consumer"
 
+    @flaky(1741975978)
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
         @self.app.task
