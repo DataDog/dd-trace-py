@@ -701,8 +701,6 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
         usage["input_tokens"] = int(input_token_count)
     if output_token_count:
         usage["output_tokens"] = int(output_token_count)
-    if input_token_count or output_token_count:
-        usage["total_tokens"] = int(input_token_count) + int(output_token_count)
     ctx.set_item("usage", usage)
 
 
