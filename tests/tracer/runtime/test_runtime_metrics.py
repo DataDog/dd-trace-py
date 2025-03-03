@@ -7,13 +7,10 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
-from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS_V2
 from ddtrace.internal.runtime.constants import ENV
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
-from ddtrace.internal.runtime.constants import GC_COUNT_GEN0_V2
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
-from ddtrace.internal.runtime.runtime_metrics import RuntimeMetricsV2
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.runtime.runtime_metrics import TracerTags
 from ddtrace.internal.service import ServiceStatus
@@ -75,7 +72,7 @@ class TestRuntimeTags(TracerTestCase):
 
 
 @pytest.mark.subprocess(env={})
-def test_runtime_tags():
+def test_runtime_tags_empty():
     from ddtrace.internal.runtime.runtime_metrics import PlatformTags
 
     tags = list(PlatformTags())
@@ -85,14 +82,15 @@ def test_runtime_tags():
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
 
 
-@pytest.mark.subprocess(env={})
-def test_runtime_tags_v2():
+@pytest.mark.subprocess()
+def test_runtime_platformv2_tags():
     from ddtrace.internal.runtime.runtime_metrics import PlatformTagsV2
 
     tags = list(PlatformTagsV2())
     assert len(tags) == 5
 
     tags = dict(tags)
+    # Ensure runtime-id is present along with all the v1 tags
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "runtime-id"])
 
 
@@ -140,26 +138,16 @@ def test_runtime_tags_manual_tracer_tags():
 
 
 class TestRuntimeMetrics(BaseTestCase):
-    TEST_METRIC = GC_COUNT_GEN0
-    METRICS_ITERABLE = RuntimeMetrics
-
     def test_all_metrics(self):
-        metrics = set([k for (k, v) in self.METRICS_ITERABLE()])
+        metrics = set([k for (k, v) in RuntimeMetrics()])
         self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
 
     def test_one_metric(self):
-        metrics = [k for (k, v) in self.METRICS_ITERABLE(enabled=[self.TEST_METRIC])]
-        self.assertEqual(metrics, [self.TEST_METRIC])
-
-
-class TestRuntimeMetricsV2(BaseTestCase):
-    TEST_METRIC = GC_COUNT_GEN0_V2
-    METRICS_ITERABLE = RuntimeMetricsV2
+        metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_COUNT_GEN0])]
+        self.assertEqual(metrics, [GC_COUNT_GEN0])
 
 
 class TestRuntimeWorker(TracerTestCase):
-    DEFAULT_METRICS = DEFAULT_RUNTIME_METRICS
-
     def test_tracer_metrics(self):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch("socket.socket") as sock:
@@ -191,8 +179,8 @@ class TestRuntimeWorker(TracerTestCase):
         # expect all metrics in default set are received
         # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
         assert (
-            self.DEFAULT_METRICS & set([gauge.split(":")[0] for packet in received for gauge in packet.split("\n")])
-            == self.DEFAULT_METRICS
+            DEFAULT_RUNTIME_METRICS & set([gauge.split(":")[0] for packet in received for gauge in packet.split("\n")])
+            == DEFAULT_RUNTIME_METRICS
         )
 
         # check to last set of metrics returned to confirm tags were set
@@ -206,8 +194,6 @@ class TestRuntimeWorker(TracerTestCase):
             self.assertRegex(gauge, "lang_version:")
             self.assertRegex(gauge, "lang:python")
             self.assertRegex(gauge, "tracer_version:")
-            if isinstance(self, TestRuntimeWorkerV2):
-                self.assertRegex(gauge, "runtime-id:")
 
     def test_root_and_child_span_runtime_internal_span_types(self):
         with runtime_metrics_service(tracer=self.tracer):
@@ -239,10 +225,6 @@ class TestRuntimeWorker(TracerTestCase):
                         pass
                 assert root.get_tag("language") == "python"
                 assert child.get_tag("language") is None
-
-
-class TestRuntimeWorkerV2(TracerTestCase):
-    DEFAULT_METRICS = DEFAULT_RUNTIME_METRICS_V2
 
 
 @flaky(1731169429)

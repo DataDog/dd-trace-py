@@ -105,10 +105,7 @@ _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
 
 
+# List of support values in DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED
 class EXPERIMENTAL_FEATURES:
-    # The following constants are used to enable experimental features.
-    # They are not intended to be used in production code.
-    # They are subject to change or removal at any time.
-    #
-    # Enable runtime metrics v2 collection system
+    # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"

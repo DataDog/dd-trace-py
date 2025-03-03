@@ -61,15 +61,9 @@ class PlatformTagCollector(RuntimeTagCollector):
     - `lang_version``,  eg ``2.7.10``
     - ``lang`` e.g. ``Python``
     - ``tracer_version`` e.g. ``0.29.0``
-    - ``runtime-id`` e.g. `e4724609efa84cf58424a8b1ef44b17d`
-
     """
 
     required_modules = ["platform", "ddtrace"]
-
-    def __init__(self, v2_enabled=False):
-        self.v2_enabled = v2_enabled
-        super().__init__()
 
     def collect_fn(self, keys):
         platform = self.modules.get("platform")
@@ -80,12 +74,26 @@ class PlatformTagCollector(RuntimeTagCollector):
             (LANG_VERSION, platform.python_version()),
             (TRACER_VERSION, ddtrace.__version__),
         ]
-
-        if self.v2_enabled:
-            tags.append(("runtime-id", get_runtime_id()))
         return tags
 
 
 class PlatformTagCollectorV2(PlatformTagCollector):
-    def __init__(self):
-        super().__init__(v2_enabled=True)
+    """Tag collector for the Python interpreter implementation.
+
+    Tags collected:
+    - ``lang_interpreter``:
+
+      * For CPython this is 'CPython'.
+      * For Pypy this is ``PyPy``
+      * For Jython this is ``Jython``
+
+    - `lang_version``,  eg ``2.7.10``
+    - ``lang`` e.g. ``Python``
+    - ``tracer_version`` e.g. ``0.29.0``
+    - ``runtime-id`` e.g. `e4724609efa84cf58424a8b1ef44b17d`
+    """
+
+    def collect_fn(self, keys):
+        tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
+        tags.append(("runtime-id", get_runtime_id()))
+        return tags

@@ -1,6 +1,5 @@
 import itertools
 import os
-from typing import Callable
 from typing import ClassVar  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -15,11 +14,8 @@ from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
-from .constants import DEFAULT_RUNTIME_METRICS_V2
 from .metric_collectors import GCRuntimeMetricCollector
-from .metric_collectors import GCRuntimeMetricCollectorV2
 from .metric_collectors import PSUtilRuntimeMetricCollector
-from .metric_collectors import PSUtilRuntimeMetricCollectorV2
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import PlatformTagCollectorV2
 from .tag_collectors import TracerTagCollector
@@ -71,14 +67,6 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-class RuntimeMetricsV2(RuntimeMetrics):
-    ENABLED = DEFAULT_RUNTIME_METRICS_V2
-    COLLECTORS = [
-        GCRuntimeMetricCollectorV2,
-        PSUtilRuntimeMetricCollectorV2,
-    ]
-
-
 def _get_interval_or_default():
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
@@ -99,14 +87,18 @@ class RuntimeWorker(periodic.PeriodicService):
             self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
         )
         self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
+        self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
         if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in ddtrace.config._experimental_features_enabled:
-            self._runtime_metrics: RuntimeMetrics = RuntimeMetricsV2()
-            self.send_metric: Callable = self._dogstatsd_client.gauge
-            self._platform_tags: List[str] = self._format_tags(PlatformTagsV2())
+            # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
+            self.send_metric = self._dogstatsd_client.gauge
         else:
-            self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
-            self.send_metric: Callable = self._dogstatsd_client.distribution
-            self._platform_tags: List[str] = self._format_tags(PlatformTags())
+            self.send_metric = self._dogstatsd_client.distribution
+
+        if ddtrace.config._runtime_metrics_runtim_id_enabled:
+            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
+            self._platform_tags = self._format_tags(PlatformTagsV2())
+        else:
+            self._platform_tags = self._format_tags(PlatformTags())
 
     @classmethod
     def disable(cls):
@@ -161,7 +153,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
-                log.debug("Writing runtime metric %s:%s", key, value)
+                log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
 
     def _stop_service(self):

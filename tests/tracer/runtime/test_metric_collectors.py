@@ -1,15 +1,11 @@
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
-from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS_V2
 from ddtrace.internal.runtime.constants import MEM_RSS
 from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
-from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS_V2
 from ddtrace.internal.runtime.constants import THREAD_COUNT
 from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
-from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollectorV2
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
-from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollectorV2
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from tests.utils import BaseTestCase
 from tests.utils import flaky
@@ -131,14 +127,6 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
         """
 
 
-class TestPSUtilRuntimeMetricCollectorV2(BaseTestCase):
-    def test_metrics(self):
-        collector = PSUtilRuntimeMetricCollectorV2()
-        for metric_name, value in collector.collect(PSUTIL_RUNTIME_METRICS_V2):
-            self.assertIsNotNone(value)
-            self.assertRegex(metric_name, r"^runtime.python.gauge\..*")
-
-
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
@@ -169,11 +157,3 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         assert len(collected_after) == 1
         assert collected_after[0][0] == "runtime.python.gc.count.gen0"
         assert isinstance(collected_after[0][1], int)
-
-
-class TestGCRuntimeMetricCollectorV2(BaseTestCase):
-    def test_metrics(self):
-        collector = GCRuntimeMetricCollectorV2()
-        for metric_name, value in collector.collect(GC_RUNTIME_METRICS_V2):
-            self.assertIsNotNone(value)
-            self.assertRegex(metric_name, r"^runtime.python.gauge\..*")
