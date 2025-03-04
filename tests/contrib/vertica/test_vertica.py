@@ -16,7 +16,6 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
-from tests.utils import flaky
 
 
 TEST_TABLE = "test_table"
@@ -59,7 +58,7 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    @flaky(1742580778)
+    # @flaky(1742580778)
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
         the module import system.
