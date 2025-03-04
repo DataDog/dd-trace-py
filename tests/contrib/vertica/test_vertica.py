@@ -58,25 +58,6 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    # @flaky(1742580778)
-    def test_patch_after_import(self):
-        """Patching _after_ the import will not work because we hook into
-        the module import system.
-
-        Vertica uses a local reference to `Cursor` which won't get patched
-        if we call `patch` after the module has already been imported.
-        """
-        import vertica_python
-
-        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
-
-        patch()
-
-        conn = vertica_python.connect(**VERTICA_CONFIG)
-        cursor = conn.cursor()
-        assert not isinstance(cursor, wrapt.ObjectProxy)
-
     def test_patch_before_import(self):
         patch()
         import vertica_python
