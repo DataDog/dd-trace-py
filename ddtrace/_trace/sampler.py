@@ -159,8 +159,12 @@ class DatadogSampler:
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
-        return "{}(agent_rates={!r}, limiter={!r}, rules={!r})".format(
-            self.__class__.__name__, rates, self.limiter, self.rules
+        return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
+            self.__class__.__name__,
+            rates,
+            self.limiter,
+            self.rules,
+            self._rate_limit_always_on,
         )
 
     __repr__ = __str__
