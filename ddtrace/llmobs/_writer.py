@@ -20,7 +20,6 @@ from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import get_connection_response
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
@@ -119,7 +118,7 @@ class BaseLLMObsWriter(PeriodicService):
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_events, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",

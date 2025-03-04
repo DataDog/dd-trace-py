@@ -33,7 +33,6 @@ from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils import http
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
@@ -501,7 +500,7 @@ class ScopeContext:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
-            return http.get_connection_response(conn)
+            return conn.getresponse()
 
     def __bool__(self) -> bool:
         return bool(self._scopes)

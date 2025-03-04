@@ -244,7 +244,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     data,
                     headers,
                 )
-                resp = ddtrace.internal.utils.http.get_connection_response(self._conn)
+                resp = self._conn.getresponse()
                 log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:

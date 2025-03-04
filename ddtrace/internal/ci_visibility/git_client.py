@@ -30,7 +30,6 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Tracer  # noqa: F401
 
 from .. import telemetry
-from ..utils import http
 from ..utils.http import Response
 from ..utils.http import get_connection
 from ..utils.http import verify_url
@@ -317,7 +316,7 @@ class CIVisibilityGitClient(object):
             conn = get_connection(url, timeout=timeout)
             log.debug("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
             conn.request("POST", url_path, payload, _headers)
-            resp = http.get_connection_response(conn)
+            resp = conn.getresponse()
             log.debug("Response status: %s", resp.status)
             result = Response.from_http_response(resp)
         finally:

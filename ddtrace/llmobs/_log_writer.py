@@ -14,7 +14,6 @@ import http.client as httplib
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import get_connection_response
 
 
 logger = get_logger(__name__)
@@ -104,7 +103,7 @@ class V2LogWriter(PeriodicService):
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_logs, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d logs to %r, got response code %r, status: %r",

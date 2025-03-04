@@ -20,7 +20,6 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.internal.utils.http import get_connection_response
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
@@ -532,7 +531,7 @@ def _make_uds_server(path, request_handler):
         conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
         try:
             conn.request("PUT", "/")
-            resp = get_connection_response(conn).status
+            resp = conn.getresponse().status
         finally:
             conn.close()
         time.sleep(0.01)

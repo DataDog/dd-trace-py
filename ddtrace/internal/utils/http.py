@@ -441,21 +441,3 @@ def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
     headers, _, body = msg.as_bytes(policy=HTTP).partition(b"\r\n\r\n")
 
     return body, dict(_.split(": ") for _ in headers.decode().splitlines())
-
-
-def get_connection_response(
-    conn,  # type: httplib.HTTPConnection
-):
-    # type: (...) -> httplib.HTTPResponse
-    """Returns the response for a connection.
-
-    If using Python 2 enable buffering.
-
-    Python 2 does not enable buffering by default resulting in many recv
-    syscalls.
-
-    See:
-    https://bugs.python.org/issue4879
-    https://github.com/python/cpython/commit/3c43fcba8b67ea0cec4a443c755ce5f25990a6cf
-    """
-    return conn.getresponse()

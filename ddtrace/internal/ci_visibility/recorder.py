@@ -81,7 +81,6 @@ from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.utils import http
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
@@ -138,7 +137,7 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
         conn = get_connection(url, timeout=timeout)
         log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
         conn.request("POST", url_path, payload, headers)
-        resp = http.get_connection_response(conn)
+        resp = conn.getresponse()
         log.debug("Response status: %s", resp.status)
         result = Response.from_http_response(resp)
     finally:

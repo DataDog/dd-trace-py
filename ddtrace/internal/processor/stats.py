@@ -18,7 +18,6 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..utils.http import get_connection_response
 from ..writer import _human_size
 
 
@@ -201,7 +200,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("PUT", self._endpoint, payload, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise

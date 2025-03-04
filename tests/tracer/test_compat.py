@@ -9,7 +9,6 @@ import pytest
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import to_unicode
-from ddtrace.internal.utils.http import get_connection_response
 
 
 class TestCompat(object):
@@ -68,7 +67,7 @@ class TestCompat(object):
                 assert "buffering" not in kwargs
 
         mock = MockConn()
-        get_connection_response(mock)
+        mock.getresponse()
 
 
 class TestPy3Compat(object):

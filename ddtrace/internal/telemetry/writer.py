@@ -27,7 +27,6 @@ from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
-from ..utils.http import get_connection_response
 from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
 from . import modules
@@ -128,7 +127,7 @@ class _TelemetryClient:
             with StopWatch() as sw:
                 conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
-                resp = get_connection_response(conn)
+                resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
                     "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
