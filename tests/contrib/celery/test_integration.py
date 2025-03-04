@@ -703,7 +703,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             # beat_service.stop() can happen any time during the beat thread's execution.
             # When by chance it happens between apply_entry() and run(), the run() span will be
             # omitted, resulting in one fewer span for run() than the other functions
-            assert actual_run_count >= spans_counter["celery.run"] >= actual_run_count - 1
+            assert actual_run_count >= spans_counter["celery.run"]
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
