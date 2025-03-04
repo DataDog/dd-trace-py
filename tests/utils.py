@@ -1366,9 +1366,7 @@ def _should_skip(until: int, condition=None):
     until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
 def flaky(until: int, condition: bool = None, reason: str = None):
