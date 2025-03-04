@@ -52,14 +52,14 @@ configure_code_provenance()
             for (size_t k = 0; k < names[2].size(); k++) {
                 std::string name =
                   std::string(names[0][i]) + "_" + std::string(names[1][j]) + "_" + std::string(names[2][k]);
-                packages[name] = {"1.0.0", "/usr/lib/python3.10/site-packages/" + name};
+                packages[name] = { "1.0.0", "/usr/lib/python3.10/site-packages/" + name };
             }
         }
     }
 
     std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages_view;
     for (const auto& [key, value] : packages) {
-        packages_view[key] = {value.first, value.second};
+        packages_view[key] = { value.first, value.second };
     }
     code_provenance_add_packages(packages_view);
 }
