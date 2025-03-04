@@ -60,8 +60,8 @@ class DatadogSampler:
        - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
        - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
        - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
-       - Spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing the agent to determine
-       the final sample rate and sampling decision.
+       - By default, spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing
+       the agent to determine the final sample rate and sampling decision.
 
     Example sampling rules::
 
@@ -118,10 +118,10 @@ class DatadogSampler:
         # Set Agent based samplers
         self._by_service_samplers: Dict[str, RateSampler] = {}
         # Set rate limiter
-        self._rate_limit_always_on = rate_limit_always_on
+        self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
             rate_limit = int(config._trace_rate_limit)
-        self.limiter = RateLimiter(rate_limit, rate_limit_window)
+        self.limiter: RateLimiter = RateLimiter(rate_limit, rate_limit_window)
 
         log.debug("initialized %r", self)
 
