@@ -44,9 +44,10 @@ class HandledExceptionReportingInjector:
         module_path = Path(module.__file__).resolve()  # type: ignore
         # Filtering of the modules based on the configuration
         if (
-            (config.enable_handled_exceptions_reporting and is_stdlib(module_path) is False)
+            (config._instrument_all and is_stdlib(module_path) is False)
             or (config._instrument_user_code and is_user_code(module_path))
-        ) or (config._instrument_third_party_code and is_third_party(module_path)):
+            or (config._instrument_third_party_code and is_third_party(module_path))
+        ):
             self._instrument_module(module_name)
         else:
             # only if MODULES env variables is enabled

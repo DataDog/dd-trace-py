@@ -3,6 +3,7 @@ import typing as t
 
 from envier import Env
 
+from ddtrace.settings._core import DDConfig
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
@@ -14,24 +15,16 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
     return [f for f in fragments if f != ""]
 
 
-class ErrorTrackingConfig(Env):
-    __prefix__ = "dd_trace_auto_report_handled_errors"
+class ErrorTrackingConfig(DDConfig):
+    __prefix__ = "dd.error.tracking.report.handled.errors"
 
-    # Report user code and third party packages handled exceptions
-    enable_handled_exceptions_reporting = Env.var(bool, "all", default=False)
-
-    # Report only user handled exceptions
-    _instrument_user_code = Env.var(bool, "user_code", default=False)
-
-    # Report only third party packages handled exceptions
-    _instrument_third_party_code = Env.var(bool, "third_party", default=False)
-
+    _report_handled_errors = DDConfig.v(str, "enabled", default="")
     # Specify the modules (user and third party mixed) for which we report handled exceptions
-    _modules_to_report = Env.var(list, "modules", parser=parse_modules, default=[])
+    _modules_to_report = DDConfig.v(list, "enabled.modules", parser=parse_modules, default=[])
 
     # Report only handled exceptions if an unhandled exception occurs in the span
     # Experimental feature: will likely be removed
-    _report_after_unhandled = Env.var(bool, "after_unhandled", default=False)
+    _report_after_unhandled = DDConfig.v(bool, "after_unhandled", default=False)
 
     """
     At the moment, we are also logging the exceptions so ET can fingerprint the exceptions
@@ -53,16 +46,20 @@ class ErrorTrackingConfig(Env):
         HANDLED_EXCEPTIONS_MONITORING_ID = 3
 
     _configured_modules: t.List[str] = list()
+    _instrument_user_code = False
+    _instrument_third_party_code = False
+    _instrument_all = False
     enabled = False
 
 
 config = ErrorTrackingConfig()
-if (
-    (not config._modules_to_report) is False
-    or config.enable_handled_exceptions_reporting
-    or config._instrument_user_code
-    or config._instrument_third_party_code
-):
+if (not config._modules_to_report) is False or config._report_handled_errors in ["all", "user", "third_party"]:
     config._configured_modules = config._modules_to_report
+    if config._report_handled_errors == "user":
+        config._instrument_user_code = True
+    elif config._report_handled_errors == "third_party":
+        config._instrument_third_party_code = True
+    elif config._report_handled_errors == "all":
+        config._instrument_all = True
     config.enabled = True
     _report_telemetry(config)

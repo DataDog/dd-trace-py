@@ -1,7 +1,12 @@
 import sys
 
+from ddtrace.settings.errortracking import config
+
 
 def init_handled_exceptions_reporting():
+    if config.enabled is False:
+        return
+
     if sys.version_info < (3, 10):
         return
 

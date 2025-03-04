@@ -18,7 +18,7 @@ skipif_bytecode_injection_not_supported = pytest.mark.skipif(
 
 @skipif_bytecode_injection_not_supported
 class ErrorTestCases(TracerTestCase):
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_basic_try_except(self):
         import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
         from tests.errortracking._test_functions import test_basic_try_except_f
@@ -39,7 +39,7 @@ class ErrorTestCases(TracerTestCase):
             0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_basic_multiple_except(self):
         import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
         from tests.errortracking._test_functions import test_basic_multiple_except_f
@@ -64,7 +64,7 @@ class ErrorTestCases(TracerTestCase):
             0, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_handled_same_error_multiple_times(self):
         import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
         from tests.errortracking._test_functions import test_handled_same_error_multiple_times_f
@@ -85,7 +85,7 @@ class ErrorTestCases(TracerTestCase):
             0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_reraise_handled_error(self):
         import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
         from tests.errortracking._test_functions import test_reraise_handled_error_f
@@ -109,7 +109,7 @@ class ErrorTestCases(TracerTestCase):
             1, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_async_error(self):
         import asyncio
 
@@ -137,8 +137,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true",
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
         )
     )
     def test_report_after_unhandled_without_raise(self):
@@ -160,8 +160,8 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_ALL="true",
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
         )
     )
     def test_report_after_unhandled_with_raise(self):
@@ -234,7 +234,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_USER_CODE="true",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="user",
         )
     )
     def test_user_code_reporting(self):
@@ -260,6 +260,7 @@ class UserCodeErrorTestCases(TracerTestCase):
         """
         assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
+        print(len(self.spans[0]._events))
         assert len(self.spans[0]._events) >= 2
         event_messages = [event.attributes["exception.message"] for event in self.spans[0]._events]
         assert "auto caught error" in event_messages
@@ -268,7 +269,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_THIRD_PARTY="true",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="third_party",
         )
     )
     def test_user_code_reporting_with_third_party(self):
@@ -289,6 +290,8 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
+        for event in self.spans[0]._events:
+            print(event)
         self.spans[0].assert_span_event_count(1)
         self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
@@ -296,7 +299,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_MODULES="numpy,user_module",
+            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="numpy,user_module",
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
@@ -325,7 +328,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             1, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_MODULES="submodule"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="submodule"))
     def test_user_code_scoped_reporting(self):
         import submodule.submodule_1 as sub_1  # type: ignore
         import submodule.submodule_2 as sub_2  # type: ignore
@@ -358,7 +361,9 @@ class UserCodeErrorTestCases(TracerTestCase):
             1, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_TRACE_AUTO_REPORT_HANDLED_ERRORS_MODULES="submodule.submodule_2"))
+    @run_in_subprocess(
+        env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="submodule.submodule_2")
+    )
     def test_user_code_narrowed_scoped_reporting(self):
         import submodule.submodule_1 as sub_1  # type: ignore
         import submodule.submodule_2 as sub_2  # type: ignore
