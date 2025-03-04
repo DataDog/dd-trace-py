@@ -23,25 +23,18 @@ variables:
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
 
-    if [ -n ${CI_JOB_TOKEN} ];
-    then
-      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    fi
-    git clone --branch brettlangdon/dd-trace-py.run-script https://github.com/DataDog/benchmarking-platform /platform
-    cd /platform
-
-    ./steps/capture-hardware-software-info.sh
+    .gitlab/benchmarks/steps/capture-hardware-software-info.sh
 
     if [[ $SCENARIO =~ ^flask_* ]];
     then
       BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
-      ./steps/run-benchmarks.sh
+      .gitlab/benchmarks/steps/run-microbenchmarks.sh
     fi
 
-    ./steps/analyze-results.sh
+    .gitlab/benchmarks/steps/analyze-results.sh
 
-    ./steps/upload-results-to-s3.sh || :
+    .gitlab/benchmarks/steps/upload-results-to-s3.sh || :
   artifacts:
     name: "reports"
     when: always
@@ -71,11 +64,11 @@ baseline:detect:
       rm token
     fi
 
-    # Needed to run `git merge-base` and `git rev-list`
+    # Needed to run `git describe`
     git config --global --add safe.directory ${CI_PROJECT_DIR}
 
     # Determine baseline to test against and save env variables into `baseline.env`
-    ./.gitlab/benchmarks/steps/detect-baseline.sh
+    .gitlab/benchmarks/steps/detect-baseline.sh
   artifacts:
     reports:
       dotenv: baseline.env
@@ -92,24 +85,7 @@ baseline:build:
     CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
     if [ ! -f "${CACHED_WHL}" ];
     then
-      # If we have a tag, then use the PyPI published wheel
-      # Otherwise, build the wheel from commit hash
-      if [[ -n "${BASELINE_TAG}" ]];
-      then
-        python3.9 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}"
-      else
-        ulimit -c unlimited
-        curl -sSf https://sh.rustup.rs | sh -s -- -y;
-        export PATH="$HOME/.cargo/bin:$PATH"
-        echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
-        git checkout "${BASELINE_COMMIT_SHA}"
-        mkdir ./tmp
-        python3.9 -m pip wheel --no-deps -w ./tmp/ ./
-        for wheel in ./tmp/*.whl;
-        do
-          auditwheel repair "$wheel" --plat "manylinux2014_x86_64" -w ./
-        done
-      fi
+      .gitlab/benchmarks/steps/build-baseline.sh
     else
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
     fi
@@ -173,12 +149,10 @@ benchmarks-pr-comment:
   tags: ["arch:amd64"]
   stage: report
   when: always
-  script:
-    - export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
-    - "(for i in {1..2}; do ./steps/upload-results-to-benchmarking-api.sh && break; done) || :"
-    - "./steps/post-pr-comment.sh || :"
+  script: |
+    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    (for i in {1..2}; do ./.gitlab/benchmarks/steps/upload-results-to-benchmarking-api.sh && break; done) || :
+    .gitlab/benchmarks/steps/post-pr-comment.sh || :
   except:
     - main
   variables:
@@ -195,9 +169,7 @@ check-big-regressions:
   image: $MICROBENCHMARKS_CI_IMAGE
   script:
     - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - git clone --branch dd-trace-py https://github.com/DataDog/benchmarking-platform /platform && cd /platform
-    - bp-runner bp-runner.fail-on-regression.yml --debug
+    - bp-runner .gitlab/benchmarks/bp-runner.fail-on-regression.yml --debug
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
