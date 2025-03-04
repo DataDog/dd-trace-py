@@ -1460,9 +1460,14 @@ class Contrib_TestClass_For_Threats:
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
                         ("waf_version", DDWAF_VERSION),
+                        ("event_rules_version", "rules_rasp"),
                     )
                 else:
-                    expected_tags = (("rule_type", expected_rule_type), ("waf_version", DDWAF_VERSION))
+                    expected_tags = (
+                        ("rule_type", expected_rule_type),
+                        ("waf_version", DDWAF_VERSION),
+                        ("event_rules_version", "rules_rasp"),
+                    )
                     assert matches == [expected_tags], matches
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
