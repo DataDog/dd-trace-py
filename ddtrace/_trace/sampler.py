@@ -97,6 +97,7 @@ class DatadogSampler:
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
         """
+        # Set sampling rules
         self.rules: List[SamplingRule] = []
         if rules is None:
             env_sampling_rules = config._trace_sampling_rules
@@ -111,11 +112,12 @@ class DatadogSampler:
                     raise TypeError(
                         "Rule {!r} must be a sub-class of type ddtrace._trace.sampler.SamplingRules".format(rule)
                     )
-        # DEV: sampling rule must come last
         if default_sample_rate is not None:
+            # DEV: sampling rule must come last
             self.rules.append(SamplingRule(sample_rate=default_sample_rate))
-
-        # Configure rate limiter
+        # Set Agent based samplers
+        self._by_service_samplers: Dict[str, RateSampler] = {}
+        # Set rate limiter
         self._rate_limit_always_on = rate_limit_always_on
         if rate_limit is None:
             rate_limit = int(config._trace_rate_limit)
