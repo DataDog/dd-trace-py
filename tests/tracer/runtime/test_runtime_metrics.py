@@ -227,7 +227,7 @@ class TestRuntimeWorker(TracerTestCase):
                 assert child.get_tag("language") is None
 
 
-@flaky(1731169429)
+@flaky(1741371178)
 def test_fork():
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0

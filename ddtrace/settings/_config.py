@@ -12,7 +12,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -362,13 +361,6 @@ def _parse_global_tags(s):
 
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
-        # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
-        "_trace_sample_rate": _ConfigItem(
-            default=1.0,
-            # trace_sample_rate is placeholder, this code will be removed up after v3.0
-            envs=["trace_sample_rate"],
-            modifier=float,
-        ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
             envs=["DD_TRACE_SAMPLING_RULES"],
@@ -397,24 +389,9 @@ def _default_config() -> Dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_profiling_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_PROFILING_ENABLED"],
-            modifier=asbool,
-        ),
-        "_asm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_APPSEC_ENABLED"],
-            modifier=asbool,
-        ),
         "_sca_enabled": _ConfigItem(
             default=None,
             envs=["DD_APPSEC_SCA_ENABLED"],
-            modifier=asbool,
-        ),
-        "_dsm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_DATA_STREAMS_ENABLED"],
             modifier=asbool,
         ),
     }
@@ -548,9 +525,15 @@ class Config(object):
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
-        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+
+        self._extra_services_queue = None
+        if self._remote_config_enabled and not in_aws_lambda():
+            # lazy load slow import
+            from ddtrace.internal._file_queue import File_Queue
+
+            self._extra_services_queue = File_Queue()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -885,16 +868,13 @@ class Config(object):
 
         if config and "lib_config" in config:
             lib_config = config["lib_config"]
-            if "tracing_sampling_rate" in lib_config:
-                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
-
-            if "tracing_sampling_rules" in lib_config:
-                trace_sampling_rules = lib_config["tracing_sampling_rules"]
+            if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
+                global_sampling_rate = lib_config.get("tracing_sampling_rate")
+                trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
+                # returns None if no rules
+                trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
                 if trace_sampling_rules:
-                    # returns None if no rules
-                    trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules)
-                    if trace_sampling_rules:
-                        base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules  # type: ignore[assignment]
 
             if "log_injection_enabled" in lib_config:
                 base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
@@ -972,7 +952,9 @@ class Config(object):
             return {tag["key"]: tag["value_glob"] for tag in tags}
         return tags
 
-    def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+    def _convert_rc_trace_sampling_rules(
+        self, rc_rules: List[Dict[str, Any]], global_sample_rate: Optional[float]
+    ) -> Optional[str]:
         """Example of an incoming rule:
         [
           {
@@ -1002,6 +984,10 @@ class Config(object):
             tags = rule.get("tags")
             if tags:
                 rule["tags"] = self._tags_to_dict(tags)
+
+        if global_sample_rate is not None:
+            rc_rules.append({"sample_rate": global_sample_rate})
+
         if rc_rules:
             return json.dumps(rc_rules)
         else:

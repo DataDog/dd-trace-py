@@ -15,6 +15,7 @@ from urllib import parse
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import add_context_log
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -95,6 +96,7 @@ class ASM_Environment:
                     "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                     "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 },
+                "truncation": {"string_length": [], "container_size": [], "container_depth": []},
             }
         }
         self.addresses_sent: Set[str] = set()
@@ -215,6 +217,16 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             telemetry_results["rasp"]["total_duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
             telemetry_results["rasp"]["sum_eval"] = 0
+        if telemetry_results["truncation"]["string_length"]:
+            root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results["truncation"]["string_length"]))
+        if telemetry_results["truncation"]["container_size"]:
+            root_span.set_metric(
+                APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results["truncation"]["container_size"])
+            )
+        if telemetry_results["truncation"]["container_depth"]:
+            root_span.set_metric(
+                APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results["truncation"]["container_depth"])
+            )
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
@@ -415,9 +427,17 @@ def set_waf_telemetry_results(
     rule_type: Optional[str],
     duration: float,
     total_duration: float,
+    truncation: _observator,
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    from ddtrace.appsec._metrics import _report_waf_truncations
+
+    _report_waf_truncations(truncation)
     if result is not None:
+        for key in ["container_size", "container_depth", "string_length"]:
+            res = getattr(truncation, key)
+            if isinstance(res, int):
+                result["truncation"][key].append(res)
         if rule_type is None:
             # Request Blocking telemetry
             result["triggered"] |= is_triggered
@@ -565,8 +585,10 @@ def _get_headers_if_appsec():
 
 def asm_listen():
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._trace_utils import listen as trace_listen
 
     listen()
+    trace_listen()
 
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")

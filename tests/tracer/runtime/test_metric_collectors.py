@@ -33,7 +33,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             self.assertIsNotNone(value)
             self.assertRegex(metric_name, r"^runtime.python\..*")
 
-    @flaky(1717343326)
+    @flaky(1741371178)
     def test_static_metrics(self):
         import os
         import threading

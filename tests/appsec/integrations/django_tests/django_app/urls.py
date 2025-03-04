@@ -92,4 +92,5 @@ urlpatterns = [
     path("appsec/checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
     path("appsec/stacktrace_leak/", views.stacktrace_leak_view),
     path("appsec/stacktrace_leak_500/", views.stacktrace_leak_500_view),
+    path("appsec/signup/", views.signup, name="signup"),
 ]
