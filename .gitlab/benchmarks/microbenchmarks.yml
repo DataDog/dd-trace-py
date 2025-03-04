@@ -72,6 +72,8 @@ baseline:detect:
   artifacts:
     reports:
       dotenv: baseline.env
+    paths:
+      - "baseline.env"
 
 baseline:build:
   image: $PACKAGE_IMAGE
