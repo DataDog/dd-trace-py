@@ -143,6 +143,7 @@ microbenchmarks:
         - "rate_limiter"
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
+        - "startup"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
