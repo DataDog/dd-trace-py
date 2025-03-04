@@ -1,11 +1,12 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 from .test_anthropic import ANTHROPIC_VERSION
-from .utils import tools
+from .utils import tools, MOCK_MESSAGES_CREATE_REQUEST
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -25,11 +26,38 @@ WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
 
-
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsAnthropic:
+    def test_completion_proxy(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+        """Ensure llmobs records are emitted for completion endpoints when configured.
+
+        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+        """
+        with patch.object(anthropic._base_client.SyncAPIClient, 'post') as mock_anthropic_messages_post:
+            llm = anthropic.Anthropic(base_url="http://localhost:4000")
+            mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+            with request_vcr.use_cassette("anthropic_completion_multi_prompt.yaml"):
+                llm.messages.create(
+                    model="claude-3-opus-20240229",
+                    max_tokens=15,
+                    system="Respond only in all caps.",
+                    temperature=0.8,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Hello, I am looking for information about some books!"},
+                                {"type": "text", "text": "What is the best selling book?"},
+                            ],
+                        }
+                    ],
+                )
+            # base_url is specified, so no llm obs span should be sent
+            assert mock_llmobs_writer.enqueue.call_count == 0
+
+
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
