@@ -1,11 +1,18 @@
 import os
 
+import boto3
+
 
 try:
     import vcr
 except ImportError:
     vcr = None
     get_request_vcr = None
+
+from ddtrace.internal.utils.version import parse_version
+
+
+BOTO_VERSION = parse_version(boto3.__version__)
 
 
 def create_bedrock_converse_request(user_message, tools=None, system=None):
