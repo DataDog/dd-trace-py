@@ -865,8 +865,8 @@ Other
      default: False
 
      description: |
-         Enables support for experimental ddtrace configurations.
-         The supported values: ``DD_RUNTIME_METRICS_ENABLED``.
+         Enables support for experimental ddtrace configurations. This configuration supports a comma delimited list of ddtrace environment variables (only commas, underscores and alphanumeric characters are supported).
+         The supported configurations: ``DD_RUNTIME_METRICS_ENABLED``.
 
     DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
      type: String
