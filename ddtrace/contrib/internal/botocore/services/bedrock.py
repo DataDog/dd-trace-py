@@ -301,11 +301,8 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
     request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    prompt = None
-    for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
-            prompt = v
-    ctx.set_item("prompt", prompt)
+    if ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
+        ctx.set_item("llmobs.request_params", request_params)
 
 
 def handle_bedrock_response(

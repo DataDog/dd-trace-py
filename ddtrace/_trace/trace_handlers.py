@@ -680,7 +680,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
@@ -692,6 +692,12 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
         span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
     if output_token_count:
         span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
+    usage = {}
+    if input_token_count:
+        usage["input_tokens"] = int(input_token_count)
+    if output_token_count:
+        usage["output_tokens"] = int(output_token_count)
+    ctx.set_item("llmobs.usage", usage)
 
 
 def _propagate_context(ctx, headers):
@@ -734,11 +740,18 @@ def _on_botocore_bedrock_process_response(
             span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
     integration = ctx["bedrock_integration"]
     if metadata is not None:
+        usage = {}  # catch usage for streamed response case
         for k, v in metadata.items():
             if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
                 span.set_metric("bedrock.response.{}".format(k), int(v))
+                if k == "usage.completion_tokens":
+                    usage["output_tokens"] = int(v)
+                if k == "usage.prompt_tokens":
+                    usage["input_tokens"] = int(v)
             else:
                 span.set_tag_str("bedrock.{}".format(k), str(v))
+        if usage:
+            ctx.set_item("llmobs.usage", usage)
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
@@ -752,7 +765,8 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
+    ctx.set_item("llmobs.response", formatted_response)
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
