@@ -255,6 +255,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         from urllib.parse import urlparse
         import re
         parsed_url = urlparse(base_url)
-        default_azure_endpoint_regex = re.compile('^[\\w.-]*openai.azure.com$')
+        default_azure_endpoint_regex = re.compile('^[\\w.-]*openai\\.azure\\.com$')
         matches_azure_endpoint = default_azure_endpoint_regex.match(parsed_url.hostname) is not None
         return parsed_url.hostname in ACCEPTED_OPENAI_DEFAULT_HOSTNAMES or matches_azure_endpoint
