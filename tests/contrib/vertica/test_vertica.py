@@ -66,6 +66,33 @@ class TestVerticaPatching(TracerTestCase):
         assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
         assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
 
+    def test_patch_after_import(self):
+        """Patching _after_ the import will not work because we hook into
+        the module import system.
+
+        Vertica uses a local reference to `Cursor` which won't get patched
+        if we call `patch` after the module has already been imported.
+        """
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
+
+        import vertica_python
+
+        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+
+        patch()
+
+        # Mock vertica_python.connect to avoid real DB connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with mock_patch("vertica_python.connect", return_value=mock_conn):
+            conn = vertica_python.connect()
+            cursor = conn.cursor()
+            assert not isinstance(cursor, wrapt.ObjectProxy)
+
     def test_idempotent_patch(self):
         patch()
         patch()
