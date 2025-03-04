@@ -59,7 +59,7 @@ class DatadogSampler:
        - A list of sampling rules, applied in the order they are provided. The first matching rule is used.
        - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
        - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
-       - Service and Env based sample rates provided by the agent.
+       - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
        - Spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing the agent to determine
        the final sample rate and sampling decision.
 
