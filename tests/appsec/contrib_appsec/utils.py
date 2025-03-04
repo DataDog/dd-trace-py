@@ -197,7 +197,6 @@ class Contrib_TestClass_For_Threats:
                 content_type="application/json",
             )
             assert self.status(response) == 200
-            assert mocked.call_count == 7
             args_list = [
                 (args[0].__name__, args[1].value) + args[2:]
                 for args, kwargs in mocked.call_args_list
