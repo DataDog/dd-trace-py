@@ -22,11 +22,11 @@ class CodeProvenanceTest : public ::testing::Test
         cp.set_stdlib_path("/usr/lib/python3.10");
 
         std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages = {
-            { "requests", std::make_pair("2.26.0", "/usr/lib/python3.10/site-packages/requests") },
-            { "urllib3", std::make_pair("1.26.7", "/usr/lib/python3.10/site-packages/urllib3") },
-            { "chardet", std::make_pair("4.0.0", "/usr/lib/python3.10/site-packages/chardet") },
-            { "idna", std::make_pair("3.2", "/usr/lib/python3.10/site-packages/idna") },
-            { "certifi", std::make_pair("2021.5.30", "/usr/lib/python3.10/site-packages/certifi") },
+            { "requests", std::make_pair("2.26.0", "/usr/lib/python3.10/site-packages") },
+            { "urllib3", std::make_pair("1.26.7", "/usr/lib/python3.10/site-packages") },
+            { "chardet", std::make_pair("4.0.0", "/usr/lib/python3.10/site-packages") },
+            { "idna", std::make_pair("3.2", "/usr/lib/python3.10/site-packages") },
+            { "certifi", std::make_pair("2021.5.30", "/usr/lib/python3.10/site-packages") },
         };
 
         cp.add_packages(packages);
