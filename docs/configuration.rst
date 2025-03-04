@@ -860,6 +860,23 @@ Other
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
+    DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Enables support for experimental ddtrace configurations.
+         The supported values: ``DD_RUNTIME_METRICS_ENABLED``.
+
+    DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
+     type: String
+     default: ""
+     Support values
+
+     description: |
+         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
      
