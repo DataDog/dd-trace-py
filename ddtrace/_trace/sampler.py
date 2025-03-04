@@ -69,29 +69,21 @@ class RateSampler:
 
 class DatadogSampler:
     """
-    By default, this sampler relies on dynamic sample rates provided by the trace agent
-    to determine which traces are kept or dropped.
+    The DatadogSampler samples traces based on the following (in order of precedence):
+       - A list of sampling rules, applied in the order they are provided. The first matching rule is used.
+       - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
+       - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
+       - Service and Env based sample rates provided by the agent.
+       - Spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing the agent to determine
+       the final sample rate and sampling decision.
 
-    You can also configure a static sample rate via ``default_sample_rate`` to use for sampling.
-    When a ``default_sample_rate`` is configured, that is the only sample rate used, and the agent
-    provided rates are ignored.
-
-    You may also supply a list of ``SamplingRule`` instances to set sample rates for specific
-    services.
-
-    Example rules::
+    Example sampling rules::
 
         DatadogSampler(rules=[
             SamplingRule(sample_rate=1.0, service="my-svc"),
             SamplingRule(sample_rate=0.0, service="less-important"),
+            SamplingRule(sample_rate=0.5), # sample all remaining services at 50%
         ])
-
-    Rules are evaluated in the order they are provided, and the first rule that matches is used.
-    If no rule matches, then the agent sample rates are used.
-
-    This sampler can be configured with a rate limit. This will ensure the max number of
-    sampled traces per second does not exceed the supplied limit. The default is 100 traces kept
-    per second.
     """
 
     __slots__ = (
