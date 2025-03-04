@@ -21,11 +21,16 @@ if [ "${UPSTREAM_BRANCH}" == "main" ]; then
   echo "BASELINE_BRANCH=main" | tee baseline.env
   BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
 
-# If this is a release tag (e.g. `v2.21.3`) then test against the latest version in that series
-# If the tag ends in `.0` (e.g. `v2.21.0`) then test against the latest version in the previous series
+# If this is a release tag (e.g. `v2.21.3`) then test against the latest version from that point (e.g. v2.21.2, or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
   # Baseline branch is the major.minor version of the tag
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
+  echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
+  BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/${BASELINE_BRANCH}" || echo "")
+
+# If this is a release branch (e.g. `2.21`) then test against the latest version from that point (e.g. v2.21.2 or v2.20.x)
+elif [[ "${UPSTREAM_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  BASELINE_BRANCH="${UPSTREAM_BRANCH}"
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
   BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/${BASELINE_BRANCH}" || echo "")
 
