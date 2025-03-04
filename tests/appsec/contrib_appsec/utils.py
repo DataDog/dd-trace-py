@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import itertools
 import json
 import sys
+from typing import Any
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -162,6 +163,66 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200
             assert not core.get_item("http.request.query", span=root_span())
+
+    def test_truncation_tags(self, interface: Interface, get_metric):
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            body: Dict[str, Any] = {"val": "x" * 5000}
+            body.update({f"a_{i}": i for i in range(517)})
+            response = interface.client.post(
+                "/asm/",
+                data=json.dumps(body),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)
+            # 12030 is due to response encoding
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)) == 12029
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
+
+    def test_truncation_telemetry(self, interface: Interface, get_metric):
+        from unittest.mock import ANY
+        from unittest.mock import patch as mock_patch
+
+        with override_global_config(dict(_asm_enabled=True)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
+            self.update_tracer(interface)
+            body: Dict[str, Any] = {"val": "x" * 5000}
+            body.update({f"a_{i}": i for i in range(517)})
+            response = interface.client.post(
+                "/asm/",
+                data=json.dumps(body),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            args_list = [
+                (args[0].__name__, args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
+                if "truncated" in args[2] or args[2] == "waf.requests"
+            ]
+            assert args_list == [
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
+                (
+                    "CountMetric",
+                    "appsec",
+                    "waf.requests",
+                    1.0,
+                    (
+                        ("event_rules_version", ANY),
+                        ("waf_version", ANY),
+                        ("rule_triggered", "false"),
+                        ("request_blocked", "false"),
+                        ("waf_timeout", "false"),
+                        ("input_truncated", "true"),
+                    ),
+                ),
+            ]
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
