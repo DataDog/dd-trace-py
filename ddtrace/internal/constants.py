@@ -85,14 +85,15 @@ DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 class SamplingMechanism(object):
     DEFAULT = 0
     AGENT_RATE_BY_SERVICE = 1
-    REMOTE_RATE = 2  # not used
+    REMOTE_RATE = 2  # not used, this mechanism is deprecated
     LOCAL_USER_TRACE_SAMPLING_RULE = 3
     MANUAL = 4
     APPSEC = 5
-    REMOTE_RATE_USER = 6  # not used
-    REMOTE_RATE_DATADOG = 7  # not used
+    REMOTE_RATE_USER = 6  # not used, this mechanism is deprecated
+    REMOTE_RATE_DATADOG = 7  # not used, this mechanism is deprecated
     SPAN_SAMPLING_RULE = 8
-    # TODO(munir): document why sampling mechanism is not set to 9 or 10
+    OTLP_INGEST_PROBABILISTIC_SAMPLING = 9  # not used in ddtrace
+    DATA_JOBS_MONITORING = 10  # not used in ddtrace
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
 
