@@ -19,8 +19,7 @@ UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
 # If this is a build on the `main` branch then test against the latest released version
 if [ "${UPSTREAM_BRANCH}" == "main" ]; then
   echo "BASELINE_BRANCH=main" | tee baseline.env
-  BASELINE_TAG=$(git describe --tags --abbrev=0 "origin/${BASELINE_BRANCH}" || echo "")
-  echo "BASELINE_TAG=${BASELINE_TAG}" | tee -a baseline.env
+  BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
 
 # If this is a release tag (e.g. `v2.21.3`) then test against the latest version in that series
 # If the tag ends in `.0` (e.g. `v2.21.0`) then test against the latest version in the previous series
@@ -28,8 +27,7 @@ elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
   # Baseline branch is the major.minor version of the tag
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
-  BASELINE_TAG=$(git describe --tags --abbrev=0 "origin/${BASELINE_BRANCH}" || echo "")
-  echo "BASELINE_TAG=${BASELINE_TAG}" | tee -a baseline.env
+  BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/${BASELINE_BRANCH}" || echo "")
 
 # If this is a build on a feature branch, then try to detemine the base branch to compare against, default to `main`
 else
