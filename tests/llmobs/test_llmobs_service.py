@@ -1204,6 +1204,7 @@ def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
     mock_llmobs_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
+    llmobs.enabled = True
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(llmobs, mock_llmobs_logs):
