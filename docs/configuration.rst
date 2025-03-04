@@ -871,7 +871,6 @@ Other
     DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
      type: String
      default: ""
-     Support values
 
      description: |
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
