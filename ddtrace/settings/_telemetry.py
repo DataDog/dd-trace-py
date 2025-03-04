@@ -1,7 +1,7 @@
 import os
 from typing import Any  # noqa:F401
 
-from envier import Env
+from ddtrace.settings._core import DDConfig
 
 from ..internal.logger import get_logger
 from ..internal.telemetry import telemetry_writer
@@ -12,7 +12,7 @@ from ._otel_remapper import ENV_VAR_MAPPINGS
 log = get_logger(__name__)
 
 
-class Config(Env):
+class Config(DDConfig):
     """Env-based configuration sub-class for automatic telemetry reporting."""
 
     def __init__(self, *args, **kwargs):
@@ -31,17 +31,23 @@ class Config(Env):
             for p in name.split("."):
                 env_val = getattr(env_val, p)
 
-            source = "unknown"
-            if env_name in self.source:
+            if env_name in self.fleet_source:
+                source = "fleet_stable_config"
+            elif env_name in self.env_source:
                 source = "env_var"
+            elif env_name in self.local_source:
+                source = "local_stable_config"
+            elif env_name in self.source:
+                source = "code"
+            elif env_val == e.default:
+                source = "default"
             else:
-                if env_val == e.default:
-                    source = "default"
+                source = "unknown"
 
             telemetry_writer.add_configuration(env_name, env_val, source)
 
 
-def report_telemetry(env: Env) -> None:
+def report_telemetry(env: DDConfig) -> None:
     Config._report_telemetry(env)
 
 
