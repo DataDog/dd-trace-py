@@ -16,7 +16,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
-from tests.utils import flaky
 
 from ...utils import override_global_config
 from .base import CeleryBaseTestCase
