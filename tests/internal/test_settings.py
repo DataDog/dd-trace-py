@@ -51,12 +51,12 @@ def _deleted_rc_config():
     [
         {
             "expected": {
-                "_trace_sample_rate": 1.0,
+                "_trace_sampling_rules": "",
                 "_logs_injection": False,
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
-                "_trace_sample_rate": "default",
+                "_trace_sampling_rules": "default",
                 "_logs_injection": "default",
                 "_trace_http_header_tags": "default",
             },
@@ -234,7 +234,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
 
 
 def test_config_subscription(config):
-    for s in ("_trace_sample_rate", "_logs_injection", "_trace_http_header_tags"):
+    for s in ("_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags"):
         _handler = mock.MagicMock()
         config._subscribe([s], _handler)
         setattr(config, s, "1")
@@ -340,18 +340,17 @@ def test_remoteconfig_global_sample_rate_and_rules(run_python_code_in_subprocess
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
-
+# Ensure that sampling rule with operation name "rules" is used
 with tracer.trace("rules") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.9
 assert span.get_tag("_dd.p.dm") == "-3"
-
+# Ensure that the global sampling rule is used
 with tracer.trace("sample_rate") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.8
 assert span.get_tag("_dd.p.dm") == "-3"
-
-
+# Override all sampling rules set via env var with a new rule
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
@@ -361,58 +360,57 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
             "sample_rate": 0.7,
         }
         ]}))
-
+# Ensure that the sampling rule from the remote config is used
 with tracer.trace("rules") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.7
 assert span.get_tag("_dd.p.dm") == "-11"
-
+# Ensure that the default sampling rate of 0.9 is overwritten by rc
 with tracer.trace("sample_rate") as span:
     pass
-# Global sampling rule was overwritten
 assert span.get_metric("_dd.rule_psr") is None
 assert span.get_tag("_dd.p.dm") == "-0"
 
-
+# Set a new default sampling rate via rc
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.2}))
-
+# Ensure that the new default sampling rate is used
 with tracer.trace("sample_rate") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.2
 assert span.get_tag("_dd.p.dm") == "-3"
-
+# Ensure the previous sampling rule with operation name "rules" is not used
 with tracer.trace("rules") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_metric("_dd.rule_psr") == 0.2
 assert span.get_tag("_dd.p.dm") == "-3"
 
-
+# Set a new sampling rules via rc
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rate": 0.3}))
-
+# Ensure that the new default sampling rate is used
 with tracer.trace("sample_rate") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.3
 assert span.get_tag("_dd.p.dm") == "-3"
-
+# Ensure the previous sampling rule with operation name "rules" is not used
 with tracer.trace("rules") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.9
+assert span.get_metric("_dd.rule_psr") == 0.3
 assert span.get_tag("_dd.p.dm") == "-3"
 
-
+# Remove all sampling rules from remote config
 config._handle_remoteconfig(_base_rc_config({}))
-
+# Ensure that the default sampling rate set via env vars is used
 with tracer.trace("rules") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.9
 assert span.get_tag("_dd.p.dm") == "-3"
-
+# Ensure that the sampling rule matching operation names set via env vars is used
 with tracer.trace("sample_rate") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.8
 assert span.get_tag("_dd.p.dm") == "-3"
 
-
+# Test swtting dynamic and customer sampling rules
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
@@ -429,22 +427,21 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
             "sample_rate": 0.6,
         }
         ]}))
-
+# Test sampling rule with dynamic providence
 with tracer.trace("rules_dynamic") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 assert span.get_tag("_dd.p.dm") == "-12"
-
+# Test sampling rule with customer providence
 with tracer.trace("rules_customer") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.6
 assert span.get_tag("_dd.p.dm") == "-11"
-
+# Test span that does not match any sampling rule
 with tracer.trace("sample_rate") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None
 assert span.get_tag("_dd.p.dm") == "-0"
-
          """,
         env=env,
     )
