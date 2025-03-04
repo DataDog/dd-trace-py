@@ -31,9 +31,7 @@ Francisco, CA is 73°F."
 )
 class TestLLMObsAnthropic:
     def test_completion_proxy(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
-        """Ensure llmobs records are emitted for completion endpoints when configured.
-
-        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified.
         """
         with patch.object(anthropic._base_client.SyncAPIClient, 'post') as mock_anthropic_messages_post:
             llm = anthropic.Anthropic(base_url="http://localhost:4000")
