@@ -649,7 +649,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
-
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():
