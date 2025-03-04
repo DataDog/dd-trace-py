@@ -8,7 +8,6 @@ import django
 import pytest
 
 from tests.utils import _build_env
-from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
