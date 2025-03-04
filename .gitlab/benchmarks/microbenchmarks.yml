@@ -73,12 +73,9 @@ baseline:detect:
 
     # Needed to run `git merge-base` and `git rev-list`
     git config --global --add safe.directory ${CI_PROJECT_DIR}
-    BASELINE_BRANCH=$(gh pr view --json "baseRefName" --jq ".baseRefName" "${UPSTREAM_BRANCH}" || echo "main")
-    echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
-    BASELINE_COMMIT_SHA=$(git merge-base "origin/${BASELINE_BRANCH}" "origin/${UPSTREAM_BRANCH}" || git rev-list -1 "origin/${BASELINE_BRANCH}")
-    echo "BASELINE_COMMIT_SHA=${BASELINE_COMMIT_SHA}" | tee -a baseline.env
-    git checkout $BASELINE_COMMIT_SHA
-    echo "BASELINE_COMMIT_DATE=$(git show -s --format=%ct $BASELINE_COMMIT_SHA)" | tee -a baseline.env
+
+    # Determine baseline to test against and save env variables into `baseline.env`
+    ./.gitlab/benchmarks/steps/detect-baseline.sh
   artifacts:
     reports:
       dotenv: baseline.env
