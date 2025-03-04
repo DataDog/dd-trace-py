@@ -4,6 +4,7 @@ import logging
 import sys
 import typing
 from typing import Any
+from typing import Optional
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -27,18 +28,27 @@ _TRUNC_CONTAINER_SIZE = 2
 
 class _observator:
     def __init__(self):
-        self.string_length = 0
-        self.container_size = 0
-        self.container_depth = 0
+        self.string_length: Optional[int] = None
+        self.container_size: Optional[int] = None
+        self.container_depth: Optional[int] = None
 
     def set_string_length(self, length: int):
-        self.string_length = max(self.string_length, length)
+        if self.string_length is None:
+            self.string_length = length
+        else:
+            self.string_length = max(self.string_length, length)
 
     def set_container_size(self, size: int):
-        self.container_size = max(self.container_size, size)
+        if self.container_size is None:
+            self.container_size = size
+        else:
+            self.container_size = max(self.container_size, size)
 
     def set_container_depth(self, depth: int):
-        self.container_depth = max(self.container_depth, depth)
+        if self.container_depth is None:
+            self.container_depth = depth
+        else:
+            self.container_depth = max(self.container_depth, depth)
 
 
 def parse_response_body(raw_body):

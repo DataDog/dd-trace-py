@@ -83,20 +83,20 @@ TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
 def _report_waf_truncations(observator):
     try:
         bitfield = 0
-        for v in observator.string_length:
+        if observator.string_length is not None:
             bitfield |= 1
             telemetry.telemetry_writer.add_distribution_metric(
-                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_STRING_LENGTH
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.string_length, TAGS_STRING_LENGTH
             )
-        for v in observator.container_size:
+        if observator.container_size is not None:
             bitfield |= 2
             telemetry.telemetry_writer.add_distribution_metric(
-                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_CONTAINER_SIZE
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.container_size, TAGS_CONTAINER_SIZE
             )
-        for v in observator.container_depth:
+        if observator.container_depth is not None:
             bitfield |= 4
             telemetry.telemetry_writer.add_distribution_metric(
-                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", v, TAGS_CONTAINER_DEPTH
+                TELEMETRY_NAMESPACE.APPSEC, "waf.truncated_value_size", observator.container_depth, TAGS_CONTAINER_DEPTH
             )
         if bitfield:
             telemetry.telemetry_writer.add_count_metric(
@@ -117,20 +117,17 @@ def _set_waf_request_metrics(*args):
             # is_truncation = any((result.truncation for result in list_results))
 
             truncation = result["truncation"]
-            input_truncated = (
+            input_truncated = bool(
                 truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
             )
-            tags_request = [
+            tags_request = (
                 ("event_rules_version", result["version"]),
                 ("waf_version", DDWAF_VERSION),
                 ("rule_triggered", bool_str[result["triggered"]]),
                 ("request_blocked", bool_str[result["blocked"]]),
                 ("waf_timeout", bool_str[result["timeout"]]),
                 ("input_truncated", bool_str[input_truncated]),
-            ]
-
-            if truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]:
-                tags_request.append(("unput_truncated", "true"))
+            )
 
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC,

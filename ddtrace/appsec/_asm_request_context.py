@@ -436,7 +436,7 @@ def set_waf_telemetry_results(
     if result is not None:
         for key in ["container_size", "container_depth", "string_length"]:
             res = getattr(truncation, key)
-            if res:
+            if res is not None:
                 result["truncation"][key].append(res)
         if truncation.string_length:
             result["truncation"]["string_length"].append(truncation.string_length)
