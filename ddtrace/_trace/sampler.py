@@ -61,7 +61,7 @@ class DatadogSampler:
        - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
        - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
        - By default, spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing
-       the agent to determine the final sample rate and sampling decision.
+         the agent to determine the final sample rate and sampling decision.
 
     Example sampling rules::
 
