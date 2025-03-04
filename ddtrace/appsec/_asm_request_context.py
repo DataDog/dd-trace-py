@@ -84,7 +84,7 @@ class ASM_Environment:
             _TELEMETRY_WAF_RESULTS: {
                 "blocked": False,
                 "triggered": False,
-                "timeout": False,
+                "timeout": 0,
                 "version": None,
                 "duration": 0.0,
                 "total_duration": 0.0,
@@ -210,6 +210,11 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             telemetry_results["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
             telemetry_results["total_duration"] = 0.0
+        if telemetry_results["timeout"]:
+            update_span_metrics(root_span, APPSEC.WAF_TIMEOUTS, telemetry_results["timeout"])
+        rasp_timeouts = sum(telemetry_results["rasp"]["timeout"].values())
+        if rasp_timeouts:
+            update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
         if telemetry_results["rasp"]["sum_eval"]:
             update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
             telemetry_results["rasp"]["duration"] = 0.0
@@ -442,7 +447,7 @@ def set_waf_telemetry_results(
             # Request Blocking telemetry
             result["triggered"] |= is_triggered
             result["blocked"] |= is_blocked
-            result["timeout"] |= is_timeout
+            result["timeout"] += is_timeout
             if rules_version is not None:
                 result["version"] = rules_version
             result["duration"] += duration

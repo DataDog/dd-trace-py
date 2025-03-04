@@ -144,7 +144,8 @@ def _set_waf_request_metrics(*args):
                                 TELEMETRY_NAMESPACE.APPSEC,
                                 n,
                                 float(value),
-                                tags=_TYPES_AND_TAGS.get(rule_type, ()) + (("waf_version", DDWAF_VERSION),),
+                                tags=_TYPES_AND_TAGS.get(rule_type, ())
+                                + (("waf_version", DDWAF_VERSION), ("event_rules_version", result["version"])),
                             )
 
     except Exception:
