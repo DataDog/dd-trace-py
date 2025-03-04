@@ -120,6 +120,7 @@ class LLMObs(Service):
 
     def _on_span_start(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
+            self._activate_llmobs_span(span)
             self._do_annotations(span)
 
     def _on_span_finish(self, span):
@@ -613,7 +614,6 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
-        self._activate_llmobs_span(span)
         span._set_ctx_item(SPAN_KIND, operation_kind)
         if model_name is not None:
             span._set_ctx_item(MODEL_NAME, model_name)
