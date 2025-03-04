@@ -96,6 +96,8 @@ standard_blocklist = [
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.internal._file_queue",
+    "secrets",
 ]
 expanded_blocklist = standard_blocklist + [
     "importlib.metadata",
