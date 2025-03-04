@@ -36,7 +36,7 @@ https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/c
 - Run `dd-auth --domain ddstaging.datadoghq.com --output`. If a web browser opens, choose staging.
 5. Export the shown keys adding `_STAGING` so `DD_API_KEY -> DD_API_KEY_STAGING` and `DD_APP_KEY -> DD_APP_KEY_STAGING` (or add it to your .bashrc/.zshrc).
 6. Install pandoc with `brew install pandoc` or `apt install pandoc`.
-7. Ensure you have the previous branch on your local git tracking the remote branch, e.g. if you are releasing 3.2 do a `git checkout 3.1`.
+7. Ensure you have the previous branch on your local git tracking the remote branch, e.g. if you are releasing 3.1 do a `git checkout --set-upstream-to origin/3.1 3.1`.
 8. Create an activate a virtual environment, and install required packages :
 `python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
 
