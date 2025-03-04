@@ -180,9 +180,11 @@ def _get_session_id(span: Span) -> Optional[str]:
 
 
 def _unserializable_default_repr(obj):
-    default_repr = "[Unserializable object: {}]".format(repr(obj))
-    log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
-    return default_repr
+    try:
+        return str(obj)
+    except:
+        log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
+        return "[Unserializable object: {}]".format(repr(obj))
 
 
 def safe_json(obj, ensure_ascii=True):
