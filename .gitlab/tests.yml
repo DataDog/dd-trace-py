@@ -20,7 +20,6 @@ include:
   needs: []
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
   before_script:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
@@ -38,6 +37,11 @@ include:
         echo "Running hatch env: ${env}:test"
         hatch run ${env}:test
       done
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL = "12"
+    CARGO_BUILD_JOBS = "12"
+    DD_FAST_BUILD = "1"
+
 
 
 .test_base_hatch_snapshot:
@@ -59,7 +63,6 @@ include:
   services:
     - !reference [.services, ddagent]
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
   before_script:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1

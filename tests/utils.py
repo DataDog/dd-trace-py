@@ -1231,6 +1231,11 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    if "env" in kwargs:
+        # Remove all keys with the value None from env, None is used to unset an environment variable
+        env = kwargs.pop("env")
+        cleaned_env = {env: val for env, val in env.items() if val is not None}
+        kwargs["env"] = cleaned_env
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
@@ -1361,9 +1366,7 @@ def _should_skip(until: int, condition=None):
     until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
 def flaky(until: int, condition: bool = None, reason: str = None):

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Mapping
 from typing import MutableMapping
@@ -18,10 +19,7 @@ from typing import Set
 from typing import Tuple
 import uuid
 
-from envier import En
-
 import ddtrace
-from ddtrace.appsec._capabilities import _rc_capabilities as appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
@@ -31,6 +29,7 @@ from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
+from ddtrace.settings._core import DDConfig
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
@@ -53,25 +52,16 @@ def derive_skip_shutdown(c: "RemoteConfigClientConfig") -> bool:
     )
 
 
-class RemoteConfigClientConfig(En):
+class RemoteConfigClientConfig(DDConfig):
     __prefix__ = "_dd.remote_configuration"
 
-    log_payloads = En.v(bool, "log_payloads", default=False)
+    log_payloads = DDConfig.v(bool, "log_payloads", default=False)
 
-    _skip_shutdown = En.v(Optional[bool], "skip_shutdown", default=None)
-    skip_shutdown = En.d(bool, derive_skip_shutdown)
+    _skip_shutdown = DDConfig.v(Optional[bool], "skip_shutdown", default=None)
+    skip_shutdown = DDConfig.d(bool, derive_skip_shutdown)
 
 
 config = RemoteConfigClientConfig()
-
-
-class Capabilities(enum.IntFlag):
-    APM_TRACING_SAMPLE_RATE = 1 << 12
-    APM_TRACING_LOGS_INJECTION = 1 << 13
-    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
-    APM_TRACING_CUSTOM_TAGS = 1 << 15
-    APM_TRACING_ENABLED = 1 << 19
-    APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
 class RemoteConfigError(Exception):
@@ -268,8 +258,9 @@ class RemoteConfigClient:
         self._last_targets_version = 0
         self._last_error: Optional[str] = None
         self._backend_state: Optional[str] = None
+        self._capabilities: int = 0
 
-    def _encode_capabilities(self, capabilities: enum.IntFlag) -> str:
+    def _encode_capabilities(self, capabilities: int) -> str:
         return base64.b64encode(capabilities.to_bytes((capabilities.bit_length() + 7) // 8, "big")).decode()
 
     def renew_id(self):
@@ -282,6 +273,10 @@ class RemoteConfigClient:
             self._products[product_name] = pubsub_instance
         else:
             self._products.pop(product_name, None)
+
+    def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
+        for capability in capabilities:
+            self._capabilities |= capability
 
     def update_product_callback(self, product_name: str, callback: Callable) -> bool:
         pubsub_instance = self._products.get(product_name)
@@ -381,15 +376,6 @@ class RemoteConfigClient:
 
     def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
-        capabilities = (
-            appsec_rc_capabilities()
-            | Capabilities.APM_TRACING_SAMPLE_RATE
-            | Capabilities.APM_TRACING_LOGS_INJECTION
-            | Capabilities.APM_TRACING_HTTP_HEADER_TAGS
-            | Capabilities.APM_TRACING_CUSTOM_TAGS
-            | Capabilities.APM_TRACING_ENABLED
-            | Capabilities.APM_TRACING_SAMPLE_RULES
-        )
         return dict(
             client=dict(
                 id=self.id,
@@ -397,7 +383,7 @@ class RemoteConfigClient:
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
-                capabilities=self._encode_capabilities(capabilities),
+                capabilities=self._encode_capabilities(self._capabilities),
             ),
             cached_target_files=self.cached_target_files,
         )

@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "SET\nRPUSH\nHGETALL",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.yaaredis",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "yaaredis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "localhost",
+      "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
+      "runtime-id": "4d0d479c17be4095b8e0dee5a0839596",
+      "server.address": "localhost",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 5119,
+      "redis.pipeline_length": 3
+    },
+    "duration": 278208,
+    "start": 1692650065814935466
+  }]]

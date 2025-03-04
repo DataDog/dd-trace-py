@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType

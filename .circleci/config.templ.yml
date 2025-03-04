@@ -5,17 +5,7 @@ ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
 ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
-redis_image: &redis_image redis:4.0-alpine@sha256:3e99741f293147ff406657dda7644c2b88564b80a498cd00da8f905743449c9f
-memcached_image: &memcached_image memcached:1.5-alpine@sha256:48cb7207e3d34871893fa1628f3a4984375153e9942facf82e25935b0a633c8a
-cassandra_image: &cassandra_image cassandra:3.11.7@sha256:495e5752526f7e75d3ad85b6a6bbf3b79714321b17a44255a216c341e3baae11
-consul_image: &consul_image consul:1.6.0@sha256:daa6203532fc30d81bf6c5593f79a2c7c23f08e8fde82f1e4bd8069b48b57596
-moto_image: &moto_image datadog/docker-library:moto_1_0_1@sha256:58c15f03141073629f4ff2a78910b812205324579c76f8bcac87e8e89af2e673
-mysql_image: &mysql_image mysql:5.7@sha256:03b6dcedf5a2754da00e119e2cc6094ed3c884ad36b67bb25fe67be4b4f9bdb1
-postgres_image: &postgres_image postgres:12-alpine@sha256:c6704f41eb84be53d5977cb821bf0e5e876064b55eafef1e260c2574de40ad9a
-mongo_image: &mongo_image mongo:3.6@sha256:19c11a8f1064fd2bb713ef1270f79a742a184cd57d9bb922efdd2a8eca514af8
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
-vertica_image: &vertica_image vertica/vertica-ce:latest
-rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.20.0
 
 parameters:
@@ -44,10 +34,6 @@ machine_executor: &machine_executor
         name: Set global pyenv
         command: |
           pyenv global 3.9.4
-
-contrib_job_large: &contrib_job_large
-  executor: ddtrace_dev
-  parallelism: 10
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
@@ -313,21 +299,6 @@ httpbin_local: &httpbin_local
   image: *httpbin_image
   name: httpbin.org
 
-mysql_server: &mysql_server
-  image: *mysql_image
-  environment:
-    - MYSQL_ROOT_PASSWORD=admin
-    - MYSQL_PASSWORD=test
-    - MYSQL_USER=test
-    - MYSQL_DATABASE=test
-
-postgres_server: &postgres_server
-  image: *postgres_image
-  environment:
-    - POSTGRES_PASSWORD=postgres
-    - POSTGRES_USER=postgres
-    - POSTGRES_DB=postgres
-
 testagent: &testagent
   image: *testagent_image
   environment:
@@ -394,7 +365,14 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+          command: |
+            if [ "$CIRCLE_BRANCH" = "main" ]; then
+              export DD_FAST_BUILD=0
+            else
+              export DD_FAST_BUILD=1
+            fi
+            echo "DD_FAST_BUILD is set to $DD_FAST_BUILD"
+            riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
@@ -413,186 +391,6 @@ jobs:
           snapshot: true
           run_agent_checks: false
           docker_services: "pygoat"
-
-  aws_lambda:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'aws_lambda'
-          snapshot: true
-
-  datastreams:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: "datastreams"
-
-  opentelemetry:
-    parallelism: 4
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'opentelemetry'
-          snapshot: true
-
-  botocore:
-    <<: *machine_executor
-    parallelism: 6
-    steps:
-      - run_test:
-          pattern: 'botocore'
-          snapshot: true
-          docker_services: "localstack"
-
-  asyncpg:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'asyncpg'
-          snapshot: true
-          docker_services: 'postgres'
-
-  cassandra:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-        environment:
-          CASS_DRIVER_NO_EXTENSIONS: 1
-      - image: *cassandra_image
-        environment:
-          - MAX_HEAP_SIZE=512M
-          - HEAP_NEWSIZE=256M
-      - *testagent
-    steps:
-      - run_test:
-          wait: cassandra
-          pattern: 'cassandra'
-
-  consul:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *consul_image
-      - *testagent
-    steps:
-      - run_test:
-          pattern: 'consul'
-
-  mariadb:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'mariadb$'
-          snapshot: true
-          docker_services: "mariadb"
-
-  mysqlconnector:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'mysql$'
-
-  mysqlpython:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'mysqldb$'
-
-  pymysql:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: mysql
-          pattern: 'pymysql$'
-
-  mongoengine:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'mongoengine'
-          snapshot: true
-          docker_services: 'mongo'
-
-  sqlalchemy:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *testagent
-      - *postgres_server
-      - *mysql_server
-    steps:
-      - run_test:
-          wait: postgres mysql
-          pattern: "sqlalchemy"
-
-  psycopg:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          # We want psycopg and psycopg2 collected
-          pattern: "psycopg"
-          snapshot: true
-          docker_services: "postgres"
-
-  aiobotocore:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *moto_image
-      - *testagent
-    steps:
-       - run_test:
-          pattern: 'aiobotocore'
-
-  aiomysql:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          docker_services: 'mysql'
-          wait: mysql
-          pattern: 'aiomysql'
-          snapshot: true
-
-  aiopg:
-    <<: *contrib_job_small
-    parallelism: 4
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
-      - *testagent
-    steps:
-      - run_test:
-          wait: postgres
-          pattern: 'aiopg'
-
-  build_docs:
-    # build documentation and store as an artifact
-    executor: ddtrace_dev
-    steps:
-      - checkout
-      - run:
-          command: |
-             hatch run docs:build
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
-      - store_artifacts:
-          path: /tmp/docs
 
 requires_pre_check: &requires_pre_check
   requires:

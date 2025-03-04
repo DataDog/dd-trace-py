@@ -1,6 +1,10 @@
+import enum
 import os
+from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
 from typing import Set  # noqa:F401
 
+from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
@@ -11,7 +15,6 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.settings import _global_config as ddconfig
 
 
 log = get_logger(__name__)
@@ -32,6 +35,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._agent_check
         self._parent_id = os.getpid()
         self._products_to_restart_on_fork = set()
+        self._capabilities_map: Dict[enum.IntFlag, str] = dict()
         log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def _agent_check(self) -> None:
@@ -139,7 +143,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
         return self._client.update_product_callback(product, callback)
 
     def register(
-        self, product: str, pubsub_instance: PubSub, skip_enabled: bool = False, restart_on_fork: bool = False
+        self,
+        product: str,
+        pubsub_instance: PubSub,
+        skip_enabled: bool = False,
+        restart_on_fork: bool = False,
+        capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
         try:
             # By enabling on registration we ensure we start the RCM client only
@@ -148,6 +157,20 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self.enable()
 
             self._client.register_product(product, pubsub_instance)
+
+            # Check for potential conflicts in capabilities
+            for capability in capabilities:
+                if self._capabilities_map.get(capability, product) != product:
+                    log.error(
+                        "Capability %s already registered for product %s, skipping registration",
+                        capability,
+                        self._capabilities_map[capability],
+                    )
+                    continue
+                self._capabilities_map[capability] = product
+
+            self._client.add_capabilities(capabilities)
+
             if not self._client.is_subscriber_running(pubsub_instance):
                 pubsub_instance.start_subscriber()
 

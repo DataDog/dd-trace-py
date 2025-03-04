@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
+from ddtrace import config
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
@@ -12,7 +13,6 @@ from ddtrace.settings.asm import config as asm_config
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
-from .settings import _global_config as config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -37,6 +37,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
+    "dd_trace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
@@ -93,6 +94,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
+    "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_functions": True,
@@ -156,6 +158,8 @@ _MODULES_FOR_CONTRIB = {
     ),
 }
 
+_NOT_PATCHABLE_VIA_ENVVAR = {"dd_trace_api"}
+
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
@@ -210,8 +214,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     return on_import
 
 
-def patch_all(**patch_modules):
-    # type: (bool) -> None
+def patch_all(**patch_modules: bool) -> None:
     """Enables ddtrace library instrumentation.
 
     In addition to ``patch_modules``, an override can be specified via an
@@ -228,7 +231,7 @@ def patch_all(**patch_modules):
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if env_var in os.environ:
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
             modules[module] = formats.asbool(os.environ[env_var])
 
         # Enable all dependencies for the module
@@ -264,10 +267,7 @@ def patch(raise_errors=True, **patch_modules):
         # Check if we have the requested contrib.
         if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
             if raise_errors:
-                raise ModuleNotFoundException(
-                    "integration module ddtrace.contrib.internal.%s.patch does not exist, "
-                    "automatic instrumentation is disabled for this library" % contrib
-                )
+                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
