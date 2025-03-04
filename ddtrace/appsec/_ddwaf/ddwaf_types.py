@@ -108,10 +108,10 @@ class ddwaf_object(ctypes.Structure):
         max_string_length: int = DDWAF_MAX_STRING_LENGTH,
     ) -> None:
         def truncate_string(string: bytes) -> bytes:
-            if len(string) > max_string_length - 1:
-                observator.set_string_length(len(string) + 1)
+            if len(string) > max_string_length:
+                observator.set_string_length(len(string))
                 # difference of 1 to take null char at the end on the C side into account
-                return string[: max_string_length - 1]
+                return string[:max_string_length]
             return string
 
         if isinstance(struct, bool):
