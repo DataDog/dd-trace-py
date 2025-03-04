@@ -649,7 +649,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
-    @flaky(1746305579, reason="Test returns an unfixed number of celery runs so it never passes the last assertion")
+
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():
