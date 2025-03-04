@@ -35,7 +35,6 @@ class BedrockIntegration(BaseLLMIntegration):
             "resource": str
             "model_name": str,
             "model_provider": str,
-            "llmobs.response": Optional[dict],
             "llmobs.request_params": {"prompt": str | list[dict],
                                 "temperature": Optional[float],
                                 "max_tokens": Optional[int]},
@@ -75,8 +74,8 @@ class BedrockIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(prompt)
 
         output_messages = [{"content": ""}]
-        if not span.error and ctx.get_item("llmobs.response"):
-            output_messages = self._extract_output_message(ctx["llmobs.response"])
+        if not span.error and response is not None:
+            output_messages = self._extract_output_message(response)
 
         span._set_ctx_items(
             {

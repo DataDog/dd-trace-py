@@ -752,8 +752,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    ctx.set_item("llmobs.response", formatted_response)
-    integration.llmobs_set_tags(span, args=[ctx], kwargs={})
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
 
