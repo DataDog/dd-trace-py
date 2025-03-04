@@ -13,7 +13,7 @@ from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 
 from ..constants import ENV_KEY
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ..internal.constants import MAX_UINT_64BITS
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
@@ -36,11 +36,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
-# All references to MAX_TRACE_ID were replaced with _MAX_UINT_64BITS.
-# Now that ddtrace supports generating 128bit trace_ids,
-# the max trace id should be 2**128 - 1 (not 2**64 -1)
-# MAX_TRACE_ID is no longer used and should be removed.
-MAX_TRACE_ID = _MAX_UINT_64BITS
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
 
@@ -60,10 +55,10 @@ class RateSampler:
 
     def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
+        self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
     def sample(self, span):
-        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % MAX_UINT_64BITS) <= self.sampling_id_threshold
         return sampled
 
 
