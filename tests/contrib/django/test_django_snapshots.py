@@ -258,7 +258,7 @@ def test_asgi_200(django_asgi):
         assert resp.content == b"Hello, test app."
 
 
-@flaky(1735812000)
+@flaky(1742580778)
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():
