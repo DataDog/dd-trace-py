@@ -3,16 +3,16 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import json
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from json.decoder import JSONDecodeError
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 
 from ..constants import ENV_KEY
-from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import MAX_UINT_64BITS
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
@@ -23,15 +23,6 @@ from .sampling_rule import SamplingRule
 
 
 PROVENANCE_ORDER = ["customer", "dynamic", "default"]
-
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -57,7 +48,7 @@ class RateSampler:
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
-    def sample(self, span):
+    def sample(self, span: Span) -> bool:
         sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % MAX_UINT_64BITS) <= self.sampling_id_threshold
         return sampled
 
@@ -90,19 +81,14 @@ class DatadogSampler:
     )
     _default_key = "service:,env:"
 
-    NO_RATE_LIMIT = -1
-    # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
-    DEFAULT_RATE_LIMIT = DEFAULT_SAMPLING_RATE_LIMIT
-
     def __init__(
         self,
-        rules=None,  # type: Optional[List[SamplingRule]]
-        default_sample_rate=None,  # type: Optional[float]
-        rate_limit=None,  # type: Optional[int]
-        rate_limit_window=1e9,  # type: float
-        rate_limit_always_on=False,  # type: bool
+        rules: Optional[List[SamplingRule]] = None,
+        default_sample_rate: Optional[float] = None,
+        rate_limit: Optional[int] = None,
+        rate_limit_window: float = 1e9,
+        rate_limit_always_on: bool = False,
     ):
-        # type: (...) -> None
         """
         Constructor for DatadogSampler sampler
 
@@ -145,9 +131,8 @@ class DatadogSampler:
         """Compute a key with the same format used by the Datadog agent API."""
         return f"service:{service or ''},env:{env or ''}"
 
-    def update_rate_by_service_sample_rates(self, rate_by_service):
-        # type: (Dict[str, float]) -> None
-        samplers = {}  # type: Dict[str, RateSampler]
+    def update_rate_by_service_sample_rates(self, rate_by_service: Dict[str, float]) -> None:
+        samplers: Dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
         self._by_service_samplers = samplers
@@ -165,8 +150,7 @@ class DatadogSampler:
     __repr__ = __str__
 
     @staticmethod
-    def _parse_rules_from_str(rules):
-        # type: (str) -> List[SamplingRule]
+    def _parse_rules_from_str(rules: str) -> List[SamplingRule]:
         sampling_rules = []
         json_rules = []
         try:
@@ -197,7 +181,7 @@ class DatadogSampler:
         sampling_rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
         return sampling_rules
 
-    def sample(self, span):
+    def sample(self, span: Span) -> bool:
         span.context._update_tags(span)
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
@@ -233,8 +217,7 @@ class DatadogSampler:
         )
         return sampled
 
-    def _get_sampling_mechanism(self, matched_rule, agent_service_based):
-        # type: (Optional[SamplingRule], bool) -> int
+    def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
         if matched_rule and matched_rule.provenance == "customer":
             return SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE
         elif matched_rule and matched_rule.provenance == "dynamic":

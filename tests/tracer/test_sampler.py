@@ -16,6 +16,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
@@ -529,14 +530,14 @@ def test_datadog_sampler_init():
         sampler.limiter, RateLimiter
     ), "DatadogSampler initialized with no arguments should hold a RateLimiter"
     assert (
-        sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
     ), "DatadogSampler initialized with no arguments should hold a RateLimiter with the default limit"
 
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule], "DatadogSampler initialized with a rule should hold that rule"
     assert (
-        sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
     ), "DatadogSampler initialized with a rule should hold the default rate limit"
 
     sampler = DatadogSampler(rate_limit=10)
@@ -544,7 +545,7 @@ def test_datadog_sampler_init():
 
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert (
-        sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
     ), "DatadogSampler initialized with default_sample_rate should hold the default rate limit"
     assert sampler.rules == [
         SamplingRule(sample_rate=0.5)
