@@ -119,6 +119,28 @@ def gen_required_suites() -> None:
             print(str(jobspec), file=f)
 
 
+def gen_build_docs() -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns(
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+    ):
+        with TESTS_GEN.open("a") as f:
+            print("build_docs:", file=f)
+            print("  extends: .testrunner", file=f)
+            print("  stage: hatch", file=f)
+            print("  needs: []", file=f)
+            print("  script:", file=f)
+            print("    - |", file=f)
+            print("      hatch run docs:build", file=f)
+            print("      mkdir -p /tmp/docs", file=f)
+            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  artifacts:", file=f)
+            print("    paths:", file=f)
+            print("      - '/tmp/docs'", file=f)
+
+
 def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
@@ -192,6 +214,12 @@ build_base_venvs:
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_FAST_BUILD: '1'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+      variables:
+        DD_FAST_BUILD: '0'
+    - when: always
   script: |
     set -e -o pipefail
     if [ ! -f cache_used.txt ];
@@ -200,6 +228,8 @@ build_base_venvs:
       apt update && apt install -y sccache
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
       touch cache_used.txt
     else
       echo "Skipping build, using compiled files/venv from cache"

@@ -1,4 +1,5 @@
 from copy import deepcopy
+import enum
 import json
 import os
 import re
@@ -11,7 +12,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -396,27 +396,21 @@ def _default_config() -> Dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_profiling_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_PROFILING_ENABLED"],
-            modifier=asbool,
-        ),
-        "_asm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_APPSEC_ENABLED"],
-            modifier=asbool,
-        ),
         "_sca_enabled": _ConfigItem(
             default=None,
             envs=["DD_APPSEC_SCA_ENABLED"],
             modifier=asbool,
         ),
-        "_dsm_enabled": _ConfigItem(
-            default=False,
-            envs=["DD_DATA_STREAMS_ENABLED"],
-            modifier=asbool,
-        ),
     }
+
+
+class Capabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_LOGS_INJECTION = 1 << 13
+    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
+    APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
 class Config(object):
@@ -538,9 +532,15 @@ class Config(object):
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
-        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+
+        self._extra_services_queue = None
+        if self._remote_config_enabled and not in_aws_lambda():
+            # lazy load slow import
+            from ddtrace.internal._file_queue import File_Queue
+
+            self._extra_services_queue = File_Queue()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -932,7 +932,7 @@ class Config(object):
         remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
         flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
         tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
-        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
+        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub, capabilities=Capabilities)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
