@@ -60,7 +60,7 @@ stack_v2_set_interval(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_set_max_frames(PyObject *Py_UNUSED(m), PyObject* args)
+stack_v2_set_max_frames(PyObject* Py_UNUSED(m), PyObject* args)
 {
     unsigned int new_max_frames;
     if (!PyArg_ParseTuple(args, "I", &new_max_frames))
