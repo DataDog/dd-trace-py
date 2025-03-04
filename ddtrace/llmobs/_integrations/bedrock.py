@@ -20,6 +20,8 @@ log = get_logger(__name__)
 
 
 class BedrockIntegration(BaseLLMIntegration):
+    _integration_name = "bedrock"
+
     def _llmobs_set_tags(
         self,
         span: Span,
