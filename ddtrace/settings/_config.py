@@ -361,13 +361,6 @@ def _parse_global_tags(s):
 
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
-        # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
-        "_trace_sample_rate": _ConfigItem(
-            default=1.0,
-            # trace_sample_rate is placeholder, this code will be removed up after v3.0
-            envs=["trace_sample_rate"],
-            modifier=float,
-        ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
             envs=["DD_TRACE_SAMPLING_RULES"],
@@ -871,16 +864,13 @@ class Config(object):
 
         if config and "lib_config" in config:
             lib_config = config["lib_config"]
-            if "tracing_sampling_rate" in lib_config:
-                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
-
-            if "tracing_sampling_rules" in lib_config:
-                trace_sampling_rules = lib_config["tracing_sampling_rules"]
+            if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
+                global_sampling_rate = lib_config.get("tracing_sampling_rate")
+                trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
+                # returns None if no rules
+                trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
                 if trace_sampling_rules:
-                    # returns None if no rules
-                    trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules)
-                    if trace_sampling_rules:
-                        base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules  # type: ignore[assignment]
 
             if "log_injection_enabled" in lib_config:
                 base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
@@ -958,7 +948,9 @@ class Config(object):
             return {tag["key"]: tag["value_glob"] for tag in tags}
         return tags
 
-    def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+    def _convert_rc_trace_sampling_rules(
+        self, rc_rules: List[Dict[str, Any]], global_sample_rate: Optional[float]
+    ) -> Optional[str]:
         """Example of an incoming rule:
         [
           {
@@ -988,6 +980,10 @@ class Config(object):
             tags = rule.get("tags")
             if tags:
                 rule["tags"] = self._tags_to_dict(tags)
+
+        if global_sample_rate is not None:
+            rc_rules.append({"sample_rate": global_sample_rate})
+
         if rc_rules:
             return json.dumps(rc_rules)
         else:
