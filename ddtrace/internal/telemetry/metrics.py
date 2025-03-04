@@ -42,6 +42,8 @@ class Metric(metaclass=abc.ABCMeta):
         """
         https://www.datadoghq.com/blog/the-power-of-tagged-metrics/#whats-a-metric-tag
         """
+        if tags is not None and not isinstance(tags, tuple):
+            tags = tuple(tags)
         return hash((name, namespace, tags, metric_type))
 
     def __hash__(self):
