@@ -17,6 +17,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
+from urllib import parse
 
 import wrapt
 
@@ -27,7 +28,6 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.compat import parse
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached

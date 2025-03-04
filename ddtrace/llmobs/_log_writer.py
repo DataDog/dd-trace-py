@@ -9,11 +9,12 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+import http.client as httplib
+
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import get_connection_response
 
 
 logger = get_logger(__name__)

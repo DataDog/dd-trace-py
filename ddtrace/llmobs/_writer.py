@@ -10,16 +10,17 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+import http.client as httplib
+
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import get_connection_response
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT

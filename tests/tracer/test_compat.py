@@ -6,10 +6,10 @@ from hypothesis import settings
 import hypothesis.strategies as st
 import pytest
 
-from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import to_unicode
+from ddtrace.internal.utils.http import get_connection_response
 
 
 class TestCompat(object):

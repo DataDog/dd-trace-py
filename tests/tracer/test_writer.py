@@ -1,4 +1,5 @@
 import contextlib
+import http.client as httplib
 import http.server
 import os
 import socket
@@ -16,11 +17,10 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.utils.http import get_connection_response
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response

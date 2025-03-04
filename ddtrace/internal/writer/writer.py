@@ -14,6 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -243,7 +244,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     data,
                     headers,
                 )
-                resp = compat.get_connection_response(self._conn)
+                resp = ddtrace.internal.utils.http.get_connection_response(self._conn)
                 log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:

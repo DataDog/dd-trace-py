@@ -22,12 +22,12 @@ from ...settings._config import _get_config
 from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
-from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.formats import asbool
+from ..utils.http import get_connection_response
 from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
 from . import modules

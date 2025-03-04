@@ -14,11 +14,11 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ...constants import _SPAN_MEASURED_KEY
 from .._encoding import packb
 from ..agent import get_connection
-from ..compat import get_connection_response
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ..utils.http import get_connection_response
 from ..writer import _human_size
 
 

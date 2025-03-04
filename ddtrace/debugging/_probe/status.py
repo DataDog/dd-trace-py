@@ -8,9 +8,9 @@ from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.internal import compat
 from ddtrace.internal import runtime
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import http
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
@@ -83,7 +83,7 @@ class ProbeStatusLogger:
                     body,
                     headers=headers,
                 )
-                resp = compat.get_connection_response(conn)
+                resp = http.get_connection_response(conn)
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
