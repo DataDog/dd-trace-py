@@ -467,6 +467,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="smoke_test",
+            command="python tests/smoke_test.py {cmdargs}",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                )
+            ],
+        ),
+        Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
