@@ -8,4 +8,5 @@ features:
                           - output messages & tool calls returned in the response
   - |
     LLM Observability: This introduces capturing `top_p` inference parameters for `invoke_model` calls for the bedrock API.
-
+  - |
+    botocore: This introduces capturing prompts, token usage, and inference parameters for `Converse` calls to the Bedrock API.
