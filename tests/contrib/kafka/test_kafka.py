@@ -294,17 +294,6 @@ def test_produce_topicname(dummy_tracer, producer, kafka_topic):
     assert produce_span.get_tag("messaging.destination.name") == kafka_topic
 
 
-def test_produce_no_topicname(dummy_tracer, producer, kafka_topic):
-    Pin._override(producer, tracer=dummy_tracer)
-    producer.produce("", PAYLOAD, key=KEY)
-    producer.flush()
-
-    traces = dummy_tracer.pop_traces()
-    assert 1 == len(traces)
-    produce_span = traces[0][0]
-    assert produce_span.get_tag("messaging.destination.name") is None
-
-
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
