@@ -138,8 +138,7 @@ class TestLLMObsBedrock:
             expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
-        if span.get_tag("bedrock.request.top_p"):
-            expected_parameters["top_p"] = float(span.get_tag("bedrock.request.top_p"))
+
         expected_input = [{"content": mock.ANY}]
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
@@ -300,7 +299,6 @@ class TestLLMObsBedrock:
             metadata={
                 "temperature": float(span.get_tag("bedrock.request.temperature")),
                 "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-                "top_p": float(span.get_tag("bedrock.request.top_p")),
             },
             output_messages=[{"content": ""}],
             error=span.get_tag("error.type"),
@@ -361,7 +359,6 @@ class TestLLMObsBedrock:
             metadata={
                 "stop_reason": "tool_use",
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
-                "top_p": request_params.get("inferenceConfig", {}).get("topP"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
             token_metrics={
@@ -396,7 +393,6 @@ class TestLLMObsBedrock:
             output_messages=[{"content": ""}],
             metadata={
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature", 0.0),
-                "top_p": request_params.get("inferenceConfig", {}).get("topP", 0.0),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens", 0),
             },
             error=span.get_tag("error.type"),

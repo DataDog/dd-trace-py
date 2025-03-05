@@ -72,8 +72,6 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["temperature"] = float(request_params.get("temperature") or 0.0)
         if "max_tokens" in request_params and request_params.get("max_tokens") != "":
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
-        if "top_p" in request_params and request_params.get("top_p") != "":
-            metadata["top_p"] = float(request_params.get("top_p") or 0.0)
 
         prompt = request_params.get("prompt", "")
 
