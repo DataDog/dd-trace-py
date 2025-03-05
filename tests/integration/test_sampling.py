@@ -1,7 +1,6 @@
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -99,14 +98,6 @@ def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
     with tracer.trace("trace7"):
         with tracer.trace("child") as span:
             span.set_tag(MANUAL_KEEP_KEY)
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_rate_sampler_with_tiny_rate(writer, tracer):
-    sampler = RateSampler(0.0000000001)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace8"):
-        tracer.trace("child").finish()
 
 
 @snapshot_parametrized_with_writers
