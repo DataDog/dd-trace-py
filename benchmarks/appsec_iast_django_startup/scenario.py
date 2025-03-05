@@ -9,17 +9,12 @@ import tenacity
 SERVER_URL = "http://0.0.0.0:8000/"
 
 
-def _get_response(path=""):
-    r = requests.get(SERVER_URL + path)
-    r.raise_for_status()
-
-
 @tenacity.retry(
-    wait=tenacity.wait_fixed(1),
+    wait=tenacity.wait_fixed(2),
     stop=tenacity.stop_after_attempt(30),
 )
-def _wait():
-    r = requests.get(SERVER_URL)
+def _get_response(path=""):
+    r = requests.get(SERVER_URL + path)
     r.raise_for_status()
 
 
@@ -35,16 +30,19 @@ def server(scenario):
     else:
         cmd = ["python", "manage.py", "runserver"]
     proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=True,
-        env=env,
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, text=True, env=env
     )
     # make sure process has been started
     assert proc.poll() is None
     try:
-        _wait()
+        _get_response()
+    except Exception as e:
+        raise AssertionError(
+            "Server failed to start, see stdout and stderr logs\n."
+            "Exception %s\n."
+            "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+            "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (e, proc.stdout.read(), proc.stderr.read())
+        )
     finally:
         proc.terminate()
         proc.wait()
