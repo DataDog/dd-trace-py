@@ -1,0 +1,128 @@
+{
+    "active": [
+        {
+            "test": "test_otel_span_kind",
+            "file": "tests/opentelemetry/test_span.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'client','server','producer','consumer','internal'",
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        },
+        {
+            "test": "test_auto",
+            "file": "tests/internal/test_auto.py",
+            "expires": 1742014801,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python"
+            ]
+        },
+        {
+            "test": "test_method_service",
+            "file": "tests/contrib/grpc/test_grpc.py",
+            "expires": 1767220930,
+            "reason": "GitLab CI does not support ipv6 at this time",
+            "codeowners": [
+                "@DataDog/apm-idm-python",
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_timeout_traces",
+            "file": "tests/contrib/aws_lambda/test_aws_lambda.py",
+            "expires": 1742580778,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_class_based_handlers",
+            "file": "tests/contrib/aws_lambda/test_aws_lambda.py",
+            "expires": 1741838400,
+            "reason": "Did not receive expected traces: 'aws.lambda' for [handler3-instance_handler_with_code]",
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_patch_after_import",
+            "file": "tests/contrib/vertica/test_vertica.py",
+            "expires": 1742580778,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-core-python",
+                "@DataDog/apm-idm-python"
+            ]
+        },
+        {
+            "test": "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker",
+            "file": "tests/appsec/integrations/flask_tests/test_flask_remoteconfig.py",
+            "expires": 1742580778,
+            "reason": "_request_403 is flaky, figure out the error",
+            "codeowners": [
+                "@DataDog/asm-python"
+            ]
+        },
+        {
+            "test": "test_accuracy",
+            "file": "tests/profiling/test_accuracy.py",
+            "expires": 1743703564,
+            "reason": "3177585388 is not approximately equal to 3000000000.0 within tolerance=0.05",
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        },
+        {
+            "test": "test_memalloc_no_init_error_on_fork",
+            "file": "tests/profiling/test_main.py",
+            "expires": 1742580778,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        },
+        {
+            "test": "test_collect_ensure_all_frames_gc",
+            "file": "tests/profiling/collector/test_stack.py",
+            "expires": 1748750400,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        },
+        {
+            "test": "test_memalloc_no_init_error_on_fork",
+            "file": "tests/profiling_v2/test_main.py",
+            "expires": 1742580778,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/profiling-python"
+            ]
+        }
+    ],
+    "expiring_soon": [
+        {
+            "test": "test_fork",
+            "file": "tests/tracer/runtime/test_runtime_metrics.py",
+            "expires": 1741371178,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        },
+        {
+            "test": "test_static_metrics",
+            "file": "tests/tracer/runtime/test_metric_collectors.py",
+            "expires": 1741371178,
+            "reason": null,
+            "codeowners": [
+                "@DataDog/apm-sdk-api-python"
+            ]
+        }
+    ],
+    "expired": []
+}
