@@ -572,7 +572,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20, False)
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
