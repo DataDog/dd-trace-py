@@ -125,6 +125,7 @@ class Span(object):
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
+        "_exception_events",
         "_on_finish_callbacks",
         "_links",
         "_events",
@@ -215,6 +216,7 @@ class Span(object):
         self._events: List[SpanEvent] = []
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
+        self._exception_events: dict[Exception, SpanEvent] = {}
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
 
@@ -486,8 +488,17 @@ class Span(object):
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_exception_event(self, exception: Exception, event: SpanEvent) -> None:
+        self._exception_events[exception] = event
+
+    def _add_on_finish_exception_cb(self, cb: Callable[["Span"], None], name: str):
+        """Add an errortracking related callback to the on_finish_callback array"""
+        if name not in self._meta:
+            self._on_finish_callbacks.insert(0, cb)
+            # prevent to add multiple times the same callback
+            self._meta[name] = ""
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
