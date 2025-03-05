@@ -10,8 +10,8 @@ SERVER_URL = "http://0.0.0.0:8000/"
 
 
 @tenacity.retry(
-    wait=tenacity.wait_fixed(2),
-    stop=tenacity.stop_after_attempt(30),
+    wait=tenacity.wait_fixed(0.1),
+    stop=tenacity.stop_after_attempt(80),
 )
 def _get_response(path=""):
     r = requests.get(SERVER_URL + path)
