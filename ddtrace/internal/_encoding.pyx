@@ -114,7 +114,7 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
-            raise OverflowError("Integer value out of range")
+            raise OverflowError("Integer value out of range: %d" % n)
 
     if PyInt_Check(n):
         return msgpack_pack_long(pk, <long> n)
@@ -500,8 +500,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
             try:
                 ret = self.pack_span(span, dd_origin)
             except Exception as e:
-                raise RuntimeError("failed to pack span: {!r}. Exception: {}".format(span, e))
-
+                try:
+                    span_repr = span._pprint()
+                except Exception:
+                    span_repr = repr(span)
+                raise RuntimeError("failed to pack span: {}. Exception: {}".format(span_repr, e))
             # No exception was raised, but we got an error code from msgpack
             if ret != 0:
                 raise RuntimeError("couldn't pack span: {!r}".format(span))
