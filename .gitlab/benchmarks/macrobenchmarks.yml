@@ -35,7 +35,7 @@ variables:
   variables:
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
-    DD_RUNTIME_METRICS_ENABLED: "true"
+    DD_RUNTIME_METRICS_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
     DD_CRASHTRACKING_ENABLED: "false"
