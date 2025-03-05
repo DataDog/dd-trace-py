@@ -20,7 +20,6 @@ include:
   needs: []
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
   before_script:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
@@ -83,7 +82,6 @@ build_base_venvs:
   services:
     - !reference [.services, ddagent]
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
   before_script:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
