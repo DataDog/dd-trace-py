@@ -125,7 +125,6 @@ psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
 py-cpuinfo,~=8.0.0
-pydantic,0
 pyfakefs,0
 pylibmc,~=1.6.2
 pymemcache,~=3.4.2
