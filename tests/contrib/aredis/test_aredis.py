@@ -201,11 +201,12 @@ async def test_opentracing(tracer, snapshot_context):
 @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
+    import ddtrace.auto  # noqa
+
     import asyncio
 
     import aredis
 
-    import ddtrace
     from tests.contrib.config import REDIS_CONFIG
 
     async def traced_client():
