@@ -35,7 +35,7 @@ variables:
 
     if [[ $SCENARIO =~ ^flask_* ]];
     then
-      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
       run-benchmarks.sh
     fi
