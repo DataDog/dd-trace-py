@@ -818,7 +818,25 @@ class Tracer(object):
         dispatch("trace.span_start", (span,))
         return span
 
-    start_span = _start_span
+    def start_span(
+        self,
+        name: str,
+        child_of: Optional[Union[Span, Context]] = None,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        activate: bool = False,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
+        return self._start_span(
+            name,
+            child_of=child_of,
+            service=service,
+            resource=resource,
+            span_type=span_type,
+            activate=activate,
+            span_api=span_api,
+        )
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
