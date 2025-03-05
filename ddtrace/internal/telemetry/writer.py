@@ -383,8 +383,8 @@ class TelemetryWriter(PeriodicService):
             _TelemetryConfig.DEPENDENCY_COLLECTION
             and time.monotonic() - self._extended_time > self._extended_heartbeat_interval
         ):
+            self._extended_time += self._extended_heartbeat_interval
             self._app_dependencies_loaded_event()
-            self._extended_time = time.monotonic()
             payload = {
                 "dependencies": [
                     {"name": name, "version": version} for name, version in self._imported_dependencies.items()
