@@ -36,12 +36,12 @@ class BedrockIntegration(BaseLLMIntegration):
             "resource": str, # oneof("Converse", "InvokeModel")
             "model_name": str,
             "model_provider": str,
-            "request_params": {"prompt": str | list[dict],
+            "llmobs.request_params": {"prompt": str | list[dict],
                                 "temperature": Optional[float],
                                 "max_tokens": Optional[int]
                                 "top_p": Optional[int]}
-            "usage": Optional[dict],
-            "stop_reason": Optional[str],
+            "llmobs.usage": Optional[dict],
+            "llmobs.stop_reason": Optional[str],
         }
         """
         metadata = {}
