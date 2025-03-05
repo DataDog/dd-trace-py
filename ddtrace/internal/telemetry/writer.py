@@ -200,8 +200,12 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._imported_dependencies: Dict[str, str] = dict()
+        self._modules_already_imported: Set[str] = set()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
+        self._extended_time = time.monotonic()
+        # The extended heartbeat interval is set to 24 hours
+        self._extended_heartbeat_interval = 3600 * 24
 
         self.started = False
 
@@ -375,7 +379,20 @@ class TelemetryWriter(PeriodicService):
 
     def _app_heartbeat_event(self):
         # type: () -> None
-        self.add_event({}, "app-heartbeat")
+        if (
+            _TelemetryConfig.DEPENDENCY_COLLECTION
+            and time.monotonic() - self._extended_time > self._extended_heartbeat_interval
+        ):
+            self._app_dependencies_loaded_event()
+            self._extended_time = time.monotonic()
+            payload = {
+                "dependencies": [
+                    {"name": name, "version": version} for name, version in self._imported_dependencies.items()
+                ]
+            }
+            self.add_event(payload, "app-extended-heartbeat")
+        else:
+            self.add_event({}, "app-heartbeat")
 
     def _app_closing_event(self):
         # type: () -> None
@@ -402,11 +419,6 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self) -> Set[str]:
-        with self._service_lock:
-            new_deps = modules.get_newly_imported_modules()
-        return new_deps
-
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
@@ -423,10 +435,15 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
+    def _app_dependencies_loaded_event(self):
         """Adds events to report imports done since the last periodic run"""
 
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
+            return
+        with self._service_lock:
+            newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
+
+        if not newly_imported_deps:
             return
 
         with self._service_lock:
@@ -630,10 +647,7 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        if _TelemetryConfig.DEPENDENCY_COLLECTION:
-            newly_imported_deps = self._flush_new_imported_dependencies()
-            if newly_imported_deps:
-                self._app_dependencies_loaded_event(newly_imported_deps)
+        self._app_dependencies_loaded_event()
 
         if shutting_down:
             self._app_closing_event()
