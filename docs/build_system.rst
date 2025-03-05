@@ -79,6 +79,13 @@ If you skip `pip install -e .` and use `PYTHONPATH`, you must manually install t
 
     python setup.py build_ext --inplace
 
+Then, if you want to run ddtrace from the repo with another project in another directory, instead of using ddtrace-run (which
+with an editable or `PYTHONPATH` install would not find the one in the repository), do:
+
+.. code-block:: bash
+
+    python -m ddtrace.commands.ddtrace_run python my_traced_app.py
+
 Using `sccache` to Speed Up Builds
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -166,7 +173,8 @@ These environment variables modify aspects of the build process.
 
     description: |
         If set to 1, the tracer is compiled with the Abseil library, enhancing performance for Runtime Code Analysis features when active
-        (`DD_IAST_ENABLED=1`). If set to 0, the Runtime Code Analysis extension is built without Abseil, speeding up the build process.
+        (`DD_IAST_ENABLED=1`). If set to 0, the Runtime Code Analysis extension is built without Abseil, speeding up the build process at the cost of
+        some performance.
 
     version_added:
         v3.3.0:
