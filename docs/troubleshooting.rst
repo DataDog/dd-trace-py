@@ -95,7 +95,7 @@ While this is default behavior for integrations, users can add a trace filter to
 
 
 ModuleNotFoundError when running tests with riot
-====================
+================================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
 
 Your base virtual environment was likely created without a package.
