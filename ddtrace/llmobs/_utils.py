@@ -182,7 +182,7 @@ def _get_session_id(span: Span) -> Optional[str]:
 def _unserializable_default_repr(obj):
     try:
         return str(obj)
-    except:
+    except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
         return "[Unserializable object: {}]".format(repr(obj))
 

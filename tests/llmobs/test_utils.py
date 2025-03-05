@@ -1,7 +1,5 @@
-from typing import Dict
-import pytest
-
 from pydantic import BaseModel
+import pytest
 
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
