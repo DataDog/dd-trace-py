@@ -90,6 +90,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 if ctx["resource"] == "Converse"
                 else self._extract_output_message(response)
             )
+
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",

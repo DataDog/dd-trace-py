@@ -128,7 +128,8 @@ def _set_llmobs_usage_from_invoke(ctx: core.ExecutionContext, input_tokens, outp
 
 def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for converse.
     """
     messages = params.get("messages", [])
     inference_config = params.get("inferenceConfig", {})
@@ -150,7 +151,8 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
 
 def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
     """
-    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for invoke.
     """
     request_body = json.loads(params.get("body"))
     model_id = params.get("modelId")
