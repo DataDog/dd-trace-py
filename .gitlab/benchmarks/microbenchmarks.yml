@@ -94,7 +94,7 @@ baseline:build:
 
     echo "BASELINE_WHL=$(ls *.whl | head -n 1)" | tee -a baseline.env
   cache:
-    - key: test-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
         - "*.whl"
   artifacts:
