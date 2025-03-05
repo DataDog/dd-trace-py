@@ -53,3 +53,19 @@ class PyConfigurator:
         :return: A string representing the fleet stable configuration type.
         """
         ...
+
+class PyTracerMetadata:
+    """
+    Stores the configuration settings for the Tracer.
+    This data is saved in a temporary file while the Tracer is running.
+    """
+
+    def __init__(self): ...
+
+class PyAnonymousFileHandle:
+    """
+    Represents an anonymous file handle.
+    On Linux, it uses `memfd` (memory file descriptors) to create temporary files in memory.
+    """
+
+    def __init__(self): ...
