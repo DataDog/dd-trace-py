@@ -114,7 +114,7 @@ Tests
 -----
 
 If your change touches Python code, it should probably include at least one test. See the
-`testing guidelines<https://github.com/DataDog/dd-trace-py/blob/1.x/docs/contributing-testing.rst>`_ for details.
+`testing guidelines<https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_ for details.
 
 Documentation
 -------------
