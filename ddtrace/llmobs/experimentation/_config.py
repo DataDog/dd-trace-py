@@ -21,6 +21,7 @@ _ENV_DD_APPLICATION_KEY = None
 _ML_APP = DEFAULT_ML_APP
 _RUN_LOCALLY = False
 
+
 # Derived values
 def get_base_url() -> str:
     """Get the base URL for API requests."""
@@ -141,6 +142,7 @@ def get_site() -> str:
 def is_initialized() -> bool:
     """Check if the environment has been initialized."""
     return _IS_INITIALIZED
+
 
 def get_project_name() -> str:
     """Get the configured project name."""

@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-
 class Dataset:
     """
     A container for LLM experiment data that can be pushed to and retrieved from Datadog.
@@ -315,7 +314,9 @@ class Dataset:
                 _print_progress_bar(0, total_chunks, prefix="Uploading:", suffix="Complete")
 
             for i, chunk in enumerate(chunks):
-                records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk, "deduplicate": deduplicate}}}
+                records_payload = {
+                    "data": {"type": "datasets", "attributes": {"records": chunk, "deduplicate": deduplicate}}
+                }
                 url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
                 resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
 
@@ -543,7 +544,9 @@ class Dataset:
         # Datadog sync status
         if getattr(self, "_datadog_dataset_id", None):
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
-            dd_url = f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+            dd_url = (
+                f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+            )
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
             dd_url = ""
@@ -566,4 +569,3 @@ class Dataset:
             info.append(dd_url)
 
         return "\n".join(info)
-

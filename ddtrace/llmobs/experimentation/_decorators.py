@@ -3,8 +3,6 @@ import inspect
 from typing import Any, Dict, Optional, Union
 
 
-
-
 def task(func):
     if func.__name__ == "task":
         raise NameError("Function name 'task' is reserved. Please use a different name for your task function.")
@@ -44,5 +42,3 @@ def evaluator(func):
         raise TypeError(f"Evaluator function must have parameters {required_params}.")
     wrapper._is_evaluator = True  # Set attribute to indicate decoration
     return wrapper
-
-

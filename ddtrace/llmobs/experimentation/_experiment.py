@@ -10,12 +10,20 @@ import ddtrace
 
 from ._dataset import Dataset
 from .utils._http import exp_http_request
-from ._config import get_project_name, _validate_init, _is_locally_initialized, DEFAULT_CONCURRENT_JOBS, DEFAULT_CHUNK_SIZE, get_base_url
+from ._config import (
+    get_project_name,
+    _validate_init,
+    _is_locally_initialized,
+    DEFAULT_CONCURRENT_JOBS,
+    DEFAULT_CHUNK_SIZE,
+    get_base_url,
+)
 from .utils._ui import Color, ProgressReporter, _print_progress_bar
 from .._llmobs import LLMObs
 
 if TYPE_CHECKING:
     import pandas as pd
+
 
 class Experiment:
     """
@@ -653,9 +661,7 @@ class Experiment:
 
         if self._datadog_experiment_id:
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET}"
-            dd_url = (
-                f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
-            )
+            dd_url = f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
             dd_url = ""
@@ -1054,5 +1060,3 @@ class ExperimentResults:
             )
 
         return "\n".join(info)
-
-

@@ -1,5 +1,6 @@
 from typing import Optional
 
+
 class DatasetFileError(Exception):
     """
     Exception raised when there are errors reading or processing dataset files,
@@ -28,12 +29,12 @@ class ExperimentTaskError(Exception):
 class DatadogAPIError(Exception):
     """
     Base exception for all Datadog API errors.
-    
+
     Attributes:
         status_code (int): The HTTP status code returned by the API.
         message (str): Error message describing the failure.
     """
-    
+
     def __init__(self, status_code: int, message: str) -> None:
         self.status_code = status_code
         self.message = message
@@ -43,10 +44,10 @@ class DatadogAPIError(Exception):
 class ConfigurationError(Exception):
     """
     Exception raised when there are errors in configuration settings,
-    such as missing API keys, invalid site configurations, or 
+    such as missing API keys, invalid site configurations, or
     uninitialized environment.
     """
-    
+
     pass
 
 
@@ -55,6 +56,5 @@ class DatadogAuthenticationError(DatadogAPIError):
     Exception raised for authentication failures (typically status code 403).
     Indicates issues with API keys, application keys, or site configuration.
     """
-    
-    pass
 
+    pass

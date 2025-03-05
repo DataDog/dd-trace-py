@@ -5,6 +5,7 @@ from ..._utils import HTTPResponse, http_request
 from .._config import get_api_key, get_application_key, get_site, get_base_url
 from ._exceptions import DatadogAPIError, DatadogAuthenticationError
 
+
 def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTTPResponse:
     """
     Make an HTTP request to the Datadog LLM Observability/Experiments API.
@@ -32,13 +33,13 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
         if not get_site():
             raise DatadogAuthenticationError(
                 resp.status_code,
-                "Site configuration is missing. Please check your DD_SITE environment variable or pass it as an argument to init(...site=...)"
+                "Site configuration is missing. Please check your DD_SITE environment variable or pass it as an argument to init(...site=...)",
             )
         else:
             print("resp text: ", resp.text())
             raise DatadogAuthenticationError(
                 resp.status_code,
-                "API key or Application key is incorrect. Please check your DD_API_KEY and DD_APPLICATION_KEY environment variables or pass them as arguments to init(...api_key=..., application_key=...)"
+                "API key or Application key is incorrect. Please check your DD_API_KEY and DD_APPLICATION_KEY environment variables or pass them as arguments to init(...api_key=..., application_key=...)",
             )
     if resp.status_code >= 400:
         try:
@@ -48,4 +49,3 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
             error_message = resp.text()
         raise DatadogAPIError(resp.status_code, error_message)
     return resp
-
