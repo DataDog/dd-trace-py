@@ -33,7 +33,6 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import agent
-from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
@@ -283,9 +282,7 @@ class Tracer(object):
             register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
-        atexit.register(self._atexit)
         forksafe.register_before_fork(self._sample_before_fork)
-        forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -1071,8 +1068,6 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
 
-            atexit.unregister(self._atexit)
-            forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]

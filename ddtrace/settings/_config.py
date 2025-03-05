@@ -1,5 +1,4 @@
 from copy import deepcopy
-import enum
 import json
 import os
 import re
@@ -397,15 +396,6 @@ def _default_config() -> Dict[str, _ConfigItem]:
     }
 
 
-class Capabilities(enum.IntFlag):
-    APM_TRACING_SAMPLE_RATE = 1 << 12
-    APM_TRACING_LOGS_INJECTION = 1 << 13
-    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
-    APM_TRACING_CUSTOM_TAGS = 1 << 15
-    APM_TRACING_ENABLED = 1 << 19
-    APM_TRACING_SAMPLE_RULES = 1 << 29
-
-
 class Config(object):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
@@ -601,10 +591,7 @@ class Config(object):
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
             log.warning(
-                (
-                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values allowed"
-                ),
+                ("Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, only non-negative values allowed"),
                 x_datadog_tags_max_length,
             )
             x_datadog_tags_max_length = 0
@@ -825,74 +812,6 @@ class Config(object):
         # type: (str) -> str
         return self._config[item].source()
 
-    def _remoteconfigPubSub(self):
-        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-        from ddtrace.internal.remoteconfig._pubsub import PubSub
-        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
-
-        class _GlobalConfigPubSub(PubSub):
-            __publisher_class__ = RemoteConfigPublisher
-            __subscriber_class__ = RemoteConfigSubscriber
-            __shared_data__ = PublisherSubscriberConnector()
-
-            def __init__(self, callback):
-                self._publisher = self.__publisher_class__(self.__shared_data__, None)
-                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "GlobalConfig")
-
-        return _GlobalConfigPubSub
-
-    def _handle_remoteconfig(self, data, test_tracer=None):
-        # type: (Any, Any) -> None
-        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
-            log.warning("unexpected RC payload %r", data)
-            return
-        if len(data["config"]) == 0:
-            log.warning("unexpected number of RC payloads %r", data)
-            return
-
-        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
-        config = None
-        for config_item in data["config"]:
-            if isinstance(config_item, Dict):
-                if "lib_config" in config_item:
-                    config = config_item
-                    break
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        base_rc_config = {n: None for n in self._config}
-
-        if config and "lib_config" in config:
-            lib_config = config["lib_config"]
-            if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
-                global_sampling_rate = lib_config.get("tracing_sampling_rate")
-                trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
-                # returns None if no rules
-                trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
-                if trace_sampling_rules:
-                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules  # type: ignore[assignment]
-
-            if "log_injection_enabled" in lib_config:
-                base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
-
-            if "tracing_tags" in lib_config:
-                tags = lib_config["tracing_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_tags"])
-                base_rc_config["tags"] = tags
-
-            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
-
-            if "tracing_header_tags" in lib_config:
-                tags = lib_config["tracing_header_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_header_tags"])
-                base_rc_config["_trace_http_header_tags"] = tags
-        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
-        # called unconditionally to handle the case where header tags have been unset
-        self._handle_remoteconfig_header_tags(base_rc_config)
-
     def _handle_remoteconfig_header_tags(self, base_rc_config):
         """Implements precedence order between remoteconfig header tags from code, env, and RC"""
         header_tags_conf = self._config["_trace_http_header_tags"]
@@ -919,10 +838,8 @@ class Config(object):
         from ddtrace.internal.flare.handler import _tracerFlarePubSub
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
         flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
         tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
-        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub, capabilities=Capabilities)
         remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
         remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
