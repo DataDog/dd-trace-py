@@ -839,11 +839,6 @@ Other
 
 .. ddtrace-configuration-options::
 
-   DD_COMPILE_DEBUG:
-     type: Boolean
-     default: False
-     description: Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
-
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True

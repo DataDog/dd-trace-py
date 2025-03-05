@@ -10,7 +10,6 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace._trace.sampler import DatadogSampler
 from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
@@ -72,9 +71,7 @@ def collect(tracer):
         agent_url = "CUSTOM"
         agent_error = None
 
-    sampler_rules = None
-    if isinstance(tracer._sampler, DatadogSampler):
-        sampler_rules = [str(rule) for rule in tracer._sampler.rules]
+    sampler_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
