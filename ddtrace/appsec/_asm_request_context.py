@@ -102,6 +102,7 @@ class ASM_Environment:
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
+        self.finalized: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -217,11 +218,8 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
         if telemetry_results["rasp"]["sum_eval"]:
             update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
-            telemetry_results["rasp"]["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
-            telemetry_results["rasp"]["total_duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
-            telemetry_results["rasp"]["sum_eval"] = 0
         if telemetry_results["truncation"]["string_length"]:
             root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results["truncation"]["string_length"]))
         if telemetry_results["truncation"]["container_size"]:
@@ -235,10 +233,14 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
-    callbacks = GLOBAL_CALLBACKS[_CONTEXT_CALL] + env.callbacks[_CONTEXT_CALL]
-    for function in callbacks:
+    if env.finalized:
+        return
+    env.finalized = True
+    for function in GLOBAL_CALLBACKS[_CONTEXT_CALL]:
         function(env)
     flush_waf_triggers(env)
+    for function in env.callbacks[_CONTEXT_CALL]:
+        function(env)
     if env.waf_info:
         info = env.waf_info()
         try:

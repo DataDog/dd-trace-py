@@ -37,12 +37,7 @@ def _set_waf_updates_metric(info):
         else:
             tags = (("waf_version", DDWAF_VERSION),)
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC,
-            "waf.updates",
-            1.0,
-            tags=tags,
-        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF updates metrics", exc_info=True)
 
@@ -57,12 +52,7 @@ def _set_waf_init_metric(info):
         else:
             tags = (("waf_version", DDWAF_VERSION),)
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC,
-            "waf.init",
-            1.0,
-            tags=tags,
-        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
@@ -109,7 +99,7 @@ def _report_waf_truncations(observator):
         log.warning("Error reporting ASM WAF truncation metrics", exc_info=True)
 
 
-def _set_waf_request_metrics(*args):
+def _set_waf_request_metrics(*_args):
     try:
         result = _asm_request_context.get_waf_telemetry_results()
         if result is not None and result["version"] is not None:
@@ -125,15 +115,12 @@ def _set_waf_request_metrics(*args):
                 ("waf_version", DDWAF_VERSION),
                 ("rule_triggered", bool_str[result["triggered"]]),
                 ("request_blocked", bool_str[result["blocked"]]),
-                ("waf_timeout", bool_str[result["timeout"]]),
+                ("waf_timeout", bool_str[bool(result["timeout"])]),
                 ("input_truncated", bool_str[input_truncated]),
             )
 
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC,
-                "waf.requests",
-                1.0,
-                tags=tags_request,
+                TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
             rasp = result["rasp"]
             if rasp["sum_eval"]:
@@ -143,16 +130,10 @@ def _set_waf_request_metrics(*args):
                             telemetry.telemetry_writer.add_count_metric(
                                 TELEMETRY_NAMESPACE.APPSEC,
                                 n,
-                                float(value),
+                                value,
                                 tags=_TYPES_AND_TAGS.get(rule_type, ())
                                 + (("waf_version", DDWAF_VERSION), ("event_rules_version", result["version"])),
                             )
 
     except Exception:
         log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
-    finally:
-        if result is not None:
-            result["triggered"] = False
-            result["blocked"] = False
-            result["timeout"] = False
-            result["version"] = None
