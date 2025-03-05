@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -41,7 +40,6 @@ class BedrockIntegration(BaseLLMIntegration):
             "llmobs.usage": Optional[dict],
         }
         """
-        LLMObs._instance._activate_llmobs_span(span)
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
