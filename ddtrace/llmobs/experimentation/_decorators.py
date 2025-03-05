@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Union
 
 def task(func):
     if func.__name__ == "task":
-        raise ValueError("Function name 'task' is reserved. Please use a different name for your task function.")
+        raise NameError("Function name 'task' is reserved. Please use a different name for your task function.")
 
     @wraps(func)
     def wrapper(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> Any:

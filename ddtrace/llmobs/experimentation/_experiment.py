@@ -10,7 +10,7 @@ import ddtrace
 
 from ._dataset import Dataset
 from .utils._http import exp_http_request
-from ._config import ENV_PROJECT_NAME, _validate_init, _is_locally_initialized, DEFAULT_CONCURRENT_JOBS, BASE_URL, DEFAULT_CHUNK_SIZE
+from ._config import get_project_name, _validate_init, _is_locally_initialized, DEFAULT_CONCURRENT_JOBS, DEFAULT_CHUNK_SIZE, get_base_url
 from .utils._ui import Color, ProgressReporter, _print_progress_bar
 from .._llmobs import LLMObs
 
@@ -72,7 +72,7 @@ class Experiment:
         self.dataset = dataset
         self.evaluators = evaluators
         self.tags = tags if tags is not None else []
-        self.project_name = ENV_PROJECT_NAME
+        self.project_name = get_project_name()
         self.description = description
         self.metadata = metadata if metadata is not None else {}
         self.config = config
@@ -654,7 +654,7 @@ class Experiment:
         if self._datadog_experiment_id:
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET}"
             dd_url = (
-                f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
+                f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}"
             )
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
@@ -941,7 +941,7 @@ class ExperimentResults:
                 _print_progress_bar(chunk_idx + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
         print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
-        print(f"{Color.BLUE}  {BASE_URL}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
+        print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
 
     def __repr__(self) -> str:
         """
@@ -1050,7 +1050,7 @@ class ExperimentResults:
 
         if self.experiment._datadog_experiment_id:
             info.append(
-                f"\n  {Color.BLUE}URL: {BASE_URL}/llm/testing/experiments/{self.experiment._datadog_experiment_id}{Color.RESET}"
+                f"\n  {Color.BLUE}URL: {get_base_url()}/llm/testing/experiments/{self.experiment._datadog_experiment_id}{Color.RESET}"
             )
 
         return "\n".join(info)

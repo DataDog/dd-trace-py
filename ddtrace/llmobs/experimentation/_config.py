@@ -1,6 +1,7 @@
 import os
 
 from .._llmobs import LLMObs
+from .utils._exceptions import ConfigurationError
 
 
 # Default configuration values
@@ -12,21 +13,26 @@ DEFAULT_CHUNK_SIZE = 300
 DEFAULT_CONCURRENT_JOBS = 10
 
 # Global state (initialized by init())
-IS_INITIALIZED = False
-ENV_PROJECT_NAME = None
-ENV_DD_SITE = DEFAULT_SITE
-ENV_DD_API_KEY = None
-ENV_DD_APPLICATION_KEY = None
-ML_APP = DEFAULT_ML_APP
-RUN_LOCALLY = False
+_IS_INITIALIZED = False
+_ENV_PROJECT_NAME = None
+_ENV_DD_SITE = DEFAULT_SITE
+_ENV_DD_API_KEY = None
+_ENV_DD_APPLICATION_KEY = None
+_ML_APP = DEFAULT_ML_APP
+_RUN_LOCALLY = False
 
 # Derived values
-BASE_URL = f"https://api.{ENV_DD_SITE}"
+def get_base_url() -> str:
+    """Get the base URL for API requests."""
+    if get_site() == "datadoghq.com":
+        return "https://api.datadoghq.com"
+    elif get_site() == "datad0g.com":
+        return "https://dd.datad0g.com"
 
 
 def init(
     project_name: str,
-    site: str = DEFAULT_SITE,
+    site: str = None,
     api_key: str = None,
     application_key: str = None,
     run_locally: bool = False,
@@ -47,51 +53,51 @@ def init(
         run_locally (bool, optional): If True, disables communication with Datadog and runs locally.
 
     Raises:
-        ValueError: If required environment variables or parameters are missing when run_locally is False.
+        ConfigurationError: If required environment variables or parameters are missing when run_locally is False.
     """
 
-    global IS_INITIALIZED, ENV_PROJECT_NAME, ENV_DD_SITE, ENV_DD_API_KEY, ENV_DD_APPLICATION_KEY, RUN_LOCALLY
+    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY
 
     if run_locally:
-        RUN_LOCALLY = True
+        _RUN_LOCALLY = True
 
         return
 
     if api_key is None:
         api_key = os.getenv("DD_API_KEY")
         if api_key is None:
-            raise ValueError(
+            raise ConfigurationError(
                 "DD_API_KEY environment variable is not set, please set it or pass it as an argument to init(...api_key=...)"
             )
 
     if application_key is None:
         application_key = os.getenv("DD_APPLICATION_KEY")
         if application_key is None:
-            raise ValueError(
+            raise ConfigurationError(
                 "DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)"
             )
 
     if site is None:
         site = os.getenv("DD_SITE")
         if site is None:
-            raise ValueError(
+            raise ConfigurationError(
                 "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
             )
 
-    if IS_INITIALIZED is False:
+    if _IS_INITIALIZED is False:
         LLMObs.enable(
-            ml_app=ML_APP,
+            ml_app=_ML_APP,
             integrations_enabled=True,
             agentless_enabled=True,
             site=site,
             api_key=api_key,
         )
 
-    ENV_PROJECT_NAME = project_name
-    ENV_DD_SITE = site
-    ENV_DD_API_KEY = api_key
-    ENV_DD_APPLICATION_KEY = application_key
-    IS_INITIALIZED = True
+    _ENV_PROJECT_NAME = project_name
+    _ENV_DD_SITE = site
+    _ENV_DD_API_KEY = api_key
+    _ENV_DD_APPLICATION_KEY = application_key
+    _IS_INITIALIZED = True
 
 
 def _validate_init() -> None:
@@ -99,10 +105,10 @@ def _validate_init() -> None:
     Check if the environment has been initialized.
 
     Raises:
-        ValueError: If the environment is not yet initialized (init() has not been called).
+        ConfigurationError: If the environment is not yet initialized (init() has not been called).
     """
-    if IS_INITIALIZED is False:
-        raise ValueError(
+    if _IS_INITIALIZED is False:
+        raise ConfigurationError(
             "Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions"
         )
 
@@ -114,5 +120,28 @@ def _is_locally_initialized() -> bool:
     Returns:
         bool: True if running locally, False otherwise.
     """
-    return RUN_LOCALLY
+    return _RUN_LOCALLY
 
+
+def get_api_key() -> str:
+    """Get the configured API key."""
+    return _ENV_DD_API_KEY
+
+
+def get_application_key() -> str:
+    """Get the configured application key."""
+    return _ENV_DD_APPLICATION_KEY
+
+
+def get_site() -> str:
+    """Get the configured site."""
+    return _ENV_DD_SITE
+
+
+def is_initialized() -> bool:
+    """Check if the environment has been initialized."""
+    return _IS_INITIALIZED
+
+def get_project_name() -> str:
+    """Get the configured project name."""
+    return _ENV_PROJECT_NAME

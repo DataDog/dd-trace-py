@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import quote
 
 from .utils._http import exp_http_request
-from ._config import BASE_URL, MAX_DATASET_ROWS, DEFAULT_CHUNK_SIZE, _validate_init
+from ._config import get_base_url, MAX_DATASET_ROWS, DEFAULT_CHUNK_SIZE, _validate_init
 from .utils._ui import _print_progress_bar, Color
 from .utils._exceptions import DatasetFileError
 
@@ -215,7 +215,7 @@ class Dataset:
         dataset._datadog_dataset_version = dataset_version
         return dataset
 
-    def push(self, overwrite: bool = False) -> None:
+    def push(self, overwrite: bool = False, deduplicate: bool = False) -> None:
         """
         Push the dataset to Datadog, optionally overwriting an existing dataset.
 
@@ -315,7 +315,7 @@ class Dataset:
                 _print_progress_bar(0, total_chunks, prefix="Uploading:", suffix="Complete")
 
             for i, chunk in enumerate(chunks):
-                records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk}}}
+                records_payload = {"data": {"type": "datasets", "attributes": {"records": chunk, "deduplicate": deduplicate}}}
                 url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
                 resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
 
@@ -330,7 +330,7 @@ class Dataset:
             self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
 
             # Print url to the dataset in Datadog
-            print(f"\nDataset '{self.name}' created: {BASE_URL}/llm/testing/datasets/{dataset_id}\n")
+            print(f"\nDataset '{self.name}' created: {get_base_url()}/llm/testing/datasets/{dataset_id}\n")
 
     @classmethod
     def from_csv(
@@ -543,7 +543,7 @@ class Dataset:
         # Datadog sync status
         if getattr(self, "_datadog_dataset_id", None):
             dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
-            dd_url = f"\n  URL: {Color.BLUE}{BASE_URL}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+            dd_url = f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
             dd_url = ""
