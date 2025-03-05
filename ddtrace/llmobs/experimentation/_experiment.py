@@ -166,7 +166,7 @@ class Experiment:
                     "description": self.description,
                     "dataset_id": self.dataset._datadog_dataset_id,
                     "project_id": project_id,
-                    "dataset_version": self.dataset._datadog_dataset_version,
+                    "dataset_version": self.dataset._version,
                     "metadata": {
                         "tags": self.tags,
                         **(self.metadata or {}),
