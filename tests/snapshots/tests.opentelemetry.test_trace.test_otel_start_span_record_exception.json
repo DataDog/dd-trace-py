@@ -40,9 +40,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6658897400000000",
-      "error.message": "MoonEar Fire!!!",
-      "error.stack": "Fake traceback",
-      "error.type": "RandoException",
       "events": "[{\"name\": \"exception\", \"time_unix_nano\": 1716560281337739000, \"attributes\": {\"exception.type\": \"builtins.IndexError\", \"exception.message\": \"Invalid Operation 2\", \"exception.escaped\": \"False\", \"exception.stuff\": \"thing 2\"}}, {\"name\": \"exception\", \"time_unix_nano\": 1716560271237812000, \"attributes\": {\"exception.type\": \"RandoException\", \"exception.message\": \"MoonEar Fire!!!\", \"exception.escaped\": \"False\", \"exception.stacktrace\": \"Fake traceback\", \"exception.details\": \"This is FAKE, I overwrote the real exception details\"}}]",
       "language": "python",
       "runtime-id": "d0950ce7bda6498183acde9036abb131"
