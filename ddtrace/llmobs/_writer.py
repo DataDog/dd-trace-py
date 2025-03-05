@@ -22,6 +22,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
+from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -283,12 +284,14 @@ class LLMObsSpanWriter(HTTPWriter):
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         event_size = len(safe_json(event))
+        telemetry.record_span_event_size(event, event_size)
 
         if event_size >= EVP_EVENT_SIZE_LIMIT:
             logger.warning(
                 "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
                 event_size,
             )
+            telemetry.record_span_truncated(event)
             event = _truncate_span_event(event)
 
         for client in self._clients:
