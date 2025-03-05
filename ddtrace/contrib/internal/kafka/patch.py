@@ -183,7 +183,9 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
-        span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
+        if topic:
+            # Should fall back to broker id if topic is not provided but it is not readily available here
+            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
