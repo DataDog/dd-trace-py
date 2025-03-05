@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves issue where Pydantic model objects were encoded as unhelpful default placeholder text.
+  - |
+    LLM Observability: Improves encoding of non-JSON serializable I/O objects by attempting to convert to string before resorting to default placeholder text.
