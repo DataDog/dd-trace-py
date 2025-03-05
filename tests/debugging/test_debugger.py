@@ -1239,3 +1239,14 @@ def test_debugger_exception_conditional_function_probe():
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1", DD_DYNAMIC_INSTRUMENTATION_ENABLED="1")
+)
+def test_symbols_upload_enabled():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    assert not SymbolDatabaseUploader.is_installed()
+    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None

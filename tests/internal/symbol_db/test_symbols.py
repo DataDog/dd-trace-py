@@ -202,7 +202,7 @@ def test_symbols_upload_enabled():
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     assert not SymbolDatabaseUploader.is_installed()
-    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
+    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is None
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_INCLUDES="tests.submod.stuff"))
