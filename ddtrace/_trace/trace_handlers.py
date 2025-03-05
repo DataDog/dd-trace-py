@@ -680,11 +680,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(
-            span,
-            args=[ctx],
-            kwargs={},
-        )
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 

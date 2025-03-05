@@ -31,7 +31,7 @@ class BedrockIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract prompt/response attributes from an execution context.
 
-        ctx is a require argument is of the shape:
+        ctx is a required argument of the shape:
         {
             "resource": str, # oneof("Converse", "InvokeModel")
             "model_name": str,
@@ -48,12 +48,12 @@ class BedrockIntegration(BaseLLMIntegration):
         usage_metrics = {}
         ctx = args[0]
 
-        request_params = ctx.get_item("request_params") or {}
+        request_params = ctx.get_item("llmobs.request_params") or {}
 
-        if ctx.get_item("stop_reason"):
-            metadata["stop_reason"] = ctx["stop_reason"]
-        if ctx.get_item("usage"):
-            usage_metrics = ctx["usage"]
+        if ctx.get_item("llmobs.stop_reason"):
+            metadata["stop_reason"] = ctx["llmobs.stop_reason"]
+        if ctx.get_item("llmobs.usage"):
+            usage_metrics = ctx["llmobs.usage"]
 
         # Translate raw usage metrics returned from bedrock to the standardized metrics format.
         if "inputTokens" in usage_metrics:

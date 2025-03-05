@@ -113,6 +113,19 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
+def _set_llmobs_usage_from_invoke(ctx: core.ExecutionContext, input_tokens, output_tokens) -> None:
+    """
+    Sets LLM usage metrics in the context for LLM Observability.
+    """
+    llmobs_usage = {}
+    if input_tokens:
+        llmobs_usage["input_tokens"] = int(input_tokens)
+    if output_tokens:
+        llmobs_usage["output_tokens"] = int(output_tokens)
+    if llmobs_usage:
+        ctx.set_item("llmobs.usage", llmobs_usage)
+
+
 def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
@@ -303,6 +316,9 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
 def _extract_streamed_response_metadata(
     ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
+    """
+    Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
+    """
     provider = ctx["model_provider"]
     metadata = {}
     if provider == _AI21:
@@ -312,10 +328,14 @@ def _extract_streamed_response_metadata(
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
+
+    input_tokens = metadata.get("inputTokenCount", None)
+    output_tokens = metadata.get("outputTokenCount", None)
+    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
     return {
         "response.duration": metadata.get("invocationLatency", None),
-        "usage.prompt_tokens": metadata.get("inputTokenCount", None),
-        "usage.completion_tokens": metadata.get("outputTokenCount", None),
+        "usage.prompt_tokens": input_tokens,
+        "usage.completion_tokens": output_tokens,
     }
 
 
@@ -327,8 +347,8 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    if ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
-        ctx.set_item("request_params", request_params)
+    if ctx["bedrock_integration"].llmobs_enabled:
+        ctx.set_item("llmobs.request_params", request_params)
 
 
 def handle_bedrock_response(
@@ -351,11 +371,13 @@ def handle_bedrock_response(
             if usage:
                 # Make a copy of the usage data to avoid modifying the original
                 # in downstream processing of the response
-                ctx.set_item("usage", usage.copy())
+                ctx.set_item("llmobs.usage", usage.copy())
                 input_token_count = str(usage.get("inputTokens", input_token_count))
                 output_token_count = str(usage.get("outputTokens", output_token_count))
         if "stopReason" in result:
-            ctx.set_item("stop_reason", result.get("stopReason"))
+            ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
+
+    _set_llmobs_usage_from_invoke(ctx, input_token_count, output_token_count)
 
     # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
