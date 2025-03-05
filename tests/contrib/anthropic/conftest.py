@@ -62,7 +62,6 @@ def mock_llmobs_writer(scope="session"):
 def default_global_config():
     return {"_dd_api_key": "<not-a-real-api_key>"}
 
-
 @pytest.fixture
 def anthropic(ddtrace_global_config, ddtrace_config_anthropic):
     global_config = default_global_config()
