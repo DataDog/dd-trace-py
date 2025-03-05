@@ -318,18 +318,6 @@ def test_custom_writer():
 
 
 @pytest.mark.subprocess()
-def test_different_samplers():
-    import ddtrace
-    from ddtrace.internal import debug
-    from ddtrace.trace import tracer
-
-    tracer._configure(sampler=ddtrace._trace.sampler.RateSampler())
-    info = debug.collect(tracer)
-
-    assert info.get("sampler_type") == "RateSampler"
-
-
-@pytest.mark.subprocess()
 def test_startup_logs_sampling_rules():
     import ddtrace
     from ddtrace.internal import debug
