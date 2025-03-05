@@ -864,7 +864,7 @@ Other
      type: Boolean
      default: False
      version_added:
-       v3.2.0:
+       v3.2.0: Adds initial support
 
      description: |
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
@@ -874,13 +874,12 @@ mabdinur marked this conversation as resolved.
     DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
      type: string
      version_added:
-       v3.2.0:
+       v3.2.0: Adds initial support and support for enabling experimental runtime metrics. 
      default: ""
 
      description: |
-         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
-mabdinur marked this conversation as resolved.
-         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+         Enables support for experimental ddtrace configurations. The supported configurations are: ``DD_RUNTIME_METRICS_ENABLED``.
+
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
      
