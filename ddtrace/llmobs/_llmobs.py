@@ -390,8 +390,6 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled", cls.__name__)
-        except:
-            raise
         finally:
             telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns)
 
