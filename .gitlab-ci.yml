@@ -44,10 +44,12 @@ run-tests-trigger:
 
 microbenchmarks:
   stage: benchmarks
-  needs: [ ]
+  needs: [ "download_ddtrace_artifacts" ]
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks
@@ -153,4 +155,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
