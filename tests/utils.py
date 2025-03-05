@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import dataclasses
 import datetime as dt
+import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+from urllib import parse
 import urllib.parse
 
 import pytest
@@ -23,8 +25,6 @@ from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder

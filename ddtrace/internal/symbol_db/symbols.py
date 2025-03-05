@@ -24,7 +24,6 @@ from types import ModuleType
 import typing as t
 
 from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal import packages
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import singledispatchmethod
@@ -501,7 +500,7 @@ class ScopeContext:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
-            return compat.get_connection_response(conn)
+            return conn.getresponse()
 
     def __bool__(self) -> bool:
         return bool(self._scopes)

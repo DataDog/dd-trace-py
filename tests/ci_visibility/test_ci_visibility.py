@@ -457,7 +457,7 @@ def test_get_client_do_request_agentless_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -472,7 +472,7 @@ def test_get_client_do_request_evp_proxy_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -520,7 +520,7 @@ def test_git_do_request_agentless(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()
@@ -553,7 +553,7 @@ def test_git_do_request_evp(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()

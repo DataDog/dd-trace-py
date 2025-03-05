@@ -1,11 +1,11 @@
 import json
+from queue import Queue
 
 import pytest
 
 from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import Queue
 
 
 # DEV: Using float('inf') with lock wait intervals may cause an OverflowError

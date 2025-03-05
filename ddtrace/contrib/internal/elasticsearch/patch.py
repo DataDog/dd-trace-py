@@ -1,5 +1,6 @@
 from importlib import import_module
 from typing import List  # noqa:F401
+from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -16,7 +17,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name

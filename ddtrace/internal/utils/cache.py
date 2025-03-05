@@ -1,12 +1,12 @@
+from inspect import FullArgSpec
+from inspect import getfullargspec
+from inspect import isgeneratorfunction
 from threading import RLock
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Type  # noqa:F401
 from typing import TypeVar  # noqa:F401
-
-from ddtrace.internal.compat import getfullargspec
-from ddtrace.internal.compat import is_not_void_function
 
 
 miss = object()
@@ -109,6 +109,18 @@ def cachedmethod(maxsize=256):
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
+
+
+def is_not_void_function(f, argspec: FullArgSpec):
+    return (
+        argspec.args
+        or argspec.varargs
+        or argspec.varkw
+        or argspec.defaults
+        or argspec.kwonlyargs
+        or argspec.kwonlydefaults
+        or isgeneratorfunction(f)
+    )
 
 
 def callonce(f):

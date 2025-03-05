@@ -1,4 +1,5 @@
 from typing import Optional  # noqa:F401
+from urllib import parse
 
 import ddtrace
 from ddtrace import config
@@ -9,7 +10,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation

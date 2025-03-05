@@ -1,3 +1,4 @@
+import sys
 from typing import Any  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import List  # noqa:F401
@@ -9,13 +10,13 @@ from typing import Union  # noqa:F401
 
 import wrapt
 
-from ddtrace.internal.compat import BUILTIN
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.cache import cached
 
 
 NoneType = type(None)
+
+PY = sys.version_info
 
 
 def _maybe_slots(obj):
@@ -48,7 +49,7 @@ def _isinstance(obj, types):
     return issubclass(type(obj), types)
 
 
-IS_312_OR_NEWER = PYTHON_VERSION_INFO >= (3, 12)
+IS_312_OR_NEWER = PY >= (3, 12)
 
 
 class SafeObjectProxy(wrapt.ObjectProxy):
@@ -105,7 +106,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
 
         if _isinstance(obj, type):
             try:
-                if obj.__module__ == BUILTIN:
+                if obj.__module__ == "builtins":
                     # We are assuming that builtin types are safe
                     return obj
             except AttributeError:

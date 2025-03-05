@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 
 import molten
 import wrapt
@@ -9,7 +10,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import urlencode
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection

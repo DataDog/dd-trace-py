@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
+import http.client as httplib
 from json import loads
 import logging
 import os
@@ -15,11 +16,10 @@ from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
-from ddtrace.internal import compat
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -41,7 +41,7 @@ _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 
-Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
+Connector = Callable[[], ContextManager[httplib.HTTPConnection]]
 
 
 log = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-    parts = compat.parse.urlparse(url)
+    parts = parse.urlparse(url)
     redacted_query = None
 
     if query_string:
@@ -137,7 +137,7 @@ def connector(url, **kwargs):
 
     @contextmanager
     def _connector_context():
-        # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
+        # type: () -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()

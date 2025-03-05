@@ -1,4 +1,5 @@
 import os
+from urllib import parse
 
 import urllib3
 from wrapt import wrap_function_wrapper as _w
@@ -10,7 +11,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
