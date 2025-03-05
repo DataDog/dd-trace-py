@@ -863,6 +863,8 @@ Other
     DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
      type: Boolean
      default: False
+     version_added:
+       v3.2.0:
 
      description: |
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
@@ -870,7 +872,9 @@ mabdinur marked this conversation as resolved.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
     DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
-     type: String
+     type: string
+     version_added:
+       v3.2.0:
      default: ""
 
      description: |
