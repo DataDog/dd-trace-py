@@ -8,6 +8,7 @@ variables:
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  BENCHMARKING_BRANCH: brettlangdon/dd-trace-py.new
 
 .benchmarks:
   stage: test
@@ -23,18 +24,25 @@ variables:
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
 
-    .gitlab/benchmarks/steps/capture-hardware-software-info.sh
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    capture-hardware-software-info.sh
 
     if [[ $SCENARIO =~ ^flask_* ]];
     then
-      BP_SCENARIO=$SCENARIO bp-runner "$REPORTS_DIR/../.gitlab/benchmarks/bp-runner.yml" --debug -t
+      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
-      .gitlab/benchmarks/steps/run-microbenchmarks.sh
+      run-benchmarks.sh
     fi
 
-    .gitlab/benchmarks/steps/analyze-results.sh
+    analyze-results.sh
 
-    .gitlab/benchmarks/steps/upload-results-to-s3.sh || :
+    upload-results-to-s3.sh || :
   artifacts:
     name: "reports"
     when: always
@@ -154,8 +162,15 @@ benchmarks-pr-comment:
   when: always
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
-    (for i in {1..2}; do ./.gitlab/benchmarks/steps/upload-results-to-benchmarking-api.sh && break; done) || :
-    .gitlab/benchmarks/steps/post-pr-comment.sh || :
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
+    post-pr-comment.sh || :
   except:
     - main
   variables:
@@ -170,9 +185,16 @@ check-big-regressions:
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/reports/"
-    - bp-runner .gitlab/benchmarks/bp-runner.fail-on-regression.yml --debug
+  script: |
+    export ARTIFACTS_DIR="$(pwd)/reports/"
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    bp-runner /platform/bp-runner.fail-on-regression.yml --debug
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
