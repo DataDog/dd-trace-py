@@ -367,7 +367,7 @@ def test_cohere_embedding(bedrock_client, request_vcr):
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
 @pytest.mark.snapshot
-def test_converse_invoke(bedrock_client, request_vcr):
+def test_converse(bedrock_client, request_vcr):
     system_content = "You are an expert swe that is to use the tool fetch_concept"
     user_content = "Explain the concept of distributed tracing in a simple way"
     tools = [
