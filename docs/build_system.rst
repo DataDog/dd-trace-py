@@ -79,7 +79,7 @@ If you skip `pip install -e .` and use `PYTHONPATH`, you must manually install t
 
     python setup.py build_ext --inplace
 
-Then, if you want to run ddtrace from the repo with another project in another directory, instead of using ddtrace-run (which
+Then, if you want to run ddtrace from the repo with another project in another directory, instead of using `ddtrace-run` (which
 with an editable or `PYTHONPATH` install would not find the one in the repository), do:
 
 .. code-block:: bash
