@@ -80,7 +80,6 @@ class BaseLLMIntegration:
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
         if submit_to_llmobs and self.llmobs_enabled:
-            LLMObs._instance._activate_llmobs_span(span)
             telemetry_writer.add_count_metric(
                 namespace=TELEMETRY_NAMESPACE.MLOBS,
                 name="span.start",
