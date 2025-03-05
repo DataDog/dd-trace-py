@@ -349,7 +349,7 @@ cdef class BufferedEncoder(object):
     cdef public size_t max_item_size
     cdef object _lock
 
-    def __cinit__(self, size_t max_size, size_t max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
         self.max_size = max_size
         self.max_item_size = max_item_size
         self._lock = threading.Lock()
@@ -415,7 +415,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef msgpack_packer pk
     cdef stdint.uint32_t _count
 
-    def __cinit__(self, size_t max_size, size_t max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
         cdef int buf_size = 1024*1024
         self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
@@ -548,6 +548,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 
 cdef class MsgpackEncoderV04(MsgpackEncoderBase):
+    cdef public bint top_level_span_event_encoding
+    
+    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
+        self.top_level_span_event_encoding = top_level_span_event_encoding
+
     cpdef flush(self):
         with self._lock:
             try:
@@ -607,6 +612,44 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                             return ret
                 else:
                     raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
+                if ret != 0:
+                    return ret
+        return 0
+    
+    cdef inline int _pack_span_events(self, list span_events):
+        ret = msgpack_pack_array(&self.pk, len(span_events))
+        if ret != 0:
+            return ret
+
+        for event in span_events:
+            # get dict representation of span event
+            d = dict(event)
+            ret = msgpack_pack_map(&self.pk, len(d))
+            if ret != 0:
+                return ret
+
+            for k, v in d.items():
+                # pack the name of a span event
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    return ret
+                if isinstance(v, (int, float)):
+                    ret = pack_number(&self.pk, v)
+                elif isinstance(v, str):
+                    ret = pack_text(&self.pk, v)
+                elif k == "attributes":
+                    # span events can contain attributes, this is analougous to span tags
+                    attributes = v.items()
+                    ret = msgpack_pack_map(&self.pk, len(attributes))
+                    for attr_k, attr_v in attributes:
+                        ret = pack_text(&self.pk, attr_k)
+                        if ret != 0:
+                            return ret
+                        ret = pack_text(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                else:
+                    raise ValueError(f"Failed to encode SpanEvent. {k}={v} contains an unsupported type, {type(v)}")
                 if ret != 0:
                     return ret
         return 0
@@ -771,13 +814,18 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
+            if has_span_events and self.top_level_span_event_encoding:
+                ret = self._pack_span_events(span._events)
+            if ret != 0:
+                return ret
+                
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
-
                 span_events = ""
-                if has_span_events:
+                    
+                if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
@@ -815,9 +863,11 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
+    cdef public bint top_level_span_event_encoding
 
-    def __cinit__(self, size_t max_size, size_t max_item_size):
+    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
         self._st = MsgpackStringTable(max_size)
+        self.top_level_span_event_encoding = top_level_span_event_encoding
 
     cpdef flush(self):
         with self._lock:

@@ -468,6 +468,12 @@ class AgentWriter(HTTPWriter):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
+        self._top_level_span_event_enabled = False
+
+        if os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == 1:
+            self._api_version = "v0.4"
+            self._top_level_span_event_enabled = True
+
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
@@ -483,7 +489,14 @@ class AgentWriter(HTTPWriter):
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
+        if self._api_version == "v0.5":
+            client = WRITER_CLIENTS[self._api_version](
+                buffer_size, max_payload_size, False
+            )  # this should be false always
+        else:  # should only be v0.4
+            client = WRITER_CLIENTS[self._api_version](
+                buffer_size, max_payload_size, self._top_level_span_event_enabled
+            )
 
         _headers = {
             "Datadog-Meta-Lang": "python",
