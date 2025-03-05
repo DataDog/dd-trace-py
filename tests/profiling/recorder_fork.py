@@ -6,7 +6,7 @@ from ddtrace.profiling.collector import stack_event
 
 
 p = Profiler()
-p.start(profile_children=False, stop_on_exit=False)
+p.start()
 
 
 e = stack_event.StackSampleEvent()
