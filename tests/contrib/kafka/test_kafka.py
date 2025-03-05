@@ -296,7 +296,7 @@ def test_produce_topicname(dummy_tracer, producer, kafka_topic):
 
 def test_produce_no_topicname(dummy_tracer, producer, kafka_topic):
     Pin._override(producer, tracer=dummy_tracer)
-    producer.produce(None, PAYLOAD, key=KEY)
+    producer.produce("", PAYLOAD, key=KEY)
     producer.flush()
 
     traces = dummy_tracer.pop_traces()
