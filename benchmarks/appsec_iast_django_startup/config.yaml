@@ -1,0 +1,17 @@
+baseline: &baseline
+  tracer_enabled: false
+  appsec_enabled: false
+  iast_enabled: false
+tracer: &tracer
+  <<: *baseline
+  tracer_enabled: true
+appsec:
+  <<: *tracer
+  appsec_enabled: true
+iast:
+  <<: *tracer
+  iast_enabled: true
+appsec_iast:
+  <<: *tracer
+  appsec_enabled: true
+  iast_enabled: true

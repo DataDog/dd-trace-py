@@ -1,0 +1,10 @@
+django==4.2.5
+kombu==5.4.2
+matplotlib==3.8.1
+nibabel==5.3.2
+numpy==1.26.4
+opencv-python==4.10.0.82
+pandas==2.2.2
+pillow==10.4.0
+scipy==1.15.2
+requests==2.31.0
