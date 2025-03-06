@@ -8,6 +8,9 @@ import threading
 from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
+from .utils.formats import asbool
+
+from ..settings._core import get_config
 
 
 # Do not use an absolute import here Cython<3.0.0 will
@@ -548,12 +551,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 
 cdef class MsgpackEncoderV04(MsgpackEncoderBase):
-    cdef public bint top_level_span_event_encoding
+    cdef bint top_level_span_event_encoding
 
-    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
-        super(MsgpackEncoderV04, self).__cinit__(max_size, max_item_size)
-        self.top_level_span_event_encoding = top_level_span_event_encoding
-
+    def __cinit__(self, size_t max_size, size_t max_item_size):
+        self.top_level_span_event_encoding = get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, asbool)
+    
     cpdef flush(self):
         with self._lock:
             try:

@@ -16,9 +16,11 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._core import get_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -468,11 +470,9 @@ class AgentWriter(HTTPWriter):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
-        self._top_level_span_event_enabled = False
 
-        if config._native_span_events_enabled:
+        if get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, asbool):
             self._api_version = "v0.4"
-            self._top_level_span_event_enabled = True
 
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
@@ -489,12 +489,7 @@ class AgentWriter(HTTPWriter):
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        if self._api_version == "v0.5":
-            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)  # this should be false always
-        elif self._api_version == "v0.4":  # should only be v0.4
-            client = WRITER_CLIENTS[self._api_version](
-                buffer_size, max_payload_size, self._top_level_span_event_enabled
-            )
+        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         _headers = {
             "Datadog-Meta-Lang": "python",
@@ -506,7 +501,7 @@ class AgentWriter(HTTPWriter):
         if headers:
             _headers.update(headers)
 
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        _headers.update({"Content-Type": client.encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))

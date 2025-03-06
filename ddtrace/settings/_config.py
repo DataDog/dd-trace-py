@@ -475,7 +475,6 @@ class Config(object):
             log.error(
                 "Setting DD_TRACE_API_VERSION to ``v0.3`` is not supported. The default ``v0.5`` format will be used.",
             )
-        self._top_level_span_event = _get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, bool)
         self._trace_writer_buffer_size = _get_config("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", DEFAULT_BUFFER_SIZE, int)
         self._trace_writer_payload_size = _get_config(
             "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", DEFAULT_MAX_PAYLOAD_SIZE, int
