@@ -13,6 +13,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
   - ASM: To align across products, we're replacing `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED` with `DD_APM_TRACING_ENABLED`. Feature set remains the same.
   - Bumps libdatadog dependency to v16.0.3.
+
 ### Bug Fixes
 
   - celery: When multiple broker URLs are provided as a list, use the first broker URL from a list to avoid parsing errors.
