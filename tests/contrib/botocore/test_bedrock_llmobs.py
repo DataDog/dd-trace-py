@@ -115,6 +115,7 @@ def mock_tracer(bedrock_client):
     pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
 
+
 @pytest.fixture
 def mock_tracer_proxy(bedrock_client_proxy):
     mock_tracer = DummyTracer()
@@ -227,9 +228,7 @@ class TestLLMObsBedrock:
         LLMObs.disable()
 
     @classmethod
-    def _test_llmobs_invoke_stream_proxy(
-        cls, provider, bedrock_client, mock_tracer, llmobs_events, n_output=1
-    ):
+    def _test_llmobs_invoke_stream_proxy(cls, provider, bedrock_client, mock_tracer, llmobs_events, n_output=1):
         mock_invoke_model_http = botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
         mock_invoke_model_response = {
             "ResponseMetadata": {
@@ -341,16 +340,24 @@ class TestLLMObsBedrock:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
 
-    def test_llmobs_ai21_invoke_proxy(self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events):
+    def test_llmobs_ai21_invoke_proxy(
+        self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+    ):
         self._test_llmobs_invoke_proxy("ai21", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
 
-    def test_llmobs_amazon_invoke_proxy(self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events):
+    def test_llmobs_amazon_invoke_proxy(
+        self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+    ):
         self._test_llmobs_invoke_proxy("amazon", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
 
-    def test_llmobs_anthropic_invoke_proxy(self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events):
+    def test_llmobs_anthropic_invoke_proxy(
+        self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+    ):
         self._test_llmobs_invoke_proxy("anthropic", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
 
-    def test_llmobs_anthropic_message_proxy(self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events):
+    def test_llmobs_anthropic_message_proxy(
+        self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+    ):
         self._test_llmobs_invoke_proxy("anthropic_message", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
 
     def test_llmobs_cohere_single_output_invoke_proxy(
@@ -359,7 +366,7 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_proxy(
             "cohere",
             bedrock_client_proxy,
-            mock_tracer_proxy, 
+            mock_tracer_proxy,
             llmobs_events,
         )
 
@@ -369,12 +376,14 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_proxy(
             "cohere",
             bedrock_client_proxy,
-            mock_tracer_proxy, 
+            mock_tracer_proxy,
             llmobs_events,
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_proxy(self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events):
+    def test_llmobs_meta_invoke_proxy(
+        self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+    ):
         self._test_llmobs_invoke_proxy("meta", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
 
     def test_llmobs_amazon_invoke_stream_proxy(
@@ -390,7 +399,9 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_message_invoke_stream_proxy(
         self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
     ):
-        self._test_llmobs_invoke_stream_proxy("anthropic_message", bedrock_client_proxy, mock_tracer_proxy, llmobs_events)
+        self._test_llmobs_invoke_stream_proxy(
+            "anthropic_message", bedrock_client_proxy, mock_tracer_proxy, llmobs_events
+        )
 
     def test_llmobs_cohere_single_output_invoke_stream_proxy(
         self, ddtrace_global_config, bedrock_client_proxy, mock_tracer_proxy, llmobs_events
@@ -398,7 +409,7 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_stream_proxy(
             "cohere",
             bedrock_client_proxy,
-            mock_tracer_proxy, 
+            mock_tracer_proxy,
             llmobs_events,
         )
 
@@ -408,7 +419,7 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_stream_proxy(
             "cohere",
             bedrock_client_proxy,
-            mock_tracer_proxy, 
+            mock_tracer_proxy,
             llmobs_events,
             n_output=2,
         )
