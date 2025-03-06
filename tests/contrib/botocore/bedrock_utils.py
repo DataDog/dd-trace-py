@@ -1,5 +1,6 @@
 import os
 
+
 try:
     import vcr
 except ImportError:
