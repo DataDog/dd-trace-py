@@ -75,7 +75,7 @@ def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    res = {}
+    res: Dict[str, str] = {}
     if not tags_str:
         return res
     # falling back to comma as separator
