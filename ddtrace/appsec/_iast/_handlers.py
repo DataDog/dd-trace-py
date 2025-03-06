@@ -438,10 +438,10 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
         return
 
     try:
-        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+        from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
         content = response.content.decode("utf-8", errors="ignore")
-        asm_check_stacktrace_leak(content)
+        iast_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
@@ -470,10 +470,11 @@ def _on_flask_finalize_request_post(response, _):
         return
 
     try:
-        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+        from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
         content = response[0].decode("utf-8", errors="ignore")
-        asm_check_stacktrace_leak(content)
+
+        iast_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
@@ -483,22 +484,23 @@ def _on_asgi_finalize_response(body, _):
         return
 
     try:
-        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+        from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
         content = body.decode("utf-8", errors="ignore")
-        asm_check_stacktrace_leak(content)
+        iast_check_stacktrace_leak(content)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
 
 
 def _on_werkzeug_render_debugger_html(html):
-    if not html or not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    # we don't check asm_config.is_iast_request_enabled due to werkzeug.render_debugger_html works outside the request
+    if not html or not asm_config._iast_enabled:
         return
 
     try:
-        from .taint_sinks.stacktrace_leak import asm_check_stacktrace_leak
+        from .taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
 
-        asm_check_stacktrace_leak(html)
+        iast_check_stacktrace_leak(html)
         set_iast_stacktrace_reported(True)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
