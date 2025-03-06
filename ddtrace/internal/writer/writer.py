@@ -17,7 +17,6 @@ from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...internal.utils.formats import parse_tags_str
@@ -45,6 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple  # noqa:F401
 
     from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.vendor.dogstatsd import DogStatsd
 
     from .agent import ConnectionType  # noqa:F401
 
@@ -146,7 +146,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         buffer_size: Optional[int] = None,
         max_payload_size: Optional[int] = None,
         timeout: Optional[float] = None,
-        dogstatsd: Optional[DogStatsd] = None,
+        dogstatsd: Optional["DogStatsd"] = None,
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
         headers: Optional[Dict[str, str]] = None,
@@ -439,7 +439,7 @@ class AgentWriter(HTTPWriter):
         buffer_size: Optional[int] = None,
         max_payload_size: Optional[int] = None,
         timeout: Optional[float] = None,
-        dogstatsd: Optional[DogStatsd] = None,
+        dogstatsd: Optional["DogStatsd"] = None,
         report_metrics: bool = True,
         sync_mode: bool = False,
         api_version: Optional[str] = None,

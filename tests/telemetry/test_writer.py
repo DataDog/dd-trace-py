@@ -517,7 +517,6 @@ import ddtrace.settings.exception_replay
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-        {"name": "trace_sample_rate", "origin": "default", "value": 1.0},
     ]
     assert configurations == expected, configurations
 
