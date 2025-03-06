@@ -21,12 +21,9 @@ class CodeProvenanceTest : public ::testing::Test
         cp.set_runtime_version("3.10.6");
         cp.set_stdlib_path("/usr/lib/python3.10");
 
-        std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages = {
-            { "requests", std::make_pair("2.26.0", "/usr/lib/python3.10/site-packages") },
-            { "urllib3", std::make_pair("1.26.7", "/usr/lib/python3.10/site-packages") },
-            { "chardet", std::make_pair("4.0.0", "/usr/lib/python3.10/site-packages") },
-            { "idna", std::make_pair("3.2", "/usr/lib/python3.10/site-packages") },
-            { "certifi", std::make_pair("2021.5.30", "/usr/lib/python3.10/site-packages") },
+        std::unordered_map<std::string_view, std::string_view> packages = {
+            { "requests", "2.26.0" }, { "urllib3", "1.26.7" },    { "chardet", "4.0.0" },
+            { "idna", "3.2" },        { "certifi", "2021.5.30" },
         };
 
         cp.add_packages(packages);
@@ -62,25 +59,25 @@ TEST_F(CodeProvenanceTest, SerializeJsonStr)
                                               { "name", "requests" },
                                               { "kind", "library" },
                                               { "version", "2.26.0" },
-                                              { "paths", { "/usr/lib/python3.10/site-packages/requests" } },
+                                              { "paths", { "/usr/lib/python3.10/site-packages/requests/__init__.py" } },
                                             }),
                                             json({
                                               { "name", "urllib3" },
                                               { "kind", "library" },
                                               { "version", "1.26.7" },
-                                              { "paths", { "/usr/lib/python3.10/site-packages/urllib3" } },
+                                              { "paths", { "/usr/lib/python3.10/site-packages/urllib3/__init__.py" } },
                                             }),
                                             json({
                                               { "name", "chardet" },
                                               { "kind", "library" },
                                               { "version", "4.0.0" },
-                                              { "paths", { "/usr/lib/python3.10/site-packages/chardet" } },
+                                              { "paths", { "/usr/lib/python3.10/site-packages/chardet/chardet.py" } },
                                             }),
                                             json({
                                               { "name", "idna" },
                                               { "kind", "library" },
                                               { "version", "3.2" },
-                                              { "paths", { "/usr/lib/python3.10/site-packages/idna" } },
+                                              { "paths", { "/usr/lib/python3.10/site-packages/idna/util.py" } },
                                             }),
                                             json({
                                               { "name", "certifi" },
@@ -88,7 +85,8 @@ TEST_F(CodeProvenanceTest, SerializeJsonStr)
                                               { "version", "2021.5.30" },
                                               { "paths",
                                                 {
-                                                  "/usr/lib/python3.10/site-packages/certifi",
+                                                  "/usr/lib/python3.10/site-packages/certifi/__init__.py",
+                                                  "/usr/lib/python3.10/site-packages/certifi/cert.py",
                                                 } },
                                             }),
                                             json({ { "name", "stdlib" },
