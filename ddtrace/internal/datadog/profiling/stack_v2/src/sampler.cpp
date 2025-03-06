@@ -130,6 +130,8 @@ void
 Sampler::one_time_setup()
 {
     _set_cpu(true);
+    // By default echion will ignore thread that are not running. We still want
+    // to track them and set cpu time 0, so we disable this behavior.
     _set_ignore_non_running_threads(false);
     init_frame_cache(echion_frame_cache_size);
 
