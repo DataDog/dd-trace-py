@@ -143,7 +143,6 @@ def override_global_config(values):
         "_sampling_rules_file",
         "_trace_rate_limit",
         "_trace_sampling_rules",
-        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -1366,9 +1365,7 @@ def _should_skip(until: int, condition=None):
     until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
 def flaky(until: int, condition: bool = None, reason: str = None):

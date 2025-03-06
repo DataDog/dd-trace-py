@@ -263,6 +263,13 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
+    char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
+    if (val) {
+        /* NB: we don't bother checking whether val is actually a valid integer.
+         * Doesn't really matter as long as it's consistent */
+        srand(atoi(val));
+    }
+
     long max_nframe, max_events;
     long long int heap_sample_size;
 

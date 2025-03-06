@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -13,7 +12,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.trace import Span
 
 
@@ -31,27 +29,60 @@ class BedrockIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.*" tags."""
-        LLMObs._instance._activate_llmobs_span(span)
-        parameters = {}
-        if span.get_tag("bedrock.request.temperature"):
-            parameters["temperature"] = float(span.get_tag("bedrock.request.temperature") or 0.0)
-        if span.get_tag("bedrock.request.max_tokens"):
-            parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens") or 0)
+        """Extract prompt/response attributes from an execution context.
+        {
+            "resource": str
+            "model_name": str,
+            "model_provider": str,
+            "llmobs.request_params": {"prompt": str | list[dict],
+                                "temperature": Optional[float],
+                                "max_tokens": Optional[int]},
+            "llmobs.usage": Optional[dict],
+        }
+        """
+        metadata = {}
+        usage_metrics = {}
+        ctx = args[0]
 
-        prompt = kwargs.get("prompt", "")
+        request_params = ctx.get_item("llmobs.request_params") or {}
+
+        if ctx.get_item("llmobs.usage"):
+            usage_metrics = ctx["llmobs.usage"]
+
+        # Translate raw usage metrics returned from bedrock to the standardized metrics format.
+        if "inputTokens" in usage_metrics:
+            usage_metrics["input_tokens"] = usage_metrics.pop("inputTokens")
+        if "outputTokens" in usage_metrics:
+            usage_metrics["output_tokens"] = usage_metrics.pop("outputTokens")
+        if "totalTokens" in usage_metrics:
+            usage_metrics["total_tokens"] = usage_metrics.pop("totalTokens")
+
+        if "total_tokens" not in usage_metrics and (
+            "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
+        ):
+            usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get("output_tokens", 0)
+
+        if "temperature" in request_params and request_params.get("temperature") != "":
+            metadata["temperature"] = float(request_params.get("temperature") or 0.0)
+        if "max_tokens" in request_params and request_params.get("max_tokens") != "":
+            metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
+
+        prompt = request_params.get("prompt", "")
+
         input_messages = self._extract_input_message(prompt)
+
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
+
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("bedrock.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("bedrock.request.model_provider") or "",
+                MODEL_NAME: ctx.get_item("model_name") or "",
+                MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
-                METADATA: parameters,
-                METRICS: get_llmobs_metrics_tags("bedrock", span),
+                METADATA: metadata,
+                METRICS: usage_metrics,
                 OUTPUT_MESSAGES: output_messages,
             }
         )

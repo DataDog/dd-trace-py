@@ -1,3 +1,4 @@
+import sys
 from types import FunctionType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -16,9 +17,11 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
+
+
+PY = sys.version_info[:2]
 
 
 class WrappedFunction(Protocol):
