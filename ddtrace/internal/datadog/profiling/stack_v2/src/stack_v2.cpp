@@ -6,8 +6,6 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "echion/config.h"
-
 using namespace Datadog;
 
 static PyObject*
@@ -56,18 +54,6 @@ stack_v2_set_interval(PyObject* self, PyObject* args)
         return NULL; // If an error occurs during argument parsing
     }
     Sampler::get().set_interval(new_interval);
-    Py_RETURN_NONE;
-}
-
-static PyObject*
-stack_v2_set_max_frames(PyObject* Py_UNUSED(m), PyObject* args)
-{
-    unsigned int new_max_frames;
-    if (!PyArg_ParseTuple(args, "I", &new_max_frames))
-        return NULL;
-
-    max_frames = new_max_frames;
-
     Py_RETURN_NONE;
 }
 
@@ -197,7 +183,6 @@ static PyMethodDef _stack_v2_methods[] = {
     { "register_thread", stack_v2_thread_register, METH_VARARGS, "Register a thread" },
     { "unregister_thread", stack_v2_thread_unregister, METH_VARARGS, "Unregister a thread" },
     { "set_interval", stack_v2_set_interval, METH_VARARGS, "Set the sampling interval" },
-    { "set_max_frames", stack_v2_set_max_frames, METH_VARARGS, "Set the maximum number of frames to capture" },
     { "link_span",
       reinterpret_cast<PyCFunction>(stack_v2_link_span),
       METH_VARARGS | METH_KEYWORDS,
