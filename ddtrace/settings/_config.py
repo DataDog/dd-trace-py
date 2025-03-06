@@ -12,7 +12,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.utils.cache import cachedmethod
@@ -35,7 +34,6 @@ from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ..internal.utils.formats import parse_tags_str_v2
 from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -356,12 +354,7 @@ class _ConfigItem:
         )
 
 
-def _default_config(parse_v2=False) -> Dict[str, _ConfigItem]:
-    if parse_v2:
-        tag_parser = parse_tags_str_v2
-    else:
-        tag_parser = parse_tags_str
-
+def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
@@ -377,13 +370,13 @@ def _default_config(parse_v2=False) -> Dict[str, _ConfigItem]:
         "_trace_http_header_tags": _ConfigItem(
             default=lambda: {},
             envs=["DD_TRACE_HEADER_TAGS"],
-            modifier=tag_parser,
+            modifier=parse_tags_str,
         ),
         "tags": _ConfigItem(
             default=lambda: {},
             envs=["DD_TAGS"],
             otel_env="OTEL_RESOURCE_ATTRIBUTES",
-            modifier=lambda x: gitmetadata.clean_tags(tag_parser(x)),
+            modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),
         ),
         "_tracing_enabled": _ConfigItem(
             default=True,
@@ -453,13 +446,7 @@ class Config(object):
         validate_otel_envs()
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
-        self._experimental_features_enabled = _get_config(
-            "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: x.strip().upper().split(",")
-        )
-        # print("self._experimental_features_enabled", self._experimental_features_enabled)
-        use_v2_tag_parser = EXPERIMENTAL_FEATURES.DD_TAGS in self._experimental_features_enabled
-        # print("using v2", use_v2_tag_parser)
-        self._config = _default_config(use_v2_tag_parser)
+        self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
@@ -804,7 +791,7 @@ class Config(object):
 
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
-        if key in ("_config", "_from_endpoint", "_experimental_features_enabled"):
+        if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
             self._set_config_items([(key, value, "code")])

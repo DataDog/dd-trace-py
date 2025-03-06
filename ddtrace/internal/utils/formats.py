@@ -65,7 +65,7 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str_v2(tags_str):
+def parse_tags_str(tags_str):
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -95,75 +95,6 @@ def parse_tags_str_v2(tags_str):
             # only add the tag if the key is not empty
             res[key] = val
     return res
-
-
-def parse_tags_str(tags_str):
-    # type: (Optional[str]) -> Dict[str, str]
-    """
-    Parses a string containing key-value pairs and returns a dictionary.
-    Key-value pairs are delimited by ':', and pairs are separated by whitespace or comma (NOT BOTH).
-
-    This implementation for parsing tags is inconsistenct with the Datadog Agent and other Datadog SDKs.
-    This function will be replaced with `parse_tags_str_v2` in v4.0.
-
-    :param tags_str: A string of the above form to parse tags from.
-    :return: A dict containing the tags that were parsed.
-    """
-    if not tags_str:
-        return {}
-
-    TAGSEP = ", "
-
-    def parse_tags(tags):
-        # type: (List[str]) -> Tuple[List[Tuple[str, str]], List[str]]
-        parsed_tags = []
-        invalids = []
-
-        for tag in tags:
-            key, sep, value = tag.partition(":")
-            if not key.strip() or "," in key or (sep and not value):
-                invalids.append(tag)
-            elif sep:
-                # parse key:val,key2:value2
-                parsed_tags.append((key, value))
-            else:
-                # parse key,key2
-                parsed_tags.append((key, ""))
-
-        return parsed_tags, invalids
-
-    tags_str = tags_str.strip(TAGSEP)
-
-    # Take the maximal set of tags that can be parsed correctly for a given separator
-    tag_list = []  # type: List[Tuple[str, str]]
-    invalids = []
-    for sep in TAGSEP:
-        ts = tags_str.split(sep)
-        tags, invs = parse_tags(ts)
-        if len(tags) > len(tag_list):
-            tag_list = tags
-            invalids = invs
-        elif len(tags) == len(tag_list) > 1:
-            # Both separators produce the same number of tags.
-            # DEV: This only works when checking between two separators.
-            tag_list[:] = []
-            invalids[:] = []
-
-    if not tag_list:
-        log.error(
-            (
-                "Failed to find separator for tag string: '%s'.\n"
-                "Tag strings must be comma or space separated:\n"
-                "  key1:value1,key2:value2\n"
-                "  key1:value1 key2:value2"
-            ),
-            tags_str,
-        )
-
-    for tag in invalids:
-        log.error("Malformed tag in tag pair '%s' from tag string '%s'.", tag, tags_str)
-
-    return dict(tag_list)
 
 
 def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_LEN):
