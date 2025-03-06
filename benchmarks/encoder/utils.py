@@ -19,7 +19,9 @@ try:
     from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
 
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
-        return MSGPACK_ENCODERS[encoding](max_size, max_item_size)
+        return MSGPACK_ENCODERS[encoding](
+            max_size, max_item_size
+        )  # TODO(quinna): update this for top_level_span_event_encoding
 
 except ImportError:
 

@@ -788,7 +788,7 @@ def _value():
     ],
 )
 def test_encoding_invalid_data(data):
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20, False)
 
     span = Span(name="test")
     for key, value in data.items():
