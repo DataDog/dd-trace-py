@@ -101,4 +101,4 @@ class BedrockIntegration(BaseLLMIntegration):
 
         parsed_url = urlparse(base_url)
         default_url_regex = re.compile("^bedrock-runtime[\\w.-]*.com$")
-        return default_url_regex.match(parsed_url.hostname) is not None
+        return default_url_regex.match(parsed_url.hostname or "") is not None
