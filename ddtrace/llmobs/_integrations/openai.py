@@ -28,6 +28,7 @@ from ddtrace.trace import Span
 
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ["api.openai.com", "api.deepseek.com"]
 
+
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
 
@@ -54,7 +55,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        submit_to_llmobs = submit_to_llmobs and (operation_id.endswith("Completion") or operation_id == "createEmbedding")
+        submit_to_llmobs = submit_to_llmobs and (
+            operation_id.endswith("Completion") or operation_id == "createEmbedding"
+        )
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -249,12 +252,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         return get_llmobs_metrics_tags("openai", span)
 
     @classmethod
-    def is_default_base_url(cls, base_url: str | None) -> bool:
+    def is_default_base_url(cls, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
         from urllib.parse import urlparse
         import re
+
         parsed_url = urlparse(base_url)
-        default_azure_endpoint_regex = re.compile('^[\\w.-]*openai\\.azure\\.com$')
+        default_azure_endpoint_regex = re.compile("^[\\w.-]*openai\\.azure\\.com$")
         matches_azure_endpoint = default_azure_endpoint_regex.match(parsed_url.hostname) is not None
         return parsed_url.hostname in ACCEPTED_OPENAI_DEFAULT_HOSTNAMES or matches_azure_endpoint

@@ -26,14 +26,14 @@ WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
 
+
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsAnthropic:
     def test_completion_proxy(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
-        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified.
-        """
-        with patch.object(anthropic._base_client.SyncAPIClient, 'post') as mock_anthropic_messages_post:
+        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
+        with patch.object(anthropic._base_client.SyncAPIClient, "post") as mock_anthropic_messages_post:
             llm = anthropic.Anthropic(base_url="http://localhost:4000")
             mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
             llm.messages.create(
@@ -53,7 +53,6 @@ class TestLLMObsAnthropic:
             )
         # base_url is specified, so no llm obs span should be sent
         assert mock_llmobs_writer.enqueue.call_count == 0
-
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
