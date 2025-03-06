@@ -25,6 +25,10 @@ def record_llmobs_enabled(error, agentless_enabled, site, start_ns):
     )
 
 
+def record_span_started():
+    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.MLOBS, name="span.start", value=1)
+
+
 def record_span_created(span: Span):
     is_root_span = span._get_ctx_item(PARENT_ID_KEY) != ROOT_PARENT_ID
     has_session_id = span._get_ctx_item(SESSION_ID) is not None
@@ -48,4 +52,4 @@ def record_span_created(span: Span):
         tags.append(("decorator", str(decorator)))
     if model_provider:
         tags.append(("model_provider", model_provider))
-    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.MLOBS, name="span.created", value=1, tags=tuple(tags))
+    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.MLOBS, name="span.finished", value=1, tags=tuple(tags))

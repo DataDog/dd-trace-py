@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
@@ -77,6 +78,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
+        if self.llmobs_enabled:
+            span._set_ctx_item(INTEGRATION, self._integration_name)
         return span
 
     def trunc(self, text: str) -> str:

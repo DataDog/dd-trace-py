@@ -123,6 +123,7 @@ class LLMObs(Service):
     def _on_span_start(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            telemetry.record_span_started()
             self._do_annotations(span)
 
     def _on_span_finish(self, span):
