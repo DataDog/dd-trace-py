@@ -33,7 +33,14 @@ def test_hostname():
     assert config._stats_agent_hostname == os.environ.get("DD_AGENT_HOST")
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": None})
+@pytest.mark.subprocess(env={"DD_TRACE_AGENT_HOSTNAME": "monkey", "DD_AGENT_HOST": "baboon"})
+def test_trace_hostname():
+    from ddtrace import config
+
+    assert config._trace_agent_hostname == "monkey"
+
+
+@pytest.mark.subprocess(env={"DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOSTNAME": None})
 def test_hostname_not_set():
     from ddtrace import config
 
@@ -45,14 +52,14 @@ def test_hostname_not_set():
 def test_trace_port():
     from ddtrace import config
 
-    assert config._trace_agent_port == "1235"
+    assert config._trace_agent_port == "9999"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "9999"})
-def test_trace_port_legacy():
+@pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235"})
+def test_agent_port():
     from ddtrace import config
 
-    assert config._trace_agent_port == "9999"
+    assert config._trace_agent_port == "1235"
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_PORT": None, "DD_TRACE_AGENT_PORT": None})
@@ -81,9 +88,9 @@ def test_trace_url_uds():
     # with nothing set by user, and the default UDS available, we choose UDS
     import mock
 
-    from ddtrace.internal import agent
-
     with mock.patch("os.path.exists", return_value=True):
+        from ddtrace.internal import agent
+
         assert agent.get_trace_url() == "unix:///var/run/datadog/apm.socket"
 
 
@@ -106,7 +113,8 @@ def test_trace_url_with_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.get_trace_url() == "http://localhost:1235"
+        url = agent.get_trace_url()
+        assert url == "http://localhost:1235", url
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})

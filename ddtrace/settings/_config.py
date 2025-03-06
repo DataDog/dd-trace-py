@@ -492,14 +492,20 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        self._trace_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"])
-        self._trace_agent_port = _get_config(["DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"])
+        # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
+        self._trace_agent_hostname = _get_config(["DD_TRACE_AGENT_HOSTNAME", "DD_AGENT_HOST"])
+        self._trace_agent_port = _get_config(["DD_TRACE_AGENT_PORT", "DD_AGENT_PORT"])
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
-
-        self._stats_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_DOGSTATSD_HOST"])
-        self._stats_agent_port = _get_config("DD_DOGSTATSD_PORT")
+        self._stats_agent_hostname = _get_config(["DD_DOGSTATSD_HOST", "DD_AGENT_HOST"])
+        self._stats_agent_port = _get_config(["DD_DOGSTATSD_PORT", "DD_AGENT_PORT"])
         self._stats_agent_url = _get_config("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
+        # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
+        from ddtrace.internal.agent import config as agent_config
+
+        from ._telemetry import report_telemetry
+
+        report_telemetry(agent_config)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
@@ -671,6 +677,8 @@ class Config(object):
         self._lib_was_injected = False
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+
+        # report telemetry for agent configurations
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
