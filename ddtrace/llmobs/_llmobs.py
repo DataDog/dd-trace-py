@@ -33,6 +33,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
+from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -327,7 +328,6 @@ class LLMObs(Service):
         if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
-
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
@@ -335,55 +335,63 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
 
-        # validate required values for LLMObs
-        if not config._llmobs_ml_app:
-            raise ValueError(
-                "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
-                "Ensure this configuration is set before running your application."
-            )
-
-        config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
-        if config._llmobs_agentless_enabled:
-            # validate required values for agentless LLMObs
-            if not config._dd_api_key:
+        error = None
+        start_ns = time.time_ns()
+        try:
+            # validate required values for LLMObs
+            if not config._llmobs_ml_app:
+                error = "missing_ml_app"
                 raise ValueError(
-                    "DD_API_KEY is required for sending LLMObs data when agentless mode is enabled. "
+                    "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
                     "Ensure this configuration is set before running your application."
                 )
-            if not config._dd_site:
-                raise ValueError(
-                    "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
-                    "Ensure this configuration is set before running your application."
-                )
-            if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
-                config._remote_config_enabled = False
-                log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                remoteconfig_poller.disable()
 
-            # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
-            # we need to force telemetry to use agentless configuration
-            telemetry_writer.enable_agentless_client(True)
+            config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+            if config._llmobs_agentless_enabled:
+                # validate required values for agentless LLMObs
+                if not config._dd_api_key:
+                    error = "missing_api_key"
+                    raise ValueError(
+                        "DD_API_KEY is required for sending LLMObs data when agentless mode is enabled. "
+                        "Ensure this configuration is set before running your application."
+                    )
+                if not config._dd_site:
+                    error = "missing_site"
+                    raise ValueError(
+                        "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
+                        "Ensure this configuration is set before running your application."
+                    )
+                if not os.getenv("DD_REMOTE_CONFIG_ENABLED"):
+                    config._remote_config_enabled = False
+                    log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
+                    remoteconfig_poller.disable()
 
-        if integrations_enabled:
-            cls._patch_integrations()
+                # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
+                # we need to force telemetry to use agentless configuration
+                telemetry_writer.enable_agentless_client(True)
 
-        # override the default _instance with a new tracer
-        cls._instance = cls(tracer=_tracer)
-        cls.enabled = True
-        cls._instance.start()
+            if integrations_enabled:
+                cls._patch_integrations()
 
-        # Register hooks for span events
-        core.on("trace.span_start", cls._instance._on_span_start)
-        core.on("trace.span_finish", cls._instance._on_span_finish)
-        core.on("http.span_inject", cls._inject_llmobs_context)
-        core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
-        core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
-        core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+            # override the default _instance with a new tracer
+            cls._instance = cls(tracer=_tracer)
+            cls.enabled = True
+            cls._instance.start()
 
-        atexit.register(cls.disable)
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+            # Register hooks for span events
+            core.on("trace.span_start", cls._instance._on_span_start)
+            core.on("trace.span_finish", cls._instance._on_span_finish)
+            core.on("http.span_inject", cls._inject_llmobs_context)
+            core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
+            core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
+            core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
 
-        log.debug("%s enabled", cls.__name__)
+            atexit.register(cls.disable)
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
+
+            log.debug("%s enabled", cls.__name__)
+        finally:
+            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns)
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
