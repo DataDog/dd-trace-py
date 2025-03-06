@@ -4,8 +4,7 @@ from types import CodeType
 from types import ModuleType
 from typing import Callable
 
-from ddtrace.errortracking.handled_exceptions_callbacks import _default_datadog_exc_callback
-from ddtrace.errortracking.handled_exceptions_callbacks import _unhandled_exc_datadog_exc_callback
+from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.packages import filename_to_package  # noqa: F401
@@ -72,31 +71,20 @@ def _install_sys_monitoring_reporting():
     sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
     sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
-    if config._report_after_unhandled:
-        # Report handled exception only if an unhandled exceptions occurred
-        def _exc_after_unhandled_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-            if cached_should_report_exception(code.co_filename):
-                _unhandled_exc_datadog_exc_callback(exc=exception)
-            return True
+    def _exc_after_unhandled_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
+        if cached_should_report_exception(code.co_filename):
+            _default_errortracking_exc_callback(exc=exception)
+        return True
 
-        sys.monitoring.register_callback(
-            config.HANDLED_EXCEPTIONS_MONITORING_ID,
-            sys.monitoring.events.EXCEPTION_HANDLED,
-            _exc_after_unhandled_event_handler,
-        )
+    sys.monitoring.register_callback(
+        config.HANDLED_EXCEPTIONS_MONITORING_ID,
+        sys.monitoring.events.EXCEPTION_HANDLED,
+        _exc_after_unhandled_event_handler,
+    )
 
-    else:
-        # Report every handled exceptions
-        def _exc_default_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-            if cached_should_report_exception(code.co_filename):
-                _default_datadog_exc_callback(exc=exception)
-            return True
 
-        sys.monitoring.register_callback(
-            config.HANDLED_EXCEPTIONS_MONITORING_ID,
-            sys.monitoring.events.EXCEPTION_HANDLED,
-            _exc_default_event_handler,
-        )
+def _disable_monitoring():
+    sys.monitoring.free_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID)
 
 
 class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
@@ -115,8 +103,18 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def conditionally_instrument_module(self, configured_modules: list[str], module_name: str, module: ModuleType):
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
-                INSTRUMENTED_FILE_PATHS.append(module.__file__)
+                if hasattr(module, "__file__"):
+                    print(hasattr(module, "__file__"))
+                    INSTRUMENTED_FILE_PATHS.append(module.__file__)
                 break
+
+    def __init__(self):
+        super().__init__()
+        # There might be modules that are already loaded at the time of installation, so we need to instrument them
+        # if they have been configured.
+        existing_modules = set(sys.modules.keys())
+        for module_name in existing_modules:
+            self.conditionally_instrument_module(self._configured_modules, module_name, sys.modules[module_name])
 
     def after_import(self, module: ModuleType):
         module_name = module.__name__
@@ -124,10 +122,3 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
             return
         self._instrumented_modules.add(module_name)
         self.conditionally_instrument_module(self._configured_modules, module_name, module)
-
-    def after_install(self):
-        # There might be modules that are already loaded at the time of installation, so we need to instrument them
-        # if they have been configured.
-        existing_modules = set(sys.modules.keys())
-        for module_name in existing_modules:
-            self.conditionally_instrument_module(self._configured_modules, module_name, sys.modules[module_name])

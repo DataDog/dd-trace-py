@@ -7,10 +7,10 @@ from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 
-from .handled_exceptions_callbacks import _default_datadog_exc_callback
+from .callbacks import _default_errortracking_exc_callback
 
 
-def _inject_handled_exception_reporting(func, callback: CallbackType | None = None):
+def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType] = None):
     """Find the bytecode offsets for which we should inject our callback
     and call the bytecode injection code
     """
@@ -22,7 +22,7 @@ def _inject_handled_exception_reporting(func, callback: CallbackType | None = No
 
     original_code = code_to_instr.__code__  # type: CodeType
 
-    callback = callback or _default_datadog_exc_callback
+    callback = callback or _default_errortracking_exc_callback
 
     # Find the bytecode offsets, they must be the first offset of a line as we inject
     # bytecodes only at line start.

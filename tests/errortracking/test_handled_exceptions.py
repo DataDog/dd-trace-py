@@ -20,7 +20,9 @@ skipif_bytecode_injection_not_supported = pytest.mark.skipif(
 class ErrorTestCases(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_basic_try_except(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_basic_try_except_f
 
         value = 0
@@ -31,6 +33,7 @@ class ErrorTestCases(TracerTestCase):
             value = test_basic_try_except_f(value)
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == 10
         self.assert_span_count(1)
@@ -41,7 +44,9 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_basic_multiple_except(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_basic_multiple_except_f
 
         value = 0
@@ -53,6 +58,8 @@ class ErrorTestCases(TracerTestCase):
 
         f(0)
         f(1)
+        HandledExceptionCollector.disable()
+
         assert value == 15
         self.assert_span_count(2)
         self.spans[0].assert_span_event_count(1)
@@ -66,7 +73,9 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_handled_same_error_multiple_times(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_handled_same_error_multiple_times_f
 
         value = 0
@@ -77,6 +86,7 @@ class ErrorTestCases(TracerTestCase):
             value = test_handled_same_error_multiple_times_f(value)
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == 10
         self.assert_span_count(1)
@@ -87,7 +97,9 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_reraise_handled_error(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_reraise_handled_error_f
 
         value = 0
@@ -98,6 +110,7 @@ class ErrorTestCases(TracerTestCase):
             value = test_reraise_handled_error_f(value)
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == 10
         self.assert_span_count(1)
@@ -111,9 +124,11 @@ class ErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
     def test_async_error(self):
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         import asyncio
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
         from tests.errortracking._test_functions import test_sync_error_f
 
         value = ""
@@ -124,6 +139,7 @@ class ErrorTestCases(TracerTestCase):
             value = asyncio.run(test_sync_error_f(value))
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == "<sync_error><async_error>"
         self.assert_span_count(1)
@@ -142,7 +158,9 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_report_after_unhandled_without_raise(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401s
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
@@ -153,6 +171,7 @@ class ErrorTestCases(TracerTestCase):
             value = test_report_after_unhandled_without_raise_f(value)
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == 10
         self.assert_span_count(1)
@@ -165,7 +184,9 @@ class ErrorTestCases(TracerTestCase):
         )
     )
     def test_report_after_unhandled_with_raise(self):
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
         from tests.errortracking._test_functions import test_report_after_unhandled_without_raise_f
 
         value = 0
@@ -178,6 +199,7 @@ class ErrorTestCases(TracerTestCase):
 
         with pytest.raises(NameError):
             f()
+        HandledExceptionCollector.disable()
 
         assert value == 10
         self.assert_span_count(1)
@@ -242,7 +264,9 @@ class UserCodeErrorTestCases(TracerTestCase):
         subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
 
         value = ""
 
@@ -252,6 +276,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             value = main_code.main_user_code(value)  # type: ignore
 
         f()
+        HandledExceptionCollector.disable()
 
         """ In python3.12, it seems ddtrace can be considered as
         user code in the CI. Rather than doing magic stuff in the code just for a test
@@ -277,7 +302,9 @@ class UserCodeErrorTestCases(TracerTestCase):
         subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
 
         value = ""
 
@@ -287,6 +314,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             value = main_code.main_user_code(value)  # type: ignore
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
@@ -307,7 +335,9 @@ class UserCodeErrorTestCases(TracerTestCase):
         subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
         import main_code  # type: ignore
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
 
         value = ""
 
@@ -317,6 +347,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             value = main_code.main_user_code(value)  # type: ignore
 
         f()
+        HandledExceptionCollector.disable()
 
         assert value == "<except_f><except_module_f><except_numpy>"
         self.assert_span_count(1)
@@ -333,7 +364,9 @@ class UserCodeErrorTestCases(TracerTestCase):
         import submodule.submodule_1 as sub_1  # type: ignore
         import submodule.submodule_2 as sub_2  # type: ignore
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
 
         # value is used to ensure the except block is properly executed
         value = ""
@@ -350,6 +383,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             value += sub_2.submodule_2_f()
 
         f()
+        HandledExceptionCollector.disable()
+
         assert value == "<except_f><except_submodule_1><except_submodule_2>"
         self.assert_span_count(1)
         self.spans[0].assert_span_event_count(2)
@@ -368,7 +403,9 @@ class UserCodeErrorTestCases(TracerTestCase):
         import submodule.submodule_1 as sub_1  # type: ignore
         import submodule.submodule_2 as sub_2  # type: ignore
 
-        import ddtrace.errortracking.handled_exceptions_reporting  # noqa: F401
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
 
         # value is used to ensure the except block is properly executed
         value = ""
@@ -385,6 +422,8 @@ class UserCodeErrorTestCases(TracerTestCase):
             value += sub_2.submodule_2_f()
 
         f()
+        HandledExceptionCollector.disable()
+
         assert value == "<except_f><except_submodule_1><except_submodule_2>"
         self.assert_span_count(1)
         self.spans[0].assert_span_event_count(1)

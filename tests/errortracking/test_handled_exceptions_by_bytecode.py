@@ -4,7 +4,7 @@ import pytest
 
 
 if sys.version_info[:2] >= (3, 10) and sys.version_info[:2] < (3, 12):
-    from ddtrace.errortracking.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
+    from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
 
 skipif_bytecode_injection_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10) or sys.version_info[:2] > (3, 11),

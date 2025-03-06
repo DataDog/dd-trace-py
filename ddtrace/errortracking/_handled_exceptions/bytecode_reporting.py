@@ -3,9 +3,8 @@ import sys
 import types
 from types import ModuleType
 
-from ddtrace.errortracking.handled_exceptions_by_bytecode import _inject_handled_exception_reporting
-from ddtrace.errortracking.handled_exceptions_callbacks import _default_datadog_exc_callback
-from ddtrace.errortracking.handled_exceptions_callbacks import _unhandled_exc_datadog_exc_callback
+from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
+from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
@@ -30,7 +29,7 @@ class HandledExceptionReportingInjector:
 
     def __init__(self, configured_modules: list[str], callback: CallbackType | None = None):
         self._configured_modules = configured_modules
-        self._callback = callback or _default_datadog_exc_callback
+        self._callback = callback or _default_errortracking_exc_callback
 
     @cached(maxsize=256)
     def _has_file(self, module) -> bool:
@@ -118,16 +117,10 @@ class InjectionHandledExceptionReportingWatchdog(BaseModuleWatchdog):
     def after_import(self, module: ModuleType):
         _injector.instrument_module_conditionally(module.__name__)  # type: ignore
 
-    def after_install(self):
+    def __init__(self):
+        super().__init__()
         global _injector
-
-        # Init injector, which in charge of the bytecode injection
-        if config._report_after_unhandled is False:
-            _injector = HandledExceptionReportingInjector(config._configured_modules)
-        else:
-            _injector = HandledExceptionReportingInjector(
-                config._configured_modules, _unhandled_exc_datadog_exc_callback
-            )
+        _injector = HandledExceptionReportingInjector(config._configured_modules)
 
         # There might be modules that are already loaded at the time of installation, so we need to instrument them
         # if they have been configured.

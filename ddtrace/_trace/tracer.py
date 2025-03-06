@@ -4,7 +4,6 @@ import logging
 import os
 from os import environ
 from os import getpid
-import sys
 from threading import RLock
 from typing import Any
 from typing import Callable
@@ -67,7 +66,6 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.errortracking import config as errortracking_config
 from ddtrace.settings.peer_service import _ps_config
 
 
@@ -1086,8 +1084,6 @@ class Tracer(object):
             forksafe.unregister_before_fork(self._sample_before_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
-        if errortracking_config.enabled is True and sys.version_info >= (3, 12):
-            sys.monitoring.free_tool_id(errortracking_config.HANDLED_EXCEPTIONS_MONITORING_ID)  # type: ignore
 
     @staticmethod
     def _use_log_writer() -> bool:
