@@ -98,12 +98,17 @@ class BotocoreTest(TracerTestCase):
         self.sqs_client = self.session.create_client(
             "sqs", region_name="us-east-1", endpoint_url="http://localhost:4566"
         )
-        for queue_url in self.sqs_client.list_queues().get("QueueUrls", []):
-            self.sqs_client.delete_queue(QueueUrl=queue_url)
+        # Clean up any existing queues first
+        try:
+            queues = self.sqs_client.list_queues()
+            if queues.get("QueueUrls"):
+                for queue_url in queues["QueueUrls"]:
+                    self.sqs_client.delete_queue(QueueUrl=queue_url)
+        except botocore.exceptions.ClientError:
+            pass  # Ignore errors during cleanup
 
+        # Create new test queue
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
-
-        super(BotocoreTest, self).setUp()
 
         pin = Pin(service=self.TEST_SERVICE)
         pin._tracer = self.tracer
