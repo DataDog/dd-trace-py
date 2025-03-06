@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Pin
+from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
@@ -126,12 +127,6 @@ class TestLLMObsBedrock:
     @classmethod
     def _test_llmobs_invoke_proxy(cls, provider, bedrock_client, mock_llmobs_span_writer, n_output=1):
         mock_invoke_model_http = botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
-        response_data = (
-            b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
-            b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
-            b'escape their event horizon. They are formed when very large stars collapse.", '
-            b'"completionReason": "FINISH"}]}'
-        )
         mock_invoke_model_response = {
             "ResponseMetadata": {
                 "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
@@ -151,7 +146,7 @@ class TestLLMObsBedrock:
             "contentType": "application/json",
             "body": botocore.response.StreamingBody(
                 urllib3.response.HTTPResponse(
-                    body=BytesIO(response_data),
+                    body=BytesIO(_MOCK_RESPONSE_DATA),
                     status=200,
                     headers={"Content-Type": "application/json"},
                     preload_content=False,
@@ -192,12 +187,6 @@ class TestLLMObsBedrock:
     @classmethod
     def _test_llmobs_invoke_stream_proxy(cls, provider, bedrock_client, mock_llmobs_span_writer, n_output=1):
         mock_invoke_model_http = botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
-        response_data = (
-            b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
-            b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
-            b'escape their event horizon. They are formed when very large stars collapse.", '
-            b'"completionReason": "FINISH"}]}'
-        )
         mock_invoke_model_response = {
             "ResponseMetadata": {
                 "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
@@ -217,7 +206,7 @@ class TestLLMObsBedrock:
             "contentType": "application/json",
             "body": botocore.response.StreamingBody(
                 urllib3.response.HTTPResponse(
-                    body=BytesIO(response_data),
+                    body=BytesIO(_MOCK_RESPONSE_DATA),
                     status=200,
                     headers={"Content-Type": "application/json"},
                     preload_content=False,
