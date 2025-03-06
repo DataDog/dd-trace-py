@@ -81,6 +81,7 @@ def lambda_handler(event, context):
     return zip_output.read()
 
 
+@pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="setUp/tearDown is incompatible with botocore 1.34.131")
 class BotocoreTest(TracerTestCase):
     """Botocore integration testsuite"""
 
