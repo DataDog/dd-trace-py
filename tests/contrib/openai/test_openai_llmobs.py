@@ -1,7 +1,8 @@
+from unittest.mock import patch
+
 import mock
 import openai as openai_module
 import pytest
-from unittest.mock import patch
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
@@ -9,6 +10,7 @@ from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+
 
 MOCK_OPENAI_COMPLETIONS_RESPONSE = openai_module.types.Completion(
     id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",

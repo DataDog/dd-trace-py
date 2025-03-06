@@ -96,8 +96,8 @@ class BedrockIntegration(BaseLLMIntegration):
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
-        from urllib.parse import urlparse
         import re
+        from urllib.parse import urlparse
 
         parsed_url = urlparse(base_url)
         default_url_regex = re.compile("^bedrock-runtime[\\w.-]*.com$")

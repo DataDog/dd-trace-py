@@ -6,7 +6,8 @@ import pytest
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 from .test_anthropic import ANTHROPIC_VERSION
-from .utils import tools, MOCK_MESSAGES_CREATE_REQUEST
+from .utils import MOCK_MESSAGES_CREATE_REQUEST
+from .utils import tools
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"

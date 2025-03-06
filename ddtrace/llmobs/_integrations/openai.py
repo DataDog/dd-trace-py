@@ -26,6 +26,7 @@ from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
+
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ["api.openai.com", "api.deepseek.com"]
 
 
@@ -255,8 +256,8 @@ class OpenAIIntegration(BaseLLMIntegration):
     def is_default_base_url(cls, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
-        from urllib.parse import urlparse
         import re
+        from urllib.parse import urlparse
 
         parsed_url = urlparse(base_url)
         default_azure_endpoint_regex = re.compile("^[\\w.-]*openai\\.azure\\.com$")

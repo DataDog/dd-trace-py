@@ -1,7 +1,9 @@
 import os
 
+from anthropic.types import Message
+from anthropic.types import TextBlock
+from anthropic.types import Usage
 import vcr
-from anthropic.types import Message, TextBlock, Usage
 
 
 # VCR is used to capture and store network requests made to Anthropic.

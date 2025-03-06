@@ -1,12 +1,12 @@
+from io import BytesIO
 import json
 import os
-import urllib3
-import botocore
-from io import BytesIO
+from unittest.mock import patch as mock_patch
 
+import botocore
 import mock
 import pytest
-from unittest.mock import patch as mock_patch
+import urllib3
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
@@ -126,7 +126,9 @@ class TestLLMObsBedrock:
     @classmethod
     def _test_llmobs_invoke_proxy(cls, provider, bedrock_client, mock_llmobs_span_writer, n_output=1):
         mock_invoke_model_http = botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
-        response_data = b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black holes are massive objects that have a gravitational pull so strong that nothing, including light, can escape their event horizon. They are formed when very large stars collapse.", "completionReason": "FINISH"}]}'
+        response_data = b'''{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black 
+        holes are massive objects that have a gravitational pull so strong that nothing, including light, can 
+        escape their event horizon. They are formed when very large stars collapse.", "completionReason": "FINISH"}]}'''
         mock_invoke_model_response = {
             "ResponseMetadata": {
                 "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
@@ -187,7 +189,9 @@ class TestLLMObsBedrock:
     @classmethod
     def _test_llmobs_invoke_stream_proxy(cls, provider, bedrock_client, mock_llmobs_span_writer, n_output=1):
         mock_invoke_model_http = botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
-        response_data = b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black holes are massive objects that have a gravitational pull so strong that nothing, including light, can escape their event horizon. They are formed when very large stars collapse.", "completionReason": "FINISH"}]}'
+        response_data = b'''{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black 
+        holes are massive objects that have a gravitational pull so strong that nothing, including light, can 
+        escape their event horizon. They are formed when very large stars collapse.", "completionReason": "FINISH"}]}'''
         mock_invoke_model_response = {
             "ResponseMetadata": {
                 "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
