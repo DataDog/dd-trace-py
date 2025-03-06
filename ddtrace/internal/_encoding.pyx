@@ -555,7 +555,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         self.top_level_span_event_encoding = get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, asbool)
-    
+
     cpdef flush(self):
         with self._lock:
             try:
