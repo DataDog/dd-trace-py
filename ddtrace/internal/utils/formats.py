@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -76,16 +75,26 @@ def parse_tags_str_v2(tags_str):
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    pairs = re.split(r"[,\s]+", tags_str.strip())  # Split by comma, whitespace, or both
-    result = {}
+    res = {}
+    # falling back to comma as separator
+    sep = "," if "," in tags_str else " "
 
-    for kv in pairs:
-        if ":" in kv:
-            key, value = kv.split(":", 1)  # Split only on the first ':'
-            result[key] = value
+    for tag in tags_str.split(sep):
+        tag = tag.strip()
+        if not tag:
+            # skip empty tags
+            continue
+        elif ":" in tag:
+            # if tag contains a colon, split on the first colon
+            key, val = tag.split(":", 1)
         else:
-            result[kv] = ""
-    return result
+            # if tag does not contain a colon, use the whole string as the key
+            key, val = tag, ""
+        key, val = key.strip(), val.strip()
+        if key:
+            # only add the tag if the key is not empty
+            res[key] = val
+    return res
 
 
 def parse_tags_str(tags_str):
