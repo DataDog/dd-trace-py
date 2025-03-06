@@ -41,7 +41,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "taegyunkim/ddtracepy-fix"
+    "taegyunkim/dddtracepy-fix"
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
