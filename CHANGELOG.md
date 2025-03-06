@@ -8,6 +8,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### New Features
 
+
   - ASM: This introduces auto instrumentation of signup events for Django.
 ### Upgrade Notes
 
