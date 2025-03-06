@@ -9,7 +9,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.5.2",
+    "envier==0.6.1",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
@@ -84,7 +84,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier==0.5.2",
+    "envier==0.6.1",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -187,6 +187,7 @@ DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
+DD_FAST_BUILD = "1"
 
 ## ASM Django
 
@@ -199,10 +200,6 @@ dependencies = [
     "hypothesis",
     "django{matrix:django}"
 ]
-
-[envs.appsec_threats_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -248,10 +245,6 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}"
 ]
-
-[envs.appsec_threats_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -383,6 +376,38 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
+[envs.appsec_iast_packages.env-vars]
+DD_FAST_BUILD = "0"
+
+## ASM iast_tdd_propagation
+
+[envs.iast_tdd_propagation]
+template = "iast_tdd_propagation"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "flask",
+    "pycryptodome",
+    "sqlalchemy~=2.0.23",
+    "pony",
+    "aiosqlite",
+    "tortoise-orm",
+    "peewee",
+    "aiosqlite",
+]
+
+[envs.iast_tdd_propagation.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_tdd_propagation",
+]
+
+[[envs.iast_tdd_propagation.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
 ## ASM appsec_integrations_django
 
 [envs.appsec_integrations_django]
@@ -481,9 +506,6 @@ dependencies = [
     "fastapi{matrix:fastapi}"
 ]
 
-[envs.appsec_integrations_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
 [envs.appsec_integrations_fastapi.scripts]
 test = [
     "uname -a",
@@ -522,10 +544,6 @@ dependencies = [
     "fastapi{matrix:fastapi}"
 ]
 
-[envs.appsec_threats_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-
 [envs.appsec_threats_fastapi.scripts]
 test = [
     "uname -a",
@@ -549,7 +567,6 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-
 ## ASM Appsec Aggregated Leak Testing
 
 [envs.iast_aggregated_leak_testing]
@@ -566,10 +583,9 @@ dependencies = [
 ]
 
 [envs.iast_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
+DD_FAST_BUILD = "0"
 
 [envs.iast_aggregated_leak_testing.scripts]
 test = [
@@ -600,8 +616,6 @@ dependencies = [
 [envs.profiling_pytorch.env-vars]
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.profiling_pytorch.scripts]
 test = [
@@ -622,6 +636,9 @@ dependencies = [
     "requests",
     "hypothesis",
     "flask",
+    "asgiref",
+    "botocore",
+    "dnspython",
 ]
 
 [envs.multiple_os_tests.env-vars]
@@ -728,8 +745,6 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.selenium.scripts]
 test = [

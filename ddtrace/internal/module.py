@@ -1,7 +1,6 @@
 import abc
 from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
-from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
@@ -15,6 +14,10 @@ from weakref import WeakValueDictionary as wvdict
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping.context import WrappingContext
+
+
+if t.TYPE_CHECKING:
+    from importlib.abc import Loader
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -139,7 +142,7 @@ def _resolve(path: Path) -> t.Optional[Path]:
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
 
-def find_loader(fullname: str) -> t.Optional[Loader]:
+def find_loader(fullname: str) -> t.Optional["Loader"]:
     return getattr(find_spec(fullname), "loader", None)
 
 
@@ -152,7 +155,7 @@ def is_namespace_spec(spec: ModuleSpec) -> bool:
 
 
 class _ImportHookChainedLoader:
-    def __init__(self, loader: t.Optional[Loader], spec: t.Optional[ModuleSpec] = None) -> None:
+    def __init__(self, loader: t.Optional["Loader"], spec: t.Optional[ModuleSpec] = None) -> None:
         self.loader = loader
         self.spec = spec
 
@@ -356,7 +359,7 @@ class BaseModuleWatchdog(abc.ABC):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         return code
 
-    def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional[Loader]:
+    def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional["Loader"]:
         if fullname in self._finding:
             return None
 
@@ -374,7 +377,7 @@ class BaseModuleWatchdog(abc.ABC):
                 loader.add_callback(type(self), self.after_import)
                 loader.add_transformer(type(self), self.transform)
 
-                return t.cast(Loader, loader)
+                return t.cast("Loader", loader)
 
         finally:
             self._finding.remove(fullname)
@@ -402,7 +405,7 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = t.cast(Loader, _ImportHookChainedLoader(loader, spec))
+                spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
             t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(self), self.transform)

@@ -20,18 +20,24 @@ import requests
 """This release notes script is built to create a release notes draft
 for release candidates, patches, and minor releases.
 
+The general procedure is documented here: https://datadoghq.atlassian.net/wiki/spaces/APMPY/pages/2871001850/Release+Candidates+and+Patch+Releases
+
 Setup:
 1. Create a Personal access token (classic), not a fine grained one, on Github:
 https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
 2. Give the Github token repo, user, audit_log, project permissions. On the next page authorize your token for Datadog SSO.
-3. Add `export GH_TOKEN=<github token>` to your `.zhrc` file.
+3. Add `export GH_TOKEN=<github token>` to your `.bashrc/.zhrc` file.
 
-4. Get API key and Application key for staging: https://ddstaging.datadoghq.com/organization-settings/api-keys
-5. Add export DD_API_KEY_STAGING=<api_key> and  export DD_APP_KEY_STAGING=<app_key> to your `.zhrc` file.
-
-6. Install pandoc with `brew install pandoc`
-
-Create an activate a virtual environment, and install required packages :
+4. Use dd-auth to get the APP and API keys for staging:
+- Install `dd-auth` if not previously installed, see: https://datadoghq.atlassian.net/wiki/spaces/COBS/pages/4094591351/Datadog+Authentication+CLI+dd-auth-cli+dd-auth
+  Note that for Linux you need the `update-tool` binary to install `dd-auth` which is in the `bin/` subdirectory of the devtools
+  repo: https://github.com/DataDog/devtools. Then set `DATADOG_ROOT` to the directory over the one you cloned `devtools` and then the `devtools/bin/update-tool dd-auth`
+  command should work.
+- Run `dd-auth --domain ddstaging.datadoghq.com --output`. If a web browser opens, choose staging.
+5. Export the shown keys adding `_STAGING` so `DD_API_KEY -> DD_API_KEY_STAGING` and `DD_APP_KEY -> DD_APP_KEY_STAGING` (or add it to your .bashrc/.zshrc).
+6. Install pandoc with `brew install pandoc` or `apt install pandoc`.
+7. Ensure you have the previous branch on your local git tracking the remote branch, e.g. if you are releasing 3.1 do a `git checkout --set-upstream-to origin/3.1 3.1`.
+8. Create an activate a virtual environment, and install required packages :
 `python -m venv venv && source venv/bin/activate && pip install pygithub requests datadog-api-client reno`
 
 
@@ -55,6 +61,9 @@ Generate release notes and staging testing notebook for next release candidate v
 Generate release notes for next patch version of 2.13: `BASE=2.13 PATCH=1 python release.py`
 
 Generate release notes for the 2.15 release: `BASE=2.15 python release.py`
+
+9. Copy the message at the end of the script output and post it in the #apm-python-release slack channel.
+10. Update the #apm-python-release topic updating the versions and dates (check the dd-trace releases calendar).
 """  # noqa
 
 MAX_GH_RELEASE_NOTES_LENGTH = 125000
@@ -426,6 +435,18 @@ def create_notebook(dd_repo, name, rn, base):
     )
     data = template_notebook.decode("utf8")
     data = json.loads(data)
+    errors = data.get("errors")
+    if errors:
+        if errors.lower() == "forbidden":
+            raise ValueError(
+                "Forbidden error. Check the API and APP keys are correct and have the right permissions as documented"
+                "in the script"
+            )
+        else:
+            raise ValueError(
+                "An error occurred while trying to get the notebook template. Error: {errors}".format(errors=errors)
+            )
+
     # change the text inside of our template to include release notes
     data["data"]["attributes"]["cells"][1]["attributes"]["definition"][
         "text"
