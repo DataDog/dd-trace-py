@@ -65,7 +65,7 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str(tags_str):
+def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -76,6 +76,8 @@ def parse_tags_str(tags_str):
     :return: A dict containing the tags that were parsed.
     """
     res = {}
+    if not tags_str:
+        return res
     # falling back to comma as separator
     sep = "," if "," in tags_str else " "
 
