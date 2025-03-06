@@ -527,7 +527,6 @@ class StackCollector(collector.PeriodicCollector):
             # itself, but it's a little bit fiddly and it's easier to make it correct here.
             # TODO take the `threading` import out of here and just handle it in v2 startup
             threading.init_stack_v2()
-            # stack_v2.set_max_frames(self.nframes)
             stack_v2.start()
 
     def _start_service(self):
