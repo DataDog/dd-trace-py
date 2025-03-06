@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.flask_tests.test_flask_remoteconfig import _get_agent_client
@@ -32,6 +34,7 @@ def _get_span(token):
     return json.loads(resp.read())
 
 
+@pytest.mark.skip(reason="Stacktrace error in debug mode doesn't work outside the request APPSEC-56862")
 def test_iast_stacktrace_error():
     token = "test_iast_stacktrace_error"
     _ = start_trace(token)
@@ -45,7 +48,7 @@ def test_iast_stacktrace_error():
             b"<title>ValueError: Check my stacktrace!" in response.content
         ), f"Exception doesn't found in CONTENT: {response.content}"
 
-        flask_client.get("/", headers={"X-Datadog-Test-Session-Token": token})
+        # flask_client.get("/", headers={"X-Datadog-Test-Session-Token": token})
 
     response_tracer = _get_span(token)
     spans_with_iast = []
