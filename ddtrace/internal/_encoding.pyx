@@ -349,7 +349,7 @@ cdef class BufferedEncoder(object):
     cdef public size_t max_item_size
     cdef object _lock
 
-    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         self.max_size = max_size
         self.max_item_size = max_item_size
         self._lock = threading.Lock()
@@ -415,7 +415,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef msgpack_packer pk
     cdef stdint.uint32_t _count
 
-    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         cdef int buf_size = 1024*1024
         self.pk.buf = <char*> PyMem_Malloc(buf_size)
         if self.pk.buf == NULL:
@@ -549,8 +549,9 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef public bint top_level_span_event_encoding
-    
+
     def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
+        super(MsgpackEncoderV04, self).__cinit__(max_size, max_item_size)
         self.top_level_span_event_encoding = top_level_span_event_encoding
 
     cpdef flush(self):
@@ -615,7 +616,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
         return 0
-    
+
     cdef inline int _pack_span_events(self, list span_events):
         ret = msgpack_pack_array(&self.pk, len(span_events))
         if ret != 0:
@@ -818,13 +819,13 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = self._pack_span_events(span._events)
             if ret != 0:
                 return ret
-                
+
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
                 span_events = ""
-                    
+
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
@@ -863,11 +864,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
-    cdef public bint top_level_span_event_encoding
 
-    def __cinit__(self, size_t max_size, size_t max_item_size, bool top_level_span_event_encoding):
+    def __cinit__(self, size_t max_size, size_t max_item_size):
         self._st = MsgpackStringTable(max_size)
-        self.top_level_span_event_encoding = top_level_span_event_encoding
 
     cpdef flush(self):
         with self._lock:

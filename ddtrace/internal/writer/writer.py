@@ -470,7 +470,7 @@ class AgentWriter(HTTPWriter):
         self._api_version = api_version or config._trace_api or default_api_version
         self._top_level_span_event_enabled = False
 
-        if os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == 1:
+        if config._native_span_events_enabled:
             self._api_version = "v0.4"
             self._top_level_span_event_enabled = True
 
@@ -490,10 +490,8 @@ class AgentWriter(HTTPWriter):
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         if self._api_version == "v0.5":
-            client = WRITER_CLIENTS[self._api_version](
-                buffer_size, max_payload_size, False
-            )  # this should be false always
-        else:  # should only be v0.4
+            client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)  # this should be false always
+        elif self._api_version == "v0.4":  # should only be v0.4
             client = WRITER_CLIENTS[self._api_version](
                 buffer_size, max_payload_size, self._top_level_span_event_enabled
             )
