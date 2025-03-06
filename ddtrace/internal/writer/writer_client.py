@@ -29,14 +29,13 @@ class AgentWriterClientV5(WriterClientBase):
 class AgentWriterClientV4(WriterClientBase):
     ENDPOINT = "v0.4/traces"
 
-    def __init__(self, buffer_size, max_payload_size, top_level_span_event_encoding):
+    def __init__(self, buffer_size, max_payload_size):
         super(AgentWriterClientV4, self).__init__(
             MSGPACK_ENCODERS["v0.4"](
                 max_size=buffer_size,
                 max_item_size=max_payload_size,
             )
         )
-        self.top_level_span_event_encoding = top_level_span_event_encoding
 
 
 WRITER_CLIENTS = {
