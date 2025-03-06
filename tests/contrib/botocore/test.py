@@ -119,7 +119,7 @@ class BotocoreTest(TracerTestCase):
         super(BotocoreTest, self).tearDown()
 
         unpatch()
-        self.sqs_client.delete_queue(QueueUrl=self.queue_name)
+        self.sqs_client.delete_queue(QueueUrl=self.sqs_test_queue["QueueUrl"])
 
     @mock_ec2
     @mock_s3
