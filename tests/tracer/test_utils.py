@@ -18,6 +18,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import parse_tags_str_v2
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.trace import Context
@@ -109,6 +110,27 @@ def test_parse_env_tags(tag_str, expected_tags, error_calls):
             log.error.assert_has_calls(error_calls)
         else:
             assert log.error.call_count == 0, log.error.call_args_list
+
+
+@pytest.mark.parametrize(
+    "input_string, expected_output",
+    [
+        ("key1:value1,key2:value2", {"key1": "value1", "key2": "value2"}),
+        ("key1:value1 key2:value2", {"key1": "value1", "key2": "value2"}),
+        ("env:test aKey:aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal", "bKey": "bVal", "cKey": ""}),
+        ("env:test,aKey:aVal,bKey:bVal,cKey:", {"env": "test", "aKey": "aVal", "bKey": "bVal", "cKey": ""}),
+        # ("env:test,aKey:aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal bKey:bVal cKey:"}),
+        # ("env:test     bKey :bVal dKey: dVal cKey:", {"env": "test", "bKey": "", "dKey": "", "dVal": "", "cKey": ""}),
+        # ("env :test, aKey : aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal bKey:bVal cKey:"}),
+        ("env:keyWithA:Semicolon bKey:bVal cKey", {"env": "keyWithA:Semicolon", "bKey": "bVal", "cKey": ""}),
+        ("env:keyWith:  , ,   Lots:Of:Semicolons ", {"env": "keyWith:", "Lots": "Of:Semicolons"}),
+        ("a:b,c,d", {"a": "b", "c": "", "d": ""}),
+        ("a,1", {"a": "", "1": ""}),
+        ("a:b:c:d", {"a": "b:c:d"}),
+    ],
+)
+def test_parse_tags_str_v2(input_string, expected_output):
+    assert parse_tags_str_v2(input_string) == expected_output, input_string
 
 
 @pytest.mark.parametrize(

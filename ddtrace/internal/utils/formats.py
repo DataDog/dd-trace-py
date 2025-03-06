@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -65,15 +66,36 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
+def parse_tags_str_v2(tags_str):
+    """
+    Parses a string containing key-value pairs and returns a dictionary.
+    Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
+
+    This implementation aligns with the way tags are parsed by the Agent and other Datadog SDKs
+
+    :param tags_str: A string of the above form to parse tags from.
+    :return: A dict containing the tags that were parsed.
+    """
+    pairs = re.split(r"[,\s]+", tags_str.strip())  # Split by comma, whitespace, or both
+    result = {}
+
+    for kv in pairs:
+        if ":" in kv:
+            key, value = kv.split(":", 1)  # Split only on the first ':'
+            result[key] = value
+        else:
+            result[kv] = ""
+    return result
+
+
 def parse_tags_str(tags_str):
     # type: (Optional[str]) -> Dict[str, str]
-    """Parse a string of tags typically provided via environment variables.
+    """
+    Parses a string containing key-value pairs and returns a dictionary.
+    Key-value pairs are delimited by ':', and pairs are separated by whitespace or comma (NOT BOTH).
 
-    The expected string is of the form::
-        "key1:value1,key2:value2"
-        "key1:value1 key2:value2"
-        "key1,key2"
-        "key1 key2"
+    This implementation for parsing tags is inconsistenct with the Datadog Agent and other Datadog SDKs.
+    This function will be replaced with `parse_tags_str_v2` in v4.0.
 
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.

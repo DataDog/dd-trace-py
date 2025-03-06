@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    global_tags: Add experimental support for parsing ``DD_TAGS`` 

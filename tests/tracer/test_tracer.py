@@ -1952,3 +1952,18 @@ def test_multiple_tracer_instances():
     log.error.assert_called_once_with(
         "Multiple Tracer instances can not be initialized. " "Use ``ddtrace.trace.tracer`` instead."
     )
+
+
+@pytest.mark.subprocess(
+    env={"DD_TAGS": "moon:ears, do:not,hate me", "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": "monkey,DD_TAGS"}, err=None
+)
+def tests_tracer_tags_experimental():
+    from ddtrace import tracer
+
+    with tracer.trace("test") as span:
+        pass
+
+    assert span.get_tag("moon") == "ears"
+    assert span.get_tag("do") == "not"
+    assert span.get_tag("hate") == ""
+    assert span.get_tag("me") == ""
