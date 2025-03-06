@@ -566,7 +566,7 @@ else:
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     fast_build_args = ["-O0"] if FAST_BUILD else []
-    if COMPILE_MODE in ("Debug", "RelWithDebInfo"):
+    if COMPILE_MODE.lower() == "debug":
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
