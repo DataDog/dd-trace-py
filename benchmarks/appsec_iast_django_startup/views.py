@@ -1,6 +1,8 @@
-import django
+from django.http import HttpResponse
 from django.template import Context
 from django.template import Template
+
+from ddtrace import tracer
 
 
 def index(request):
@@ -18,4 +20,9 @@ def index(request):
 </html>
     """
     )
-    return django.http.HttpResponse(index.render(Context({})))
+    return HttpResponse(index.render(Context({})))
+
+
+def shutdown_view(request):
+    tracer._writer.flush_queue()
+    return HttpResponse("SHUTDOWN")
