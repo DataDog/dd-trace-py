@@ -16,7 +16,6 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
-from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
@@ -462,6 +461,8 @@ def _is_first_party(module_name: str):
         return False
 
     if not _IMPORTLIB_PACKAGES:
+        from ddtrace.internal.packages import get_package_distributions
+
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
 
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
@@ -469,7 +470,7 @@ def _is_first_party(module_name: str):
 
 def _should_iast_patch(module_name: Text) -> bool:
     """
-    select if module_name should be patch from the longest prefix that match in allow or deny list.
+    select if module_name should be patched from the longest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
     # TODO: A better solution would be to migrate the original algorithm to C++:
@@ -478,33 +479,36 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     if _in_python_stdlib(module_name):
-        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
+        log.debug("[IAST] denying %s. it's in the python_stdlib", module_name)
         return False
-
-    if _is_first_party(module_name):
-        return True
+    #
+    # if _is_first_party(module_name):
+    #     return True
 
     # else: third party. Check that is in the allow list and not in the deny list
     dotted_module_name = module_name.lower() + "."
 
     # User allow or deny list set by env var have priority
     if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
+        log.debug("[IAST] denying %s. it's in the USER_ALLOWLIST", module_name)
         return True
 
     if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
+        log.debug("[IAST] denying %s. it's in the USER_DENYLIST", module_name)
         return False
 
     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
+            log.debug("[IAST] denying %s. it's in the DENYLIST", module_name)
             return False
-        log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
+        log.debug("[IAST] allowing %s. it's in the ALLOWLIST", module_name)
         return True
-    log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
+    log.debug("[IAST] denying %s. it's NOT in the ALLOWLIST", module_name)
     return False
 
 
 def visit_ast(
-    source_text: Text,
+    source_text: bytes,
     module_path: Text,
     module_name: Text = "",
 ) -> Optional[ast.Module]:
@@ -549,7 +553,7 @@ def {_PREFIX}set_dir_filter():
 {_PREFIX}set_dir_filter()
 
     """
-)
+).encode()
 
 
 def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
@@ -557,17 +561,17 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     module_origin = origin(module)
     if module_origin is None:
-        log.debug("astpatch_source couldn't find the module: %s", module_name)
+        log.debug("[IAST] astpatch_source couldn't find the module: %s", module_name)
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            log.debug("empty file: %s", module_path)
+            log.debug("[IAST] empty file: %s", module_path)
             return "", None
     except OSError:
-        log.debug("astpatch_source couldn't find the file: %s", module_path, exc_info=True)
+        log.debug("[IAST] astpatch_source couldn't find the file: %s", module_path, exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -580,16 +584,19 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         log.debug("extension not supported: %s for: %s", module_ext, module_path)
         return "", None
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            log.debug("unicode decode error for file: %s", module_path, exc_info=True)
+            log.debug("[IAST] Encode decode error for file: %s", module_path, exc_info=True)
+            return "", None
+        except Exception:
+            log.debug("[IAST] Unexpected read error: %s", module_path, exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        log.debug("empty file: %s", module_path)
+        log.debug("[IAST] empty file: %s", module_path)
         return "", None
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
@@ -602,7 +609,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         module_name=module_name,
     )
     if new_ast is None:
-        log.debug("file not ast patched: %s", module_path)
+        log.debug("[IAST] file not ast patched: %s", module_path)
         return "", None
 
     return module_path, new_ast
