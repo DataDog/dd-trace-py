@@ -93,11 +93,15 @@ promote-oci-to-prod:
     - job: release_pypi_prod
     - job: package-oci
       artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
 promote-oci-to-prod-beta:
   stage: release
   needs:
     - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
       artifacts: true
 
 promote-oci-to-staging:
@@ -105,13 +109,17 @@ promote-oci-to-staging:
   needs:
     - job: package-oci
       artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
 publish-lib-init-ghcr-tags:
   stage: release
   rules: null
   only:
     - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
-  needs: [release_pypi_prod]
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
 
 publish-lib-init-pinned-tags:
   stage: release
@@ -120,7 +128,8 @@ publish-lib-init-pinned-tags:
     - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
   needs:
     - job: release_pypi_prod
-    - job: oci-internal-publish
+    - job: create-multiarch-lib-injection-image
+    - job: generate-lib-init-pinned-tag-values
       artifacts: true
 
 onboarding_tests_installer:
@@ -163,4 +172,3 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
