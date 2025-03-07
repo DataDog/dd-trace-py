@@ -346,7 +346,7 @@ class CMakeBuild(build_ext):
         else:
             super().build_extension(ext)
 
-        if COMPILE_MODE == "release":
+        if COMPILE_MODE.lower() == "release":
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
