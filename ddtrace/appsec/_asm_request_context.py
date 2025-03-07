@@ -241,19 +241,21 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     flush_waf_triggers(env)
     for function in env.callbacks[_CONTEXT_CALL]:
         function(env)
-    if env.waf_info:
-        info = env.waf_info()
-        try:
-            if info.errors:
-                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
-                log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
-            env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except Exception:
-            log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
-    if asm_config._rc_client_id is not None:
-        env.span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+    root_span = env.span._local_root or env.span
+    if root_span:
+        if env.waf_info:
+            info = env.waf_info()
+            try:
+                if info.errors:
+                    root_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
+                root_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                root_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+                root_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            except Exception:
+                log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+        if asm_config._rc_client_id is not None:
+            root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
 
     core.discard_local_item(_ASM_CONTEXT)
 
