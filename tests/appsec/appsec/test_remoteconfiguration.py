@@ -168,7 +168,6 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
         enable_appsec_rc()
 
         assert remoteconfig_poller._client._products["ASM_FEATURES"]
-        _set_and_get_appsec_tags(tracer, True)
     disable_appsec_rc()
 
 
