@@ -19,13 +19,16 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
+from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
+from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
+from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
@@ -56,10 +59,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         initial_tags: Optional[Dict[str, str]] = None,
         is_efd_retry: bool = False,
         is_atr_retry: bool = False,
+        is_attempt_to_fix_retry: bool = False,
         resource: Optional[str] = None,
         is_new: bool = False,
         is_quarantined: bool = False,
         is_disabled: bool = False,
+        is_attempt_to_fix: bool = False,
     ):
         self._parameters = parameters
         super().__init__(
@@ -81,6 +86,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._is_new = is_new
         self._is_quarantined = is_quarantined
         self._is_disabled = is_disabled
+        self._is_attempt_to_fix = is_attempt_to_fix
 
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
@@ -88,6 +94,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         self._atr_is_retry = is_atr_retry
         self._atr_retries: List[TestVisibilityTest] = []
+
+        self._attempt_to_fix_is_retry = is_attempt_to_fix_retry
+        self._attempt_to_fix_retries: List[TestVisibilityTest] = []
 
         self._is_benchmark = False
         self._benchmark_duration_data: Optional[BenchmarkDurationData] = None
@@ -118,6 +127,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
+            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.EARLY_FLAKE_DETECTION.value)
 
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
@@ -132,12 +142,15 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
+            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.AUTO_TEST_RETRIES.value)
 
     def _set_test_management_tags(self) -> None:
         if self._is_quarantined:
             self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
         if self._is_disabled:
             self.set_tag(TEST_IS_DISABLED, self._is_disabled)
+        if self._is_attempt_to_fix:
+            self.set_tag(TEST_IS_ATTEMPT_TO_FIX, self._is_attempt_to_fix)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -259,6 +272,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def is_disabled(self):
         return self._session_settings.test_management_settings.enabled and (
             self._is_disabled or self.get_tag(TEST_IS_DISABLED)
+        )
+
+    def is_attempt_to_fix(self):
+        return self._session_settings.test_management_settings.enabled and (
+            self._is_attempt_to_fix or self.get_tag(TEST_IS_ATTEMPT_TO_FIX)
         )
 
     #
@@ -445,6 +463,87 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             return self._status
 
         if any(retry._status == TestStatus.PASS for retry in self._atr_retries):
+            return TestStatus.PASS
+
+        return TestStatus.FAIL
+
+    #
+    # ATTEMPT_TO_FIX (Auto Test Retries) functionality
+    #
+    def _attempt_to_fix_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
+        return self._attempt_to_fix_retries[retry_number - 1]
+
+    def _attempt_to_fix_make_retry_test(self):
+        retry_test = self.__class__(
+            self.name,
+            self._session_settings,
+            codeowners=self._codeowners,
+            source_file_info=self._source_file_info,
+            initial_tags=self._tags,
+            is_quarantined=self.is_quarantined(),
+            is_attempt_to_fix_retry=True,
+        )
+        retry_test.parent = self.parent
+
+        return retry_test
+
+    def attempt_to_fix_has_retries(self) -> bool:
+        return len(self._attempt_to_fix_retries) > 0
+
+    def attempt_to_fix_should_retry(self):
+        if not self._session_settings.test_management_settings.enabled:
+            return False
+
+        # if self.get_session().attempt_to_fix_max_retries_reached():
+        #     return False
+
+        if not self.is_finished():
+            log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
+            return False
+
+        # Only tests that are failing should be retried
+        # if self.attempt_to_fix_get_final_status() != TestStatus.FAIL:
+        #     return False
+
+        return (
+            len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
+        )
+
+    def attempt_to_fix_add_retry(self, start_immediately=False) -> Optional[int]:
+        if not self.attempt_to_fix_should_retry():
+            log.debug("Attempt To Fix: attempt_to_fix_add_retry called but test should not retry")
+            return None
+
+        retry_test = self._attempt_to_fix_make_retry_test()
+        self._attempt_to_fix_retries.append(retry_test)
+        # session = self.get_session()
+        # if session is not None:
+        #     session._attempt_to_fix_count_retry()
+
+        if start_immediately:
+            retry_test.start()
+
+        return len(self._attempt_to_fix_retries)
+
+    def attempt_to_fix_start_retry(self, retry_number: int):
+        self._attempt_to_fix_get_retry_test(retry_number).start()
+
+    def attempt_to_fix_finish_retry(
+        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None
+    ):
+        retry_test = self._attempt_to_fix_get_retry_test(retry_number)
+
+        if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
+            if self.attempt_to_fix_get_final_status() == TestStatus.FAIL and self.is_quarantined():
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+
+        retry_test.finish_test(status, exc_info=exc_info)
+
+    def attempt_to_fix_get_final_status(self) -> TestStatus:
+        if self._status in [TestStatus.PASS, TestStatus.SKIP]:
+            return self._status
+
+        if any(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
             return TestStatus.PASS
 
         return TestStatus.FAIL
