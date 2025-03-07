@@ -30,14 +30,18 @@ class BedrockIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         """Extract prompt/response attributes from an execution context.
+
+        ctx is a required argument of the shape:
         {
-            "resource": str
+            "resource": str, # oneof("Converse", "InvokeModel")
             "model_name": str,
             "model_provider": str,
             "llmobs.request_params": {"prompt": str | list[dict],
                                 "temperature": Optional[float],
-                                "max_tokens": Optional[int]},
+                                "max_tokens": Optional[int]
+                                "top_p": Optional[int]}
             "llmobs.usage": Optional[dict],
+            "llmobs.stop_reason": Optional[str],
         }
         """
         metadata = {}
@@ -46,6 +50,8 @@ class BedrockIntegration(BaseLLMIntegration):
 
         request_params = ctx.get_item("llmobs.request_params") or {}
 
+        if ctx.get_item("llmobs.stop_reason"):
+            metadata["stop_reason"] = ctx["llmobs.stop_reason"]
         if ctx.get_item("llmobs.usage"):
             usage_metrics = ctx["llmobs.usage"]
 
@@ -69,11 +75,19 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = request_params.get("prompt", "")
 
-        input_messages = self._extract_input_message(prompt)
+        input_messages = (
+            self._extract_input_message_for_converse(prompt)
+            if ctx["resource"] == "Converse"
+            else self._extract_input_message(prompt)
+        )
 
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
-            output_messages = self._extract_output_message(response)
+            output_messages = (
+                self._extract_output_message_for_converse(response)
+                if ctx["resource"] == "Converse"
+                else self._extract_output_message(response)
+            )
 
         span._set_ctx_items(
             {
@@ -86,6 +100,68 @@ class BedrockIntegration(BaseLLMIntegration):
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+    @staticmethod
+    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Extract input messages from the stored prompt.
+        Anthropic allows for messages and multiple texts in a message, which requires some special casing.
+        """
+        if not isinstance(prompt, list):
+            log.warning("Bedrock input is not a list of messages or a string.")
+            return [{"content": ""}]
+        input_messages = []
+        for p in prompt:
+            if not isinstance(p, dict):
+                continue
+            role = str(p.get("role", ""))
+            content = p.get("content", "")
+            if isinstance(content, list):
+                if content and isinstance(content[0], dict):
+                    combined_text = ""
+                    for entry in content:
+                        if entry.get("text"):
+                            combined_text += entry.get("text", "") + " "
+                        else:
+                            content_type = ",".join(entry.keys())
+                            input_messages.append(
+                                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
+                            )
+                    if combined_text:
+                        input_messages.append({"content": combined_text.strip(), "role": role})
+
+        return input_messages
+
+    @staticmethod
+    def _extract_output_message_for_converse(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+        # Handle Converse API response format with output field structure
+        if "output" in response and "message" in response.get("output", {}):
+            message = response.get("output", {}).get("message", {})
+            role = message.get("role", "assistant")
+            tool_calls_info = []
+            if message.get("content") and isinstance(message["content"], list):
+                content_blocks = []
+                for content_block in message["content"]:
+                    if content_block.get("text") is not None:
+                        content_blocks.append(content_block.get("text", ""))
+                    elif content_block.get("toolUse") is not None:
+                        tool_calls_info.append(
+                            {
+                                "name": content_block.get("toolUse", {}).get("name", ""),
+                                "arguments": content_block.get("toolUse", {}).get("input", ""),
+                                "tool_id": content_block.get("toolUse", {}).get("toolUseId", ""),
+                            }
+                        )
+                    else:
+                        log.debug(
+                            "LLM Obs tracing is unsupported for content block type: %s", ",".join(content_block.keys())
+                        )
+                        content_blocks.append("[Unsupported content type: {}]".format(",".join(content_block.keys())))
+
+                output_message = {"content": " ".join(content_blocks), "role": role}
+                if tool_calls_info:
+                    output_message["tool_calls"] = tool_calls_info
+                return [output_message]
+        return [{"content": ""}]
 
     @staticmethod
     def _extract_input_message(prompt):
