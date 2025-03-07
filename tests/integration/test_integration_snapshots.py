@@ -124,6 +124,8 @@ def test_tracer_trace_across_popen():
     """
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         with tracer.trace("child"):
             pass
         tracer.flush()
@@ -146,7 +148,11 @@ def test_tracer_trace_across_multiple_popens():
     """
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         def task2(tracer):
+            import ddtrace.auto  # noqa
+
             with tracer.trace("child2"):
                 pass
             tracer.flush()
@@ -259,6 +265,8 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
 
     fn(
         """
+import ddtrace.auto
+
 from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
