@@ -1,13 +1,13 @@
 from functools import wraps
 from inspect import isasyncgenfunction
+from inspect import iscoroutinefunction
+from inspect import isgeneratorfunction
 from inspect import signature
 import sys
 from typing import Callable
 from typing import Optional
 
 from ddtrace import config
-from ddtrace.internal.compat import iscoroutinefunction
-from ddtrace.internal.compat import isgeneratorfunction
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import OUTPUT_VALUE
