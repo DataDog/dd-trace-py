@@ -10,6 +10,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
@@ -30,7 +31,6 @@ from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
@@ -70,7 +70,6 @@ from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_n
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
-from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
@@ -138,7 +137,7 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
         conn = get_connection(url, timeout=timeout)
         log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
         conn.request("POST", url_path, payload, headers)
-        resp = compat.get_connection_response(conn)
+        resp = conn.getresponse()
         log.debug("Response status: %s", resp.status)
         result = Response.from_http_response(resp)
     finally:

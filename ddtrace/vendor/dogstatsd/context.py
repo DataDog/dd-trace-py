@@ -3,6 +3,7 @@
 # Copyright 2015-Present Datadog, Inc
 # stdlib
 from functools import wraps
+from inspect import iscoroutinefunction
 
 try:
     from time import monotonic  # type: ignore[attr-defined]
@@ -11,7 +12,6 @@ except ImportError:
 
 # datadog
 from .context_async import _get_wrapped_co
-from .compat import iscoroutinefunction
 
 
 class TimedContextManagerDecorator(object):

@@ -1,3 +1,4 @@
+from io import StringIO
 import logging
 
 import wrapt
@@ -9,7 +10,6 @@ from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.contrib.internal.logging.patch import patch
 from ddtrace.contrib.internal.logging.patch import unpatch
-from ddtrace.internal.compat import StringIO
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
 
