@@ -119,7 +119,9 @@ publish-lib-init-ghcr-tags:
   rules: null
   only:
     - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
-  needs: [release_pypi_prod]
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
 
 publish-lib-init-pinned-tags:
   stage: release
