@@ -73,6 +73,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         load_common_appsec_modules()
 
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    asm_config._rc_client_id = remoteconfig_poller._client.id
 
 
 def disable_appsec_rc():
