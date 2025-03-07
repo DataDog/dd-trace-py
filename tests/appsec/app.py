@@ -13,6 +13,7 @@ import ddtrace.auto  # noqa: F401  # isort: skip
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch  # noqa: F401
 from ddtrace.internal.utils.formats import asbool
+
 # from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
@@ -20,14 +21,17 @@ from tests.appsec.iast_packages.packages.pkg_asn1crypto import pkg_asn1crypto
 from tests.appsec.iast_packages.packages.pkg_attrs import pkg_attrs
 from tests.appsec.iast_packages.packages.pkg_beautifulsoup4 import pkg_beautifulsoup4
 from tests.appsec.iast_packages.packages.pkg_cachetools import pkg_cachetools
+
 # from tests.appsec.iast_packages.packages.pkg_certifi import pkg_certifi
 # from tests.appsec.iast_packages.packages.pkg_cffi import pkg_cffi
 from tests.appsec.iast_packages.packages.pkg_chartset_normalizer import pkg_chartset_normalizer
+
 # from tests.appsec.iast_packages.packages.pkg_click import pkg_click
 from tests.appsec.iast_packages.packages.pkg_cryptography import pkg_cryptography
 from tests.appsec.iast_packages.packages.pkg_decorator import pkg_decorator
 from tests.appsec.iast_packages.packages.pkg_distlib import pkg_distlib
 from tests.appsec.iast_packages.packages.pkg_docutils import pkg_docutils
+
 # from tests.appsec.iast_packages.packages.pkg_exceptiongroup import pkg_exceptiongroup
 from tests.appsec.iast_packages.packages.pkg_filelock import pkg_filelock
 from tests.appsec.iast_packages.packages.pkg_frozenlist import pkg_frozenlist
@@ -39,6 +43,7 @@ from tests.appsec.iast_packages.packages.pkg_idna import pkg_idna
 from tests.appsec.iast_packages.packages.pkg_importlib_resources import pkg_importlib_resources
 from tests.appsec.iast_packages.packages.pkg_iniconfig import pkg_iniconfig
 from tests.appsec.iast_packages.packages.pkg_isodate import pkg_isodate
+
 # from tests.appsec.iast_packages.packages.pkg_itsdangerous import pkg_itsdangerous
 from tests.appsec.iast_packages.packages.pkg_jinja2 import pkg_jinja2
 from tests.appsec.iast_packages.packages.pkg_jmespath import pkg_jmespath
@@ -46,17 +51,23 @@ from tests.appsec.iast_packages.packages.pkg_jsonschema import pkg_jsonschema
 from tests.appsec.iast_packages.packages.pkg_lxml import pkg_lxml
 from tests.appsec.iast_packages.packages.pkg_markupsafe import pkg_markupsafe
 from tests.appsec.iast_packages.packages.pkg_more_itertools import pkg_more_itertools
+
 # from tests.appsec.iast_packages.packages.pkg_moto import pkg_moto
 from tests.appsec.iast_packages.packages.pkg_multidict import pkg_multidict
+
 # from tests.appsec.iast_packages.packages.pkg_numpy import pkg_numpy
 from tests.appsec.iast_packages.packages.pkg_oauthlib import pkg_oauthlib
 from tests.appsec.iast_packages.packages.pkg_openpyxl import pkg_openpyxl
+
 # from tests.appsec.iast_packages.packages.pkg_packaging import pkg_packaging
 from tests.appsec.iast_packages.packages.pkg_pandas import pkg_pandas
+
 # from tests.appsec.iast_packages.packages.pkg_pillow import pkg_pillow
 from tests.appsec.iast_packages.packages.pkg_platformdirs import pkg_platformdirs
+
 # from tests.appsec.iast_packages.packages.pkg_pluggy import pkg_pluggy
 from tests.appsec.iast_packages.packages.pkg_psutil import pkg_psutil
+
 # from tests.appsec.iast_packages.packages.pkg_pyarrow import pkg_pyarrow
 from tests.appsec.iast_packages.packages.pkg_pyasn1 import pkg_pyasn1
 from tests.appsec.iast_packages.packages.pkg_pycparser import pkg_pycparser
@@ -66,8 +77,10 @@ from tests.appsec.iast_packages.packages.pkg_pyjwt import pkg_pyjwt
 from tests.appsec.iast_packages.packages.pkg_pynacl import pkg_pynacl
 from tests.appsec.iast_packages.packages.pkg_pyopenssl import pkg_pyopenssl
 from tests.appsec.iast_packages.packages.pkg_pyparsing import pkg_pyparsing
+
 # from tests.appsec.iast_packages.packages.pkg_python_dateutil import pkg_python_dateutil
 from tests.appsec.iast_packages.packages.pkg_python_multipart import pkg_python_multipart
+
 # from tests.appsec.iast_packages.packages.pkg_pytz import pkg_pytz
 from tests.appsec.iast_packages.packages.pkg_pyyaml import pkg_pyyaml
 from tests.appsec.iast_packages.packages.pkg_requests import pkg_requests
@@ -75,6 +88,7 @@ from tests.appsec.iast_packages.packages.pkg_requests_toolbelt import pkg_reques
 from tests.appsec.iast_packages.packages.pkg_rsa import pkg_rsa
 from tests.appsec.iast_packages.packages.pkg_s3fs import pkg_s3fs
 from tests.appsec.iast_packages.packages.pkg_s3transfer import pkg_s3transfer
+
 # from tests.appsec.iast_packages.packages.pkg_scipy import pkg_scipy
 from tests.appsec.iast_packages.packages.pkg_setuptools import pkg_setuptools
 from tests.appsec.iast_packages.packages.pkg_six import pkg_six
@@ -85,8 +99,10 @@ from tests.appsec.iast_packages.packages.pkg_tomlkit import pkg_tomlkit
 from tests.appsec.iast_packages.packages.pkg_urllib3 import pkg_urllib3
 from tests.appsec.iast_packages.packages.pkg_virtualenv import pkg_virtualenv
 from tests.appsec.iast_packages.packages.pkg_werkzeug import pkg_werkzeug
+
 # from tests.appsec.iast_packages.packages.pkg_wrapt import pkg_wrapt
 from tests.appsec.iast_packages.packages.pkg_yarl import pkg_yarl
+
 # from tests.appsec.iast_packages.packages.pkg_zipp import pkg_zipp
 import tests.appsec.integrations.flask_tests.module_with_import_errors as module_with_import_errors
 
