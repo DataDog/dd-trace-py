@@ -14,7 +14,8 @@ default:
   interruptible: true
 
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  #- remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include-wip/robertomonteromiguel/new_ssi_gilab_ci/one-pipeline.yml
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
