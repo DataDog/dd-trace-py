@@ -16,11 +16,9 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._core import get_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
-from ...internal.utils.formats import asbool
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
@@ -471,7 +469,7 @@ class AgentWriter(HTTPWriter):
 
         self._api_version = api_version or config._trace_api or default_api_version
 
-        if get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, asbool):
+        if config._native_span_event_enabled:
             self._api_version = "v0.4"
 
         if is_windows and self._api_version == "v0.5":
