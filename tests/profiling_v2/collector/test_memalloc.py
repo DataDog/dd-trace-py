@@ -140,19 +140,20 @@ def test_heap_profiler_large_heap_overhead():
     # Un-skip this test if/when we improve the worst-case performance of the
     # heap profiler for large heaps
     from ddtrace.profiling import Profiler
+    from tests.profiling_v2.collector.test_memalloc import MyClass
 
     p = Profiler()
     p.start()
 
     count = 100_000
-    thing_size = 32
+    thing_size = 3
 
     junk = []
     for i in range(count):
-        b1 = bytearray(thing_size)
-        b2 = bytearray(2 * thing_size)
-        b3 = bytearray(3 * thing_size)
-        b4 = bytearray(4 * thing_size)
+        b1 = [MyClass(i) for i in range(thing_size)]
+        b2 = [MyClass(i) for i in range(2 * thing_size)]
+        b3 = [MyClass(i) for i in range(3 * thing_size)]
+        b4 = [MyClass(i) for i in range(4 * thing_size)]
         t = (b1, b2, b3, b4)
         junk.append(t)
 
@@ -160,24 +161,27 @@ def test_heap_profiler_large_heap_overhead():
 
     p.stop()
 
+class MyClass:
+    def __init__(self, value):
+        self.value = value
 
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
 def one(size):
-    return bytearray(size)
+    return [MyClass(i) for i in range(size)]
 
 
 def two(size):
-    return bytearray(size)
+    return [MyClass(i) for i in range(size)]
 
 
 def three(size):
-    return bytearray(size)
+    return [MyClass(i) for i in range(size)]
 
 
 def four(size):
-    return bytearray(size)
+    return [MyClass(i) for i in range(size)]
 
 
 class HeapInfo:
@@ -241,7 +245,7 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
 
     junk = []
     for i in range(1000):
-        size = 256
+        size = 3
         junk.append(one(size))
         junk.append(two(2 * size))
         junk.append(three(3 * size))
