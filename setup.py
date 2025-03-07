@@ -666,14 +666,13 @@ if not IS_PYSTON:
             )
         )
 
-        if sys.version_info < (3, 13):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
 
 else:
     ext_modules = []
