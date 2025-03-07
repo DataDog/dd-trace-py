@@ -73,6 +73,10 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION: Literal["_dd.appsec.rasp.duration"] = "_dd.appsec.rasp.duration"
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
+    RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
+    TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
+    TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
+    TRUNCATION_CONTAINER_DEPTH: Literal["_dd.appsec.truncated.container_depth"] = "_dd.appsec.truncated.container_depth"
     ORIGIN_VALUE: Literal["appsec"] = "appsec"
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
@@ -86,6 +90,11 @@ class APPSEC(metaclass=Constant_Class):
         "appsec.events.users.login.failure.track"
     ] = "appsec.events.users.login.failure.track"
     USER_SIGNUP_EVENT: Literal["appsec.events.users.signup.track"] = "appsec.events.users.signup.track"
+    USER_SIGNUP_EVENT_USERNAME: Literal["appsec.events.users.signup.usr.login"] = "appsec.events.users.signup.usr.login"
+    USER_SIGNUP_EVENT_USERID: Literal["appsec.events.users.signup.usr.id"] = "appsec.events.users.signup.usr.id"
+    USER_SIGNUP_EVENT_MODE: Literal[
+        "_dd.appsec.events.users.signup.auto.mode"
+    ] = "_dd.appsec.events.users.signup.auto.mode"
     AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal[
         "_dd.appsec.events.users.login.success.auto.mode"
     ] = "_dd.appsec.events.users.login.success.auto.mode"

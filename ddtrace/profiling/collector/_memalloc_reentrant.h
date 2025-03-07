@@ -16,15 +16,22 @@
 #include <stdlib.h>
 
 // Cross-platform macro for defining thread-local storage
-// NB - we use dynamic-global on Linux because the others are problematic
 #if defined(_MSC_VER) // Check for MSVC compiler
 #define MEMALLOC_TLS __declspec(thread)
 #elif defined(__GNUC__) || defined(__clang__) // GCC or Clang
+// NB - we explicitly specify global-dynamic on Unix because the others are problematic.
+// See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
+// an explanation of thread-local storage access models. global-dynamic is the
+// most general access model and is always correct to use, if not always the
+// fastest, for a library like this which will be dlopened by an executable.
+// The C toolchain should do the right thing without this attribute if it
+// sees we're building a shared library. But we've been bit by issues related
+// to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
 #else
 #error "Unsupported compiler for thread-local storage"
 #endif
-extern bool _MEMALLOC_ON_THREAD;
+extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 // This is a saturating atomic add for 32- and 64-bit platforms.
 // In order to implement the saturation logic, use a CAS loop.
@@ -79,17 +86,12 @@ typedef struct
 #endif
 } memlock_t;
 
-// Global setting; if a lock fails to be acquired, crash
-static bool g_crash_on_mutex_pass = false;
-
 // Generic initializer
 static inline bool
-memlock_init(memlock_t* lock, bool crash_on_pass)
+memlock_init(memlock_t* lock)
 {
     if (!lock)
         return false;
-
-    g_crash_on_mutex_pass = crash_on_pass;
 
 #ifdef _WIN32
     lock->mutex = CreateMutex(NULL, FALSE, NULL);
@@ -130,13 +132,6 @@ memlock_trylock(memlock_t* lock)
 #else
     bool result = 0 == pthread_mutex_trylock(&lock->mutex);
 #endif
-    if (!result && g_crash_on_mutex_pass) {
-        // segfault
-        int* p = NULL;
-        *p = 0;
-        abort(); // should never reach here
-    }
-
     return result;
 }
 

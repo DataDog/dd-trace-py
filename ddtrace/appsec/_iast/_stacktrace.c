@@ -43,11 +43,15 @@ GET_FILENAME(PyFrameObject* frame)
     return filename;
 }
 
-static inline PyObject* GET_LOCALS(PyFrameObject* frame) {
+static inline PyObject*
+GET_LOCALS(PyFrameObject* frame)
+{
     return PyFrame_GetLocals(frame);
 }
 
-static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
+static inline PyObject*
+GET_FUNCTION(PyFrameObject* frame)
+{
     PyCodeObject* code = PyFrame_GetCode(frame);
     if (!code) {
         return PyUnicode_FromString("");
@@ -69,7 +73,9 @@ static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
 #define FILENAME_DECREF(filename)
 #define FILENAME_XDECREF(filename)
 #define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
-static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
+static inline PyObject*
+GET_FUNCTION(PyFrameObject* frame)
+{
     PyObject* func = frame->f_code->co_name;
     Py_INCREF(func);
     return func;
@@ -82,8 +88,9 @@ static inline PyObject* GET_FUNCTION(PyFrameObject* frame) {
 #endif
 #endif
 
-
-static inline PyObject* SAFE_GET_LOCALS(PyFrameObject* frame) {
+static inline PyObject*
+SAFE_GET_LOCALS(PyFrameObject* frame)
+{
     if (in_stacktrace) {
         // Return a nullptr to avoid triggering reentrant native calls.
         return NULL;
@@ -91,7 +98,9 @@ static inline PyObject* SAFE_GET_LOCALS(PyFrameObject* frame) {
     return GET_LOCALS(frame);
 }
 
-static inline PyObject* GET_CLASS(PyFrameObject* frame) {
+static inline PyObject*
+GET_CLASS(PyFrameObject* frame)
+{
     if (frame) {
         PyObject* locals = SAFE_GET_LOCALS(frame);
         if (locals) {
@@ -202,35 +211,33 @@ exit:
     return result;
 
 exit_0:; /* Label must be followed by a statement */
-        // Return "", -1, "", ""
-        PyObject* line_obj = Py_BuildValue("i", -1);
-        filename_o = PyUnicode_FromString("");
-        PyObject* func_name = PyUnicode_FromString("");
-        PyObject* class_name = PyUnicode_FromString("");
-        result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
-        Py_DecRef(cwd_bytes);
-        FRAME_XDECREF(frame);
-        FILENAME_XDECREF(filename_o);
-        Py_DecRef(line_obj);
-        Py_DecRef(func_name);
-        Py_DecRef(class_name);
-        in_stacktrace = 0;
-        return result;
+    // Return "", -1, "", ""
+    PyObject* line_obj = Py_BuildValue("i", -1);
+    filename_o = PyUnicode_FromString("");
+    PyObject* func_name = PyUnicode_FromString("");
+    PyObject* class_name = PyUnicode_FromString("");
+    result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
+    Py_DecRef(cwd_bytes);
+    FRAME_XDECREF(frame);
+    FILENAME_XDECREF(filename_o);
+    Py_DecRef(line_obj);
+    Py_DecRef(func_name);
+    Py_DecRef(class_name);
+    in_stacktrace = 0;
+    return result;
 }
 
-static PyMethodDef StacktraceMethods[] = {
-    { "get_info_frame", (PyCFunction)get_file_and_line, METH_O,
-      "Stacktrace function: returns (filename, line, method, class)" },
-    { NULL, NULL, 0, NULL }
-};
+static PyMethodDef StacktraceMethods[] = { { "get_info_frame",
+                                             (PyCFunction)get_file_and_line,
+                                             METH_O,
+                                             "Stacktrace function: returns (filename, line, method, class)" },
+                                           { NULL, NULL, 0, NULL } };
 
-static struct PyModuleDef stacktrace = {
-    PyModuleDef_HEAD_INIT,
-    "ddtrace.appsec._iast._stacktrace",
-    "stacktrace module",
-    -1,
-    StacktraceMethods
-};
+static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
+                                         "ddtrace.appsec._iast._stacktrace",
+                                         "stacktrace module",
+                                         -1,
+                                         StacktraceMethods };
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)
