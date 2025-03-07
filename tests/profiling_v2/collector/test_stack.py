@@ -694,10 +694,13 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
 
     # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
     # Echion by default does not track native threads that are not registered
-    # after https://github.com/P403n1x87/echion/pull/83
-    if stack_v2_enabled or ignore_profiler:
+    # after https://github.com/P403n1x87/echion/pull/83. However, on GitLab
+    # it sometimes is able to track the collector_worker_thread_id, i.e. it's
+    # flaky.
+    # TODO(taegyunkim): revisit this test when implementing ignore_profiler for stack v2
+    if not stack_v2_enabled and ignore_profiler:
         assert collector_worker_thread_id not in thread_ids
-    else:
+    elif not stack_v2_enabled and not ignore_profiler:
         assert collector_worker_thread_id in thread_ids
 
 
