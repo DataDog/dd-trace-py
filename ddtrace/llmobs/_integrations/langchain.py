@@ -31,6 +31,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -725,4 +726,4 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def has_default_base_url(self, instance) -> bool:
         openai_api_base = getattr(instance, "openai_api_base", None)
-        return not openai_api_base or OpenAIIntegration.is_default_base_url(openai_api_base)
+        return not openai_api_base or is_openai_default_base_url(openai_api_base)
