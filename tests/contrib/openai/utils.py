@@ -56,6 +56,13 @@ mock_openai_chat_completions_response = openai.types.chat.ChatCompletion(
     system_fingerprint=None,
 )
 
+multi_message_input = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Who won the world series in 2020?"},
+    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+    {"role": "user", "content": "Where was it played?"},
+]
+
 chat_completion_input_description = """
     David Nguyen is a sophomore majoring in computer science at Stanford University and has a GPA of 3.8.
     David is an active member of the university's Chess Club and the South Asian Student Association.
