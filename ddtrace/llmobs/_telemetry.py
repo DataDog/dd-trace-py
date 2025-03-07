@@ -1,6 +1,5 @@
 import time
 
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DECORATOR
@@ -37,14 +36,13 @@ def record_span_created(span: Span):
     decorator = span._get_ctx_item(DECORATOR) is True
     span_kind = span._get_ctx_item(SPAN_KIND)
     model_provider = span._get_ctx_item("model_provider")
-    status = "ok" if span.error == 0 else "error_{}".format(span.get_tag(ERROR_TYPE))
 
     tags = [
         ("autoinstrumented", str(autoinstrumented)),
         ("has_session_id", str(has_session_id)),
         ("is_root_span", str(is_root_span)),
         ("span_kind", span_kind or "N/A"),
-        ("status", status),
+        ("error", str(span.error)),
     ]
     if autoinstrumented:
         tags.append(("integration", integration))
