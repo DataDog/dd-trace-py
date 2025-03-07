@@ -43,8 +43,8 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, '_client', None)
-    base_url = getattr(client, '_base_url', None) if client else None
+    client = getattr(instance, "_client", None)
+    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,
@@ -118,8 +118,8 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, '_client', None)
-    base_url = getattr(client, '_base_url', None) if client else None
+    client = getattr(instance, "_client", None)
+    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,

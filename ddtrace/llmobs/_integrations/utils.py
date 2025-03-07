@@ -12,6 +12,7 @@ from ddtrace.llmobs._utils import _get_attr
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
 AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
 
+
 def is_openai_default_base_url(base_url: Optional[str] = None) -> bool:
     if base_url is None:
         return True

@@ -17,8 +17,10 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsOpenaiV1:
-    @mock.patch('openai._base_client.SyncAPIClient.post')
-    def test_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
         """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
@@ -71,7 +73,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    @mock.patch('openai._base_client.SyncAPIClient.post')
+    @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_azure_proxy(
         self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
@@ -182,8 +184,10 @@ class TestLLMObsOpenaiV1:
             ),
         )
 
-    @mock.patch('openai._base_client.SyncAPIClient.post')
-    def test_chat_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
         """Ensure llmobs records are not emitted for chat completion endpoints when the base_url is specified."""
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
@@ -223,7 +227,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    @mock.patch('openai._base_client.SyncAPIClient.post')
+    @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_azure_proxy(
         self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
