@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_stri
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -72,7 +71,6 @@ def attempt_to_fix_handle_retries(
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
-
 def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
@@ -87,7 +85,6 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
         )
 
     return InternalTest.attempt_to_fix_get_final_status(test_id)
-
 
 
 def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:
@@ -114,3 +111,13 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
     if report.outcome == _RETRY_OUTCOMES.FINAL_FAILED:
         return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT_TO_FIX FINAL STATUS: FAILED", {"red": True}))
     return None
+
+
+def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_PASSED, None)
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_FAILED, None)
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_SKIPPED, None)
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, [])
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
+
+    # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.

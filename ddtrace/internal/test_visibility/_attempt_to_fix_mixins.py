@@ -1,4 +1,3 @@
-import dataclasses
 import typing as t
 
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions

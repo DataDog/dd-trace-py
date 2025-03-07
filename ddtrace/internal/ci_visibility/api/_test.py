@@ -19,16 +19,16 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
+from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
-from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
+from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
-from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
@@ -505,7 +505,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # if self.attempt_to_fix_get_final_status() != TestStatus.FAIL:
         #     return False
 
-        return len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
+        return (
+            len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
+        )
 
     def attempt_to_fix_add_retry(self, start_immediately=False) -> Optional[int]:
         if not self.attempt_to_fix_should_retry():
@@ -514,7 +516,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         retry_test = self._attempt_to_fix_make_retry_test()
         self._attempt_to_fix_retries.append(retry_test)
-        session = self.get_session()
+        # session = self.get_session()
         # if session is not None:
         #     session._attempt_to_fix_count_retry()
 
@@ -526,7 +528,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def attempt_to_fix_start_retry(self, retry_number: int):
         self._attempt_to_fix_get_retry_test(retry_number).start()
 
-    def attempt_to_fix_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
+    def attempt_to_fix_finish_retry(
+        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None
+    ):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:

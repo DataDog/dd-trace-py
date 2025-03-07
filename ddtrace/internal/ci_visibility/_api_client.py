@@ -399,16 +399,17 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
-
             test_management_attributes = attributes.get("test_management", {})
             test_management_enabled = test_management_attributes.get("enabled", False)
             attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
             if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
                 attempt_to_fix_retries = int(attempt_to_fix_retries_env)
-                log.debug(f"Number of Attempt to Fix retries obtained from environment: {attempt_to_fix_retries}")
+                log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
             else:
-                attempt_to_fix_retries = test_management_attributes.get("attempt_to_fix_retries", DEFAULT_ATTEMPT_TO_FIX_RETRIES)
-                log.debug(f"Number of Attempt to Fix retries obtained from API: {attempt_to_fix_retries}")
+                attempt_to_fix_retries = test_management_attributes.get(
+                    "attempt_to_fix_retries", DEFAULT_ATTEMPT_TO_FIX_RETRIES
+                )
+                log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
 
             test_management = TestManagementSettings(
                 enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),

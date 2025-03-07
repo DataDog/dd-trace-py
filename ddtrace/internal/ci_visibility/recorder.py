@@ -74,8 +74,8 @@ from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
-from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
@@ -1251,6 +1251,7 @@ def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is disabled test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_disabled()
 
+
 @_requires_civisibility_enabled
 def _on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is attempt to fix for test %s", test_id)
@@ -1645,12 +1646,22 @@ def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
 def _register_attempt_to_fix_handlers():
     log.debug("Registering AttemptToFix handlers")
     core.on("test_visibility.attempt_to_fix.is_enabled", _on_attempt_to_fix_is_enabled, "is_enabled")
-    core.on("test_visibility.attempt_to_fix.session_has_failed_tests", _on_attempt_to_fix_session_has_failed_tests, "has_failed_tests")
-    core.on("test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test")
+    core.on(
+        "test_visibility.attempt_to_fix.session_has_failed_tests",
+        _on_attempt_to_fix_session_has_failed_tests,
+        "has_failed_tests",
+    )
+    core.on(
+        "test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test"
+    )
     core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
     core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
     core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
-    core.on("test_visibility.attempt_to_fix.get_final_status", _on_attempt_to_fix_get_final_status, "attempt_to_fix_final_status")
+    core.on(
+        "test_visibility.attempt_to_fix.get_final_status",
+        _on_attempt_to_fix_get_final_status,
+        "attempt_to_fix_final_status",
+    )
 
 
 _register_session_handlers()

@@ -144,7 +144,9 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, AttemptToFixTestMixin, BenchmarkTestMixin):
+class InternalTest(
+    ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, AttemptToFixTestMixin, BenchmarkTestMixin
+):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
@@ -199,7 +201,9 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
     @_catch_and_log_exceptions
     def is_attempt_to_fix(item_id: InternalTestId) -> bool:
         log.debug("Checking if test %s is attempt to fix", item_id)
-        is_attempt_to_fix = bool(core.dispatch_with_results("test_visibility.test.is_attempt_to_fix", (item_id,)).is_attempt_to_fix.value)
+        is_attempt_to_fix = bool(
+            core.dispatch_with_results("test_visibility.test.is_attempt_to_fix", (item_id,)).is_attempt_to_fix.value
+        )
         log.debug("Test %s is attempt to fix: %s", item_id, is_attempt_to_fix)
         return is_attempt_to_fix
 
