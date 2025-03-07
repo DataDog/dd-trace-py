@@ -309,7 +309,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 @pytest.mark.subprocess(
     parametrize={
-        "DD_TRACE_HEADER_TAGS": ["header1 header2 header3:third-header", "header1,header2,header3:third-header"]
+        "DD_TRACE_HEADER_TAGS": [
+            "header1 header2 header3:third-header",
+            "header1,header2,header3:third-header",
+            "header1, header2, header3:third-header",
+        ]
     }
 )
 def test_set_http_meta_with_http_header_tags_config():
