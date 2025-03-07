@@ -350,15 +350,9 @@ def set_query_rowcount(docs, span):
 
 def _dbm_dispatch(span, args, kwargs):
     # dispatch DBM
-    # print("dispatching dbm")
-    # print(span, args, kwargs)
     result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
     if result:
         span, args, kwargs = result.value
-        # print("after dispatch")
-        # print("span", span)
-        # print("args", args)
-        # print("kwargs", kwargs)
     return span, args, kwargs
 
 
@@ -375,7 +369,6 @@ def _dbm_comment_injector(dbm_comment, command):
             if hasattr(command, "comment"):
                 command.comment = _dbm_merge_comment(command.comment, dbm_comment)
         else:
-            # print("not query or getmore command", command)
             comment_exists = False
             for comment_key in ("comment", "$comment"):
                 if comment_key in command:
