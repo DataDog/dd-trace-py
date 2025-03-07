@@ -544,7 +544,7 @@ class LLMObs(Service):
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
         integrations_to_patch: Dict[str, Union[List[str], bool]] = {
-            integration: ["bedrock-runtime"] if integration == "bedrock" else True 
+            integration: ["bedrock-runtime"] if integration == "bedrock" else True
             for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
         }
         for module, _ in integrations_to_patch.items():
