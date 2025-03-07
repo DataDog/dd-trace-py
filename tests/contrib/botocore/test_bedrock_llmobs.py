@@ -276,7 +276,7 @@ class TestLLMObsBedrock:
     def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
-    def test_llmobs_only_patched_bedrock(self, ddtrace_global_config, llmobs_span_writer):
+    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer):
         import boto3
 
         llmobs_service.disable()
@@ -300,20 +300,22 @@ class TestLLMObsBedrock:
             llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
             llmobs_service._instance.tracer = mock_tracer
 
+            # ensure we still get llmobs spans
             self._test_llmobs_invoke(
                 "meta", bedrock_client=bedrock_client, mock_tracer=mock_tracer, llmobs_events=llmobs_span_writer.events
             )
 
+            # ensure we don't get spans for non-bedrock services
+            from botocore.exceptions import ClientError
             import botocore.session
 
-            # Create a session
             session = botocore.session.get_session()
             sqs_client = session.create_client("sqs", region_name="us-east-1")
             pin = Pin.get_from(sqs_client)
             pin._override(sqs_client, tracer=mock_tracer)
             try:
                 sqs_client.list_queues()
-            except Exception:
+            except ClientError:
                 pass
             assert mock_tracer.pop_traces() == []
 
