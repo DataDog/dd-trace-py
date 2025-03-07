@@ -19,6 +19,8 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+BEDROCK_URL_REGEX_PATTERN = "^bedrock-runtime[\\w.-]*.com$"
+
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
@@ -131,5 +133,5 @@ class BedrockIntegration(BaseLLMIntegration):
             return True
 
         parsed_url = urlparse(base_url)
-        default_url_regex = re.compile("^bedrock-runtime[\\w.-]*.com$")
+        default_url_regex = re.compile(BEDROCK_URL_REGEX_PATTERN)
         return default_url_regex.match(parsed_url.hostname or "") is not None
