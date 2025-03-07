@@ -2926,7 +2926,7 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.11
+                # Python >= 3.11
                 Venv(
                     pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
