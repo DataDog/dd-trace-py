@@ -311,6 +311,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         _tracer: Optional[Tracer] = None,
+        _auto: bool = False,
     ) -> None:
         """
         Enable LLM Observability tracing.
@@ -393,7 +394,7 @@ class LLMObs(Service):
 
             log.debug("%s enabled", cls.__name__)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns)
+            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
