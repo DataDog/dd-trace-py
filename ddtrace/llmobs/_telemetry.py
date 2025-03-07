@@ -52,4 +52,6 @@ def record_span_created(span: Span):
         tags.append(("decorator", str(decorator)))
     if model_provider:
         tags.append(("model_provider", model_provider))
-    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.MLOBS, name="span.finished", value=1, tags=tuple(tags))
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS, name="span.finished", value=1, tags=tuple(tags)
+    )
