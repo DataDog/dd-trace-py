@@ -1,7 +1,7 @@
 from io import BytesIO
 import json
 import os
-from unittest.mock import patch as mock_patch
+from mock import patch as mock_patch
 
 import botocore
 import mock

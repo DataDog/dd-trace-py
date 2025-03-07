@@ -1,9 +1,11 @@
 import json
+import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from urllib.parse import urlparse
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
@@ -27,7 +29,7 @@ from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 
-ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ["api.openai.com", "api.deepseek.com"]
+ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -256,8 +258,6 @@ class OpenAIIntegration(BaseLLMIntegration):
     def is_default_base_url(cls, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
-        import re
-        from urllib.parse import urlparse
 
         parsed_url = urlparse(base_url)
         default_azure_endpoint_regex = re.compile("^[\\w.-]*openai\\.azure\\.com$")

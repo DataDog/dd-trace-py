@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import mock
 import openai as openai_module
 import pytest
@@ -72,7 +70,7 @@ class TestLLMObsOpenaiV1:
     def test_completion_proxy(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
         # mock out the completions response
-        with patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
+        with mock.patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
             mock_completions_post.return_value = MOCK_OPENAI_COMPLETIONS_RESPONSE
             model = "gpt-3.5-turbo"
             client = openai.OpenAI(base_url="http://0.0.0.0:4000")
@@ -127,7 +125,7 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         prompt = "Hello world"
-        with patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
+        with mock.patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
             mock_completions_post.return_value = MOCK_OPENAI_COMPLETIONS_RESPONSE
             azure_client = openai.AzureOpenAI(
                 base_url="http://0.0.0.0:4000",
@@ -236,7 +234,7 @@ class TestLLMObsOpenaiV1:
 
     def test_chat_completion_proxy(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are not emitted for chat completion endpoints when the base_url is specified."""
-        with patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
+        with mock.patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
             mock_completions_post.return_value = MOCK_OPENAI_CHAT_COMPLETIONS_RESPONSE
             model = "gpt-3.5-turbo"
             input_messages = [
@@ -291,7 +289,7 @@ class TestLLMObsOpenaiV1:
         input_messages = [
             {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
         ]
-        with patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
+        with mock.patch.object(openai._base_client.SyncAPIClient, "post") as mock_completions_post:
             mock_completions_post.return_value = MOCK_OPENAI_CHAT_COMPLETIONS_RESPONSE
             azure_client = openai.AzureOpenAI(
                 base_url="http://0.0.0.0:4000",

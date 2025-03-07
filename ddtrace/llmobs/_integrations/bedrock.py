@@ -1,7 +1,9 @@
+import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -127,8 +129,6 @@ class BedrockIntegration(BaseLLMIntegration):
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
-        import re
-        from urllib.parse import urlparse
 
         parsed_url = urlparse(base_url)
         default_url_regex = re.compile("^bedrock-runtime[\\w.-]*.com$")

@@ -1,13 +1,13 @@
 from pathlib import Path
-from unittest.mock import patch
+from mock import patch
 
 import pytest
 
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
-from .test_anthropic import ANTHROPIC_VERSION
-from .utils import MOCK_MESSAGES_CREATE_REQUEST
-from .utils import tools
+from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
+from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
+from tests.contrib.anthropic.utils import tools
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"

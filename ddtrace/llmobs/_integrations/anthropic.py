@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -191,7 +192,6 @@ class AnthropicIntegration(BaseLLMIntegration):
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         if base_url is None:
             return True
-        from urllib.parse import urlparse
 
         parsed_url = urlparse(base_url)
         return parsed_url.hostname == DEFAULT_ANTHROPIC_HOSTNAME
