@@ -129,7 +129,7 @@ def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
         mock_tracer_patch.assert_called_once()
         kwargs = mock_tracer_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -144,7 +144,7 @@ def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch
             if module == "openai":
                 assert kwargs[module] is False
                 continue
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -159,7 +159,7 @@ def test_service_enable_does_not_override_integration_enabled_env_vars(mock_trac
             if module == "openai":
                 assert kwargs[module] is False
                 continue
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -168,13 +168,14 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
     """Test that _patch_integrations() ensures `DD_PATCH_MODULES` overrides `DD_TRACE_<MODULE>_ENABLED`."""
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "true")
     monkeypatch.setenv("DD_TRACE_ANTHROPIC_ENABLED", "false")
+    monkeypatch.setenv("DD_TRACE_BOTOCORE_ENABLED", "false")
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
         mock_tracer_patch.assert_called_once()
         kwargs = mock_tracer_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
-            if module in ("openai", "anthropic"):
+            if module in ("openai", "anthropic", "botocore"):
                 assert kwargs[module] is False
                 continue
             assert kwargs[module] is True
