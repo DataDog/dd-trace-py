@@ -1,5 +1,6 @@
 from typing import Dict
 from typing import List
+from typing import Tuple
 from typing import Union
 
 
@@ -19,20 +20,33 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
-Prompt = TypedDict(
-    "Prompt",
-    {
-        "variables": Dict[str, str],
-        "template": str,
-        "id": str,
-        "version": str,
-        "rag_context_variables": List[
-            str
-        ],  # a list of variable key names that contain ground truth context information
-        "rag_query_variables": List[str],  # a list of variable key names that contains query information
-    },
-    total=False,
-)
+
+
+class Prompt(TypedDict, total=False):
+    """
+    A Prompt object that contains the information needed to render a prompt.
+    name: str - the name of the prompt template, should be unique per ml_app.
+    version: str - the version of the prompt. SemVer  Defaults to 1.0.0
+    id: str - the id of the prompt set by the user. can substitute for name
+    variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
+    template: Union[str, List[Tuple[str, str]]] -
+        - A list of 2-tuples of (role,template) where role is the role of the prompt and template is the template string
+        - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
+    example_variables: List[str] - a list of variable key names that contain example information
+    constraint_variables: List[str] - a list of variable key names that contain constraint information
+    rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
+    rag_query_variables: List[str] - a list of variable key names that contains query information
+    """
+
+    name: str
+    version: str
+    id: str
+    template: Union[str, List[Tuple[str, str]]]
+    variables: Dict[str, str]
+    example_variables: List[str]
+    constraint_variables: List[str]
+    rag_context_variables: List[str]
+    rag_query_variables: List[str]
 
 
 class Messages:
