@@ -38,7 +38,7 @@ def generate_sql_comment(**meta):
     if not comment:
         return ""
 
-    return "/*" + comment + "*/"
+    return f"/*{comment}*/"
 
 def _generate_comment_from_metadata(**meta):
     """
