@@ -463,7 +463,9 @@ def test_ddtrace_auto_imports():
         assert module not in sys.modules, module
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1", DD_RUNTIME_METRICS_ENABLED="0")
+)
 def test_ddtrace_re_module():
     import re
 
