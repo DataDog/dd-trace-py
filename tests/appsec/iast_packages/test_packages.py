@@ -1,6 +1,6 @@
+from contextlib import contextmanager
 import json
 import os
-from contextlib import contextmanager
 from pathlib import Path
 import shutil
 import subprocess
@@ -39,6 +39,7 @@ _DEBUG_MODE = False
 TEMPLATE_VENV_DIR = os.path.join(DDTRACE_PATH, "template_venv")
 CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_CACHE_SHARED_VENVS_DIR = os.path.join(DDTRACE_PATH, "pip_cache_shared_venvs")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup(request):
@@ -933,16 +934,26 @@ def template_venv():
                 ]
                 subprocess.check_call([pip_executable, "install", *deps_to_install])
 
-                # Dont make a full build-install of ddtrace since it's too slow, instead install the missing requirements,
-                # compile the native extensions with DD_FAST_BUILD and
-                subprocess.check_call([python_executable, "-m", "piptools", "compile", "-o", "requirements.txt",
-                                       os.path.join(DDTRACE_PATH, "pyproject.toml")])
+                # Dont make a full build-install of ddtrace since it's too slow, instead install the missing
+                # requirements, compile the native extensions with DD_FAST_BUILD and
+                subprocess.check_call(
+                    [
+                        python_executable,
+                        "-m",
+                        "piptools",
+                        "compile",
+                        "-o",
+                        "requirements.txt",
+                        os.path.join(DDTRACE_PATH, "pyproject.toml"),
+                    ]
+                )
                 subprocess.check_call([pip_executable, "install", "-r", "requirements.txt"])
                 curpwd = os.getcwd()
                 try:
                     os.chdir(DDTRACE_PATH)
-                    subprocess.check_call(["DD_FAST_BUILD=1", python_executable,
-                                           "setup.py", "build_ext", "--inplace"], shell=True)
+                    subprocess.check_call(
+                        ["DD_FAST_BUILD=1", python_executable, "setup.py", "build_ext", "--inplace"], shell=True
+                    )
                 finally:
                     os.chdir(curpwd)
 
