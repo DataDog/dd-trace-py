@@ -493,12 +493,7 @@ class Config(object):
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
-        self._trace_agent_hostname = _get_config(["DD_TRACE_AGENT_HOSTNAME", "DD_AGENT_HOST"])
-        self._trace_agent_port = _get_config(["DD_TRACE_AGENT_PORT", "DD_AGENT_PORT"])
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
-        self._stats_agent_hostname = _get_config(["DD_DOGSTATSD_HOST", "DD_AGENT_HOST"])
-        self._stats_agent_port = _get_config(["DD_DOGSTATSD_PORT", "DD_AGENT_PORT"])
-        self._stats_agent_url = _get_config("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
         # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
         from ddtrace.internal.agent import config as agent_config

@@ -153,9 +153,9 @@ class AgentConfig(DDConfig):
         help_type="Int",
         help="Stores the port of the agent",
     )
-
+    # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
-
+    # Effective DogStatsD URL (this is the one that will be used)
     dogstatsd_url = DDConfig.d(str, _derive_stats_url)
 
 

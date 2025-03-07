@@ -22,12 +22,12 @@ from ...constants import _KEEP_SPANS_RATE_KEY
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
+from .. import agent
 from .. import compat
 from .. import periodic
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
-from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
@@ -155,7 +155,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = config._agent_timeout_seconds
+            timeout = agent.config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -234,7 +234,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
-                self._conn = get_connection(self._intake_url(client), self._timeout)
+                self._conn = agent.get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
@@ -450,7 +450,7 @@ class AgentWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = config._agent_timeout_seconds
+            timeout = agent.config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:

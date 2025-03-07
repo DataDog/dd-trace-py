@@ -23,64 +23,78 @@ def test_is_ipv6_hostname(hostname, expected):
     assert agent.is_ipv6_hostname(hostname) == expected
 
 
-@pytest.mark.subprocess(parametrize={"DD_AGENT_HOST": ["host", "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF"]})
+@pytest.mark.subprocess(parametrize={"DD_AGENT_HOST": ["host", "2001:db8:3333:4444:cccc:dddd:eeee:ffff"]})
 def test_hostname():
     import os
+    from urllib.parse import urlparse
 
-    from ddtrace import config
+    from ddtrace.internal.agent import config
 
-    assert config._trace_agent_hostname == os.environ["DD_AGENT_HOST"]
-    assert config._stats_agent_hostname == os.environ.get("DD_AGENT_HOST")
+    assert urlparse(config.trace_agent_url).hostname == os.environ.get("DD_AGENT_HOST")
+    assert urlparse(config.dogstatsd_url).hostname == os.environ.get("DD_AGENT_HOST"), urlparse(config.dogstatsd_url)
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_HOSTNAME": "monkey", "DD_AGENT_HOST": "baboon"})
 def test_trace_hostname():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_hostname == "monkey"
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).hostname == "monkey"
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOSTNAME": None})
 def test_hostname_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_hostname is None
-    assert config._trace_agent_hostname is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).hostname == "localhost"
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235", "DD_TRACE_AGENT_PORT": "9999"})
 def test_trace_port():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_port == "9999"
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).port == 9999
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235"})
 def test_agent_port():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_port == "1235"
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).port == 1235
 
 
 @pytest.mark.subprocess(env={"DD_AGENT_PORT": None, "DD_TRACE_AGENT_PORT": None})
 def test_trace_port_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_port is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).port == 8126
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235"})
 def test_stats_port():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_port == "1235"
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.dogstatsd_url).port == 1235
 
 
 @pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": None})
 def test_stats_port_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_port is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.dogstatsd_url).port == 8125
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": None})
