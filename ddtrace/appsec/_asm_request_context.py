@@ -252,6 +252,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
         except Exception:
             log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+    if asm_config._rc_client_id is not None:
+        env.span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
 
     core.discard_local_item(_ASM_CONTEXT)
 
