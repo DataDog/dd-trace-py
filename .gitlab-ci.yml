@@ -95,18 +95,21 @@ promote-oci-to-prod:
     - job: release_pypi_prod
     - job: package-oci
       artifacts: true
+    - job: oci-internal-publish
 
 promote-oci-to-prod-beta:
   stage: release
   needs:
     - job: package-oci
       artifacts: true
+    - job: oci-internal-publish
 
 promote-oci-to-staging:
   stage: release
   needs:
     - job: package-oci
       artifacts: true
+    - job: oci-internal-publish
 
 publish-lib-init-ghcr-tags:
   stage: release
@@ -122,7 +125,7 @@ publish-lib-init-pinned-tags:
     - /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
   needs:
     - job: release_pypi_prod
-    - job: oci-internal-publish
+    - job: generate-lib-init-pinned-tag-values
       artifacts: true
 
 onboarding_tests_installer:
