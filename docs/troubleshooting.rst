@@ -103,7 +103,7 @@ Remove all the ``.riot/venv*``  directories and run the tests without the -s opt
 
 ``scripts/ddtest DD_TRACE_AGENT_URL=http://localhost:9126 riot -v run -p3.12 --pass-env <integration_name>``
 
-This will re-create all your venvs and hopefully install package in the correct venv.
+This will re-create all your virtual environments and hopefully install package in the correct venv.
 
 
 Still having issues?
