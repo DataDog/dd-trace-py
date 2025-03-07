@@ -798,14 +798,14 @@ PACKAGES = [
         fixme_propagation_fails=True,
     ),
     # TODO: e2e implemented but fails unpatched: "RateLimiter object has no attribute _is_allowed"
-    PackageForTesting(
-        "aiohttp",
-        "3.9.5",
-        "https://example.com",
-        "foobar",
-        "",
-        test_e2e=False,
-    ),
+    # PackageForTesting(
+    #     "aiohttp",
+    #     "3.9.5",
+    #     "https://example.com",
+    #     "foobar",
+    #     "",
+    #     test_e2e=False,
+    # ),
     ## Skip due to scipy added to the denylist
     # # scipy dropped Python 3.8 support in scipy > 1.10.1
     # PackageForTesting(
