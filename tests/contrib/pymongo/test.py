@@ -2,6 +2,7 @@
 import time
 
 import pymongo
+import pytest
 
 from ddtrace.contrib.internal.pymongo.client import normalize_filter
 from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
