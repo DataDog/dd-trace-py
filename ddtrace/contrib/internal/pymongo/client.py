@@ -6,7 +6,8 @@ from typing import Iterable
 
 # 3p
 import pymongo
-from pymongo.message import _GetMore, _Query
+from pymongo.message import _GetMore
+from pymongo.message import _Query
 from wrapt import ObjectProxy
 
 # project
@@ -27,7 +28,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 from ddtrace.trace import Pin
 
 from .parse import parse_msg
@@ -168,9 +168,7 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
-        log.debug("before dbm operation: %s", getattr(operation, "spec"))
         span, args, kwargs = _dbm_dispatch(span, args, kwargs)
-        log.debug("after dbm operation: %s", getattr(operation, "spec"))
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -350,24 +348,34 @@ def set_query_rowcount(docs, span):
         span.set_metric(db.ROWCOUNT, rowcount)
 
 
-
 def _dbm_dispatch(span, args, kwargs):
     # dispatch DBM
+    # print("dispatching dbm")
+    # print(span, args, kwargs)
     result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
     if result:
         span, args, kwargs = result.value
+        # print("after dispatch")
+        # print("span", span)
+        # print("args", args)
+        # print("kwargs", kwargs)
     return span, args, kwargs
 
 
 def _dbm_comment_injector(dbm_comment, command):
     try:
+        if dbm_comment is not None:
+            dbm_comment = dbm_comment.strip()
         if isinstance(command, _Query):
             if _is_query(command):
+                if "$query" not in command.spec:
+                    command.spec = {"$query": command.spec}
                 command.spec = _dbm_comment_injector(dbm_comment, command.spec)
         elif isinstance(command, _GetMore):
             if hasattr(command, "comment"):
                 command.comment = _dbm_merge_comment(command.comment, dbm_comment)
         else:
+            # print("not query or getmore command", command)
             comment_exists = False
             for comment_key in ("comment", "$comment"):
                 if comment_key in command:
@@ -394,4 +402,6 @@ def _dbm_merge_comment(existing_comment, dbm_comment):
     elif isinstance(existing_comment, list):
         existing_comment.append(dbm_comment)
         return existing_comment
-    return dbm_comment
+    # if existing_comment is not a string or list
+    # do not inject dbm comment
+    return existing_comment

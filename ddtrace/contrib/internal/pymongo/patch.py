@@ -15,9 +15,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
-from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.trace import Pin
+from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
 
@@ -59,7 +59,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("pymongo"),
         _dbm_propagator=_DBM_Propagator(2, "spec", _dbm_comment_injector, _generate_comment_from_metadata),
-    )
+    ),
 )
 
 
