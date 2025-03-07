@@ -678,8 +678,6 @@ class Config(object):
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
 
-        # report telemetry for agent configurations
-
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
