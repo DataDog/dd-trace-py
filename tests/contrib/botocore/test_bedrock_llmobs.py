@@ -74,18 +74,6 @@ def bedrock_client(boto3, request_vcr):
 
 
 @pytest.fixture
-def bedrock_client_after_llmobs_enabled():
-    import boto3
-    session = boto3.Session(
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    bedrock_client = session.client("bedrock-runtime")
-    yield bedrock_client
-
-@pytest.fixture
 def mock_llmobs_span_writer():
     patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
     try:
@@ -288,23 +276,48 @@ class TestLLMObsBedrock:
     def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
-    def test_llmobs_only_patched_bedrock(self, ddtrace_global_config, bedrock_client_after_llmobs_enabled, mock_tracer, llmobs_events, request_vcr):
-        self._test_llmobs_invoke("meta", bedrock_client_after_llmobs_enabled, mock_tracer, llmobs_events)
+    def test_llmobs_only_patched_bedrock(self, ddtrace_global_config, llmobs_span_writer):
+        import boto3
 
-        import botocore.session
-                # Create a session
-        session = botocore.session.get_session()
+        llmobs_service.disable()
 
-        # Create an SQS client using botocore
-        sqs = session.create_client('sqs', region_name='us-east-1')
-        try:
-            sqs.list_queues()
-        except Exception:
-            pass
+        with override_global_config(
+            {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
+        ):
+            llmobs_service.enable(integrations_enabled=True)
+            session = boto3.Session(
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+                aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+                region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+            )
+            bedrock_client = session.client("bedrock-runtime")
 
-        assert mock_tracer.pop_traces() == []
+            mock_tracer = DummyTracer()
+            pin = Pin.get_from(bedrock_client)
+            pin._override(bedrock_client, tracer=mock_tracer)
 
+            llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+            llmobs_service._instance.tracer = mock_tracer
 
+            self._test_llmobs_invoke(
+                "meta", bedrock_client=bedrock_client, mock_tracer=mock_tracer, llmobs_events=llmobs_span_writer.events
+            )
+
+            import botocore.session
+
+            # Create a session
+            session = botocore.session.get_session()
+            sqs_client = session.create_client("sqs", region_name="us-east-1")
+            pin = Pin.get_from(sqs_client)
+            pin._override(sqs_client, tracer=mock_tracer)
+            try:
+                sqs_client.list_queues()
+            except Exception:
+                pass
+            assert mock_tracer.pop_traces() == []
+
+        llmobs_service.disable()
 
     def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events, request_vcr):
         import botocore
