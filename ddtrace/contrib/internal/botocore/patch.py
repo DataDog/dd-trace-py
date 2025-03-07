@@ -175,6 +175,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         return original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+
     if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
         return original_func(*args, **kwargs)
 
