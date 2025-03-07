@@ -724,5 +724,5 @@ class LangChainIntegration(BaseLLMIntegration):
         return (input_tokens, output_tokens, total_tokens), run_id_base
 
     def has_default_base_url(self, instance) -> bool:
-        openai_api_base = getattr(instance, "openai_api_base", "")
+        openai_api_base = getattr(instance, "openai_api_base", None)
         return not openai_api_base or OpenAIIntegration.is_default_base_url(openai_api_base)
