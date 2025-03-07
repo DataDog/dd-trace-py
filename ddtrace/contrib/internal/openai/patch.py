@@ -163,11 +163,14 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
+    client = getattr(instance, '_client', None)
+    base_url = getattr(client, '_base_url', "") if client else ""
+
     # only report LLM Obs spans if base_url has not been changed
     span = integration.trace(
         pin,
         endpoint_hook.OPERATION_ID,
-        submit_to_llmobs=integration.is_default_base_url(str(instance._client.base_url)),
+        submit_to_llmobs=integration.is_default_base_url(str(base_url)),
     )
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None

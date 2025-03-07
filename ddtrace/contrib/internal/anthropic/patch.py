@@ -43,12 +43,14 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
+    client = getattr(instance, '_client', None)
+    base_url = getattr(client, '_base_url', "") if client else ""
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.is_default_base_url(str(instance._client._base_url)),
+        submit_to_llmobs=integration.is_default_base_url(str(base_url)),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
@@ -116,12 +118,14 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
+    client = getattr(instance, '_client', None)
+    base_url = getattr(client, '_base_url', "") if client else ""
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.is_default_base_url(str(instance._client._base_url)),
+        submit_to_llmobs=integration.is_default_base_url(str(base_url)),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
