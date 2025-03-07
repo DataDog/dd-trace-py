@@ -12,3 +12,5 @@ features:
     ```
     DD_DBM_PROPAGATION_MODE=full|service
     ```
+
+    Note that this feature requires PyMongo 3.9 or higher.

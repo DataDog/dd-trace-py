@@ -358,6 +358,10 @@ def _dbm_dispatch(span, args, kwargs):
 
 def _dbm_comment_injector(dbm_comment, command):
     try:
+        if VERSION < (3, 9):
+            log.debug("DBM propagation not supported for PyMongo versions < 3.9")
+            return command
+
         if dbm_comment is not None:
             dbm_comment = dbm_comment.strip()
         if isinstance(command, _Query):

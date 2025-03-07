@@ -916,6 +916,10 @@ class TestPymongoDBMInjection(TracerTestCase):
 
     def setUp(self):
         super(TestPymongoDBMInjection, self).setUp()
+        # Skip tests for unsupported PyMongo versions
+        if pymongo.version_tuple < (3, 9):
+            pytest.skip("DBM propagation requires PyMongo 3.9+")
+
         # Create and register the command listener BEFORE patching
         self.command_capture = CommandCapture()
         pymongo.monitoring.register(self.command_capture)
