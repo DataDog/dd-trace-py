@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -24,6 +25,7 @@ log = get_logger(__name__)
 
 API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
+DEFAULT_ANTHROPIC_HOSTNAME = "api.anthropic.com"
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -186,3 +188,10 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
+
+    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
+        if base_url is None:
+            return True
+
+        parsed_url = urlparse(base_url)
+        return parsed_url.hostname == DEFAULT_ANTHROPIC_HOSTNAME

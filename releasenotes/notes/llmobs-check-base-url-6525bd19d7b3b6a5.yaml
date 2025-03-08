@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Avoids submitting spans to LLM Observability when a non-default base URL is detected in request.

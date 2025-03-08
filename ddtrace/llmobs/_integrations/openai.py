@@ -1,9 +1,11 @@
 import json
+import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from urllib.parse import urlparse
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
@@ -21,6 +23,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -53,8 +56,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
-            submit_to_llmobs = True
+        submit_to_llmobs = submit_to_llmobs and (
+            operation_id.endswith("Completion") or operation_id == "createEmbedding"
+        )
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -247,3 +251,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
+
+    @classmethod
+    def is_default_base_url(cls, base_url: Optional[str] = None) -> bool:
+        return is_openai_default_base_url(base_url)
