@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    runtime_metrics: Adds support for sending runtime metrics as gauge metrics (instead of distributions). To enable this feature set ``DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED``. 
+  - |
+    runtime_metrics: Adds support for tagging runtime metrics with the current runtime ID. To enable tagging, set ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED=True``.
