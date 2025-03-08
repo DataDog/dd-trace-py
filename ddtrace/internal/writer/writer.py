@@ -28,6 +28,7 @@ from .. import periodic
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
+from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
@@ -234,7 +235,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
-                self._conn = agent.get_connection(self._intake_url(client), self._timeout)
+                self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
