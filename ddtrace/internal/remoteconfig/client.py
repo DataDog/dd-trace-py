@@ -319,7 +319,7 @@ class RemoteConfigClient:
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
 
-            conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
+            conn = agent.get_connection(self.agent_url, timeout=agent.config.trace_agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data_length = resp.headers.get("Content-Length")

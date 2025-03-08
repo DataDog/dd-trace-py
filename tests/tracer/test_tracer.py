@@ -588,8 +588,8 @@ class TracerTestCases(TracerTestCase):
             assert user_id == "44Om44O844K244O8SUQ="
 
 
-@pytest.mark.subprocess(env=dict(DD_AGENT_PORT="", DD_AGENT_HOST="", DD_TRACE_AGENT_URL=""))
-def test_tracer_url():
+@pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
+def test_tracer_url_default():
     import ddtrace
 
     assert ddtrace.trace.tracer._writer.agent_url == "http://localhost:8126"
