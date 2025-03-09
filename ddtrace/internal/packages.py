@@ -216,6 +216,8 @@ def _third_party_packages() -> set:
     from gzip import decompress
     from importlib.resources import read_binary
 
+    print('   includes:', tp_config.includes)
+    print('   exludes:', tp_config.excludes)
     return (
         set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())
         | tp_config.includes
@@ -225,6 +227,7 @@ def _third_party_packages() -> set:
 @cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
     mapping = _package_for_root_module_mapping()
+    print('   mapping for:', filename, mapping)
     if mapping is None:
         return None
 
@@ -261,8 +264,10 @@ def is_stdlib(path: Path) -> bool:
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
+        print('   cannot detect package:', path)
         return False
-
+    print('   detected package:', package.name, 'from', path)
+    print('   third party:', package.name in _third_party_packages())
     return package.name in _third_party_packages()
 
 
