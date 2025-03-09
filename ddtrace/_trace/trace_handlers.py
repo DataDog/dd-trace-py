@@ -6,6 +6,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib import parse
 
 import wrapt
 
@@ -32,7 +33,6 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
