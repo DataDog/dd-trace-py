@@ -275,7 +275,8 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 
-custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
+custom_sampler = DatadogSampler()
+custom_sampler.set_sampling_rules('[{"sample_rate":0.3, "name":"test"}]')
 tracer._configure(sampler=custom_sampler)
 with tracer.trace("test") as span:
     pass
