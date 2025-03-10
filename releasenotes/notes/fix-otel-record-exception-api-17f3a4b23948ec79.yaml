@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    opentelemetry: Ensures ``Span.record_exception(...)`` sets the span error metadata only if escaped is True.
