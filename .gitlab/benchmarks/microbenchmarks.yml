@@ -33,7 +33,7 @@ variables:
 
     capture-hardware-software-info.sh
 
-    if [[ $SCENARIO =~ ^flask_* ]];
+    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
     then
       BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
