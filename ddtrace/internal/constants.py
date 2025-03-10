@@ -110,3 +110,9 @@ SAMPLING_MECHANISM_TO_PRIORITIES = {
 }
 _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
+
+
+# List of support values in DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED
+class EXPERIMENTAL_FEATURES:
+    # Enables submitting runtime metrics as gauges (instead of distributions)
+    RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
