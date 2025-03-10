@@ -1042,7 +1042,7 @@ def test_packages_not_patched(package):
         pytest.skip(reason)
         return
 
-    print("Testing unpatched: {}, test {}/{}".format(
+    print("===============> Testing unpatched: {}, test {}/{}".format(
         package.name,
         NUM_TEST,
         len(PACKAGES)*2)
@@ -1092,7 +1092,7 @@ def test_packages_patched(package):
         pytest.skip(reason)
         return
 
-    print("Testing unpatched: {}, test {}/{}".format(
+    print("===============> Testing unpatched: {}, test {}/{}".format(
         package.name,
         NUM_TEST,
         len(PACKAGES)*2)
