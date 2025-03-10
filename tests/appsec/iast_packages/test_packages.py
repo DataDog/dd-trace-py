@@ -925,7 +925,7 @@ PACKAGES = sorted(_PACKAGES, key=lambda x: x.name)
 
 
 def _detect_virtualenv():
-    venv_path = os.environ.get('VIRTUAL_ENV')
+    venv_path = os.environ.get("VIRTUAL_ENV")
     if venv_path:
         return True, venv_path
 
@@ -959,7 +959,9 @@ def template_venv():
             print("Could not detect PIP_CACHE_DIR, using default %s" % PIP_CACHE_SHARED_VENVS_DIR)
 
     elif not os.path.exists(TEMPLATE_VENV_DIR):
-        print("Not running under Gitlab or not existing env, creating new virtual environment at %s" % TEMPLATE_VENV_DIR)
+        print(
+            "Not running under Gitlab or not existing env, creating new virtual environment at %s" % TEMPLATE_VENV_DIR
+        )
         if not _DEBUG_MODE:
             subprocess.check_call([sys.executable, "-m", "venv", TEMPLATE_VENV_DIR])
             this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
