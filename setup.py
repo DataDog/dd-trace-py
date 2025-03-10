@@ -13,6 +13,7 @@ import warnings
 
 import cmake
 from setuptools_rust import Binding
+from setuptools_rust import RustBin
 from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
@@ -670,7 +671,9 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.native.crashtracker" if CRASHTRACKER_RUST else "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
+        "ddtrace.internal.native._native"
+        if CRASHTRACKER_RUST
+        else "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -752,5 +755,13 @@ setup(
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
-    ],
+    ]
+    + [
+        RustBin(
+            "crashtracker_exe",
+            path="src/native/Cargo.toml",
+        ),
+    ]
+    if CRASHTRACKER_RUST
+    else [],
 )

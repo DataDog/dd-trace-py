@@ -373,6 +373,7 @@ dependencies = [
  "datadog-crashtracker",
  "datadog-ddsketch",
  "datadog-library-config",
+ "ddcommon",
  "pyo3",
  "pyo3-build-config 0.21.2",
 ]

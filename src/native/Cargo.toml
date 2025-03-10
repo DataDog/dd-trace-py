@@ -11,6 +11,7 @@ opt-level = 3
 [dependencies]
 anyhow = "1.0"
 pyo3 = { version = "0.22.3", features = ["extension-module"] }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
