@@ -1028,6 +1028,7 @@ _TEST_PORT = 8010
 
 NUM_TEST = 0
 
+
 @pytest.mark.parametrize(
     "package",
     [package for package in PACKAGES],
@@ -1042,11 +1043,7 @@ def test_packages_not_patched(package):
         pytest.skip(reason)
         return
 
-    print("===============> Testing unpatched: {}, test {}/{}".format(
-        package.name,
-        NUM_TEST,
-        len(PACKAGES)*2)
-    )
+    print("===============> Testing unpatched: {}, test {}/{}".format(package.name, NUM_TEST, len(PACKAGES) * 2))
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
@@ -1092,11 +1089,7 @@ def test_packages_patched(package):
         pytest.skip(reason)
         return
 
-    print("===============> Testing unpatched: {}, test {}/{}".format(
-        package.name,
-        NUM_TEST,
-        len(PACKAGES)*2)
-    )
+    print("===============> Testing unpatched: {}, test {}/{}".format(package.name, NUM_TEST, len(PACKAGES) * 2))
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
