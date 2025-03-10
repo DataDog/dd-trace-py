@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where an incorrect max payload size value caused spans to be dropped.
+    LLM Observability: This fix resolves an issue where an incorrect max payload size setting caused spans to be dropped.
 
