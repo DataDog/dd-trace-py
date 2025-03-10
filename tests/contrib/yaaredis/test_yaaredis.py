@@ -204,6 +204,8 @@ if __name__ == "__main__":
 @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
+    import ddtrace.auto  # noqa
+
     import asyncio
 
     import yaaredis
