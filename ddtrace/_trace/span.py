@@ -244,6 +244,10 @@ class Span(object):
         return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     @property
+    def _span_id_64bits(self) -> int:
+        return _get_64_lowest_order_bits_as_int(self.span_id)
+
+    @property
     def start(self) -> float:
         """The start timestamp in Unix epoch seconds."""
         return self.start_ns / 1e9
