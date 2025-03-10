@@ -71,8 +71,8 @@ def mock_http_writer_send_payload_response():
     with mock.patch(
         "ddtrace.internal.writer.HTTPWriter._send_payload",
         return_value=Response(status=200, body="{}"),
-    ) as mock_http_writer:
-        yield mock_http_writer
+    ):
+        yield
 
 
 @pytest.fixture
