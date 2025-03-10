@@ -364,6 +364,7 @@ class AppSecSpanProcessor(SpanProcessor):
             rule_type,
             waf_results.runtime,
             waf_results.total_runtime,
+            waf_results.truncation,
         )
         if blocked:
             _asm_request_context.set_blocked(blocked)

@@ -15,6 +15,7 @@ from urllib import parse
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import add_context_log
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
@@ -83,7 +84,7 @@ class ASM_Environment:
             _TELEMETRY_WAF_RESULTS: {
                 "blocked": False,
                 "triggered": False,
-                "timeout": False,
+                "timeout": 0,
                 "version": None,
                 "duration": 0.0,
                 "total_duration": 0.0,
@@ -95,11 +96,13 @@ class ASM_Environment:
                     "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                     "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
                 },
+                "truncation": {"string_length": [], "container_size": [], "container_depth": []},
             }
         }
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
+        self.finalized: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -208,31 +211,51 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             telemetry_results["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
             telemetry_results["total_duration"] = 0.0
+        if telemetry_results["timeout"]:
+            update_span_metrics(root_span, APPSEC.WAF_TIMEOUTS, telemetry_results["timeout"])
+        rasp_timeouts = sum(telemetry_results["rasp"]["timeout"].values())
+        if rasp_timeouts:
+            update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
         if telemetry_results["rasp"]["sum_eval"]:
             update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
-            telemetry_results["rasp"]["duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
-            telemetry_results["rasp"]["total_duration"] = 0.0
             update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
-            telemetry_results["rasp"]["sum_eval"] = 0
+        if telemetry_results["truncation"]["string_length"]:
+            root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results["truncation"]["string_length"]))
+        if telemetry_results["truncation"]["container_size"]:
+            root_span.set_metric(
+                APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results["truncation"]["container_size"])
+            )
+        if telemetry_results["truncation"]["container_depth"]:
+            root_span.set_metric(
+                APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results["truncation"]["container_depth"])
+            )
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
-    callbacks = GLOBAL_CALLBACKS[_CONTEXT_CALL] + env.callbacks[_CONTEXT_CALL]
-    for function in callbacks:
+    if env.finalized:
+        return
+    env.finalized = True
+    for function in GLOBAL_CALLBACKS[_CONTEXT_CALL]:
         function(env)
     flush_waf_triggers(env)
-    if env.waf_info:
-        info = env.waf_info()
-        try:
-            if info.errors:
-                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
-                log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
-            env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except Exception:
-            log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+    for function in env.callbacks[_CONTEXT_CALL]:
+        function(env)
+    root_span = env.span._local_root or env.span
+    if root_span:
+        if env.waf_info:
+            info = env.waf_info()
+            try:
+                if info.errors:
+                    root_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
+                root_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                root_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+                root_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            except Exception:
+                log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+        if asm_config._rc_client_id is not None:
+            root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -415,14 +438,22 @@ def set_waf_telemetry_results(
     rule_type: Optional[str],
     duration: float,
     total_duration: float,
+    truncation: _observator,
 ) -> None:
     result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    from ddtrace.appsec._metrics import _report_waf_truncations
+
+    _report_waf_truncations(truncation)
     if result is not None:
+        for key in ["container_size", "container_depth", "string_length"]:
+            res = getattr(truncation, key)
+            if isinstance(res, int):
+                result["truncation"][key].append(res)
         if rule_type is None:
             # Request Blocking telemetry
             result["triggered"] |= is_triggered
             result["blocked"] |= is_blocked
-            result["timeout"] |= is_timeout
+            result["timeout"] += is_timeout
             if rules_version is not None:
                 result["version"] = rules_version
             result["duration"] += duration

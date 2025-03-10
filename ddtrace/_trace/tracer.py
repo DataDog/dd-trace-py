@@ -1,4 +1,5 @@
 import functools
+from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
@@ -13,6 +14,7 @@ from typing import Optional
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
+from urllib import parse
 
 from ddtrace import _hooks
 from ddtrace import config
@@ -25,8 +27,6 @@ from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.sampler import BasePrioritySampler
-from ddtrace._trace.sampler import BaseSampler
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
@@ -107,7 +107,7 @@ def _default_span_processors_factory(
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
-    trace_sampler: BaseSampler,
+    trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -230,7 +230,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
-        self._user_sampler: Optional[BaseSampler] = DatadogSampler()
+        self._user_sampler = DatadogSampler()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -239,9 +239,9 @@ class Tracer(object):
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
             # for the backend to consider the service as alive.
-            self._sampler: BaseSampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
         else:
-            self._sampler: BaseSampler = DatadogSampler()
+            self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
         self._agent_url: str = agent.get_trace_url() if url is None else url
         verify_url(self._agent_url)
@@ -292,7 +292,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        config._subscribe(["_trace_sample_rate", "_trace_sampling_rules"], self._on_global_config_update)
+        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
         config._subscribe(["_logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
@@ -437,7 +437,7 @@ class Tracer(object):
         port: Optional[int] = None,
         uds_path: Optional[str] = None,
         https: Optional[bool] = None,
-        sampler: Optional[BaseSampler] = None,
+        sampler: Optional[DatadogSampler] = None,
         context_provider: Optional[BaseContextProvider] = None,
         wrap_executor: Optional[Callable] = None,
         priority_sampling: Optional[bool] = None,
@@ -478,16 +478,11 @@ class Tracer(object):
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
-            if isinstance(sampler, DatadogSampler):
-                sampler._rate_limit_always_on = True  # type: ignore[has-type]
-                sampler.limiter.rate_limit = 1  # type: ignore[has-type]
-                sampler.limiter.time_window = 60e9  # type: ignore[has-type]
+            if sampler is not None:
+                sampler._rate_limit_always_on = True
+                sampler.limiter.rate_limit = 1
+                sampler.limiter.time_window = 60e9
             else:
-                if sampler is not None:
-                    log.warning(
-                        "Overriding sampler: %s, a DatadogSampler must be used in ASM Standalone mode",
-                        sampler.__class__,
-                    )
                 sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
 
@@ -501,7 +496,7 @@ class Tracer(object):
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            prev_url_parsed = compat.parse.urlparse(self._agent_url)
+            prev_url_parsed = parse.urlparse(self._agent_url)
 
             if uds_path is not None:
                 if hostname is None and prev_url_parsed.scheme == "unix":
@@ -600,12 +595,11 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self._sampler, BasePrioritySampler):
-                self._sampler.update_rate_by_service_sample_rates(
-                    resp.rate_by_service,
-                )
-        except ValueError:
-            log.error("sample_rate is negative, cannot update the rate samplers")
+            self._sampler.update_rate_by_service_sample_rates(
+                resp.rate_by_service,
+            )
+        except ValueError as e:
+            log.error("Failed to set agent service sample rates: %s", str(e))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -1014,7 +1008,7 @@ class Tracer(object):
             # detect if the the given function is a coroutine to use the
             # right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if compat.iscoroutinefunction(f):
+            if iscoroutinefunction(f):
                 # call the async factory that creates a tracing decorator capable
                 # to await the coroutine execution before finishing the span. This
                 # code is used for compatibility reasons to prevent Syntax errors
@@ -1129,7 +1123,7 @@ class Tracer(object):
 
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
-        if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
+        if "_trace_sampling_rules" in items:
             self._handle_sampler_update(cfg)
 
         if "tags" in items:
@@ -1155,39 +1149,11 @@ class Tracer(object):
                 unpatch()
 
     def _handle_sampler_update(self, cfg: Config) -> None:
-        if (
-            cfg._get_source("_trace_sample_rate") != "remote_config"
-            and cfg._get_source("_trace_sampling_rules") != "remote_config"
-            and self._user_sampler
-        ):
-            # if we get empty configs from rc for both sample rate and rules, we should revert to the user sampler
+        # FIXME(munir): Recreating the sampler will overwrite agent service based sampling rules
+        if cfg._get_source("_trace_sampling_rules") != "remote_config":
+            # if trace sampling rules is not set by remote config, we should use the sampler configured
+            # on tracer startup (this sampler has "local" sampling rules)
             self._sampler = self._user_sampler
-            return
-
-        if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-            try:
-                sample_rate = self._user_sampler.default_sample_rate  # type: ignore[attr-defined]
-            except AttributeError:
-                log.debug("Custom non-DatadogSampler is being used, cannot pull default sample rate")
-                sample_rate = None
-        elif cfg._get_source("_trace_sample_rate") != "default":
-            sample_rate = cfg._trace_sample_rate
         else:
-            sample_rate = None
-
-        if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
-            try:
-                sampling_rules = self._user_sampler.rules  # type: ignore[attr-defined]
-                # we need to chop off the default_sample_rate rule so the new sample_rate can be applied
-                sampling_rules = sampling_rules[:-1]
-            except AttributeError:
-                log.debug("Custom non-DatadogSampler is being used, cannot pull sampling rules")
-                sampling_rules = None
-        elif cfg._get_source("_trace_sampling_rules") != "default":
-            sampling_rules = DatadogSampler._parse_rules_from_str(cfg._trace_sampling_rules)
-        else:
-            sampling_rules = None
-
-        sampler = DatadogSampler(rules=sampling_rules, default_sample_rate=sample_rate)
-
-        self._sampler = sampler
+            # if we get a config from rc, we should create the sampler with the new sampling rules
+            self._sampler = DatadogSampler()

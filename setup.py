@@ -9,6 +9,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import warnings
 
 import cmake
 from setuptools_rust import Binding
@@ -43,7 +44,16 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+COMPILE_MODE = "Release"
+if "DD_COMPILE_DEBUG" in os.environ:
+    warnings.warn(
+        "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
+        "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
+    )
+    COMPILE_MODE = "Debug"
+else:
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
     print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
@@ -336,7 +346,7 @@ class CMakeBuild(build_ext):
         else:
             super().build_extension(ext)
 
-        if not DEBUG_COMPILE:
+        if COMPILE_MODE.lower() in ("release", "minsizerel"):
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
@@ -452,7 +462,7 @@ class DebugMetadata:
             f.write("Environment:\n")
             f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
             f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
+            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
             f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
             f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
             f.write("Extension build times:\n")
@@ -497,7 +507,7 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
 
 
@@ -556,7 +566,7 @@ else:
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     fast_build_args = ["-O0"] if FAST_BUILD else []
-    if DEBUG_COMPILE:
+    if COMPILE_MODE.lower() == "debug":
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
@@ -591,9 +601,11 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
-            if CURRENT_OS != "Windows"
-            else ["/std:c++20", "/MT"],
+            extra_compile_args=(
+                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                if CURRENT_OS != "Windows"
+                else ["/std:c++20", "/MT"]
+            ),
         ),
     ]
     if platform.system() not in ("Windows", ""):

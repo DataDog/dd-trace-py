@@ -1,12 +1,12 @@
 # Standard library
 import contextlib
+import http.client as httplib
 
 import wrapt
 
 # Project
 from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.internal.compat import httplib
 from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
