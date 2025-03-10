@@ -207,6 +207,6 @@ def record_event_finished_test(
     if ci_provider_name:
         tags.append(("provider_name", ci_provider_name))
     if is_auto_injected:
-        tags.append(("is_auto_injected", "true"))
+        tags.append(("auto_injected", "true"))
 
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
