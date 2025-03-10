@@ -9,7 +9,9 @@ strip = "debuginfo"
 opt-level = 3
 
 [dependencies]
+anyhow = "1.0"
 pyo3 = { version = "0.22.3", features = ["extension-module"] }
+datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 
@@ -20,6 +22,10 @@ pyo3-build-config = "0.21.2"
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+[[bin]]
+name = "crashtracker_exe"
+path = "bin/crashtracker_exe.rs"
 
 
 [net]
