@@ -6,14 +6,14 @@ import requests
 import tenacity
 
 
-SERVER_URL = "http://0.0.0.0:8000/"
+SERVER_URL = "http://0.0.0.0:8000"
 
 
 @tenacity.retry(
-    wait=tenacity.wait_fixed(0.1),
-    stop=tenacity.stop_after_attempt(80),
+    wait=tenacity.wait_fixed(0.2),
+    stop=tenacity.stop_after_attempt(170),
 )
-def _get_response(path=""):
+def _get_response(path="/"):
     r = requests.get(SERVER_URL + path)
     r.raise_for_status()
 
@@ -35,9 +35,9 @@ def server(scenario):
     # make sure process has been started
     assert proc.poll() is None
     try:
-        print("Starting server....")
+        # print("Starting server....")
         _get_response()
-        print("Shutdown server....")
+        # print("Shutdown server....")
         _get_response(path="/shutdown")
     except Exception as e:
         proc.terminate()
