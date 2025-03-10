@@ -9,6 +9,8 @@ from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
+from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -361,6 +363,31 @@ def test_cohere_embedding(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_embedding.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+@pytest.mark.snapshot
+def test_converse(bedrock_client, request_vcr):
+    system_content = "You are an expert swe that is to use the tool fetch_concept"
+    user_content = "Explain the concept of distributed tracing in a simple way"
+    tools = [
+        {
+            "toolSpec": {
+                "name": "fetch_concept",
+                "description": "Fetch an expert explanation for a concept",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                        "required": ["concept"],
+                    }
+                },
+            }
+        }
+    ]
+    request_params = create_bedrock_converse_request(user_message=user_content, tools=tools, system=system_content)
+    with request_vcr.use_cassette("bedrock_converse.yaml"):
+        bedrock_client.converse(**request_params)
 
 
 def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tracer):
