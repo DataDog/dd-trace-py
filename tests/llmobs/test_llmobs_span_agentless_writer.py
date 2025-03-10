@@ -40,16 +40,13 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
 ):
     with override_global_config(dict(_dd_api_key="foobar.baz", _dd_site=DATADOG_SITE)):
         llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, agentless_url=INTAKE_URL, interval=1000, timeout=1)
-        llmobs_span_writer.enqueue(_large_event())
-        llmobs_span_writer.enqueue(_large_event())
-        llmobs_span_writer.enqueue(_large_event())
-        llmobs_span_writer.enqueue(_large_event())
+        llmobs_span_writer.enqueue(_chat_completion_event())
         llmobs_span_writer.enqueue(_large_event())
         llmobs_span_writer.enqueue(_large_event())
         mock_writer_logs.debug.assert_has_calls(
             [
                 mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
-                mock.call("encode %d LLMObs span events to be sent", 5),
+                mock.call("encode %d LLMObs span events to be sent", 2),
             ],
             any_order=True,
         )
