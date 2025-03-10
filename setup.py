@@ -755,13 +755,5 @@ setup(
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
-    ]
-    + [
-        RustBin(
-            "crashtracker_exe",
-            path="src/native/Cargo.toml",
-        ),
-    ]
-    if CRASHTRACKER_RUST
-    else [],
+    ],
 )

@@ -116,9 +116,7 @@ impl MetadataPy {
     }
 }
 
-#[pyfunction(
-    name = "crashtracker_init",
-)]
+#[pyfunction(name = "crashtracker_init")]
 pub fn crashtracker_init(
     config: CrashtrackerConfigurationPy,
     receiver_config: CrashtrackerReceiverConfigPy,
@@ -128,9 +126,7 @@ pub fn crashtracker_init(
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
 
-#[pyfunction(
-    name = "crashtracker_on_fork",
-)]
+#[pyfunction(name = "crashtracker_on_fork")]
 pub fn crashtracker_on_fork(
     config: CrashtrackerConfigurationPy,
     receiver_config: CrashtrackerReceiverConfigPy,
@@ -138,4 +134,22 @@ pub fn crashtracker_on_fork(
 ) -> Result<(), PyErr> {
     datadog_crashtracker::on_fork(config.config, receiver_config.config, metadata.metadata)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+// We expose the receiver_entry_point_stdin to use from Python script, crashtracker_exe command.
+// This is to avoid distributing both the binary and executable, which might increase the size of
+// the package. This way results in referring to the same .so file from the crashtracker_exe script
+// and Python library. Another side effect is that we no longer has to worry about platform specific
+// binary names for crashtracker_exe, since it's just a Python script.
+#[cfg(unix)]
+#[pyfunction(name = "crashtracker_receiver")]
+pub fn crashtracker_receiver() -> Result<(), PyErr> {
+    datadog_crashtracker::receiver_entry_point_stdin()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+#[cfg(not(unix))]
+#[pyfunction(name = "crashtracker_receiver")]
+pub fn crashtracker_receiver() -> Result<(), PyErro> {
+    Ok(())
 }
