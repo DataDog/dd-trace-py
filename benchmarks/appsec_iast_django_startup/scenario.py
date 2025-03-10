@@ -26,26 +26,31 @@ def server(scenario):
     # copy over current environ
     env.update(os.environ)
     if scenario.tracer_enabled:
-        cmd = ["ddtrace-run", "python", "manage.py", "runserver"]
+        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run", "python", "manage.py", "runserver", "--noreload"]
     else:
-        cmd = ["python", "manage.py", "runserver"]
+        cmd = ["python", "manage.py", "runserver", "--noreload"]
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, text=True, env=env
     )
     # make sure process has been started
     assert proc.poll() is None
     try:
+        print("Starting server....")
         _get_response()
+        print("Shutdown server....")
+        _get_response(path="/shutdown")
     except Exception as e:
+        proc.terminate()
+        proc.wait()
         raise AssertionError(
             "Server failed to start, see stdout and stderr logs\n."
             "Exception %s\n."
             "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
             "\n=== Captured STDERR ===\n%s=== End of captured STDERR ===" % (e, proc.stdout.read(), proc.stderr.read())
         )
-    finally:
-        proc.terminate()
-        proc.wait()
+
+    proc.terminate()
+    proc.wait()
 
 
 class IASTDjangoStartup(bm.Scenario):

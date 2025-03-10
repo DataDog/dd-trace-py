@@ -481,7 +481,7 @@ def _should_iast_patch(module_name: Text) -> bool:
     if _in_python_stdlib(module_name):
         log.debug("[IAST] denying %s. it's in the python_stdlib", module_name)
         return False
-    #
+
     # if _is_first_party(module_name):
     #     return True
 

@@ -1,5 +1,4 @@
 import ctypes
-import functools
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -16,7 +15,6 @@ log = get_logger(__name__)
 IS_IAST_ENABLED = asm_config._iast_enabled
 
 
-@functools.lru_cache(maxsize=128)
 def _exec_iast_patched_module(module_watchdog, module):
     patched_ast = None
     compiled_code = None
@@ -34,16 +32,16 @@ def _exec_iast_patched_module(module_watchdog, module):
         except Exception:
             log.debug("[IAST] Unexpected exception while compiling patched code", exc_info=True)
             compiled_code = None
-
     if compiled_code:
+        log.debug("[IAST] INSTRUMENTED CODE. executing %s", module_path)
         # Patched source is executed instead of original module
-
-        # exec(compiled_code, module.__dict__, module.__dict__)  # nosec B102
+        # exec(compiled_code, module.__dict__)  # nosec B102
         if "__builtins__" not in module.__dict__:
             module.__dict__["__builtins__"] = __builtins__
         PyEval_EvalCode(compiled_code, module.__dict__, module.__dict__)
     elif module_watchdog.loader is not None:
         try:
+            log.debug("[IAST] DEFAULT CODE. executing %s", module)
             module_watchdog.loader.exec_module(module)
         except ImportError:
             log.debug("[IAST] Unexpected exception on import loader fallback", exc_info=True)
