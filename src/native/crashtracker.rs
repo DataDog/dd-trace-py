@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Once;
 
 use datadog_crashtracker::{
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
@@ -116,14 +118,61 @@ impl MetadataPy {
     }
 }
 
+#[repr(u8)]
+#[pyclass(eq, eq_int)]
+#[derive(PartialEq)]
+pub enum CrashtrackerStatus {
+    NotInitialized = 0,
+    Initialized = 1,
+    FailedToInitialize = 2,
+}
+
+impl std::convert::TryFrom<u8> for CrashtrackerStatus {
+    type Error = PyErr;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(CrashtrackerStatus::NotInitialized),
+            1 => Ok(CrashtrackerStatus::Initialized),
+            2 => Ok(CrashtrackerStatus::FailedToInitialize),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(
+                "Invalid value for CrashtrackerStatus",
+            )),
+        }
+    }
+}
+
+static CRASHTRACKER_STATUS: AtomicU8 = AtomicU8::new(CrashtrackerStatus::NotInitialized as u8);
+static INIT: Once = Once::new();
+
 #[pyfunction(name = "crashtracker_init")]
 pub fn crashtracker_init(
     config: CrashtrackerConfigurationPy,
     receiver_config: CrashtrackerReceiverConfigPy,
     metadata: MetadataPy,
 ) -> Result<(), PyErr> {
-    datadog_crashtracker::init(config.config, receiver_config.config, metadata.metadata)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    INIT.call_once(|| {
+        let result =
+            datadog_crashtracker::init(config.config, receiver_config.config, metadata.metadata);
+        match result {
+            Ok(_) => {
+                CRASHTRACKER_STATUS.store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst)
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize crashtracker: {}", e);
+                CRASHTRACKER_STATUS.store(
+                    CrashtrackerStatus::FailedToInitialize as u8,
+                    Ordering::SeqCst,
+                );
+            }
+        }
+    });
+    Ok(())
+}
+
+#[pyfunction(name = "crashtracker_status")]
+pub fn crashtracker_status() -> Result<CrashtrackerStatus, PyErr> {
+    CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
 }
 
 #[pyfunction(name = "crashtracker_on_fork")]
@@ -132,6 +181,8 @@ pub fn crashtracker_on_fork(
     receiver_config: CrashtrackerReceiverConfigPy,
     metadata: MetadataPy,
 ) -> Result<(), PyErr> {
+    // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
+    // dd-trace-py seems to start crashtracker early on.
     datadog_crashtracker::on_fork(config.config, receiver_config.config, metadata.metadata)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
