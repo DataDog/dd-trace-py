@@ -170,7 +170,8 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     span = integration.trace(
         pin,
         endpoint_hook.OPERATION_ID,
-        submit_to_llmobs=integration.is_default_base_url(str(base_url) if base_url else None),
+        submit_to_llmobs=True,
+        base_url=base_url,
     )
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
