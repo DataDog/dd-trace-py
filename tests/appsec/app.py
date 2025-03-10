@@ -14,8 +14,8 @@ from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch  # noqa: F401
 from ddtrace.internal.utils.formats import asbool
 
-# from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
-# from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
+from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
+from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
 from tests.appsec.iast_packages.packages.pkg_asn1crypto import pkg_asn1crypto
 from tests.appsec.iast_packages.packages.pkg_attrs import pkg_attrs
@@ -108,8 +108,8 @@ import tests.appsec.integrations.flask_tests.module_with_import_errors as module
 
 
 app = Flask(__name__)
-# app.register_blueprint(pkg_aiohttp)
-# app.register_blueprint(pkg_aiosignal)
+app.register_blueprint(pkg_aiohttp)
+app.register_blueprint(pkg_aiosignal)
 app.register_blueprint(pkg_annotated_types)
 app.register_blueprint(pkg_asn1crypto)
 app.register_blueprint(pkg_attrs)
