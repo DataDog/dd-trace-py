@@ -13,6 +13,7 @@ import warnings
 
 import cmake
 from setuptools_rust import Binding
+from setuptools_rust import RustBin
 from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
@@ -83,6 +84,8 @@ LIBDDWAF_VERSION = "1.22.0"
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
+
+CRASHTRACKER_RUST = os.getenv("DD_CRASHTRACKER_RUST", "0").lower() in ("1", "yes", "on", "true")
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -635,13 +638,14 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                source_dir=CRASHTRACKER_DIR,
-                optional=False,
+        if not CRASHTRACKER_RUST:
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+                    source_dir=CRASHTRACKER_DIR,
+                    optional=False,
+                )
             )
-        )
 
         if sys.version_info < (3, 13):
             ext_modules.append(
@@ -667,7 +671,9 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
+        "ddtrace.internal.native._native"
+        if CRASHTRACKER_RUST
+        else "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -749,5 +755,13 @@ setup(
             binding=Binding.PyO3,
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
-    ],
+    ]
+    + [
+        RustBin(
+            "crashtracker_exe",
+            path="src/native/Cargo.toml",
+        ),
+    ]
+    if CRASHTRACKER_RUST
+    else [],
 )

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -53,3 +53,35 @@ class PyConfigurator:
         :return: A string representing the fleet stable configuration type.
         """
         ...
+
+class CrashtrackerConfiguration:
+    def __init__(
+        self,
+        additional_files: List[str],
+        create_alt_stack: bool,
+        use_alt_stack: bool,
+        timeout_ms: int,
+        endpoint: Optional[str],
+        resolve_frames: Optional[str],
+        unix_socket_path: Optional[str],
+    ): ...
+
+class CrashtrackerReceiverConfig:
+    def __init__(
+        self,
+        args: List[str],
+        env: Dict[str, str],
+        path_to_receiver_binary: str,
+        stderr_filename: Optional[str],
+        stdout_filename: Optional[str],
+    ): ...
+
+class Metadata:
+    def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
+
+def init(
+    config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: Metadata
+) -> None: ...
+def on_fork(
+    config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: Metadata
+) -> None: ...
