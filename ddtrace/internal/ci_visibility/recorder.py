@@ -927,7 +927,7 @@ class CIVisibility(Service):
     def ci_provider_name_for_telemetry(cls) -> str:
         instance = cls.get_instance()
         if instance is None:
-            return "unsupported"
+            return "provider:unsupported"
         return TELEMETRY_BY_PROVIDER_NAME.get(
             instance._tags.get(ci.PROVIDER_NAME, "unsupported"), "provider:unsupported"
         )
