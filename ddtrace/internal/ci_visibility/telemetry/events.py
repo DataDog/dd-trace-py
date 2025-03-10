@@ -156,7 +156,7 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
-    provider_name: str = "provider:unsupported",
+    ci_provider_name: str = "provider:unsupported",
     is_auto_injected: bool = False,
 ):
     log.debug(
@@ -180,7 +180,7 @@ def record_event_finished_test(
         is_benchmark,
         is_quarantined,
         is_disabled,
-        provider_name,
+        ci_provider_name,
         is_auto_injected,
     )
 
@@ -204,8 +204,8 @@ def record_event_finished_test(
         tags.append(("is_quarantined", "true"))
     if is_disabled:
         tags.append(("is_disabled", "true"))
-    if provider_name:
-        tags.append(("provider_name", provider_name))
+    if ci_provider_name:
+        tags.append(("provider_name", ci_provider_name))
     if is_auto_injected:
         tags.append(("is_auto_injected", "true"))
 

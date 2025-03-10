@@ -74,7 +74,7 @@ class TestVisibilitySessionSettings:
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
     test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
     ci_provider_name: Optional[str] = None
-    is_provider_name_auto_injected: bool = False
+    is_auto_injected: bool = False
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):

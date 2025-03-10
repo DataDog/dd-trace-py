@@ -166,8 +166,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             is_disabled=self.is_disabled(),
             is_rum=self._is_rum(),
             browser_driver=self._get_browser_driver(),
-            provider_name=self._session_settings.provider_name,
-            is_auto_injected=self._session_settings.is_provider_name_auto_injected,
+            ci_provider_name=self._session_settings.ci_provider_name,
+            is_auto_injected=self._session_settings.is_auto_injected,
         )
 
     def finish_test(

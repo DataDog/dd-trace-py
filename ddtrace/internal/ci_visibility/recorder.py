@@ -219,9 +219,8 @@ class CIVisibility(Service):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags, self._auto_injected_provider_name = ci.tags(
-            cwd=_get_git_repo()
-        )  # type: Tuple[Dict[str, str], bool]
+        self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
+        self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -934,11 +933,11 @@ class CIVisibility(Service):
         )
 
     @classmethod
-    def is_provider_name_auto_injected(cls) -> bool:
+    def is_auto_injected(cls) -> bool:
         instance = cls.get_instance()
         if instance is None:
             return False
-        return instance._auto_injected_provider_name
+        return instance._is_auto_injected
 
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
         writer = self.tracer._writer
@@ -1054,7 +1053,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs):
         atr_settings=atr_api_settings,
         test_management_settings=test_management_api_settings,
         ci_provider_name=CIVisibility.ci_provider_name_for_telemetry(),
-        is_provider_name_auto_injected=CIVisibility.is_provider_name_auto_injected(),
+        is_auto_injected=CIVisibility.is_auto_injected(),
     )
 
     session = TestVisibilitySession(
