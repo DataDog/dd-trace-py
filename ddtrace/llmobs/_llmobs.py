@@ -28,7 +28,6 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -36,6 +35,7 @@ from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -122,11 +122,13 @@ class LLMObs(Service):
     def _on_span_start(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            telemetry.record_span_started()
             self._do_annotations(span)
 
     def _on_span_finish(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
+            telemetry.record_span_created(span)
 
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -309,6 +311,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         _tracer: Optional[Tracer] = None,
+        _auto: bool = False,
     ) -> None:
         """
         Enable LLM Observability tracing.
@@ -391,7 +394,7 @@ class LLMObs(Service):
 
             log.debug("%s enabled", cls.__name__)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns)
+            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
@@ -609,16 +612,8 @@ class LLMObs(Service):
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
         ml_app: Optional[str] = None,
+        _decorator: bool = False,
     ) -> Span:
-        telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_NAMESPACE.MLOBS,
-            name="span.start",
-            value=1,
-            tags=(
-                ("autoinstrumented", "false"),
-                ("kind", operation_kind),
-            ),
-        )
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
@@ -632,7 +627,7 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
-        span._set_ctx_item(ML_APP, ml_app)
+        span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
 
     @classmethod
@@ -643,6 +638,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        _decorator: bool = False,
     ) -> Span:
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
@@ -664,11 +660,23 @@ class LLMObs(Service):
         if model_provider is None:
             model_provider = "custom"
         return cls._instance._start_span(
-            "llm", name, model_name=model_name, model_provider=model_provider, session_id=session_id, ml_app=ml_app
+            "llm",
+            name,
+            model_name=model_name,
+            model_provider=model_provider,
+            session_id=session_id,
+            ml_app=ml_app,
+            _decorator=_decorator,
         )
 
     @classmethod
-    def tool(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+    def tool(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _decorator: bool = False,
+    ) -> Span:
         """
         Trace a call to an external interface or API.
 
@@ -681,10 +689,16 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app)
+        return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod
-    def task(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+    def task(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _decorator: bool = False,
+    ) -> Span:
         """
         Trace a standalone non-LLM operation which does not involve an external request.
 
@@ -697,10 +711,16 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app)
+        return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod
-    def agent(cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None) -> Span:
+    def agent(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _decorator: bool = False,
+    ) -> Span:
         """
         Trace a dynamic workflow in which an embedded language model (agent) decides what sequence of actions to take.
 
@@ -713,11 +733,17 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("agent", name=name, session_id=session_id, ml_app=ml_app)
+        return cls._instance._start_span(
+            "agent", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+        )
 
     @classmethod
     def workflow(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _decorator: bool = False,
     ) -> Span:
         """
         Trace a predefined or static sequence of operations.
@@ -731,7 +757,9 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("workflow", name=name, session_id=session_id, ml_app=ml_app)
+        return cls._instance._start_span(
+            "workflow", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+        )
 
     @classmethod
     def embedding(
@@ -741,6 +769,7 @@ class LLMObs(Service):
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        _decorator: bool = False,
     ) -> Span:
         """
         Trace a call to an embedding model or function to create an embedding.
@@ -769,11 +798,16 @@ class LLMObs(Service):
             model_provider=model_provider,
             session_id=session_id,
             ml_app=ml_app,
+            _decorator=_decorator,
         )
 
     @classmethod
     def retrieval(
-        cls, name: Optional[str] = None, session_id: Optional[str] = None, ml_app: Optional[str] = None
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        _decorator: bool = False,
     ) -> Span:
         """
         Trace a vector search operation involving a list of documents being returned from an external knowledge base.
@@ -787,7 +821,9 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("retrieval", name=name, session_id=session_id, ml_app=ml_app)
+        return cls._instance._start_span(
+            "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
+        )
 
     @classmethod
     def annotate(
