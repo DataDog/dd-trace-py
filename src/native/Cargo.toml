@@ -24,11 +24,6 @@ name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
 
-[[bin]]
-name = "crashtracker_exe"
-path = "bin/crashtracker_exe.rs"
-
-
 [net]
 # Use git binary from the system instead of the built-in git client
 # "Setting this to true can be helpful if you have special authentication requirements that Cargo does not support."
