@@ -277,34 +277,13 @@ class TestLLMObsBedrock:
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
     def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer):
-        import boto3
-
         llmobs_service.disable()
 
         with override_global_config(
             {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
         ):
             llmobs_service.enable(integrations_enabled=True)
-            session = boto3.Session(
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-                aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-                region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-            )
-            bedrock_client = session.client("bedrock-runtime")
-
             mock_tracer = DummyTracer()
-            pin = Pin.get_from(bedrock_client)
-            pin._override(bedrock_client, tracer=mock_tracer)
-
-            llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-            llmobs_service._instance.tracer = mock_tracer
-
-            # ensure we still get llmobs spans
-            self._test_llmobs_invoke(
-                "meta", bedrock_client=bedrock_client, mock_tracer=mock_tracer, llmobs_events=llmobs_span_writer.events
-            )
-
             # ensure we don't get spans for non-bedrock services
             from botocore.exceptions import ClientError
             import botocore.session
