@@ -170,11 +170,6 @@ pub fn crashtracker_init(
     Ok(())
 }
 
-#[pyfunction(name = "crashtracker_status")]
-pub fn crashtracker_status() -> Result<CrashtrackerStatus, PyErr> {
-    CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
-}
-
 #[pyfunction(name = "crashtracker_on_fork")]
 pub fn crashtracker_on_fork(
     config: CrashtrackerConfigurationPy,
@@ -185,6 +180,11 @@ pub fn crashtracker_on_fork(
     // dd-trace-py seems to start crashtracker early on.
     datadog_crashtracker::on_fork(config.config, receiver_config.config, metadata.metadata)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+#[pyfunction(name = "crashtracker_status")]
+pub fn crashtracker_status() -> Result<CrashtrackerStatus, PyErr> {
+    CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
 }
 
 // We expose the receiver_entry_point_stdin to use from Python script, crashtracker_exe command.
