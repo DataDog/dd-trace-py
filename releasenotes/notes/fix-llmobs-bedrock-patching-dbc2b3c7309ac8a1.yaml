@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where enabling LLM Obs caused all botocore submodules to be patched instead
+    LLM Observability: This fix resolves an issue where enabling LLM Observability caused all botocore submodules to be patched instead
                     of only ``bedrock-runtime``.
