@@ -16,7 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 1h
+  timeout: 2h
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
@@ -144,8 +144,9 @@ microbenchmarks:
         - "flask_sqli"
         - "core_api"
         - "otel_span"
-        - "appsec_iast_propagation"
         - "appsec_iast_aspects"
+        - "appsec_iast_django_startup"
+        - "appsec_iast_propagation"
         # Flaky. Timeout errors
         # - "encoder"
         - "http_propagation_extract"
