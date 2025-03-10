@@ -35,6 +35,8 @@ SKIP_FUNCTION = lambda package: True  # noqa: E731
 # Turn this to True to don't delete the virtualenvs after the tests so debugging can iterate faster.
 # Remember to set to False before pushing it!
 _DEBUG_MODE = False
+
+IN_GITLAB = os.environ.get("GITLAB_CI", "false") in ("1", "true", "True")
 TEMPLATE_VENV_DIR = os.path.join(DDTRACE_PATH, "template_venv")
 CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_CACHE_SHARED_VENVS_DIR = os.path.join(DDTRACE_PATH, "pip_cache_shared_venvs")
@@ -910,18 +912,39 @@ _PACKAGES = [
 PACKAGES = sorted(_PACKAGES, key=lambda x: x.name)
 
 
+def _detect_virtualenv():
+    venv_path = os.environ.get('VIRTUAL_ENV')
+    if venv_path:
+        return True, venv_path
+
+    if sys.prefix != getattr(sys, "base_prefix", sys.prefix):
+        return True, sys.prefix
+
+    if hasattr(sys, "real_prefix"):
+        return True, sys.prefix
+
+    return False, None
+
+
 def template_venv():
     """
     Create and configure a virtualenv template to be used for cloning in each test case
     """
+    global TEMPLATE_VENV_DIR
+
     os.makedirs(CLONED_VENVS_DIR, exist_ok=True)
-    if not os.path.exists(TEMPLATE_VENV_DIR):
-        # Create virtual environment
+    in_venv, venv_path = _detect_virtualenv()
+    if IN_GITLAB and in_venv:
+        print("Running under Gitlab or not under virtual env, reusing virtual environment with root at %s" % venv_path)
+        TEMPLATE_VENV_DIR = venv_path
+        # JJJ: do some sanity checks like checking the _native module is present?
+
+    elif not os.path.exists(TEMPLATE_VENV_DIR):
+        print("Not running under Gitlab, creating new virtual environment at %s" % TEMPLATE_VENV_DIR)
         if not _DEBUG_MODE:
             subprocess.check_call([sys.executable, "-m", "venv", TEMPLATE_VENV_DIR])
             pip_executable = os.path.join(TEMPLATE_VENV_DIR, "bin", "pip")
             this_dd_trace_py_path = os.path.join(os.path.dirname(__file__), "../../../")
-            # Install dependencies.
             deps_to_install = [
                 "flask",
                 "attrs",
@@ -995,6 +1018,7 @@ def test_packages_not_patched(package):
         pytest.skip(reason)
         return
 
+    print("Testing unpatched: ", package.name)
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
@@ -1037,6 +1061,7 @@ def test_packages_patched(package):
         pytest.skip(reason)
         return
 
+    print("Testing patched: ", package.name)
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
