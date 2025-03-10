@@ -5,7 +5,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import uuid
 
 import clonevirtualenv
 import pytest
@@ -190,6 +189,30 @@ class PackageForTesting:
             for package_name, package_version in self.extra_packages:
                 self._install(python_cmd, package_name, package_version)
 
+    def create_venv(self):
+        """
+        Clone the main template configured venv to each test case runs the package in a clean isolated environment
+        """
+        cloned_venv_dir = os.path.join(CLONED_VENVS_DIR, self.name)
+        cloned_venv_dir_latest = cloned_venv_dir + "-latest"
+
+        if not os.path.exists(cloned_venv_dir):
+            base_venv = template_venv()
+
+            clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir)
+            clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir_latest)
+
+            with set_pip_cache_dir():
+                python_executable = os.path.join(cloned_venv_dir, "bin", "python")
+                self.install(python_executable)
+                python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
+                self.install_latest(python_executable_latest)
+        else:
+            python_executable = os.path.join(cloned_venv_dir, "bin", "python")
+            python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
+
+        return python_executable, python_executable_latest
+
 
 # Top packages list imported from:
 # https://pypistats.org/top
@@ -199,7 +222,7 @@ class PackageForTesting:
 # wheel, importlib-metadata and pip is discarded because they are package to build projects
 # colorama and awscli are terminal commands
 _user_dir = os.path.expanduser("~")
-PACKAGES = [
+_PACKAGES = [
     PackageForTesting("asn1crypto", "1.5.1", "", "Ok", "", import_module_to_validate="asn1crypto.core"),
     PackageForTesting(
         "attrs",
@@ -883,6 +906,9 @@ PACKAGES = [
     ),
 ]
 
+# Sort by name so it's easier to infer the progress of the tests
+PACKAGES = sorted(_PACKAGES, key=lambda x: x.name)
+
 
 def template_venv():
     """
@@ -908,31 +934,6 @@ def template_venv():
             subprocess.check_call([pip_executable, "install", *deps_to_install])
 
     return TEMPLATE_VENV_DIR
-
-
-def package_venv(package: PackageForTesting):
-    """
-    Clone the main template configured venv to each test case runs the package in a clean isolated environment
-    """
-    cloned_venv_dir = os.path.join(CLONED_VENVS_DIR, package.name)
-    cloned_venv_dir_latest = cloned_venv_dir + "-latest"
-
-    if not os.path.exists(cloned_venv_dir):
-        base_venv = template_venv()
-
-        clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir)
-        clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir_latest)
-
-        with set_pip_cache_dir():
-            python_executable = os.path.join(cloned_venv_dir, "bin", "python")
-            package.install(python_executable)
-            python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
-            package.install_latest(python_executable_latest)
-    else:
-        python_executable = os.path.join(cloned_venv_dir, "bin", "python")
-        python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
-
-    return python_executable, python_executable_latest
 
 
 def _assert_results(response, package):
@@ -994,19 +995,22 @@ def test_packages_not_patched(package):
         pytest.skip(reason)
         return
 
-    python_bin, python_bin_latest = package_venv(package)
+    python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
         # 1. Try with the specified version
         cmdlist = [python_bin, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
         result = subprocess.run(cmdlist, capture_output=True, text=True)
-        assert result.returncode == 0, "Test unpatched import failed for package {}: {}".format(package.name, result.stdout)
+        assert result.returncode == 0, "Test unpatched import failed for package {}: {}".format(
+            package.name, result.stdout
+        )
 
         # 2. Try with the latest version
         cmdlist[0] = python_bin_latest
         result = subprocess.run(cmdlist, capture_output=True, text=True)
         assert result.returncode == 0, "Test unpatched import failed for latest version of package {}: {}".format(
-            package.name, result.stdout)
+            package.name, result.stdout
+        )
 
     if package.test_e2e:
         with flask_server(
@@ -1033,7 +1037,7 @@ def test_packages_patched(package):
         pytest.skip(reason)
         return
 
-    python_bin, python_bin_latest = package_venv(package)
+    python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
         # TODO: create fixtures with exported patched code and compare it with the generated in the test
@@ -1054,13 +1058,15 @@ def test_packages_patched(package):
                 text=True,
             )
             assert result.returncode == 0, "Test patched import failed for package {}: {}".format(
-                package.name, result.stdout)
+                package.name, result.stdout
+            )
 
             # 2. Try with the latest version
             cmdlist[0] = python_bin_latest
             result = subprocess.run(cmdlist, capture_output=True, text=True)
             assert result.returncode == 0, "Test patched import failed for latest version of package {}: {}".format(
-                package.name, result.stdout)
+                package.name, result.stdout
+            )
 
     if package.test_e2e or package.test_propagation:
         with flask_server(
@@ -1068,9 +1074,9 @@ def test_packages_patched(package):
             iast_enabled="true",
             remote_configuration_enabled="false",
             token=None,
-             port=_TEST_PORT,
-             # assert_debug=True,  # DEV: uncomment to debug propagation
-             # manual_propagation=True,  # DEV: uncomment to debug propagation
+            port=_TEST_PORT,
+            # assert_debug=True,  # DEV: uncomment to debug propagation
+            # manual_propagation=True,  # DEV: uncomment to debug propagation
         ) as context:
             _, client, pid = context
 
