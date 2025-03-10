@@ -478,7 +478,7 @@ def _should_iast_patch(module_name: Text) -> bool:
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
     if _in_python_stdlib(module_name):
-        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
+        log.debug("IAST: denying %s. it's in the python_stdlib", module_name)
         return False
 
     if _is_first_party(module_name):
@@ -489,17 +489,20 @@ def _should_iast_patch(module_name: Text) -> bool:
 
     # User allow or deny list set by env var have priority
     if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
+        log.debug("IAST: denying %s. it's in the USER_ALLOWLIST", module_name)
         return True
 
     if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
+        log.debug("IAST: denying %s. it's in the USER_DENYLIST", module_name)
         return False
 
     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
         if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
+            log.debug("IAST: denying %s. it's in the DENYLIST", module_name)
             return False
-        log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
+        log.debug("IAST: allowing %s. it's in the ALLOWLIST", module_name)
         return True
-    log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
+    log.debug("IAST: denying %s. it's NOT in the ALLOWLIST", module_name)
     return False
 
 
