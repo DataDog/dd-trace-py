@@ -4,6 +4,7 @@ from dataclasses import field
 import dis
 from enum import Enum
 import gzip
+from hashlib import sha1
 from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
@@ -203,6 +204,11 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
+        source_bytes = module_origin.read_bytes()
+        source_git_hash = sha1()
+        source_git_hash.update(f"blob {len(source_bytes)}\0".encode())
+        source_git_hash.update(source_bytes)
+
         return Scope(
             scope_type=ScopeType.MODULE,
             name=module.__name__,
@@ -211,6 +217,7 @@ class Scope:
             end_line=0,
             symbols=symbols,
             scopes=scopes,
+            language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
     @_get_from.register
