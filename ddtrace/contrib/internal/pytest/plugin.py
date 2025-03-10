@@ -92,6 +92,14 @@ def pytest_addoption(parser):
         help=DDTRACE_INCLUDE_CLASS_HELP_MSG,
     )
 
+    group._addoption(
+        "--ddtrace-debug-tests",
+        action="store_true",
+        dest="ddtrace-debug-tests",
+        default=False,
+        help="Instrument tests with debug mode enabled.",
+    )
+
     parser.addini("ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")

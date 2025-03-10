@@ -89,6 +89,7 @@ _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$"
 USER_PROPERTY_QUARANTINED = "dd_quarantined"
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+should_debug_tests = False
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -266,8 +267,22 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.start()
-        if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
-            log.warning("Early Flake Detection disabled: pytest version is not supported")
+        if not _pytest_version_supports_efd():
+            if InternalTestSession.efd_enabled():
+                log.warning("Early Flake Detection disabled: pytest version is not supported")
+
+        elif InternalTestSession.efd_enabled():
+            global should_debug_tests
+            should_debug_tests = True
+
+        if session.config.getoption("ddtrace_debug_tests"):
+            global should_debug_tests
+            should_debug_tests = True
+
+        if should_debug_tests:
+            from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
+
+            ModuleCollector.install()
 
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
@@ -320,10 +335,21 @@ def _pytest_collection_finish(session) -> None:
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_is_faulty_session():
         log.warning("Early Flake Detection disabled: too many new tests detected")
 
+    if should_debug_tests:
+        from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+        ModuleCollector.instrument(CIVisibility._instance)
+
 
 def pytest_collection_finish(session) -> None:
     if not is_test_visibility_enabled():
         return
+
+    if should_debug_tests:
+        from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
+
+        ModuleCollector.instrument()
 
     try:
         return _pytest_collection_finish(session)
