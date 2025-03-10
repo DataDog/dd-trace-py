@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "bedrock-runtime.command",
+    "service": "aws.bedrock-runtime",
+    "resource": "Converse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67c9aca500000000",
+      "bedrock.request.max_tokens": "1000",
+      "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
+      "bedrock.request.model_provider": "anthropic",
+      "bedrock.request.prompt": "[{'role': 'system', 'content': [{'text': 'You are an expert swe that is to use the tool fetch_concept'}]}, {'role': 'user', 'con...",
+      "bedrock.request.stop_sequences": "[]",
+      "bedrock.request.temperature": "0.7",
+      "bedrock.request.top_p": "0.9",
+      "bedrock.response.duration": "1300",
+      "bedrock.response.id": "bcbf9de0-6aaa-4602-b591-6c2ad87964a6",
+      "language": "python",
+      "runtime-id": "9e137a18775c4a8ca1415d9b6f829251"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 77,
+      "bedrock.response.usage.prompt_tokens": 269,
+      "process_id": 58103
+    },
+    "duration": 3886000,
+    "start": 1741270181876906000
+  }]]
