@@ -10,6 +10,7 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
@@ -95,13 +96,15 @@ def _get_runtime_and_os_metadata():
 
 
 def tags(env=None, cwd=None):
-    # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Dict[str, str]
+    # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Tuple[Dict[str, str], bool]
     """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
     tags = {}  # type: Dict[str, Optional[str]]
+    auto_injected = False
     for key, extract in PROVIDERS:
         if key in env:
             tags = extract(env)
+            auto_injected = True
             break
 
     git_info = git.extract_git_metadata(cwd=cwd)
@@ -142,7 +145,7 @@ def tags(env=None, cwd=None):
 
     tags.update(_get_runtime_and_os_metadata())
 
-    return {k: v for k, v in tags.items() if v is not None}
+    return {k: v for k, v in tags.items() if v is not None}, auto_injected
 
 
 def extract_appveyor(env):

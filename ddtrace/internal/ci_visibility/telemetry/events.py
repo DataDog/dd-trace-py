@@ -118,18 +118,14 @@ def record_manual_api_event_created(event_type: EVENT_TYPES):
     # Note: _created suffix is added in cases we were to change the metric name in the future.
     # The current metric applies to event creation even though it does not specify it
     telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.CIVISIBILITY,
-        EVENTS_TELEMETRY.MANUAL_API_EVENT,
-        1,
-        (("event_type", event_type),)
+        TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.MANUAL_API_EVENT, 1, (("event_type", event_type),)
     )
 
 
 def record_events_enqueued_for_serialization(events_count: int):
     telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.CIVISIBILITY,
-        EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION,
-        events_count)
+        TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count
+    )
 
 
 def record_event_created_test(
@@ -160,6 +156,8 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
+    provider_name: str = "provider:unsupported",
+    is_auto_injected: bool = False,
 ):
     log.debug(
         "Recording test event finished: test_framework=%s"
@@ -170,7 +168,9 @@ def record_event_finished_test(
         ", browser_driver=%s"
         ", is_benchmark=%s"
         ", is_quarantined=%s"
-        ", is_disabled=%s",
+        ", is_disabled=%s"
+        ", provider_name=%s"
+        ", is_auto_injected=%s",
         test_framework,
         is_new,
         is_retry,
@@ -180,6 +180,8 @@ def record_event_finished_test(
         is_benchmark,
         is_quarantined,
         is_disabled,
+        provider_name,
+        is_auto_injected,
     )
 
     tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
@@ -202,5 +204,9 @@ def record_event_finished_test(
         tags.append(("is_quarantined", "true"))
     if is_disabled:
         tags.append(("is_disabled", "true"))
+    if provider_name:
+        tags.append(("provider_name", provider_name))
+    if is_auto_injected:
+        tags.append(("is_auto_injected", "true"))
 
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
