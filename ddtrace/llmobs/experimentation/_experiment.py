@@ -195,26 +195,47 @@ class Experiment:
         sample_size: Optional[int] = None,
     ) -> "ExperimentResults":
         """
-        Execute the entire experiment by running the task on each record (optionally on a subset),
-        annotating results, and then evaluating them with the configured evaluators.
+        Execute the entire experiment by first running the task on each record (optionally on a subset),
+        and then evaluating them with the configured evaluators.
+
+        This method simply calls `run_task(...)` and then `run_evaluations(...)`, returning the final
+        ExperimentResults.
 
         Args:
             jobs (int, optional): Number of concurrent threads to use for the task. Defaults to 10.
-            raise_errors (bool, optional): If True, raises an exception upon the first error encountered
-                instead of continuing through all records. Defaults to False.
-            sample_size (int, optional): If provided, only runs on the first 'sample_size' records from the dataset.
-                Useful for quick tests without processing the entire dataset.
+            raise_errors (bool, optional): If True, raises on the first error encountered. Defaults to False.
+            sample_size (int, optional): If provided, only runs on the first 'sample_size' records.
 
         Returns:
-            ExperimentResults: An object that contains and manages the results of the task execution and evaluations.
+            ExperimentResults
+        """
+        # 1) Run the task on the dataset (or subset).
+        self.run_task(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
 
-        Raises:
-            ValueError: If the dataset is not pushed to Datadog (when not running locally).
-            RuntimeError: If raise_errors is True and an error occurs while processing any record.
+        # 2) Run evaluations on the outputs just produced.
+        return self.run_evaluations(raise_errors=raise_errors)
+
+    def run_task(
+        self,
+        jobs: int = DEFAULT_CONCURRENT_JOBS,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> None:
+        """
+        Execute only the task function on the dataset (or a subset), without running the evaluators.
+
+        If Datadog is not running locally, this method will also ensure the Dataset is pushed,
+        and create a Datadog experiment if needed.
+
+        Args:
+            jobs (int, optional): Number of concurrent threads to use for the task. Defaults to 10.
+            raise_errors (bool, optional): If True, raises an exception upon the first error. Defaults to False.
+            sample_size (int, optional): Number of records to process (from the top). If None, process all.
         """
         if not _is_locally_initialized():
             _validate_init()
 
+        # Print status about the run
         if sample_size is not None:
             print(f"\n{Color.BOLD}Running experiment (subset of {sample_size} rows){Color.RESET}")
         else:
@@ -223,19 +244,19 @@ class Experiment:
         print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}")
         print(f"  raise_errors={raise_errors}\n")
 
-        # 1) Make sure the dataset is pushed if not running locally
+        # Make sure the dataset is pushed if not running locally
         if not _is_locally_initialized():
             if not self.dataset._datadog_dataset_id:
                 raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
 
-        # 2) Create/get the project, then create an experiment in Datadog.
+        # Create/get the project and experiment in Datadog if not running locally
         if not _is_locally_initialized():
             project_id = self._get_or_create_project()
             self._datadog_project_id = project_id
             experiment_id = self._create_experiment_in_datadog()
             self._datadog_experiment_id = experiment_id
 
-        # If a sample_size is given, slice the dataset
+        # Possibly create a subset dataset
         if sample_size is not None and sample_size < len(self.dataset._data):
             subset_data = [deepcopy(r) for r in self.dataset._data[:sample_size]]
             subset_dataset = Dataset(
@@ -246,7 +267,7 @@ class Experiment:
         else:
             subset_dataset = self.dataset
 
-        # -- Run the "task" portion on the subset:
+        # Run the task portion on the subset
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
         total_rows = len(subset_dataset)
         progress = ProgressReporter(total_rows, desc="Processing")
@@ -282,6 +303,9 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
+                    if idx % 2 == 0:
+                        LLMObs.flush()
+
                     return {
                         "idx": idx,
                         "output": output,
@@ -313,6 +337,9 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
+                    if idx % 2 == 0:
+                        LLMObs.flush()
+
                     return {
                         "idx": idx,
                         "output": None,
@@ -333,7 +360,7 @@ class Experiment:
                         },
                     }
 
-        _jobs = DEFAULT_CONCURRENT_JOBS if sample_size else jobs
+        _jobs = DEFAULT_CONCURRENT_JOBS if (sample_size and jobs == DEFAULT_CONCURRENT_JOBS) else jobs
         with concurrent.futures.ThreadPoolExecutor(max_workers=_jobs) as executor:
             for result in executor.map(process_row, enumerate(subset_dataset)):
                 outputs_buffer.append(result)
@@ -345,189 +372,18 @@ class Experiment:
                     )
 
         LLMObs.flush()
+        # Sleep slightly so any final data is flushed to backend
+        time.sleep(5)
+
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
 
         if not outputs_buffer:
             raise ValueError("No outputs were produced, cannot evaluate.")
 
-        # -- Run evaluations on the subset outputs:
-        print(f"\nEvaluating {len(outputs_buffer)} rows...\n")
-        evaluators_to_use = self.evaluators
-        progress_eval = ProgressReporter(len(outputs_buffer), desc="Evaluating")
-        evaluations_partial = []
-
-        for idx, output_data in enumerate(outputs_buffer):
-            output = output_data["output"]
-            dataset_row = subset_dataset[idx]
-            input_data = dataset_row.get("input", {})
-            expected_output = dataset_row.get("expected_output", {})
-
-            evaluations_dict = {}
-            for evaluator_func in evaluators_to_use:
-                if not hasattr(evaluator_func, "_is_evaluator"):
-                    raise TypeError(
-                        f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator."
-                    )
-                try:
-                    evaluation_result = evaluator_func(input_data, output, expected_output)
-                    evaluations_dict[evaluator_func.__name__] = {"value": evaluation_result, "error": None}
-                except Exception as e:
-                    evaluations_dict[evaluator_func.__name__] = {
-                        "value": None,
-                        "error": {
-                            "message": str(e),
-                            "type": type(e).__name__,
-                            "stack": traceback.format_exc(),
-                        },
-                    }
-                    if raise_errors:
-                        raise RuntimeError(f"Evaluator '{evaluator_func.__name__}' failed on row {idx}: {e}") from e
-
-            evaluations_partial.append({"idx": idx, "evaluations": evaluations_dict})
-            progress_eval.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
-
-        # If sample_size was not used, store these as the main experiment outputs/evals:
-        if sample_size is None:
-            self.outputs = outputs_buffer
-            self.has_run = True
-
-        # Build/attach an ExperimentResults
-        experiment_results = ExperimentResults(
-            dataset=subset_dataset,
-            experiment=self,
-            outputs=outputs_buffer,
-            evaluations=evaluations_partial,
-        )
-        self.has_evaluated = True
-        print(f"\n{Color.RESET} Run complete.\n")
-        return experiment_results
-
-    def run_task(self, jobs: int = DEFAULT_CONCURRENT_JOBS, raise_errors: bool = False) -> None:
-        """
-        Execute only the task function on the dataset concurrently, without running the evaluators.
-
-        Args:
-            jobs (int, optional): Number of concurrent threads to use. Defaults to 10.
-            raise_errors (bool, optional): If True, raises an exception upon the first error. Defaults to False.
-
-        Raises:
-            ValueError: If Datadog environment is not initialized.
-            RuntimeError: If raise_errors is True and an error occurs while processing a record.
-        """
-        if not _is_locally_initialized():
-            _validate_init()
-        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "True"
-        total_rows = len(self.dataset)
-
-        progress = ProgressReporter(total_rows, desc="Processing")
-        outputs_buffer = []
-
-        def process_row(idx_row):
-            idx, row = idx_row
-            start_time = time.time()
-            with LLMObs._experiment(name=self.task.__name__, experiment_id=self._datadog_experiment_id) as span:
-                span.context.set_baggage_item("is_experiment_task", True)
-                span_context = LLMObs.export_span(span=span)
-                span_id = span_context["span_id"]
-                trace_id = span_context["trace_id"]
-
-                input_data = row["input"]
-                expected_output = row["expected_output"]
-
-                try:
-                    if getattr(self.task, "_accepts_config", False):
-                        output = self.task(input_data, self.config)
-                    else:
-                        output = self.task(input_data)
-
-                    LLMObs.annotate(
-                        span,
-                        input_data=input_data,
-                        output_data=output,
-                        tags={
-                            "dataset_id": self.dataset._datadog_dataset_id,
-                            "dataset_record_id": row["record_id"],
-                            "experiment_id": self._datadog_experiment_id,
-                        },
-                    )
-                    LLMObs._tag_expected_output(span, expected_output)
-
-                    if idx % 30 == 0:
-                        LLMObs.flush()
-
-                    return {
-                        "idx": idx,
-                        "output": output,
-                        "metadata": {
-                            "timestamp": start_time,
-                            "duration": time.time() - start_time,
-                            "dataset_record_index": idx,
-                            "project_name": self.project_name,
-                            "experiment_name": self.name,
-                            "dataset_name": self.dataset.name,
-                            "span_id": span_id,
-                            "trace_id": trace_id,
-                        },
-                        "error": {"message": None, "stack": None, "type": None},
-                    }
-                except Exception as e:
-                    error_message = str(e)
-                    span.error = 1
-                    span.set_exc_info(type(e), e, e.__traceback__)
-
-                    LLMObs.annotate(
-                        span,
-                        input_data=input_data,
-                        tags={
-                            "dataset_id": self.dataset._datadog_dataset_id,
-                            "dataset_record_id": row["record_id"],
-                            "experiment_id": self._datadog_experiment_id,
-                        },
-                    )
-                    LLMObs._tag_expected_output(span, expected_output)
-
-                    if idx % 30 == 0:
-                        LLMObs.flush()
-
-                    return {
-                        "idx": idx,
-                        "output": None,
-                        "metadata": {
-                            "timestamp": start_time,
-                            "duration": time.time() - start_time,
-                            "dataset_record_index": idx,
-                            "project_name": self.project_name,
-                            "experiment_name": self.name,
-                            "dataset_name": self.dataset.name,
-                            "span_id": span_id,
-                            "trace_id": trace_id,
-                        },
-                        "error": {
-                            "message": error_message,
-                            "stack": traceback.format_exc(),
-                            "type": type(e).__name__,
-                        },
-                    }
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-            for result in executor.map(process_row, list(enumerate(self.dataset))):
-                outputs_buffer.append(result)
-                progress.update(error=result["error"]["message"] is not None)
-
-                # Raise the first error encountered if raise_errors is True
-                if raise_errors and result["error"]["message"]:
-                    raise RuntimeError(
-                        f"Error on record {result['idx']}: {result['error']['message']}\n"
-                        f"Stack trace:\n{result['error']['stack']}"
-                    )
-
+        # Always store outputs in self.outputs (subset or full dataset)
         self.outputs = outputs_buffer
         self.has_run = True
-        LLMObs.flush()
-
-        os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
-        os.environ["DD_LLMOBS_ENABLED"] = "False"
 
     def run_evaluations(
         self, evaluators: Optional[List[Callable]] = None, raise_errors: bool = False
@@ -538,15 +394,14 @@ class Experiment:
         This method allows you to run just the evaluation step after the task has been run on the dataset.
 
         Args:
-            evaluators (List[Callable], optional): If provided, override the experiment's evaluators
-                for this run. Must be decorated with @evaluator. Defaults to None.
+            evaluators (List[Callable], optional): Override the experiment's evaluators for this run.
             raise_errors (bool, optional): If True, raises exceptions encountered during evaluation.
 
         Returns:
-            ExperimentResults: A new ExperimentResults instance with the evaluation results.
+            ExperimentResults
 
         Raises:
-            ValueError: If the task has not been run yet
+            ValueError: If the task has not been run yet.
         """
         if not _is_locally_initialized():
             _validate_init()
@@ -554,7 +409,7 @@ class Experiment:
         if not self.has_run:
             raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
-        # Use provided evaluators or fall back to experiment's evaluators
+        # Use the provided evaluators or fall back to the experiment's evaluators
         evaluators_to_use = evaluators if evaluators is not None else self.evaluators
 
         # Validate that all evaluators have the @evaluator decorator
@@ -562,10 +417,14 @@ class Experiment:
             if not hasattr(evaluator_func, "_is_evaluator"):
                 raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
 
-        evaluations = []
+        # Evaluate the existing outputs
         total_rows = len(self.outputs)
+        if total_rows == 0:
+            raise ValueError("No outputs to evaluate. Please run_task() or run() first.")
 
+        print(f"\nEvaluating {total_rows} rows...\n")
         progress = ProgressReporter(total_rows, desc="Evaluating")
+        evaluations = []
 
         for idx, output_data in enumerate(self.outputs):
             output = output_data["output"]
@@ -574,8 +433,6 @@ class Experiment:
             expected_output = dataset_row.get("expected_output", {})
 
             evaluations_dict = {}
-
-            # Run all evaluators for this output
             for evaluator in evaluators_to_use:
                 try:
                     evaluation_result = evaluator(input_data, output, expected_output)
@@ -590,16 +447,19 @@ class Experiment:
                         },
                     }
                     if raise_errors:
-                        raise e
+                        raise RuntimeError(
+                            f"Evaluator '{evaluator.__name__}' failed on row {idx}: {str(e)}"
+                        ) from e
 
-            # Add single evaluation entry for this output
             evaluations.append({"idx": idx, "evaluations": evaluations_dict})
-
             progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
         self.has_evaluated = True
         experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
+
+        # If Datadog environment is configured, automatically push the evals:
         experiment_results._push_evals()
+        print(f"\n{Color.RESET}Evaluations complete.\n")
         return experiment_results
 
     def __repr__(self) -> str:
