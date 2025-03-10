@@ -13,7 +13,6 @@ import warnings
 
 import cmake
 from setuptools_rust import Binding
-from setuptools_rust import RustBin
 from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
