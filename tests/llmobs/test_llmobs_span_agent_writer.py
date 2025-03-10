@@ -21,7 +21,7 @@ def test_writer_start(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", INTAKE_ENDPOINT)])
 
 
-def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
+def test_buffer_payload_limit(mock_writer_logs, mock_http_writer_send_payload_response):
     llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
     for _ in range(1001):
         llmobs_span_writer.enqueue({})
@@ -61,6 +61,18 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
             mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400441),
         ]
     )
+
+
+def test_payload_size_limit(mock_writer_logs, mock_http_writer_send_payload_response):
+    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+    llmobs_span_writer.enqueue(_chat_completion_event())
+    llmobs_span_writer.enqueue(_oversized_llm_event())
+    mock_writer_logs.debug.assert_has_calls(
+        [
+            mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
+        ]
+    )
+    assert mock_http_writer_send_payload_response.call_count == 1
 
 
 def test_send_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
