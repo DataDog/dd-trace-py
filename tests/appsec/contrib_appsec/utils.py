@@ -175,7 +175,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/?a=1&b&c=d")
             assert self.status(response) == 200
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            query = dict(core.get_item("http.request.query"))
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
@@ -187,7 +187,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
-            assert not core.get_item("http.request.query", span=root_span())
+            assert not core.get_item("http.request.query")
 
     def test_truncation_tags(self, interface: Interface, get_metric):
         with override_global_config(dict(_asm_enabled=True)):
@@ -260,10 +260,10 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
             if asm_enabled:
-                cookies_parsed = dict(core.get_item("http.request.cookies", span=root_span()))
+                cookies_parsed = dict(core.get_item("http.request.cookies"))
                 assert cookies_parsed == cookies
             else:
-                assert core.get_item("http.request.cookies", span=root_span()) is None
+                assert core.get_item("http.request.cookies") is None
             triggers = get_triggers(root_span())
             if asm_enabled and attack:
                 assert triggers is not None, "no appsec struct in root span"
@@ -302,7 +302,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
 
-            body = core.get_item("http.request.body", span=root_span())
+            body = core.get_item("http.request.body")
             if asm_enabled and content_type != "text/plain":
                 assert body in [
                     payload_struct,
@@ -346,7 +346,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            path_params = core.get_item("http.request.path_params", span=root_span())
+            path_params = core.get_item("http.request.path_params")
             if asm_enabled:
                 assert path_params["param_str"] == "abc"
                 assert int(path_params["param_int"]) == 137
