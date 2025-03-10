@@ -1,6 +1,6 @@
 import os
-import openai
 
+import openai
 import vcr
 
 

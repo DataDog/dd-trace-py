@@ -1,13 +1,12 @@
 from pathlib import Path
+
 from mock import patch
-
 import pytest
-
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"

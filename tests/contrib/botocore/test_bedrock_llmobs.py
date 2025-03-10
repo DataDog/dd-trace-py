@@ -1,10 +1,10 @@
 from io import BytesIO
 import json
 import os
-from mock import patch as mock_patch
 
 import botocore
 import mock
+from mock import patch as mock_patch
 import pytest
 import urllib3
 
