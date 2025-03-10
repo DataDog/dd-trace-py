@@ -670,9 +670,7 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.native._native"
-        if CRASHTRACKER_RUST
-        else "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
+        "ddtrace.internal.datadog.profiling.crashtracker": [] if CRASHTRACKER_RUST else ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
