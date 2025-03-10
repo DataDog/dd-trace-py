@@ -951,7 +951,7 @@ def template_venv():
         print("Running under Gitlab and under virtual env, reusing virtual environment with root at %s" % venv_path)
         TEMPLATE_VENV_DIR = venv_path
 
-        pip_cache_dir = get_pip_cache_dir(os.path.join(TEMPLATE_VENV_DIR, "bin", "pip"))
+        pip_cache_dir = get_pip_cache_dir(os.path.join(TEMPLATE_VENV_DIR, "bin", "python"))
         if pip_cache_dir:
             PIP_CACHE_SHARED_VENVS_DIR = pip_cache_dir
             print("Setting PIP_CACHE_DIR to %s" % PIP_CACHE_SHARED_VENVS_DIR)
