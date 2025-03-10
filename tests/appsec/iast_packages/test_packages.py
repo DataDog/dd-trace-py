@@ -985,84 +985,10 @@ _TEST_PORT = 8010
 
 @pytest.mark.parametrize(
     "package",
-    [package for package in PACKAGES if package.test_e2e and SKIP_FUNCTION(package)],
+    [package for package in PACKAGES],
     ids=lambda package: package.name,
 )
-def test_flask_packages_not_patched(package):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    python_bin, _ = package_venv(package)
-    with flask_server(
-        python_cmd=python_bin,
-        iast_enabled="false",
-        tracer_enabled="true",
-        remote_configuration_enabled="false",
-        token=None,
-        port=_TEST_PORT,
-    ) as context:
-        _, client, pid = context
-
-        response = client.get(package.url)
-
-        _assert_results(response, package)
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_e2e and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_flask_packages_patched(package):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    python_bin, _ = package_venv(package)
-
-    with flask_server(
-        python_cmd=python_bin, iast_enabled="true", remote_configuration_enabled="false", token=None, port=_TEST_PORT
-    ) as context:
-        _, client, pid = context
-        response = client.get(package.url)
-        _assert_results(response, package)
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_propagation and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_flask_packages_propagation(package, printer):
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    python_bin, _  = package_venv(package)
-    with flask_server(
-        python_cmd=python_bin,
-        iast_enabled="true",
-        remote_configuration_enabled="false",
-        token=None,
-        port=_TEST_PORT,
-        # assert_debug=True,  # DEV: uncomment to debug propagation
-        # manual_propagation=True,  # DEV: uncomment to debug propagation
-    ) as context:
-        _, client, pid = context
-        response = client.get(package.url_propagation)
-        _assert_propagation_results(response, package)
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_packages_not_patched_import(package):
+def test_packages_not_patched(package):
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
@@ -1070,50 +996,88 @@ def test_packages_not_patched_import(package):
 
     python_bin, python_bin_latest = package_venv(package)
 
-    # 1. Try with the specified version
-    cmdlist = [python_bin, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
-    result = subprocess.run(cmdlist, capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout
-
-    # 2. Try with the latest version
-    cmdlist[0] = python_bin_latest
-    result = subprocess.run(cmdlist, capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout
-
-
-@pytest.mark.parametrize(
-    "package",
-    [package for package in PACKAGES if package.test_import and SKIP_FUNCTION(package)],
-    ids=lambda package: package.name,
-)
-def test_packages_patched_import(package):
-    # TODO: create fixtures with exported patched code and compare it with the generated in the test
-    # (only for non-latest versions)
-    should_skip, reason = package.skip
-    if should_skip:
-        pytest.skip(reason)
-        return
-
-    python_bin, python_bin_latest = package_venv(package)
-
-    with override_env({IAST.ENV: "true"}):
+    if package.test_import:
         # 1. Try with the specified version
-        cmdlist = [
-            python_bin,
-            _INSIDE_ENV_RUNNER_PATH,
-            "patched",
-            package.import_module_to_validate,
-            "True" if package.expect_no_change else "False",
-        ]
-
-        result = subprocess.run(
-            cmdlist,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, result.stdout
+        cmdlist = [python_bin, _INSIDE_ENV_RUNNER_PATH, "unpatched", package.import_module_to_validate]
+        result = subprocess.run(cmdlist, capture_output=True, text=True)
+        assert result.returncode == 0, "Test unpatched import failed for package {}: {}".format(package.name, result.stdout)
 
         # 2. Try with the latest version
         cmdlist[0] = python_bin_latest
         result = subprocess.run(cmdlist, capture_output=True, text=True)
-        assert result.returncode == 0, result.stdout
+        assert result.returncode == 0, "Test unpatched import failed for latest version of package {}: {}".format(
+            package.name, result.stdout)
+
+    if package.test_e2e:
+        with flask_server(
+            python_cmd=python_bin,
+            iast_enabled="false",
+            tracer_enabled="true",
+            remote_configuration_enabled="false",
+            token=None,
+            port=_TEST_PORT,
+        ) as context:
+            _, client, pid = context
+            response = client.get(package.url)
+            _assert_results(response, package)
+
+
+@pytest.mark.parametrize(
+    "package",
+    [package for package in PACKAGES],
+    ids=lambda package: package.name,
+)
+def test_packages_patched(package):
+    should_skip, reason = package.skip
+    if should_skip:
+        pytest.skip(reason)
+        return
+
+    python_bin, python_bin_latest = package_venv(package)
+
+    if package.test_import:
+        # TODO: create fixtures with exported patched code and compare it with the generated in the test
+        # (only for non-latest versions)
+        with override_env({IAST.ENV: "true"}):
+            # 1. Try with the specified version
+            cmdlist = [
+                python_bin,
+                _INSIDE_ENV_RUNNER_PATH,
+                "patched",
+                package.import_module_to_validate,
+                "True" if package.expect_no_change else "False",
+            ]
+
+            result = subprocess.run(
+                cmdlist,
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, "Test patched import failed for package {}: {}".format(
+                package.name, result.stdout)
+
+            # 2. Try with the latest version
+            cmdlist[0] = python_bin_latest
+            result = subprocess.run(cmdlist, capture_output=True, text=True)
+            assert result.returncode == 0, "Test patched import failed for latest version of package {}: {}".format(
+                package.name, result.stdout)
+
+    if package.test_e2e or package.test_propagation:
+        with flask_server(
+            python_cmd=python_bin,
+            iast_enabled="true",
+            remote_configuration_enabled="false",
+            token=None,
+             port=_TEST_PORT,
+             # assert_debug=True,  # DEV: uncomment to debug propagation
+             # manual_propagation=True,  # DEV: uncomment to debug propagation
+        ) as context:
+            _, client, pid = context
+
+            if package.test_e2e:
+                response = client.get(package.url)
+                _assert_results(response, package)
+
+            if package.test_propagation:
+                response = client.get(package.url_propagation)
+                _assert_propagation_results(response, package)
