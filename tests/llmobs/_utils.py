@@ -268,7 +268,7 @@ def _completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "ada",
@@ -299,7 +299,7 @@ def _chat_completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -337,7 +337,7 @@ def _chat_completion_event_with_unserializable_field():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -376,7 +376,7 @@ def _large_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -414,7 +414,7 @@ def _oversized_llm_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -452,7 +452,7 @@ def _oversized_workflow_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "workflow",
             "input": {"value": "A" * 700_000},
@@ -472,7 +472,7 @@ def _oversized_retrieval_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "retrieval",
             "input": {"documents": {"content": "A" * 700_000}},
