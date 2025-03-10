@@ -21,6 +21,7 @@ from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCove
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
+from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
@@ -220,6 +221,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             return TestStatus.FAIL
         if self.atr_has_retries():
             return self.atr_get_final_status()
+        if self.attempt_to_fix_has_retries():
+            return self.attempt_to_fix_get_final_status()
         return super().get_status()
 
     def count_itr_skipped(self) -> None:
@@ -453,7 +456,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
-            if self.atr_get_final_status() == TestStatus.FAIL and self.is_quarantined():
+            if self.atr_get_final_status() == TestStatus.FAIL:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
@@ -468,7 +471,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         return TestStatus.FAIL
 
     #
-    # ATTEMPT_TO_FIX (Auto Test Retries) functionality
+    # Attempt-to-Fix functionality
     #
     def _attempt_to_fix_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._attempt_to_fix_retries[retry_number - 1]
@@ -494,16 +497,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if not self._session_settings.test_management_settings.enabled:
             return False
 
-        # if self.get_session().attempt_to_fix_max_retries_reached():
-        #     return False
-
         if not self.is_finished():
             log.debug("Attempt To Fix: attempt_to_fix_should_retry called but test is not finished")
             return False
-
-        # Only tests that are failing should be retried
-        # if self.attempt_to_fix_get_final_status() != TestStatus.FAIL:
-        #     return False
 
         return (
             len(self._attempt_to_fix_retries) < self._session_settings.test_management_settings.attempt_to_fix_retries
@@ -516,9 +512,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         retry_test = self._attempt_to_fix_make_retry_test()
         self._attempt_to_fix_retries.append(retry_test)
-        # session = self.get_session()
-        # if session is not None:
-        #     session._attempt_to_fix_count_retry()
 
         if start_immediately:
             retry_test.start()
@@ -534,8 +527,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.test_management_settings.attempt_to_fix_retries:
-            if self.attempt_to_fix_get_final_status() == TestStatus.FAIL and self.is_quarantined():
+            # FIXME: the last retry wasn't finished yet, so it does not have the correct status.
+            # But we cannot do it after `retry_test.finish()`, because no tags can be added afterwards.
+            # For now, we force the status to be set here. This probably affects EFD and ATR as well.
+            if status is not None:
+                retry_test.set_status(status)
+
+            all_passed = all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries)
+            all_failed = all(retry._status == TestStatus.FAIL for retry in self._attempt_to_fix_retries)
+
+            if all_failed:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+            elif all_passed:
+                retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
 
@@ -543,7 +547,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
             return self._status
 
-        if any(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
+        if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
             return TestStatus.PASS
 
         return TestStatus.FAIL

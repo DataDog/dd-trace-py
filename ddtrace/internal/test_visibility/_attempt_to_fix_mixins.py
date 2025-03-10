@@ -11,24 +11,7 @@ log = get_logger(__name__)
 
 
 class AttemptToFixSessionMixin:
-    @staticmethod
-    @_catch_and_log_exceptions
-    def attempt_to_fix_is_enabled() -> bool:
-        log.debug("Checking if Auto Test Retries is enabled for session")
-        is_enabled = core.dispatch_with_results("test_visibility.attempt_to_fix.is_enabled").is_enabled.value
-        log.debug("Auto Test Retries enabled: %s", is_enabled)
-        return is_enabled
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def attempt_to_fix_has_failed_tests() -> bool:
-        log.debug("Checking if session has failed tests for Auto Test Retries")
-        has_failed_tests = core.dispatch_with_results(
-            "test_visibility.attempt_to_fix.session_has_failed_tests"
-        ).has_failed_tests.value
-        log.debug("Session has ATTEMPT_TO_FIX failed tests: %s", has_failed_tests)
-        return has_failed_tests
-
+    pass
 
 class AttemptToFixTestMixin:
     @staticmethod

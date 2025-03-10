@@ -92,24 +92,24 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
         return (
             _RETRY_OUTCOMES.ATTEMPT_PASSED,
             "r",
-            (f"ATTEMPT_TO_FIX RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if report.outcome == _RETRY_OUTCOMES.ATTEMPT_FAILED:
         return (
             _RETRY_OUTCOMES.ATTEMPT_FAILED,
             "R",
-            (f"ATTEMPT_TO_FIX RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if report.outcome == _RETRY_OUTCOMES.ATTEMPT_SKIPPED:
         return (
             _RETRY_OUTCOMES.ATTEMPT_SKIPPED,
             "s",
-            (f"ATTEMPT_TO_FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     if report.outcome == _RETRY_OUTCOMES.FINAL_PASSED:
-        return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT_TO_FIX FINAL STATUS: PASSED", {"green": True}))
+        return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
     if report.outcome == _RETRY_OUTCOMES.FINAL_FAILED:
-        return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT_TO_FIX FINAL STATUS: FAILED", {"red": True}))
+        return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
     return None
 
 
@@ -120,4 +120,4 @@ def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.
     terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, [])
     terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
 
-    # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.
+    # TODO: report list of attempt-to-fix results.

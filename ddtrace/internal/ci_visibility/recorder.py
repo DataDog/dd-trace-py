@@ -1598,22 +1598,11 @@ def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
 def _register_atr_handlers():
     log.debug("Registering ATR handlers")
     core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
-    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
     core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
     core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
     core.on("test_visibility.atr.start_retry", _on_atr_start_retry)
     core.on("test_visibility.atr.finish_retry", _on_atr_finish_retry)
     core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
-
-
-@_requires_civisibility_enabled
-def _on_attempt_to_fix_is_enabled() -> bool:
-    return CIVisibility.is_attempt_to_fix_enabled()
-
-
-@_requires_civisibility_enabled
-def _on_attempt_to_fix_session_has_failed_tests() -> bool:
-    return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
 
 
 @_requires_civisibility_enabled
@@ -1645,12 +1634,6 @@ def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
 
 def _register_attempt_to_fix_handlers():
     log.debug("Registering AttemptToFix handlers")
-    core.on("test_visibility.attempt_to_fix.is_enabled", _on_attempt_to_fix_is_enabled, "is_enabled")
-    core.on(
-        "test_visibility.attempt_to_fix.session_has_failed_tests",
-        _on_attempt_to_fix_session_has_failed_tests,
-        "has_failed_tests",
-    )
     core.on(
         "test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test"
     )
