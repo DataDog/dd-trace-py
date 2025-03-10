@@ -1,3 +1,4 @@
+from io import StringIO
 import os.path
 
 from mako.lookup import TemplateLookup
@@ -7,7 +8,6 @@ from mako.template import Template
 from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.contrib.internal.mako.patch import patch
 from ddtrace.contrib.internal.mako.patch import unpatch
-from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
