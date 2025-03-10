@@ -1,5 +1,3 @@
-import os
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
