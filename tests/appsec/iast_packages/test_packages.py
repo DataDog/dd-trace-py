@@ -1026,6 +1026,7 @@ def _assert_propagation_results(response, package):
 # running in parallel (e.g. test_gunicorn_handlers.py)
 _TEST_PORT = 8010
 
+NUM_TEST = 0
 
 @pytest.mark.parametrize(
     "package",
@@ -1033,12 +1034,19 @@ _TEST_PORT = 8010
     ids=lambda package: package.name,
 )
 def test_packages_not_patched(package):
+    global NUM_TEST
+    NUM_TEST += 1
+
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
         return
 
-    print("Testing unpatched: ", package.name)
+    print("Testing unpatched: {}, test {}/{}".format(
+        package.name,
+        NUM_TEST,
+        len(PACKAGES)*2)
+    )
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
@@ -1076,12 +1084,19 @@ def test_packages_not_patched(package):
     ids=lambda package: package.name,
 )
 def test_packages_patched(package):
+    global NUM_TEST
+    NUM_TEST += 1
+
     should_skip, reason = package.skip
     if should_skip:
         pytest.skip(reason)
         return
 
-    print("Testing patched: ", package.name)
+    print("Testing unpatched: {}, test {}/{}".format(
+        package.name,
+        NUM_TEST,
+        len(PACKAGES)*2)
+    )
     python_bin, python_bin_latest = package.create_venv()
 
     if package.test_import:
