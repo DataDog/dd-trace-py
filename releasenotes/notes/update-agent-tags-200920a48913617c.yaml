@@ -1,0 +1,18 @@
+---
+other:
+  - |
+    agent: Migrates agent connection configurations to envier. This provides better documentation and validation for expected types. 
+    The following configuration are affected:
+    - `DD_TRACE_AGENT_URL`
+    - `DD_DOGSTATSD_URL`
+    - `DD_TRACE_AGENT_HOSTNAME`
+    - `DD_AGENT_HOST`
+    - `DD_TRACE_AGENT_PORT`
+    - `DD_DOGSTATSD_PORT`
+    - `DD_AGENT_PORT`
+    - `DD_TRACE_AGENT_TIMEOUT_SECONDS`
+    Of the above impacted configurations, these had a precedence change:
+    - `DD_TRACE_AGENT_HOSTNAME` over `DD_AGENT_HOST`
+    - `DD_TRACE_AGENT_PORT` over `DD_AGENT_PORT`
+    - `DD_DOGSTATSD_HOST` over `DD_AGENT_HOST`
+    - `DD_DOGSTATSD_PORT` over `DD_AGENT_PORT`
