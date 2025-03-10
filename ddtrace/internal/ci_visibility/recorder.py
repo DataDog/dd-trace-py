@@ -57,6 +57,7 @@ from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
+from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
@@ -97,6 +98,7 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15
 DEFAULT_ITR_SKIPPABLE_TIMEOUT = 20
+UNSUPPORTED = "unsupported"
 TELEMETRY_BY_PROVIDER_NAME = {
     "appveyor": "provider:appveyor",
     "azurepipelines": "provider:azp",
@@ -112,7 +114,7 @@ TELEMETRY_BY_PROVIDER_NAME = {
     "bitrise": "provider:bitrise",
     "buddy": "provider:buddyci",
     "awscodepipeline": "provider:aws",
-    "unsupported": "provider:unsupported",
+    UNSUPPORTED: UNSUPPORTED_PROVIDER,
 }
 
 
@@ -927,10 +929,8 @@ class CIVisibility(Service):
     def ci_provider_name_for_telemetry(cls) -> str:
         instance = cls.get_instance()
         if instance is None:
-            return "provider:unsupported"
-        return TELEMETRY_BY_PROVIDER_NAME.get(
-            instance._tags.get(ci.PROVIDER_NAME, "unsupported"), "provider:unsupported"
-        )
+            return UNSUPPORTED_PROVIDER
+        return TELEMETRY_BY_PROVIDER_NAME.get(instance._tags.get(ci.PROVIDER_NAME, UNSUPPORTED), UNSUPPORTED_PROVIDER)
 
     @classmethod
     def is_auto_injected(cls) -> bool:

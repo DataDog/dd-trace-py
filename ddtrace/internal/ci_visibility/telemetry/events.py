@@ -3,6 +3,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
@@ -156,7 +157,7 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
-    ci_provider_name: str = "provider:unsupported",
+    ci_provider_name: str = UNSUPPORTED_PROVIDER,
     is_auto_injected: bool = False,
 ):
     log.debug(
