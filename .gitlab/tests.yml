@@ -39,7 +39,7 @@ include:
       done
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL = "12"
-    CARGO_BUILD_JOBS = "6"
+    CARGO_BUILD_JOBS = "4"
     DD_FAST_BUILD = "1"
 
 
