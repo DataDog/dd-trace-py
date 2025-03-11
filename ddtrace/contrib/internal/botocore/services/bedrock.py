@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 import wrapt
 
@@ -116,12 +117,16 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 
 def _set_llmobs_usage(
     ctx: core.ExecutionContext,
-    input_tokens: Optional[int],
-    output_tokens: Optional[int],
-    total_tokens: Optional[int] = None,
+    input_tokens: Optional[Union[int, str]],
+    output_tokens: Optional[Union[int, str]],
+    total_tokens: Optional[Union[int, str]] = None,
 ) -> None:
     """
     Sets LLM usage metrics in the context for LLM Observability.
+
+    We check for both int and str types for token values to support
+     - invoke (extracted from headers/metadata which may be a string)
+     - converse (extracted from `usage` field in response body which returns int token counts)
     """
     llmobs_usage = {}
     if input_tokens is not None and input_tokens != "":
