@@ -24,7 +24,7 @@ class JobSpec:
     skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
-    cache: t.Optional[t.Set[str]] = None
+    cache: t.Optional[t.Dict[str]] = None
 
     def __str__(self) -> str:
         lines = []
