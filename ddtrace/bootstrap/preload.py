@@ -105,13 +105,14 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
 
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
-    tracer.set_tags(parse_tags_str(env_tags))
     if (env_tags is not None):
         deprecate(
             "DD_TRACE_GLOBAL_TAGS is deprecated",
             message="DD_TRACE_GLOBAL_TAGS is deprecated, please migrate to using DD_TAGS instead",
             category=DeprecationWarning,
         )
+
+    tracer.set_tags(parse_tags_str(env_tags))
 
 @register_post_preload
 def _():
