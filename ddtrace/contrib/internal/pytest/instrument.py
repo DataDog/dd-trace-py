@@ -11,7 +11,7 @@ from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
-from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import ModuleWatchdog
@@ -79,7 +79,7 @@ class ModuleCollector(ModuleWatchdog):
                 condition=None,
                 condition_error_rate=0.0,
                 rate=float("inf"),
-                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
+                evaluate_at=ProbeEvalTiming.EXIT,
             )
             signal = Snapshot(
                 probe=probe,

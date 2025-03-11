@@ -247,6 +247,7 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
+    global should_debug_tests
     if not is_test_visibility_enabled():
         return
 
@@ -272,14 +273,13 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                 log.warning("Early Flake Detection disabled: pytest version is not supported")
 
         elif InternalTestSession.efd_enabled():
-            global should_debug_tests
             should_debug_tests = True
 
-        if session.config.getoption("ddtrace_debug_tests"):
-            global should_debug_tests
+        if session.config.getoption("ddtrace-debug-tests"):
             should_debug_tests = True
 
         if should_debug_tests:
+            breakpoint()
             from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
 
             ModuleCollector.install()
@@ -348,9 +348,9 @@ def pytest_collection_finish(session) -> None:
 
     if should_debug_tests:
         from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        ModuleCollector.instrument()
-
+        ModuleCollector.instrument(CIVisibility._instance)
     try:
         return _pytest_collection_finish(session)
     except Exception:  # noqa: E722
