@@ -166,11 +166,9 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
 
-    # only report LLM Obs spans if base_url has not been changed
     span = integration.trace(
         pin,
         endpoint_hook.OPERATION_ID,
-        submit_to_llmobs=True,
         base_url=base_url,
     )
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))

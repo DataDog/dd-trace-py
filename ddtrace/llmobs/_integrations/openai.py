@@ -56,8 +56,7 @@ class OpenAIIntegration(BaseLLMIntegration):
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         base_url = kwargs.get("base_url", None)
         submit_to_llmobs = (
-            submit_to_llmobs
-            and self.is_default_base_url(str(base_url) if base_url else None)
+            self.is_default_base_url(str(base_url) if base_url else None)
             and (operation_id.endswith("Completion") or operation_id == "createEmbedding")
         )
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
@@ -253,5 +252,5 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return get_llmobs_metrics_tags("openai", span)
 
-    def is_default_base_url(cls, base_url: Optional[str] = None) -> bool:
+    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         return is_openai_default_base_url(base_url)
