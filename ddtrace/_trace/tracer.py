@@ -622,8 +622,12 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        # Re-create the background writer thread
-        self._writer = self._writer.recreate()
+        self._recreate()
+        self._new_process = True
+
+    def _recreate(self):
+        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+        # Recreate the trace and span processors
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._user_trace_processors,
             self._writer,
@@ -635,8 +639,8 @@ class Tracer(object):
             self._sampler,
             self._endpoint_call_counter_span_processor,
         )
-
-        self._new_process = True
+        # Re-create the background writer thread
+        self._writer = self._writer.recreate()
 
     def _start_span_after_shutdown(
         self,

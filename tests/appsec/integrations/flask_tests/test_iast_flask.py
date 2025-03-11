@@ -54,7 +54,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_xss_injection()
             patch_json()
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
-            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer.configure(appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1836,7 +1836,8 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer._configure(api_version="v0.4")
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer._recreate()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):

@@ -67,15 +67,6 @@ def send_once_stats_tracer(stats_tracer):
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
 
-    # Test enabling via `configure`
-    t = DummyTracer()
-    assert not t._compute_stats
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t._configure(compute_stats_enabled=True)
-    assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    assert t._compute_stats
-
-    # Test enabling via environment variable
     env = os.environ.copy()
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
@@ -96,26 +87,6 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
         env=env,
     )
     assert status == 0, out + err
-
-
-@pytest.mark.subprocess(err=None)
-def test_apm_opt_out_compute_stats_and_configure():
-    """
-    Ensure stats computation is disabled, but reported as enabled,
-    if APM is opt-out.
-    """
-    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-    from ddtrace.trace import tracer as t
-
-    # Test via `configure`
-    assert not t._compute_stats
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t._configure(appsec_enabled=True, apm_tracing_disabled=True)
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    # the stats computation is disabled
-    assert not t._compute_stats
-    # but it's reported as enabled
-    assert t._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
 
 
 def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
@@ -240,7 +211,7 @@ def test_top_level(send_once_stats_tracer):
 @pytest.mark.snapshot()
 def test_single_span_sampling(stats_tracer, sampling_rule):
     sampler = DatadogSampler([sampling_rule])
-    stats_tracer._configure(sampler=sampler)
+    stats_tracer._sampler = sampler
     with stats_tracer.trace("parent", service="test"):
         with stats_tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
