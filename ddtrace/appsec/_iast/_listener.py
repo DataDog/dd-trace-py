@@ -1,3 +1,4 @@
+from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
@@ -18,7 +19,7 @@ from ddtrace.internal import core
 def iast_listen():
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
-
+    core.on("flask.wrapped_view", _iast_on_wrapped_view, "check_kwargs")
     core.on("django.patch", _on_django_patch)
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)

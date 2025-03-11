@@ -154,7 +154,9 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 req_span = span
             else:
                 req_span = ctx.get_item("req_span")
-
+        if req_span is None:
+            log.debug("[IAST] Error finishing IAST context. There isn't a SPAN")
+            return
         if asm_config._iast_enabled:
             existing_data = req_span.get_tag(IAST.JSON)
             if existing_data is None:
