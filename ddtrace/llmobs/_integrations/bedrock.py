@@ -117,11 +117,13 @@ class BedrockIntegration(BaseLLMIntegration):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [{"content": ""}]
         input_messages = []
-        for p in prompt:
-            if not isinstance(p, dict):
+        for message in prompt:
+            if not isinstance(message, dict):
                 continue
-            role = str(p.get("role", ""))
-            content = p.get("content", "")
+            role = str(message.get("role", ""))
+            content = message.get("content", "")
+            if not isinstance(message.get("content", None), list):
+                continue
             input_messages += get_messages_from_converse_content(role, content)
         return input_messages
 
