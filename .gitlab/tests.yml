@@ -41,6 +41,7 @@ include:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL = "12"
     CARGO_BUILD_JOBS = "12"
+    DD_FAST_BUILD = "1"
 
 
 
