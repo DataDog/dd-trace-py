@@ -2,7 +2,6 @@ import functools
 import ipaddress
 import re
 import sys
-import threading
 from types import TracebackType
 from typing import Any  # noqa:F401
 from typing import AnyStr  # noqa:F401
@@ -51,9 +50,6 @@ def is_integer(obj):
     # >>> isinstance(True, int)
     # True
     return isinstance(obj, int) and not isinstance(obj, bool)
-
-
-main_thread = threading.main_thread()
 
 
 def make_async_decorator(tracer, coro, *params, **kw_params):

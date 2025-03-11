@@ -1,4 +1,5 @@
 import os
+import threading
 
 import pytest
 
@@ -12,15 +13,16 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 def test_get_task_main():
     # type: (...) -> None
     if _task._gevent_tracer is None:
-        assert _task.get_task(compat.main_thread.ident) == (None, None, None)
+        assert _task.get_task(threading.main_thread().ident) == (None, None, None)
 
 
 @pytest.mark.subprocess
 def test_list_tasks_nogevent():
-    from ddtrace.internal import compat
+    import threading
+
     from ddtrace.profiling.collector import _task
 
-    assert _task.list_tasks(compat.main_thread.ident) == []
+    assert _task.list_tasks(threading.main_thread().ident) == []
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
