@@ -178,6 +178,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             early_flake_detection_abort_reason=self._efd_abort_reason,
             is_quarantined=self.is_quarantined(),
             is_disabled=self.is_disabled(),
+            is_attempt_to_fix=self.is_attempt_to_fix(),
+            has_failed_all_retries=self.has_failed_all_retries(),
             is_rum=self._is_rum(),
             browser_driver=self._get_browser_driver(),
         )
@@ -281,6 +283,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         return self._session_settings.test_management_settings.enabled and (
             self._is_attempt_to_fix or self.get_tag(TEST_IS_ATTEMPT_TO_FIX)
         )
+
+    def has_failed_all_retries(self):
+        return bool(self.get_tag(TEST_HAS_FAILED_ALL_RETRIES))
 
     #
     # EFD (Early Flake Detection) functionality

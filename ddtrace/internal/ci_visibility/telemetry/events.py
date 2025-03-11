@@ -160,6 +160,8 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
+    is_attempt_to_fix: bool = False,
+    has_failed_all_retries: bool = False,
 ):
     log.debug(
         "Recording test event finished: test_framework=%s"
@@ -170,7 +172,9 @@ def record_event_finished_test(
         ", browser_driver=%s"
         ", is_benchmark=%s"
         ", is_quarantined=%s"
-        ", is_disabled=%s",
+        ", is_disabled=%s"
+        ", is_attempt_to_fix=%s"
+        ", has_failed_all_retries=%s",
         test_framework,
         is_new,
         is_retry,
@@ -180,6 +184,8 @@ def record_event_finished_test(
         is_benchmark,
         is_quarantined,
         is_disabled,
+        is_attempt_to_fix,
+        has_failed_all_retries,
     )
 
     tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
@@ -202,5 +208,9 @@ def record_event_finished_test(
         tags.append(("is_quarantined", "true"))
     if is_disabled:
         tags.append(("is_disabled", "true"))
+    if is_attempt_to_fix:
+        tags.append(("is_attempt_to_fix", "true"))
+    if has_failed_all_retries:
+        tags.append(("has_failed_all_retries", "true"))
 
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))
