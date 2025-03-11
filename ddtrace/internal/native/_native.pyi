@@ -54,6 +54,12 @@ class PyConfigurator:
         """
         ...
 
+class StacktraceCollection:
+    Disabled: "StacktraceCollection"
+    WithoutSymbols: "StacktraceCollection"
+    EnabledWithInprocessSymbols: "StacktraceCollection"
+    EnabledWithSymbolsInReceiver: "StacktraceCollection"
+
 class CrashtrackerConfiguration:
     def __init__(
         self,
@@ -61,8 +67,8 @@ class CrashtrackerConfiguration:
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: int,
+        resolve_frames: StacktraceCollection,
         endpoint: Optional[str],
-        resolve_frames: Optional[str],
         unix_socket_path: Optional[str],
     ): ...
 
@@ -79,7 +85,10 @@ class CrashtrackerReceiverConfig:
 class Metadata:
     def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
 
-class CrashtrackerStatus: ...
+class CrashtrackerStatus:
+    NotInitialized: "CrashtrackerStatus"
+    Initialized: "CrashtrackerStatus"
+    FailedToInitialize: "CrashtrackerStatus"
 
 def crashtracker_init(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: Metadata

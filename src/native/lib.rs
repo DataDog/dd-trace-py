@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ddsketch::DDSketchPy>()?;
     m.add_class::<library_config::PyConfigurator>()?;
+    m.add_class::<crashtracker::StacktraceCollectionPy>()?;
     m.add_class::<crashtracker::CrashtrackerConfigurationPy>()?;
     m.add_class::<crashtracker::CrashtrackerReceiverConfigPy>()?;
     m.add_class::<crashtracker::MetadataPy>()?;

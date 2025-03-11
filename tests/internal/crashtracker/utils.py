@@ -49,7 +49,7 @@ def conn_to_bytes(conn):
     return ret
 
 
-def start_crashtracker(port: int, stdout=None, stderr=None, tags=None):
+def start_crashtracker(port: int, stdout=None, stderr=None, tags={}):
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
@@ -121,7 +121,7 @@ def set_cerulean_mollusk():
 class CrashtrackerWrapper:
     _seed = 0
 
-    def __init__(self, port: int, base_name="", tags=None):
+    def __init__(self, port: int, base_name="", tags={}):
         if CrashtrackerWrapper._seed == 0:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
 

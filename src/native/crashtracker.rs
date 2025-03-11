@@ -8,6 +8,37 @@ use datadog_crashtracker::{
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
+// We redefine the Enum here to expose it to Python as datadog_crashtracker::StacktraceCollection
+// is defined in an external crate.
+#[pyclass(
+    eq,
+    eq_int,
+    name = "StacktraceCollection",
+    module = "datadog.internal._crashtracker"
+)]
+#[derive(Clone, PartialEq)]
+pub enum StacktraceCollectionPy {
+    Disabled,
+    WithoutSymbols,
+    EnabledWithInprocessSymbols,
+    EnabledWithSymbolsInReceiver,
+}
+
+impl From<StacktraceCollectionPy> for StacktraceCollection {
+    fn from(value: StacktraceCollectionPy) -> Self {
+        match value {
+            StacktraceCollectionPy::Disabled => StacktraceCollection::Disabled,
+            StacktraceCollectionPy::WithoutSymbols => StacktraceCollection::WithoutSymbols,
+            StacktraceCollectionPy::EnabledWithInprocessSymbols => {
+                StacktraceCollection::EnabledWithInprocessSymbols
+            }
+            StacktraceCollectionPy::EnabledWithSymbolsInReceiver => {
+                StacktraceCollection::EnabledWithSymbolsInReceiver
+            }
+        }
+    }
+}
+
 #[pyclass(
     name = "CrashtrackerConfiguration",
     module = "datadog.internal._crashtracker"
@@ -20,26 +51,17 @@ pub struct CrashtrackerConfigurationPy {
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
-    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, endpoint=None, resolve_frames=None, unix_socket_path=None))]
+    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None))]
     pub fn new(
         additional_files: Vec<String>,
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: u32,
+        resolve_frames: StacktraceCollectionPy,
         endpoint: Option<&str>,
-        resolve_frames: Option<&str>,
         unix_socket_path: Option<String>,
     ) -> Result<Self, PyErr> {
-        let resolve_frames: StacktraceCollection = match resolve_frames {
-            Some(s) => match s {
-                "full" => StacktraceCollection::EnabledWithInprocessSymbols,
-                "fast" => StacktraceCollection::WithoutSymbols,
-                "safe" => StacktraceCollection::EnabledWithSymbolsInReceiver,
-                _ => StacktraceCollection::EnabledWithInprocessSymbols,
-            },
-            None => StacktraceCollection::EnabledWithInprocessSymbols,
-        };
-
+        let resolve_frames: StacktraceCollection = resolve_frames.into();
         let endpoint = endpoint.map(Endpoint::from_slice);
 
         Ok(Self {
@@ -119,7 +141,12 @@ impl MetadataPy {
 }
 
 #[repr(u8)]
-#[pyclass(eq, eq_int)]
+#[pyclass(
+    eq,
+    eq_int,
+    name = "CrashtrackerStatus",
+    module = "datadog.internal._crashtracker"
+)]
 #[derive(PartialEq)]
 pub enum CrashtrackerStatus {
     NotInitialized = 0,

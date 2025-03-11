@@ -14,6 +14,7 @@ from ddtrace.internal.native._native import CrashtrackerConfiguration
 from ddtrace.internal.native._native import CrashtrackerReceiverConfig
 from ddtrace.internal.native._native import CrashtrackerStatus
 from ddtrace.internal.native._native import Metadata
+from ddtrace.internal.native._native import StacktraceCollection
 from ddtrace.internal.native._native import crashtracker_init
 from ddtrace.internal.native._native import crashtracker_on_fork
 from ddtrace.internal.native._native import crashtracker_status
@@ -25,20 +26,39 @@ from ddtrace.settings.profiling import config_str
 
 def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     tags = {
-        "env": config.env,
-        "service": config.service,
-        "version": config.version,
         "language": "python",
         "runtime": "CPython",
-        "runtime_id": get_runtime_id(),
-        "runtime_version": platform.python_version(),
-        "library_version": version.get_version(),
         "is_crash": "true",
         "severity": "crash",
     }
-    tags.update(crashtracker_config.tags)
+
+    # Here we check for the presence of each tags, as the underlying Metadata
+    # object expects std::collections::HashMap<String, String> which doesn't
+    # support None values.
+    if config.env:
+        tags["env"] = config.env
+    if config.service:
+        tags["service"] = config.service
+    if config.version:
+        tags["version"] = config.version
+    runtime_id = get_runtime_id()
+    if runtime_id:
+        tags["runtime_id"] = runtime_id
+    runtime_version = platform.python_version()
+    if runtime_version:
+        tags["runtime_version"] = runtime_version
+    library_version = version.get_version()
+    if library_version:
+        tags["library_version"] = library_version
+
+    for k, v in crashtracker_config.tags.items():
+        if k and v:
+            tags[k] = v
+
     if additional_tags:
-        tags.update(additional_tags)
+        for k, v in additional_tags.items():
+            if k and v:
+                tags[k] = v
 
     if profiling_config.enabled:
         tags["profiler_config"] = config_str(profiling_config)
@@ -61,14 +81,28 @@ def _get_args(
         if not os.path.exists(crashtracker_exe) or not os.access(crashtracker_exe, os.X_OK):
             return (None, None, None)
 
+    if crashtracker_config.stacktrace_resolver is None:
+        stacktrace_resolver = StacktraceCollection.Disabled
+    elif crashtracker_config.stacktrace_resolver == "fast":
+        stacktrace_resolver = StacktraceCollection.WithoutSymbols
+    elif crashtracker_config.stacktrace_resolver == "safe":
+        stacktrace_resolver = StacktraceCollection.EnabledWithSymbolsInReceiver
+    elif crashtracker_config.stacktrace_resolver == "full":
+        stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
+    else:
+        # This should never happen, as the value is validated in the crashtracker_config
+        # module.
+        print(f"Invalid stacktrace_resolver value: {crashtracker_config.stacktrace_resolver}")
+        stracktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
+
     # Create crashtracker configuration
     config = CrashtrackerConfiguration(
         [],  # additional_files
         crashtracker_config.create_alt_stack,
         crashtracker_config.use_alt_stack,
         crashtracker_config.timeout_ms,
+        stacktrace_resolver,
         crashtracker_config.debug_url or agent.get_trace_url(),
-        crashtracker_config.stacktrace_resolver,
         None,  # unix_socket_path
     )
 
@@ -89,7 +123,7 @@ def _get_args(
 
 
 def is_started() -> bool:
-    return crashtracker_status() == CrashtrackerStatus.Initialized  # type: ignore
+    return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
 def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
