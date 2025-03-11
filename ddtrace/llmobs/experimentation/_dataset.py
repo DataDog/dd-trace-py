@@ -45,7 +45,6 @@ class Dataset:
         """
         self.name = name
         self.description = description
-        self.version = 0
 
         # If no data provided, attempt to pull from Datadog
         if data is None:
@@ -54,12 +53,19 @@ class Dataset:
             print(pulled_dataset._datadog_dataset_id)
             self._data = pulled_dataset._data
             self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
-            self._version = pulled_dataset._datadog_dataset_version
+            self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
         else:
             self._validate_data(data)
             self._data = data
             self._datadog_dataset_id = None
-            self._version = 0
+            self._datadog_dataset_version = 0
+
+        self._changes = {
+            'added': [],      # List of added records
+            'deleted': [],    # List of deleted records with their indices
+            'updated': []     # List of (index, old_record, new_record) tuples
+        }
+        self._synced = True
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
         """
@@ -90,7 +96,112 @@ class Dataset:
             Dict[str, Union[str, Dict[str, Any]]]: A copy of the dataset record at the given index.
         """
         record = self._data[index].copy()
+        # Remove the record_id from the record
+        record.pop("record_id", None)
         return record
+
+    def __delitem__(self, index: int) -> None:
+        """
+        Delete a record at the specified index.
+
+        Args:
+            index (int): Index of the record to delete.
+        """
+        deleted_record = self._data[index]
+        self._changes['deleted'].append((index, deleted_record))
+        del self._data[index]
+        self._synced = False
+
+    def __setitem__(self, index: int, value: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+        """
+        Update a record at the specified index.
+
+        Args:
+            index (int): Index of the record to update.
+            value (Dict[str, Union[str, Dict[str, Any]]]): New record value.
+
+        Raises:
+            ValueError: If the new record doesn't match the expected structure.
+        """
+        self._validate_data([value])
+        old_record = self._data[index]
+        self._changes['updated'].append((index, old_record, value))
+        self._data[index] = value
+        self._synced = False
+
+    def __iadd__(self, record: Dict[str, Union[str, Dict[str, Any]]]) -> "Dataset":
+        """
+        Add a new record using the += operator.
+
+        Args:
+            record (Dict[str, Union[str, Dict[str, Any]]]): Record to add.
+
+        Returns:
+            Dataset: The dataset instance for method chaining.
+
+        Raises:
+            ValueError: If the record doesn't match the expected structure.
+        """
+        self.add(record)
+        return self
+
+    def add(self, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+        """
+        Add a new record to the dataset.
+
+        Args:
+            record (Dict[str, Union[str, Dict[str, Any]]]): Record to add.
+
+        Raises:
+            ValueError: If the record doesn't match the expected structure.
+        """
+        self._validate_data([record])
+        self._changes['added'].append(record)
+        self._data.append(record)
+        self._synced = False
+
+    def remove(self, index: int) -> None:
+        """
+        Remove a record at the specified index.
+
+        Args:
+            index (int): Index of the record to remove.
+        """
+        del self[index]  # Use __delitem__ to track the change
+
+    def update(self, index: int, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+        """
+        Update a record at the specified index.
+
+        Args:
+            index (int): Index of the record to update.
+            record (Dict[str, Union[str, Dict[str, Any]]]): New record value.
+
+        Raises:
+            ValueError: If the record doesn't match the expected structure.
+        """
+        self[index] = record  # Use __setitem__ to track the change
+
+    def _get_changes(self) -> Dict[str, List]:
+        """
+        Get all tracked changes since the last push or pull.
+
+        Returns:
+            Dict[str, List]: Dictionary containing lists of added, deleted, and updated records.
+        """
+        return {
+            'added': self._changes['added'].copy(),
+            'deleted': self._changes['deleted'].copy(),
+            'updated': self._changes['updated'].copy()
+        }
+
+    def _clear_changes(self) -> None:
+        """Clear all tracked changes."""
+        self._changes = {
+            'added': [],
+            'deleted': [],
+            'updated': []
+        }
 
     def _validate_data(self, data: List[Dict[str, Union[str, Dict[str, Any]]]]) -> None:
         """
@@ -146,8 +257,6 @@ class Dataset:
 
         dataset_id = datasets[0]["id"]
         dataset_version = datasets[0]["attributes"]["current_version"]
-
-        print(f"Found dataset '{name}' (latest version: {dataset_version})")
 
         # If version specified, verify it exists
         if version is not None:
@@ -214,14 +323,104 @@ class Dataset:
         dataset._datadog_dataset_version = dataset_version
         return dataset
 
-    def push(self, overwrite: bool = False, deduplicate: bool = False) -> None:
+    def _batch_update(self) -> None:
+        """
+        Send all tracked changes to Datadog using the batch update endpoint.
+        This method is called by push() when there are pending changes.
+
+        Raises:
+            ValueError: If the dataset is not synced with Datadog (no dataset_id)
+            Exception: If the batch update request fails
+        """
+        if not self._datadog_dataset_id:
+            raise ValueError("Dataset must be synced with Datadog before performing batch updates")
+
+        # Prepare the payload
+        payload = {
+            "data": {
+                "type": "datasets",
+                "attributes": {}
+            }
+        }
+
+        # Add new records
+        if self._changes['added']:
+            insert_records = []
+            for record in self._changes['added']:
+                new_record = {
+                    "input": record["input"],
+                    "expected_output": record["expected_output"]
+                }
+                # Add metadata if present
+                metadata = {k: v for k, v in record.items() 
+                          if k not in ["input", "expected_output", "record_id"]}
+                if metadata:
+                    new_record["metadata"] = metadata
+                insert_records.append(new_record)
+            payload["data"]["attributes"]["insert_records"] = insert_records
+
+        # Add updated records
+        if self._changes['updated']:
+            update_records = []
+            for _, old_record, new_record in self._changes['updated']:
+                # We need the record_id from the old record
+                if "record_id" not in old_record:
+                    raise ValueError("Cannot update record: missing record_id")
+                
+                update_record = {"id": old_record["record_id"]}
+                
+                # Only include fields that have changed
+                if new_record.get("input") != old_record.get("input"):
+                    update_record["input"] = new_record["input"]
+                if new_record.get("expected_output") != old_record.get("expected_output"):
+                    update_record["expected_output"] = new_record["expected_output"]
+                
+                # Handle metadata changes
+                old_metadata = {k: v for k, v in old_record.items() 
+                              if k not in ["input", "expected_output", "record_id"]}
+                new_metadata = {k: v for k, v in new_record.items() 
+                              if k not in ["input", "expected_output", "record_id"]}
+                if old_metadata != new_metadata:
+                    update_record["metadata"] = new_metadata
+                
+                if len(update_record) > 1:  # Only add if there are actual changes (more than just id)
+                    update_records.append(update_record)
+            if update_records:
+                payload["data"]["attributes"]["update_records"] = update_records
+
+        # Add deleted records
+        if self._changes['deleted']:
+            delete_records = []
+            for _, record in self._changes['deleted']:
+                if "record_id" not in record:
+                    raise ValueError("Cannot delete record: missing record_id")
+                delete_records.append(record["record_id"])
+            payload["data"]["attributes"]["delete_records"] = delete_records
+
+        # Send the batch update request
+        url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
+        resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
+
+        # Sleep briefly to allow for processing
+        time.sleep(1)
+
+        # Pull the dataset to get all record IDs and latest version
+        pulled_dataset = self.pull(self.name)
+        self._data = pulled_dataset._data
+        self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+        self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
+
+        # Clear changes and mark as synced
+        self._clear_changes()
+        self._synced = True
+
+    def push(self, overwrite: bool = False) -> None:
         """
         Push the dataset to Datadog, optionally overwriting an existing dataset.
-
-        This method either updates an existing dataset (if found and 'overwrite' is True)
-        or creates a new dataset. If the dataset is newly created, a new version is also created
-        in Datadog. After pushing, the local dataset is refreshed with the latest information
-        from Datadog, including record IDs and metadata.
+        
+        If there are pending changes and the dataset exists in Datadog, it will use
+        the batch update endpoint to apply the changes. Otherwise, it will create
+        a new dataset or overwrite the existing one completely.
 
         Args:
             overwrite (bool, optional): If True, overwrite the existing dataset if found instead
@@ -232,6 +431,39 @@ class Dataset:
         """
         _validate_init()
 
+        # Check if dataset exists
+        encoded_name = quote(self.name)
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
+        resp = exp_http_request("GET", url)
+        existing_dataset = resp.json().get("data", [])
+        print(existing_dataset)
+
+        if existing_dataset:
+            dataset_id = existing_dataset[0]["id"]
+            
+            # If we have changes and we're not overwriting, use batch update
+            has_changes = any(len(changes) > 0 for changes in self._changes.values())
+            if has_changes and not overwrite:
+                print("Pushing changes to existing dataset, new version will be created")
+                self._datadog_dataset_id = dataset_id
+                self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
+                self._batch_update()
+                return
+            
+            if not has_changes:
+                print("Dataset exists but no changes to push")
+                return
+            
+            if overwrite:
+                # TODO: Implement overwrite logic
+                pass
+
+        # If we reach here, either:
+        # 1. Dataset doesn't exist
+        # 2. We're overwriting an existing dataset
+        # 3. No changes to batch update
+        # Use the original push logic...
+        
         # Reasonable chunk size for batching requests
         chunk_size: int = DEFAULT_CHUNK_SIZE
 
@@ -315,7 +547,7 @@ class Dataset:
 
             for i, chunk in enumerate(chunks):
                 records_payload = {
-                    "data": {"type": "datasets", "attributes": {"records": chunk, "deduplicate": deduplicate}}
+                    "data": {"type": "datasets", "attributes": {"records": chunk}}
                 }
                 url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
                 resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
@@ -541,15 +773,18 @@ class Dataset:
             if metadata:
                 structure.append(f"metadata: {len(metadata)} fields")
 
-        # Datadog sync status
+        # Datadog sync status and changes summary
+        has_changes = any(len(changes) > 0 for changes in self._changes.values())
         if getattr(self, "_datadog_dataset_id", None):
-            dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._version})"
-            dd_url = (
-                f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
-            )
+            if self._synced and not has_changes:
+                dd_status = f"{Color.GREEN}✓ Synced{Color.RESET} (v{self._datadog_dataset_version})"
+            else:
+                dd_status = f"{Color.YELLOW}⚠ Unsynced changes{Color.RESET} (v{self._datadog_dataset_version})"
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
-            dd_url = ""
+
+        dd_url = (f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+                 if getattr(self, "_datadog_dataset_id", None) else "")
 
         # Build the representation
         info = [
@@ -564,8 +799,21 @@ class Dataset:
             desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
             info.insert(1, f"  Description: {desc_preview}")
 
+        # Add changes summary if there are any changes
+        if has_changes:
+            changes_summary = []
+            if self._changes['added']:
+                changes_summary.append(f"+{len(self._changes['added'])} added")
+            if self._changes['deleted']:
+                changes_summary.append(f"-{len(self._changes['deleted'])} deleted")
+            if self._changes['updated']:
+                changes_summary.append(f"~{len(self._changes['updated'])} updated")
+            info.append(f"  Changes: {', '.join(changes_summary)}")
+
         # Add URL if dataset is synced
-        if dd_url:
+        if dd_url and self._synced:
             info.append(dd_url)
 
         return "\n".join(info)
+
+
