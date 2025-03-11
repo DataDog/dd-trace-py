@@ -67,3 +67,5 @@ EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 
 SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
+DECORATOR = "_ml_obs.decorator"
+INTEGRATION = "_ml_obs.integration"

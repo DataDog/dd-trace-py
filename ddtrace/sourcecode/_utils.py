@@ -1,7 +1,6 @@
 import re
 import subprocess
-
-from ddtrace.internal.compat import parse
+from urllib import parse
 
 
 SCP_REGEXP = re.compile("^[a-z0-9_]+@([a-z0-9._-]+):(.*)$", re.IGNORECASE)

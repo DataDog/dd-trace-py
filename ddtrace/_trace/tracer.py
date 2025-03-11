@@ -1,4 +1,5 @@
 import functools
+from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
@@ -13,6 +14,7 @@ from typing import Optional
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
+from urllib import parse
 
 from ddtrace import _hooks
 from ddtrace import config
@@ -494,7 +496,7 @@ class Tracer(object):
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            prev_url_parsed = compat.parse.urlparse(self._agent_url)
+            prev_url_parsed = parse.urlparse(self._agent_url)
 
             if uds_path is not None:
                 if hostname is None and prev_url_parsed.scheme == "unix":
@@ -1006,7 +1008,7 @@ class Tracer(object):
             # detect if the the given function is a coroutine to use the
             # right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if compat.iscoroutinefunction(f):
+            if iscoroutinefunction(f):
                 # call the async factory that creates a tracing decorator capable
                 # to await the coroutine execution before finishing the span. This
                 # code is used for compatibility reasons to prevent Syntax errors
