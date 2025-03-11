@@ -279,7 +279,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             should_debug_tests = True
 
         if should_debug_tests:
-            breakpoint()
             from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
 
             ModuleCollector.install()
@@ -295,6 +294,11 @@ def _pytest_collection_finish(session) -> None:
     NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
     tests that pytest has selection for run (eg: with the use of -k as an argument).
     """
+    if should_debug_tests:
+        from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
+        from ddtrace.internal.ci_visibility import CIVisibility
+
+        ModuleCollector.instrument(CIVisibility._instance.tracer)
     for item in session.items:
         test_id = _get_test_id_from_item(item)
         suite_id = test_id.parent_id
@@ -335,22 +339,10 @@ def _pytest_collection_finish(session) -> None:
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_is_faulty_session():
         log.warning("Early Flake Detection disabled: too many new tests detected")
 
-    if should_debug_tests:
-        from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-        ModuleCollector.instrument(CIVisibility._instance)
-
 
 def pytest_collection_finish(session) -> None:
     if not is_test_visibility_enabled():
         return
-
-    if should_debug_tests:
-        from ddtrace.contrib.internal.pytest.instrument import ModuleCollector
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-        ModuleCollector.instrument(CIVisibility._instance)
     try:
         return _pytest_collection_finish(session)
     except Exception:  # noqa: E722

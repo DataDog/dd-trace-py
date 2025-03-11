@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-from functools import cache
 import sys
-import sysconfig
 from threading import current_thread
 import uuid
 
@@ -17,27 +15,12 @@ from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
+from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.wrapping import wrap
 
 
 di_config.enabled = True
 DynamicInstrumentation.enable()
-
-
-stdlib_path = sysconfig.get_path("stdlib")
-platstdlib_path = sysconfig.get_path("platstdlib")
-purelib_path = sysconfig.get_path("purelib")
-platlib_path = sysconfig.get_path("platlib")
-
-
-@cache
-def is_stdlib(filename):
-    # type: (str) -> bool
-    return (
-        filename.startswith(stdlib_path)
-        or filename.startswith(platstdlib_path)
-        and not (filename.startswith(purelib_path) or filename.startswith(platlib_path))
-    )
 
 
 class ModuleCollector(ModuleWatchdog):
@@ -54,7 +37,8 @@ class ModuleCollector(ModuleWatchdog):
 
         self._seen_modules.add(module)
 
-        if is_stdlib(origin(module)):
+        module_origin = origin(module)
+        if module_origin and is_stdlib(module_origin):
             return
 
         self._tracked_modules.add(module)
@@ -101,6 +85,10 @@ class ModuleCollector(ModuleWatchdog):
             # Use function discovery to instrument everything
             fd = FunctionDiscovery.from_module(module)
             for f in set(fd._fullname_index.values()):
-                if f.__code__.co_filename != origin(module):
+                origin_module = origin(module)
+
+                f_code_filename = f.__code__.co_filename if hasattr(f, "__code__") else f.code.co_filename
+                if f_code_filename != origin_module:
                     continue
+
                 wrap(f, cls._trace)
