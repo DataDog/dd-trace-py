@@ -51,16 +51,12 @@ def cleanup(request):
         shutil.rmtree(TEMPLATE_VENV_DIR)
     if os.path.exists(CLONED_VENVS_DIR):
         shutil.rmtree(CLONED_VENVS_DIR)
-    if os.path.exists(PIP_CACHE_SHARED_VENVS_DIR):
-        shutil.rmtree(PIP_CACHE_SHARED_VENVS_DIR)
 
     def remove_test_dir():
         if os.path.exists(TEMPLATE_VENV_DIR):
             shutil.rmtree(TEMPLATE_VENV_DIR)
         if os.path.exists(CLONED_VENVS_DIR):
             shutil.rmtree(CLONED_VENVS_DIR)
-        if os.path.exists(PIP_CACHE_SHARED_VENVS_DIR):
-            shutil.rmtree(PIP_CACHE_SHARED_VENVS_DIR)
 
     # Register cleanup to run at the end
     request.addfinalizer(remove_test_dir)
@@ -947,17 +943,17 @@ def template_venv():
 
     os.makedirs(CLONED_VENVS_DIR, exist_ok=True)
     in_venv, venv_path = _detect_virtualenv()
+
+    pip_cache_dir = get_pip_cache_dir(os.path.join(TEMPLATE_VENV_DIR, "bin", "python"))
+    if pip_cache_dir:
+        PIP_CACHE_SHARED_VENVS_DIR = pip_cache_dir
+        print("Setting PIP_CACHE_DIR to %s" % PIP_CACHE_SHARED_VENVS_DIR)
+    else:
+        print("Could not detect PIP_CACHE_DIR, using default %s" % PIP_CACHE_SHARED_VENVS_DIR)
+
     if IN_GITLAB and in_venv:
         print("Running under Gitlab and under virtual env, reusing virtual environment with root at %s" % venv_path)
         TEMPLATE_VENV_DIR = venv_path
-
-        pip_cache_dir = get_pip_cache_dir(os.path.join(TEMPLATE_VENV_DIR, "bin", "python"))
-        if pip_cache_dir:
-            PIP_CACHE_SHARED_VENVS_DIR = pip_cache_dir
-            print("Setting PIP_CACHE_DIR to %s" % PIP_CACHE_SHARED_VENVS_DIR)
-        else:
-            print("Could not detect PIP_CACHE_DIR, using default %s" % PIP_CACHE_SHARED_VENVS_DIR)
-
     elif not os.path.exists(TEMPLATE_VENV_DIR):
         print(
             "Not running under Gitlab or not existing env, creating new virtual environment at %s" % TEMPLATE_VENV_DIR
