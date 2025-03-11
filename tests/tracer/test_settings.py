@@ -5,6 +5,7 @@ from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
 from tests.utils import BaseTestCase
 from tests.utils import override_env
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 class TestConfig(BaseTestCase):
@@ -148,6 +149,11 @@ class TestIntegrationConfig(BaseTestCase):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
 
+class TestDeprecationWarnings(BaseTestCase):
+    def test_global_tags_deprecation(self):
+        with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="foo:bar")):
+            config = Config()
+            self.assertWarnsRegex(DDTraceDeprecationWarning, "DD_TRACE_GLOBAL_TAGS is deprecated")
 
 def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
@@ -173,3 +179,4 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
