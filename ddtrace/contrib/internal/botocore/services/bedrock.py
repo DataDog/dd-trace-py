@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 
 import wrapt
 
@@ -114,7 +115,10 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
 
 
 def _set_llmobs_usage(
-    ctx: core.ExecutionContext, input_tokens: int, output_tokens: int, total_tokens: int = None
+    ctx: core.ExecutionContext,
+    input_tokens: Optional[int],
+    output_tokens: Optional[int],
+    total_tokens: Optional[int] = None,
 ) -> None:
     """
     Sets LLM usage metrics in the context for LLM Observability.
