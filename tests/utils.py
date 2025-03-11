@@ -614,7 +614,7 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self._configure(*args, **kwargs)
+        self.configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -646,9 +646,6 @@ class DummyTracer(Tracer):
         return traces
 
     def configure(self, *args, **kwargs):
-        self._configure(*args, **kwargs)
-
-    def _configure(self, *args, **kwargs):
         assert isinstance(
             kwargs.get("writer"), (DummyWriterMixin, type(None))
         ), "cannot configure writer of DummyTracer"
@@ -659,7 +656,7 @@ class DummyTracer(Tracer):
             kwargs["writer"] = DummyWriter(
                 trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
             )
-        super(DummyTracer, self)._configure(*args, **kwargs)
+        super(DummyTracer, self).configure(*args, **kwargs)
 
 
 class TestSpan(Span):

@@ -3,6 +3,7 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib.parse import urlparse
 
 import opentracing
 from opentracing import Format
@@ -14,6 +15,7 @@ import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.settings import ConfigException
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
@@ -99,19 +101,36 @@ class Tracer(opentracing.Tracer):
         self._dd_tracer = _dd_tracer or ddtrace.tracer
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         trace_processors = None
-        if keys.SETTINGS in self._config:
-            trace_processors = self._config[keys.SETTINGS].get("FILTERS")  # type: ignore[union-attr]
-        self._dd_tracer._configure(
-            enabled=self._config.get(keys.ENABLED),
-            hostname=self._config.get(keys.AGENT_HOSTNAME),
-            https=self._config.get(keys.AGENT_HTTPS),
-            port=self._config.get(keys.AGENT_PORT),
-            sampler=self._config.get(keys.SAMPLER),
-            trace_processors=trace_processors,
-            priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
-            uds_path=self._config.get(keys.UDS_PATH),
-            context_provider=dd_context_provider,
-        )
+        if keys.SETTINGS in self._config and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
+            trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[union-attr]
+            self._dd_tracer._user_trace_processors = trace_processors
+
+        enabled = self._config.get(keys.ENABLED)
+        if keys.ENABLED in self._config:
+            self._dd_tracer.enabled = enabled
+
+        if (
+            keys.AGENT_HOSTNAME in self._config
+            or keys.AGENT_HTTPS in self._config
+            or keys.AGENT_PORT in self._config
+            or keys.UDS_PATH in self._config
+        ):
+            curr_agent_url = urlparse(self._dd_tracer._agent_url)
+            scheme = "https" if self._config.get(keys.AGENT_HTTPS) else curr_agent_url.scheme
+            hostname = self._config.get(keys.AGENT_HOSTNAME) or curr_agent_url.hostname
+            port = self._config.get(keys.AGENT_PORT) or curr_agent_url.port
+
+            self._dd_tracer._agent_url = f"{scheme}://{hostname}:{port}"
+            if isinstance(self._dd_tracer._writer, AgentWriter):
+                self._dd_tracer._writer.intake_url = self._dd_tracer._agent_url
+
+        if keys.SAMPLER in self._config:
+            self._dd_tracer._sampler = self._config[keys.SAMPLER]
+
+        if dd_context_provider:
+            self._dd_tracer.context_provider = dd_context_provider
+
+        self._dd_tracer
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator,
             Format.TEXT_MAP: HTTPPropagator,

@@ -78,14 +78,11 @@ t.join()
     assert status == 0
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "/tmp/ddagent/trace.sock"})
 def test_single_trace_uds():
     import mock
 
     from ddtrace.trace import tracer as t
-
-    sockdir = "/tmp/ddagent/trace.sock"
-    t._configure(uds_path=sockdir)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
@@ -94,7 +91,7 @@ def test_single_trace_uds():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "/tmp/ddagent/nosockethere"})
 def test_uds_wrong_socket_path():
     import os
 
@@ -103,7 +100,6 @@ def test_uds_wrong_socket_path():
     from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    t._configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -269,17 +265,15 @@ def test_metrics():
     )
 
 
-@parametrize_with_all_encodings(env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true"})
+@parametrize_with_all_encodings(
+    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_ENABLED": "false"}
+)
 def test_metrics_partial_flush_disabled():
     import mock
 
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
-
-    t._configure(
-        partial_flush_enabled=False,
-    )
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
@@ -369,15 +363,15 @@ def test_single_trace_too_large_partial_flush_disabled():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(
+    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_AGENT_HOST": "bad", "DD_AGENT_PORT": "1111"}
+)
 def test_trace_generates_error_logs_when_hostname_invalid():
     import os
 
     import mock
 
     from ddtrace.trace import tracer as t
-
-    t._configure(hostname="bad", port=1111)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
@@ -731,16 +725,13 @@ assert ddtrace.tracer._writer._interval == 1.0
     assert status == 0, (out, err)
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(env={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
 def test_partial_flush_log():
     import mock
 
     from ddtrace.trace import tracer as t
 
     partial_flush_min_spans = 2
-    t._configure(
-        partial_flush_min_spans=partial_flush_min_spans,
-    )
 
     s1 = t.trace("1")
     s2 = t.trace("2")
