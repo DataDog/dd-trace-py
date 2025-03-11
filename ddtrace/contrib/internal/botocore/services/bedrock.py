@@ -363,8 +363,8 @@ def handle_bedrock_response(
     http_headers = metadata["HTTPHeaders"]
 
     total_tokens = None
-    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
-    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
+    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", None)
+    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", None)
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
     if ctx["resource"] == "Converse":
