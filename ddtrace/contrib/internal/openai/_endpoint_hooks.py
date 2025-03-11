@@ -224,7 +224,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
         "frequency_penalty",
         "logit_bias",
         "user",
-        "tools",
     )
     _response_attrs = ("created", "id", "model")
     ENDPOINT_NAME = "chat/completions"
