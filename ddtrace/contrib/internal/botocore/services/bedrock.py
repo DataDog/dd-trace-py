@@ -134,9 +134,9 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     messages = params.get("messages", [])
     inference_config = params.get("inferenceConfig", {})
     prompt = []
-    system_prompt = params.get("system", None)
-    if system_prompt:
-        prompt.append({"role": "system", "content": system_prompt})
+    system_content_block = params.get("system", None)
+    if system_content_block:
+        prompt.append({"role": "system", "content": system_content_block})
     prompt += messages
     return {
         "prompt": prompt,

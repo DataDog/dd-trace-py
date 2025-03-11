@@ -138,7 +138,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         default_content = [{"content": ""}]
         message = response.get("output", {}).get("message", {})
-        if message:
+        if not message:
             return default_content
         role = message.get("role", "assistant")
         if not isinstance(message.get("content", None), list):
