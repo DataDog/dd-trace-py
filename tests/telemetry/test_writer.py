@@ -349,6 +349,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_CRASHTRACKING_STDERR_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_STDOUT_FILENAME", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_TAGS", "origin": "default", "value": ""},
+        {"name": "DD_CRASHTRACKING_TIMEOUT_MS", "origin": "default", "value": 5000},
         {"name": "DD_CRASHTRACKING_USE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_WAIT_FOR_RECEIVER", "origin": "default", "value": True},
         {"name": "DD_DATA_STREAMS_ENABLED", "origin": "env_var", "value": True},
