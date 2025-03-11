@@ -103,8 +103,15 @@ class BedrockIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Extract input messages from the stored prompt.
-        Anthropic allows for messages and multiple texts in a message, which requires some special casing.
+        """Extract input messages from the stored prompt for converse
+
+        `prompt` is an array of `message` objects. Each `message` has a role and content field.
+
+        The content field stores a list of `ContentBlock` objects, which is a dictionary.
+        We only extracting out the `text` field from a `ContentBlock` object.
+
+        For more info, see bedrock converse request syntax:
+        https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_RequestSyntax
         """
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
@@ -133,35 +140,43 @@ class BedrockIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_output_message_for_converse(response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        # Handle Converse API response format with output field structure
-        if "output" in response and "message" in response.get("output", {}):
-            message = response.get("output", {}).get("message", {})
-            role = message.get("role", "assistant")
-            tool_calls_info = []
-            if message.get("content") and isinstance(message["content"], list):
-                content_blocks = []
-                for content_block in message["content"]:
-                    if content_block.get("text") is not None:
-                        content_blocks.append(content_block.get("text", ""))
-                    elif content_block.get("toolUse") is not None:
-                        tool_calls_info.append(
-                            {
-                                "name": content_block.get("toolUse", {}).get("name", ""),
-                                "arguments": content_block.get("toolUse", {}).get("input", ""),
-                                "tool_id": content_block.get("toolUse", {}).get("toolUseId", ""),
-                            }
-                        )
-                    else:
-                        log.debug(
-                            "LLM Obs tracing is unsupported for content block type: %s", ",".join(content_block.keys())
-                        )
-                        content_blocks.append("[Unsupported content type: {}]".format(",".join(content_block.keys())))
+        """Extract output messages from the stored prompt for converse
 
-                output_message = {"content": " ".join(content_blocks), "role": role}
-                if tool_calls_info:
-                    output_message["tool_calls"] = tool_calls_info
-                return [output_message]
-        return [{"content": ""}]
+        `response` contains an `output` field that stores a nested `message` field.
+
+        `message` has a `content` field that `ContentBlock` objects, which is a dictionary.
+        We only extracting out the `text` field from a `ContentBlock` object.
+
+        For more info, see bedrock converse response syntax:
+        https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
+        """
+        default_content = [{"content": ""}]
+        message = response.get("output", {}).get("message", {})
+        if message:
+            return default_content
+        role = message.get("role", "assistant")
+        tool_calls_info = []
+        if not isinstance(message.get("content", None), list):
+            return default_content
+        content_blocks = []
+        for content_block in message["content"]:
+            if content_block.get("text") is not None:
+                content_blocks.append(content_block.get("text", ""))
+            elif content_block.get("toolUse") is not None:
+                tool_calls_info.append(
+                    {
+                        "name": content_block.get("toolUse", {}).get("name", ""),
+                        "arguments": content_block.get("toolUse", {}).get("input", {}),
+                        "tool_id": content_block.get("toolUse", {}).get("toolUseId", ""),
+                    }
+                )
+            else:
+                content_blocks.append("[Unsupported content type: {}]".format(",".join(content_block.keys())))
+
+        output_message = {"content": " ".join(content_blocks), "role": role}
+        if tool_calls_info:
+            output_message["tool_calls"] = tool_calls_info
+        return [output_message]
 
     @staticmethod
     def _extract_input_message(prompt):

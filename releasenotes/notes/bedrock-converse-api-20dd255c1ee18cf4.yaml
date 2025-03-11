@@ -1,10 +1,7 @@
 ---
 features:
   - |
-    LLM Observability: This introduces tracing for the Bedrock Converse API. Invocations to ``converse`` method are traced as 
-                      LLM spans with the following attributes:
-                          - "max_tokens" and "temperature" inference parameters captured from ``inferenceConfig`` argument
-                          - input messages & system prompts captured from ``messages`` and ``system`` arguments
-                          - output messages & tool calls returned in the response
+    LLM Observability: This introduces tracing for ``converse`` calls to the Bedrock Converse API. ``converse`` calls are traced as
+                      LLM spans with `max_tokens`, `temperature` inference parameters and input/output messages.
   - |
     botocore: This introduces capturing prompts, token usage, and inference parameters for ``converse`` calls to the Bedrock API.

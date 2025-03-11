@@ -113,7 +113,7 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _set_llmobs_usage_from_invoke(ctx: core.ExecutionContext, input_tokens, output_tokens) -> None:
+def _set_llmobs_usage(ctx: core.ExecutionContext, input_tokens: int, output_tokens: int) -> None:
     """
     Sets LLM usage metrics in the context for LLM Observability.
     """
@@ -331,7 +331,7 @@ def _extract_streamed_response_metadata(
 
     input_tokens = metadata.get("inputTokenCount", None)
     output_tokens = metadata.get("outputTokenCount", None)
-    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
+    _set_llmobs_usage(ctx, input_tokens, output_tokens)
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -358,8 +358,8 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
-    input_token_count = http_headers.get("x-amzn-bedrock-input-token-count", None)
-    output_token_count = http_headers.get("x-amzn-bedrock-output-token-count", None)
+    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
+    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
     if ctx["resource"] == "Converse":
@@ -369,15 +369,12 @@ def handle_bedrock_response(
         if "usage" in result:
             usage = result.get("usage", {})
             if usage:
-                # Make a copy of the usage data to avoid modifying the original
-                # in downstream processing of the response
-                ctx.set_item("llmobs.usage", usage.copy())
-                input_token_count = str(usage.get("inputTokens", input_token_count))
-                output_token_count = str(usage.get("outputTokens", output_token_count))
+                input_tokens = usage.get("inputTokens", input_tokens)
+                output_tokens = usage.get("outputTokens", output_tokens)
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
-    _set_llmobs_usage_from_invoke(ctx, input_token_count, output_token_count)
+    _set_llmobs_usage(ctx, input_tokens, output_tokens)
 
     # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
@@ -386,13 +383,13 @@ def handle_bedrock_response(
             ctx,
             str(metadata.get("RequestId", "")),
             request_latency,
-            input_token_count,
-            output_token_count,
+            input_tokens,
+            output_tokens,
         ],
     )
 
     if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result.copy()])
+        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
         return result
 
     body = result["body"]
