@@ -138,8 +138,8 @@ def iast_span_defaults(tracer):
             yield span
 
 
-# Check if the log contains "[IAST]" to raise an error if that’s the case BUT, if the logs contans
-# "[IAST] create_context", "[IAST] allowing", "[IAST] denying" or "[IAST] reset_context" are valid
+# Check if the log contains "[IAST]" to raise an error if that’s the case BUT, if the logs contains
+# "[IAST] create_context", "[IAST] allowing", "[IAST] denying" or "[IAST] reset_context" are valid logs
 IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (allowing|denying|create_context|reset_context))")
 
 
