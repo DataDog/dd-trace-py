@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.trace import Span
 
 
@@ -102,13 +103,12 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
 
-        The content field stores a list of `ContentBlock` objects, which is a dictionary.
-        We only extracting out the `text` field from a `ContentBlock` object.
+        The content field stores a list of `ContentBlock` objects.
 
         For more info, see bedrock converse request syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_RequestSyntax
@@ -122,30 +122,16 @@ class BedrockIntegration(BaseLLMIntegration):
                 continue
             role = str(p.get("role", ""))
             content = p.get("content", "")
-            if isinstance(content, list):
-                if content and isinstance(content[0], dict):
-                    combined_text = ""
-                    for entry in content:
-                        if entry.get("text"):
-                            combined_text += entry.get("text", "") + " "
-                        else:
-                            content_type = ",".join(entry.keys())
-                            input_messages.append(
-                                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
-                            )
-                    if combined_text:
-                        input_messages.append({"content": combined_text.strip(), "role": role})
-
+            input_messages += get_messages_from_converse_content(role, content)
         return input_messages
 
     @staticmethod
-    def _extract_output_message_for_converse(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _extract_output_message_for_converse(response: Dict[str, Any]):
         """Extract output messages from the stored prompt for converse
 
         `response` contains an `output` field that stores a nested `message` field.
 
-        `message` has a `content` field that `ContentBlock` objects, which is a dictionary.
-        We only extracting out the `text` field from a `ContentBlock` object.
+        `message` has a `content` field that `ContentBlock` objects.
 
         For more info, see bedrock converse response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
@@ -155,28 +141,9 @@ class BedrockIntegration(BaseLLMIntegration):
         if message:
             return default_content
         role = message.get("role", "assistant")
-        tool_calls_info = []
         if not isinstance(message.get("content", None), list):
             return default_content
-        content_blocks = []
-        for content_block in message["content"]:
-            if content_block.get("text") is not None:
-                content_blocks.append(content_block.get("text", ""))
-            elif content_block.get("toolUse") is not None:
-                tool_calls_info.append(
-                    {
-                        "name": content_block.get("toolUse", {}).get("name", ""),
-                        "arguments": content_block.get("toolUse", {}).get("input", {}),
-                        "tool_id": content_block.get("toolUse", {}).get("toolUseId", ""),
-                    }
-                )
-            else:
-                content_blocks.append("[Unsupported content type: {}]".format(",".join(content_block.keys())))
-
-        output_message = {"content": " ".join(content_blocks), "role": role}
-        if tool_calls_info:
-            output_message["tool_calls"] = tool_calls_info
-        return [output_message]
+        return get_messages_from_converse_content(role, message.get("content", []))
 
     @staticmethod
     def _extract_input_message(prompt):
