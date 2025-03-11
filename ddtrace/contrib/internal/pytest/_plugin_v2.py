@@ -102,6 +102,9 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     if not InternalTestSession.is_test_skipping_enabled():
         return False
 
+    if InternalTest.is_attempt_to_fix(test_id):
+        return False
+
     suite_id = test_id.parent_id
 
     item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id)

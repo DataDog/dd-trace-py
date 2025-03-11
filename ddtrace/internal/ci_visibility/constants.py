@@ -99,4 +99,4 @@ TEST_EFD_ENABLED = "test.early_flake.enabled"
 TEST_HAS_FAILED_ALL_RETRIES = "test.has_failed_all_retries"
 TEST_ATTEMPT_TO_FIX_PASSED = "test.test_management.attempt_to_fix_passed"
 
-TEST_SESSION_QUARANTINE_ENABLED = "test.test_management.enabled"
+TEST_MANAGEMENT_ENABLED = "test.test_management.enabled"
