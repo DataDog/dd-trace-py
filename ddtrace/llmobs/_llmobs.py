@@ -546,7 +546,10 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
-        integrations_to_patch = {integration: True for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+        integrations_to_patch: Dict[str, Union[List[str], bool]] = {
+            integration: ["bedrock-runtime"] if integration == "botocore" else True
+            for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
+        }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
             if env_var in os.environ:
@@ -556,7 +559,7 @@ class LLMObs(Service):
         integrations_to_patch.update(
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
-        patch(**integrations_to_patch)
+        patch(raise_errors=True, **integrations_to_patch)
         log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
 
     @classmethod
