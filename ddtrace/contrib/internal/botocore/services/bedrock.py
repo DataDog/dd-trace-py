@@ -124,11 +124,11 @@ def _set_llmobs_usage(
     Sets LLM usage metrics in the context for LLM Observability.
     """
     llmobs_usage = {}
-    if input_tokens is not None:
+    if input_tokens is not None and input_tokens != "":
         llmobs_usage["input_tokens"] = int(input_tokens)
-    if output_tokens is not None:
+    if output_tokens is not None and output_tokens != "":
         llmobs_usage["output_tokens"] = int(output_tokens)
-    if total_tokens is not None:
+    if total_tokens is not None and total_tokens != "":
         llmobs_usage["total_tokens"] = int(total_tokens)
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
@@ -367,8 +367,8 @@ def handle_bedrock_response(
     http_headers = metadata["HTTPHeaders"]
 
     total_tokens = None
-    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", None)
-    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", None)
+    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
+    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
     if ctx["resource"] == "Converse":
@@ -393,8 +393,8 @@ def handle_bedrock_response(
             ctx,
             str(metadata.get("RequestId", "")),
             request_latency,
-            input_tokens,
-            output_tokens,
+            str(input_tokens),
+            str(output_tokens),
         ],
     )
 
