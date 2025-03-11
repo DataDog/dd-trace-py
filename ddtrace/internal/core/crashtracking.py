@@ -78,9 +78,7 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     return tags
 
 
-def _get_args(
-    additional_tags: Optional[Dict[str, str]]
-) -> Tuple[Optional[CrashtrackerConfiguration], Optional[CrashtrackerReceiverConfig], Optional[Metadata]]:
+def _get_args(additional_tags: Optional[Dict[str, str]]):
     # First check whether crashtracker_exe command is available
     crashtracker_exe = shutil.which("crashtracker_exe")
     if crashtracker_exe is None:
