@@ -82,7 +82,7 @@ suites:
     timeout: 50m
   appsec_iast_packages:
     env:
-      PIP_CACHE_DIR: ${{CI_PROJECT_DIR}}/.cache/pip
+      PIP_CACHE_DIR: ${CI_PROJECT_DIR}/.cache/pip
     parallelism: 4
     paths:
       - '@appsec_iast'
