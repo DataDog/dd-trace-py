@@ -276,6 +276,30 @@ class TestLLMObsBedrock:
     def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke_stream("meta", bedrock_client, mock_tracer, llmobs_events)
 
+    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer):
+        llmobs_service.disable()
+
+        with override_global_config(
+            {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
+        ):
+            llmobs_service.enable(integrations_enabled=True)
+            mock_tracer = DummyTracer()
+            # ensure we don't get spans for non-bedrock services
+            from botocore.exceptions import ClientError
+            import botocore.session
+
+            session = botocore.session.get_session()
+            sqs_client = session.create_client("sqs", region_name="us-east-1")
+            pin = Pin.get_from(sqs_client)
+            pin._override(sqs_client, tracer=mock_tracer)
+            try:
+                sqs_client.list_queues()
+            except ClientError:
+                pass
+            assert mock_tracer.pop_traces() == []
+
+        llmobs_service.disable()
+
     def test_llmobs_error(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events, request_vcr):
         import botocore
 
