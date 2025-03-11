@@ -105,7 +105,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
         if appsec_enabled == "":
             del os.environ[APPSEC.ENV]
         with override_global_config(dict(_asm_enabled=True)):
-            tracer._configure(appsec_enabled=asbool(appsec_enabled))
+            tracer.configure(appsec_enabled=asbool(appsec_enabled))
 
             rc_config = {"config": {"asm": {"enabled": True}}}
             if rc_value is False:
@@ -745,7 +745,7 @@ def test_fullpath_appsec_rules_data_empty_data(mock_update_rules, remote_config_
 @mock.patch.object(AppSecSpanProcessor, "_update_rules")
 def test_fullpath_appsec_rules_data_add_delete_file(mock_update_rules, remote_config_worker, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
-        tracer._configure(appsec_enabled=True)
+        tracer.configure(appsec_enabled=True)
         applied_configs = {}
         enable_appsec_rc(tracer)
         asm_data_data1 = b'{"asm":{"enabled":true}, "exclusions": [{"b":1}]}'

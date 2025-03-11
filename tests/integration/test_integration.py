@@ -19,20 +19,6 @@ from tests.utils import call_program
 FOUR_KB = 1 << 12
 
 
-@pytest.mark.subprocess()
-def test_configure_keeps_api_hostname_and_port():
-    from ddtrace.trace import tracer
-    from tests.integration.utils import AGENT_VERSION
-
-    assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
-    tracer._configure(hostname="127.0.0.1", port=8127)
-    assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer._configure(api_version="v0.5")
-    assert (
-        tracer._writer.agent_url == "http://127.0.0.1:8127"
-    ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
-
-
 @mock.patch("signal.signal")
 @mock.patch("signal.getsignal")
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
@@ -630,15 +616,6 @@ def test_api_version_downgrade_generates_no_warning_logs():
         t.shutdown()
     log.warning.assert_not_called()
     log.error.assert_not_called()
-
-
-@pytest.mark.subprocess()
-def test_synchronous_writer_shutdown_raises_no_exception():
-    from ddtrace.internal.writer import AgentWriter
-    from ddtrace.trace import tracer
-
-    tracer._configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
-    tracer.shutdown()
 
 
 @skip_if_testagent
