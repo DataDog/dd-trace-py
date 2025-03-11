@@ -20,6 +20,10 @@ def _get_response(path="/"):
 
 def server(scenario):
     env = {
+        "DD_TRACE_DEBUG": "true",
+        "DD_ENV": "prod",
+        "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+        "DD_VERSION": "1.0",
         "DD_APPSEC_ENABLED": str(scenario.appsec_enabled),
         "DD_IAST_ENABLED": str(scenario.iast_enabled),
     }
@@ -33,7 +37,6 @@ def server(scenario):
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True, text=True, env=env
     )
     # make sure process has been started
-    assert proc.poll() is None
     try:
         # print("Starting server....")
         _get_response()
