@@ -123,6 +123,9 @@ extra-dependencies = [
     "slotscheck==0.17.0",
 ]
 
+[envs.slotscheck.env-var]
+CARGO_BUILD_JOBS = "4"
+
 [envs.slotscheck.scripts]
 test = [
     "python -m slotscheck -v ddtrace/",
@@ -457,6 +460,9 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}",
 ]
+
+[envs.appsec_integrations_flask.env-vars]
+CARGO_BUILD_JOBS = "4"
 
 [envs.appsec_integrations_flask.scripts]
 test = [
