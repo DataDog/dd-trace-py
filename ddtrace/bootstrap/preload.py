@@ -107,7 +107,7 @@ if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     if env_tags is not None:
         deprecate(
             "DD_TRACE_GLOBAL_TAGS is deprecated",
-            message="DD_TRACE_GLOBAL_TAGS is deprecated, please migrate to using DD_TAGS instead",
+            message="Please migrate to using DD_TAGS instead",
             category=DeprecationWarning,
         )
 
