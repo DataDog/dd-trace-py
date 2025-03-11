@@ -81,6 +81,13 @@ suites:
     runner: hatch
     timeout: 50m
   appsec_iast_packages:
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '12'
+      PIP_VERBOSE: '1'
+      PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+      SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+      DD_USE_SCACHE: '1'
+      DD_FAST_BUILD: '1'
     parallelism: 4
     paths:
       - '@appsec_iast'
