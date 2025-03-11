@@ -18,9 +18,7 @@ from ... import trace_utils
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(
-            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None, report_telemetry=False)
-        ),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -28,9 +26,7 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(
-            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None, report_telemetry=False)
-        ),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
