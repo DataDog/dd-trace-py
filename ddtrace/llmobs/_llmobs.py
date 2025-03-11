@@ -931,7 +931,6 @@ class LLMObs(Service):
                     error = "invalid_prompt"
                     log.warning("Failed to validate prompt with error: ", exc_info=True)
             if not span_kind:
-                error = "invalid_span_missing_kind"
                 log.debug("Span kind not specified, skipping annotation for input/output data")
                 return
             if input_data is not None or output_data is not None:
@@ -1076,7 +1075,7 @@ class LLMObs(Service):
             has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
 
             if not has_exactly_one_joining_key:
-                error = "provided_both_span_and_joining_key"
+                error = "provided_both_span_and_tag_joining_key"
                 raise ValueError(
                     "Exactly one of `span` or `span_with_tag_value` must be specified to submit an evaluation metric."
                 )
