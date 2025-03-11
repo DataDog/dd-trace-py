@@ -156,7 +156,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_messages = []
         for m in kwargs.get("messages", []):
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "functions")}
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
         span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
         if span.error or not messages:
