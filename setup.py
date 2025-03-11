@@ -738,7 +738,10 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
-        compiler_directives={"language_level": "3"},
+        compiler_directives={
+            "language_level": "3",
+            "freethreading_compatible": True,
+        },
     )
     + get_exts_for("psutil"),
     rust_extensions=[

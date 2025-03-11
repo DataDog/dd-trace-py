@@ -1,5 +1,6 @@
 # distutils: language = c++
 # cython: language_level=3
+# cython: freethreading_compatible=True
 # Right now, this file lives in the profiling-internal directory even though the interface itself is not specific to
 # profiling. This is because the crashtracker code is bundled in the libdatadog Profiling FFI, which saves a
 # considerable amount of binary size, # and it's cumbersome to set an RPATH on that dependency from a different location

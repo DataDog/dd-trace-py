@@ -515,31 +515,15 @@ static PyMethodDef _threads_methods[] = {
 };
 
 // ----------------------------------------------------------------------------
-static struct PyModuleDef threadsmodule = {
-    PyModuleDef_HEAD_INIT,
-    "_threads", /* name of module */
-    NULL,       /* module documentation, may be NULL */
-    -1,         /* size of per-interpreter state of the module,
-                   or -1 if the module keeps state in global variables. */
-    _threads_methods,
-};
-
-// ----------------------------------------------------------------------------
-PyMODINIT_FUNC
-PyInit__threads(void)
+static int
+_threads_exec(PyObject* m)
 {
-    PyObject* m = NULL;
-
     if (PyType_Ready(&PeriodicThreadType) < 0)
-        return NULL;
+        return -1;
 
     _periodic_threads = PyDict_New();
     if (_periodic_threads == NULL)
-        return NULL;
-
-    m = PyModule_Create(&threadsmodule);
-    if (m == NULL)
-        goto error;
+        return -1;
 
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
@@ -550,11 +534,37 @@ PyInit__threads(void)
     if (PyModule_AddObject(m, "periodic_threads", _periodic_threads) < 0)
         goto error;
 
-    return m;
+    return 0;
 
 error:
     Py_XDECREF(_periodic_threads);
     Py_XDECREF(m);
 
-    return NULL;
+    return -1;
+}
+
+// ----------------------------------------------------------------------------
+static struct PyModuleDef_Slot _threads_slots[] = {
+    { Py_mod_exec, (void*)_threads_exec },
+#ifdef Py_GIL_DISABLED
+    { Py_mod_gil, Py_MOD_GIL_NOT_USED },
+#endif
+    { 0, NULL },
+};
+
+// ----------------------------------------------------------------------------
+static struct PyModuleDef threadsmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_threads", /* name of module */
+    NULL,       /* module documentation, may be NULL */
+    0,          /* cannot be negative for multi-phase (required by free-threading) */
+    _threads_methods,
+    _threads_slots,
+};
+
+// ----------------------------------------------------------------------------
+PyMODINIT_FUNC
+PyInit__threads(void)
+{
+    return PyModuleDef_Init(&threadsmodule);
 }
