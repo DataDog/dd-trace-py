@@ -134,6 +134,7 @@ class BaseLLMObsWriter(PeriodicService):
             else:
                 logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
         except Exception:
+            telemetry.record_dropped_eval_payload(events, error="connection_error")
             logger.error(
                 "failed to send %d LLMObs %s events to %s", len(events), self._event_type, self._intake, exc_info=True
             )
