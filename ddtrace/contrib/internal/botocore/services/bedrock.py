@@ -113,15 +113,19 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _set_llmobs_usage(ctx: core.ExecutionContext, input_tokens: int, output_tokens: int) -> None:
+def _set_llmobs_usage(
+    ctx: core.ExecutionContext, input_tokens: int, output_tokens: int, total_tokens: int = None
+) -> None:
     """
     Sets LLM usage metrics in the context for LLM Observability.
     """
     llmobs_usage = {}
-    if input_tokens:
+    if input_tokens is not None:
         llmobs_usage["input_tokens"] = int(input_tokens)
-    if output_tokens:
+    if output_tokens is not None:
         llmobs_usage["output_tokens"] = int(output_tokens)
+    if total_tokens is not None:
+        llmobs_usage["total_tokens"] = int(total_tokens)
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -358,6 +362,7 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
+    total_tokens = None
     input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
     output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
@@ -371,10 +376,11 @@ def handle_bedrock_response(
             if usage:
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
+                total_tokens = usage.get("totalTokens", total_tokens)
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
-    _set_llmobs_usage(ctx, input_tokens, output_tokens)
+    _set_llmobs_usage(ctx, input_tokens, output_tokens, total_tokens=total_tokens)
 
     # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
