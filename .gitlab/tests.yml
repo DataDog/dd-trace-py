@@ -24,7 +24,7 @@ include:
     - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
   script:
-    - export CMAKE_BUILD_PARALLEL_LEVEL=12
+    - export CMAKE_BUILD_PARALLEL_LEVEL=4
     - export CARGO_BUILD_JOBS=4
     - export DD_FAST_BUILD=1
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
