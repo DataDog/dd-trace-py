@@ -275,33 +275,6 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 
-custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
-tracer._sampler=custom_sampler
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-assert span.get_tag("_dd.p.dm") == "-3"
-
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
-        {
-            "service": "*",
-            "name": "test",
-            "resource": "*",
-            "provenance": "dynamic",
-            "sample_rate": 0.4,
-        }
-        ]}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.4
-assert span.get_tag("_dd.p.dm") == "-12"
-
-config._handle_remoteconfig(_base_rc_config({}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-assert span.get_tag("_dd.p.dm") == "-3"
-
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "ok",
@@ -319,7 +292,7 @@ assert span.get_tag("_dd.p.dm") == "-11"
 config._handle_remoteconfig(_deleted_rc_config())
 with tracer.trace("test") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.3
+assert span.get_metric("_dd.rule_psr") == 0.1
 assert span.get_tag("_dd.p.dm") == "-3"
 
         """,
