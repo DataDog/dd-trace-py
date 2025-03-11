@@ -430,6 +430,9 @@ test = [
     "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
+[envs.appsec_integrations_django.env-vars]
+CARGO_BUILD_JOBS= "4"
+
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=4.0"]
@@ -668,6 +671,9 @@ dependencies = [
     "pytest-cov",
 ]
 
+[envs.dd_coverage.env-vars]
+CARGO_BUILD_JOBS = "4"
+
 [envs.dd_coverage.scripts]
 test = [
     "pip freeze",
@@ -690,6 +696,7 @@ dependencies = [
 
 [envs.pytest_plugin_v2.env-vars]
 DD_AGENT_PORT = "9126"
+CARGO_BUILD_JOBS = "4"
 
 [envs.pytest_plugin_v2.scripts]
 test = [
@@ -724,6 +731,9 @@ dependencies = [
     "hypothesis",
 ]
 
+[envs.freezegun.env-vars]
+CARGO_BUILD_JOBS = "4"
+
 [envs.freezegun.scripts]
 test = [
     "pytest tests/contrib/freezegun {args:}",
@@ -745,6 +755,7 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
+CARGO_BUILD_JOBS = "4"
 
 [envs.selenium.scripts]
 test = [
