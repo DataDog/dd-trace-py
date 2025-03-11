@@ -10,18 +10,24 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
-from ddtrace.internal.native._native import CrashtrackerConfiguration
-from ddtrace.internal.native._native import CrashtrackerReceiverConfig
-from ddtrace.internal.native._native import CrashtrackerStatus
-from ddtrace.internal.native._native import Metadata
-from ddtrace.internal.native._native import StacktraceCollection
-from ddtrace.internal.native._native import crashtracker_init
-from ddtrace.internal.native._native import crashtracker_on_fork
-from ddtrace.internal.native._native import crashtracker_status
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
+
+
+is_available = True
+try:
+    from ddtrace.internal.native._native import CrashtrackerConfiguration
+    from ddtrace.internal.native._native import CrashtrackerReceiverConfig
+    from ddtrace.internal.native._native import CrashtrackerStatus
+    from ddtrace.internal.native._native import Metadata
+    from ddtrace.internal.native._native import StacktraceCollection
+    from ddtrace.internal.native._native import crashtracker_init
+    from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_status
+except ImportError:
+    is_available = False
 
 
 def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
