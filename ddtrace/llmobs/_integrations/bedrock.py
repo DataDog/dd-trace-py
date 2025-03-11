@@ -113,8 +113,8 @@ class BedrockIntegration(BaseLLMIntegration):
             if not isinstance(message, dict):
                 continue
             role = str(message.get("role", ""))
-            content = message.get("content", "")
-            if not isinstance(message.get("content", None), list):
+            content = message.get("content", None)
+            if not content or not isinstance(content, list):
                 continue
             input_messages += get_messages_from_converse_content(role, content)
         return input_messages
@@ -135,9 +135,10 @@ class BedrockIntegration(BaseLLMIntegration):
         if not message:
             return default_content
         role = message.get("role", "assistant")
-        if not isinstance(message.get("content", None), list):
+        content = message.get("content", None)
+        if not content or not isinstance(content, list):
             return default_content
-        return get_messages_from_converse_content(role, message.get("content", []))
+        return get_messages_from_converse_content(role, content)
 
     @staticmethod
     def _extract_input_message(prompt):
