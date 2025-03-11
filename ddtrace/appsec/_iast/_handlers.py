@@ -48,74 +48,79 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_value=instance.path,
                 source_origin=OriginType.PATH,
             )
+            log.debug("[IAST] Patching flask request correctly")
         except Exception:
             log.debug("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 def _on_flask_patch(flask_version):
     if asm_config._iast_enabled:
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "Headers.items",
-            functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
-        )
-
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "EnvironHeaders.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        # Since werkzeug 3.1.0 get doesn't call to __getitem__
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "EnvironHeaders.get",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "ImmutableMultiDict.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-
-        if flask_version >= (2, 0, 0):
-            # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
-            try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
-
-        _set_metric_iast_instrumented_source(OriginType.PATH)
-        _set_metric_iast_instrumented_source(OriginType.QUERY)
-
-        try_wrap_function_wrapper(
-            "werkzeug.wrappers.request",
-            "Request.get_data",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
-        )
-        try_wrap_function_wrapper(
-            "werkzeug.wrappers.request",
-            "Request.get_json",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
-        )
-
-        _set_metric_iast_instrumented_source(OriginType.BODY)
-
-        if flask_version < (2, 0, 0):
-            _w(
-                "werkzeug._internal",
-                "_DictAccessorProperty.__get__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+        try:
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "Headers.items",
+                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
             )
+
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "EnvironHeaders.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            )
+            # Since werkzeug 3.1.0 get doesn't call to __getitem__
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "EnvironHeaders.get",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "ImmutableMultiDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+            if flask_version >= (2, 0, 0):
+                # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
+                try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
-        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+            try_wrap_function_wrapper(
+                "werkzeug.wrappers.request",
+                "Request.get_data",
+                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            )
+            try_wrap_function_wrapper(
+                "werkzeug.wrappers.request",
+                "Request.get_json",
+                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            )
 
-        # Instrumented on _on_set_request_tags_iast
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+
+            if flask_version < (2, 0, 0):
+                _w(
+                    "werkzeug._internal",
+                    "_DictAccessorProperty.__get__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+                )
+                _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
+            _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+            # Instrumented on _on_set_request_tags_iast
+            _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+            log.debug("[IAST] Patching flask correctly")
+        except Exception:
+            log.debug("[IAST] Unexpected exception while patch Django", exc_info=True)
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
@@ -146,9 +151,9 @@ def _on_django_patch():
             _set_metric_iast_instrumented_source(OriginType.PARAMETER)
             _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
             _set_metric_iast_instrumented_source(OriginType.BODY)
-
+            log.debug("[IAST] Patching Django correctly")
         except Exception:
-            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+            log.debug("[IAST] Unexpected exception while patch Django", exc_info=True)
 
 
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):

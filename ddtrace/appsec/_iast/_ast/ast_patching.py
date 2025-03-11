@@ -490,7 +490,7 @@ def _should_iast_patch(module_name: Text) -> bool:
 
     # User allow or deny list set by env var have priority
     if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
-        log.debug("[IAST] denying %s. it's in the USER_ALLOWLIST", module_name)
+        log.debug("[IAST] allowing %s. it's in the USER_ALLOWLIST", module_name)
         return True
 
     if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
