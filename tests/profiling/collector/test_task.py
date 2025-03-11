@@ -3,7 +3,6 @@ import threading
 
 import pytest
 
-from ddtrace.internal import compat
 from ddtrace.profiling.collector import _task
 
 
