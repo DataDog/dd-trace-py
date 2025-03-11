@@ -623,9 +623,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -737,6 +735,10 @@ setup(
             path="src/native/Cargo.toml",
             py_limited_api="auto",
             binding=Binding.PyO3,
+            features=["crashtracker"]
+            if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
+            and is_64_bit_python()
+            else [],
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
     ],

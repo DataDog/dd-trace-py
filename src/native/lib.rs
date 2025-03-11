@@ -1,3 +1,4 @@
+#[cfg(feature = "crashtracker")]
 #[allow(clippy::useless_conversion)]
 mod crashtracker;
 #[allow(clippy::useless_conversion)]
@@ -11,14 +12,18 @@ use pyo3::prelude::*;
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ddsketch::DDSketchPy>()?;
     m.add_class::<library_config::PyConfigurator>()?;
-    m.add_class::<crashtracker::StacktraceCollectionPy>()?;
-    m.add_class::<crashtracker::CrashtrackerConfigurationPy>()?;
-    m.add_class::<crashtracker::CrashtrackerReceiverConfigPy>()?;
-    m.add_class::<crashtracker::MetadataPy>()?;
-    m.add_class::<crashtracker::CrashtrackerStatus>()?;
-    m.add_function(wrap_pyfunction!(crashtracker::crashtracker_init, m)?)?;
-    m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
-    m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
-    m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
+
+    #[cfg(feature = "crashtracker")]
+    {
+        m.add_class::<crashtracker::StacktraceCollectionPy>()?;
+        m.add_class::<crashtracker::CrashtrackerConfigurationPy>()?;
+        m.add_class::<crashtracker::CrashtrackerReceiverConfigPy>()?;
+        m.add_class::<crashtracker::MetadataPy>()?;
+        m.add_class::<crashtracker::CrashtrackerStatus>()?;
+        m.add_function(wrap_pyfunction!(crashtracker::crashtracker_init, m)?)?;
+        m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
+        m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
+        m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
+    }
     Ok(())
 }

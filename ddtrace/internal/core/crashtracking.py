@@ -93,7 +93,7 @@ def _get_args(
         # This should never happen, as the value is validated in the crashtracker_config
         # module.
         print(f"Invalid stacktrace_resolver value: {crashtracker_config.stacktrace_resolver}")
-        stracktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
+        stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
     # Create crashtracker configuration
     config = CrashtrackerConfiguration(
