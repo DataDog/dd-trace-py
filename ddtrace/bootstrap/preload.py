@@ -16,6 +16,7 @@ from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.trace import tracer
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 import typing as t
@@ -108,7 +109,7 @@ if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         deprecate(
             "DD_TRACE_GLOBAL_TAGS is deprecated",
             message="Please migrate to using DD_TAGS instead",
-            category=DeprecationWarning,
+            category=DDTraceDeprecationWarning,
         )
 
     tracer.set_tags(parse_tags_str(env_tags))
