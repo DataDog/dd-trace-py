@@ -1,68 +1,111 @@
-from typing import Callable
+import os
+import platform
+import shutil
+import sys
+from typing import Dict
+from typing import Optional
+from typing import Tuple
 
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import agent
-from ddtrace.internal.datadog.profiling import crashtracker
+from ddtrace.internal import forksafe
+from ddtrace.internal.native._native import CrashtrackerConfiguration
+from ddtrace.internal.native._native import CrashtrackerReceiverConfig
+from ddtrace.internal.native._native import CrashtrackerStatus
+from ddtrace.internal.native._native import Metadata
+from ddtrace.internal.native._native import crashtracker_init
+from ddtrace.internal.native._native import crashtracker_on_fork
+from ddtrace.internal.native._native import crashtracker_status
 from ddtrace.internal.runtime import get_runtime_id
-from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
 
-is_available: bool = crashtracker.is_available
-failure_msg: str = crashtracker.failure_msg
-is_started: Callable[[], bool] = crashtracker.is_started
-
-
-@on_runtime_id_change
-def _update_runtime_id(runtime_id: str) -> None:
-    crashtracker.set_runtime_id(runtime_id)
-
-
-def add_tag(key: str, value: str) -> None:
-    if is_available:
-        crashtracker.set_tag(key, value)
-
-
-def start() -> bool:
-    if not is_available:
-        return False
-
-    import platform
-
-    crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
-    crashtracker.set_service(config.service)
-    crashtracker.set_version(config.version)
-    crashtracker.set_env(config.env)
-    crashtracker.set_runtime_id(get_runtime_id())
-    crashtracker.set_runtime_version(platform.python_version())
-    crashtracker.set_library_version(version.get_version())
-    crashtracker.set_create_alt_stack(bool(crashtracker_config.create_alt_stack))
-    crashtracker.set_use_alt_stack(bool(crashtracker_config.use_alt_stack))
-    if crashtracker_config.stacktrace_resolver == "fast":
-        crashtracker.set_resolve_frames_fast()
-    elif crashtracker_config.stacktrace_resolver == "full":
-        crashtracker.set_resolve_frames_full()
-    elif crashtracker_config.stacktrace_resolver == "safe":
-        crashtracker.set_resolve_frames_safe()
-    else:
-        crashtracker.set_resolve_frames_disable()
-
-    if crashtracker_config.stdout_filename:
-        crashtracker.set_stdout_filename(crashtracker_config.stdout_filename)
-    if crashtracker_config.stderr_filename:
-        crashtracker.set_stderr_filename(crashtracker_config.stderr_filename)
-
-    # Add user tags
-    for key, value in crashtracker_config.tags.items():
-        add_tag(key, value)
+def _get_tags(additional_tags: Dict[str, str]) -> Dict[str, str]:
+    tags = {
+        "env": config.env,
+        "service": config.service,
+        "version": config.version,
+        "language": "python",
+        "runtime": "CPython",
+        "runtime_id": get_runtime_id(),
+        "runtime_version": platform.python_version(),
+        "library_version": version.get_version(),
+        "is_crash": "true",
+        "severity": "crash",
+    }
+    tags.update(crashtracker_config.tags)
+    tags.update(additional_tags)
 
     if profiling_config.enabled:
-        add_tag("profiler_config", config_str(profiling_config))
+        tags["profiler_config"] = config_str(profiling_config)
 
-    # Only start if it is enabled
-    if crashtracker_config.enabled:
-        return crashtracker.start()
-    return False
+    return tags
+
+
+def _get_args() -> Tuple[CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata]:
+    # First check whether crashtracker_exe command is available
+    crashtracker_exe = shutil.which("crashtracker_exe")
+    if crashtracker_exe is None:
+        # Failed to find crashtracker_exe from PATH, check if it is in the same
+        # directory as current Python executable.
+        # sys.executable can be None or an empty string.
+        if not sys.executable:
+            return False
+        crashtracker_exe = os.path.join(os.path.dirname(sys.executable), "crashtracker_exe")
+        if not os.path.exists(crashtracker_exe) or not os.access(crashtracker_exe, os.X_OK):
+            return False
+
+    # Create crashtracker configuration
+    config = CrashtrackerConfiguration(
+        [],  # additional_files
+        crashtracker_config.create_alt_stack,
+        crashtracker_config.use_alt_stack,
+        crashtracker_config.timeout_ms,
+        crashtracker_config.debug_url or agent.get_trace_url(),
+        crashtracker_config.stacktrace_resolver,
+        None,  # unix_socket_path
+    )
+
+    # Create crashtracker receiver configuration
+    receiver_config = CrashtrackerReceiverConfig(
+        [],  # args
+        {},  # env
+        crashtracker_exe,
+        crashtracker_config.stderr_filename,
+        crashtracker_config.stdout_filename,
+    )
+
+    tags = _get_tags()
+
+    metadata = Metadata("dd-trace-py", version.get_version(), "python", tags)
+
+    return config, receiver_config, metadata
+
+
+def is_started() -> bool:
+    return crashtracker_status() == CrashtrackerStatus.Initialized
+
+
+def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
+    if not crashtracker_config.enabled:
+        return False
+
+    config, receiver_config, metadata = _get_args(additional_tags)
+
+    try:
+        crashtracker_init(config, receiver_config, metadata)
+
+        def crashtracker_fork_handler():
+            # We recreate the args here mainly to pass updated runtime_id after
+            # fork
+            config, receiver_config, metadata = _get_args(additional_tags)
+            crashtracker_on_fork(config, receiver_config, metadata)
+
+        forksafe.register(crashtracker_fork_handler)
+    except Exception as e:
+        print(f"Failed to start crashtracker: {e}")
+        return False
+    return True

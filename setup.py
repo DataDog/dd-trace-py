@@ -71,7 +71,6 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
@@ -83,8 +82,6 @@ LIBDDWAF_VERSION = "1.22.0"
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
-
-CRASHTRACKER_RUST = os.getenv("DD_CRASHTRACKER_RUST", "0").lower() in ("1", "yes", "on", "true")
 
 # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
 if CURRENT_OS == "Darwin":
@@ -637,15 +634,6 @@ if not IS_PYSTON:
             )
         )
 
-        if not CRASHTRACKER_RUST:
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                    source_dir=CRASHTRACKER_DIR,
-                    optional=False,
-                )
-            )
-
         if sys.version_info < (3, 13):
             ext_modules.append(
                 CMakeExtension(
@@ -670,7 +658,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.datadog.profiling.crashtracker": [] if CRASHTRACKER_RUST else ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python

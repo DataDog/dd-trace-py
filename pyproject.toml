@@ -109,7 +109,6 @@ exclude = '''
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/

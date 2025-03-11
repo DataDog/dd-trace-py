@@ -20,32 +20,18 @@ def _derive_stacktrace_resolver(config: "CrashtrackingConfig") -> t.Optional[str
     return resolver_default
 
 
-def _check_for_crashtracking_available() -> bool:
-    from ddtrace.internal.datadog.profiling import crashtracker
-
-    return crashtracker.is_available
-
-
-def _derive_crashtracking_enabled(config: "CrashtrackingConfig") -> bool:
-    if not _check_for_crashtracking_available():
-        return False
-    return bool(config._enabled)
-
-
 class CrashtrackingConfig(DDConfig):
     # Although the component is called crashtrack_er_, for consistency with other products/telemetry we use the term
     # crashtrack_ing_ as much as possible.  We'll gradually align on this.
     __prefix__ = "dd.crashtracking"
 
-    _enabled = DDConfig.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
         help_type="Boolean",
         help="Enables crashtracking",
     )
-
-    enabled = DDConfig.d(bool, _derive_crashtracking_enabled)
 
     debug_url = DDConfig.v(
         t.Optional[str],
@@ -116,6 +102,14 @@ class CrashtrackingConfig(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to wait for the crashtracking receiver",
+    )
+
+    timeout_ms = DDConfig.v(
+        int,
+        "timeout_ms",
+        default=5000,
+        help_type="Integer",
+        help="Maximum amount of time, in milliseconds, to wait for crashtracker signal handler",
     )
 
 
