@@ -10,6 +10,7 @@ from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config
@@ -68,6 +69,11 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
     if profiling_config.enabled:
         tags["profiler_config"] = config_str(profiling_config)
+
+    # Another thing to note is that these tag keys and values can be bytes
+    # objects, so we need to ensure that they are converted to strings as
+    # PyO3 can't convert bytes objects to Rust String type.
+    tags = {ensure_text(k): ensure_text(v) for k, v in tags.items()}
 
     return tags
 
@@ -133,6 +139,8 @@ def is_started() -> bool:
 
 
 def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
+    if not is_available:
+        return False
     if not crashtracker_config.enabled:
         return False
 

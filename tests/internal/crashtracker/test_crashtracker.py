@@ -8,6 +8,14 @@ import tests.internal.crashtracker.utils as utils
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
+def test_crashtracker_available():
+    from ddtrace.internal.core import crashtracking
+
+    assert crashtracking.is_available
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
 def test_crashtracker_config():
     import pytest
 
@@ -16,6 +24,48 @@ def test_crashtracker_config():
     ct = CrashtrackerWrapper(1234, "config")
     assert ct.start()
     stdout_msg, stderr_msg = ct.logs()
+    if stdout_msg or stderr_msg:
+        pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
+def test_crashtracker_config_bytes():
+    import os
+
+    import pytest
+
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.settings.crashtracker import config as crashtracker_config
+    from tests.internal.crashtracker.utils import read_files
+
+    # Delete the stdout and stderr files if they exist
+    base_name = b"config_bytes"
+    stdout, stderr = (f"{base_name}.{x}.log" for x in (b"stdout", b"stderr"))
+    for file in [stdout, stderr]:
+        if os.path.exists(file):
+            os.unlink(file)
+
+    try:
+        crashtracker_config.debug_url = "http://localhost:1234"
+        crashtracker_config.stdout_filename = stdout
+        crashtracker_config.stderr_filename = stderr
+        crashtracker_config.resolve_frames = "full"
+
+        tags = {
+            "service": b"my_favorite_service",
+            "version": b"v0.0.0.0.0.0.1",
+            "runtime": b"shmython",
+            "runtime_version": b"v9001",
+            "runtime_id": b"0",
+            "library_version": b"v2.7.1.8",
+        }
+
+        crashtracking.start(tags)
+    except Exception:
+        pytest.fail("Exception when starting crashtracker")
+
+    stdout_msg, stderr_msg = read_files([stdout, stderr])
     if stdout_msg or stderr_msg:
         pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
 
