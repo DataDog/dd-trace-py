@@ -23,7 +23,7 @@ from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
 
 
-def _get_tags(additional_tags: Dict[str, str]) -> Dict[str, str]:
+def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     tags = {
         "env": config.env,
         "service": config.service,
@@ -37,7 +37,8 @@ def _get_tags(additional_tags: Dict[str, str]) -> Dict[str, str]:
         "severity": "crash",
     }
     tags.update(crashtracker_config.tags)
-    tags.update(additional_tags)
+    if additional_tags:
+        tags.update(additional_tags)
 
     if profiling_config.enabled:
         tags["profiler_config"] = config_str(profiling_config)
@@ -45,7 +46,9 @@ def _get_tags(additional_tags: Dict[str, str]) -> Dict[str, str]:
     return tags
 
 
-def _get_args() -> Tuple[CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata]:
+def _get_args(
+    additional_tags: Optional[Dict[str, str]]
+) -> Tuple[Optional[CrashtrackerConfiguration], Optional[CrashtrackerReceiverConfig], Optional[Metadata]]:
     # First check whether crashtracker_exe command is available
     crashtracker_exe = shutil.which("crashtracker_exe")
     if crashtracker_exe is None:
@@ -53,10 +56,10 @@ def _get_args() -> Tuple[CrashtrackerConfiguration, CrashtrackerReceiverConfig, 
         # directory as current Python executable.
         # sys.executable can be None or an empty string.
         if not sys.executable:
-            return False
+            return (None, None, None)
         crashtracker_exe = os.path.join(os.path.dirname(sys.executable), "crashtracker_exe")
         if not os.path.exists(crashtracker_exe) or not os.access(crashtracker_exe, os.X_OK):
-            return False
+            return (None, None, None)
 
     # Create crashtracker configuration
     config = CrashtrackerConfiguration(
@@ -78,7 +81,7 @@ def _get_args() -> Tuple[CrashtrackerConfiguration, CrashtrackerReceiverConfig, 
         crashtracker_config.stdout_filename,
     )
 
-    tags = _get_tags()
+    tags = _get_tags(additional_tags)
 
     metadata = Metadata("dd-trace-py", version.get_version(), "python", tags)
 
@@ -86,7 +89,7 @@ def _get_args() -> Tuple[CrashtrackerConfiguration, CrashtrackerReceiverConfig, 
 
 
 def is_started() -> bool:
-    return crashtracker_status() == CrashtrackerStatus.Initialized
+    return crashtracker_status() == CrashtrackerStatus.Initialized  # type: ignore
 
 
 def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
@@ -94,6 +97,9 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
         return False
 
     config, receiver_config, metadata = _get_args(additional_tags)
+    if config is None or receiver_config is None or metadata is None:
+        print("Failed to start crashtracker: failed to construct crashtracker configuration")
+        return False
 
     try:
         crashtracker_init(config, receiver_config, metadata)
@@ -102,6 +108,9 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             # We recreate the args here mainly to pass updated runtime_id after
             # fork
             config, receiver_config, metadata = _get_args(additional_tags)
+            if config is None or receiver_config is None or metadata is None:
+                print("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
+                return
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
