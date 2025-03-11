@@ -2,6 +2,7 @@ import ast
 import base64
 import contextlib
 import functools
+import http.client as httplib
 import importlib
 from itertools import product
 import json
@@ -20,6 +21,7 @@ from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Tuple  # noqa:F401
 from unittest import mock
+from urllib import parse
 import warnings
 
 from _pytest.runner import call_and_report
@@ -28,8 +30,6 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller

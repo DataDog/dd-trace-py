@@ -353,7 +353,7 @@ def test_import_adjustment_if_injection_did_not_occur_on_line():
         value += "<callback>"
 
     def the_function():
-        from ddtrace.internal.compat import httplib  # noqa
+        import http.client as httplib  # noqa
 
         some_var = 11  # noqa: F841
 
@@ -388,7 +388,7 @@ def test_import_adjustment_if_injection_did_occur():
     def the_function():
         nonlocal value
         value += "<before>"
-        from ddtrace.internal.compat import httplib  # noqa: F401
+        import http.client as httplib  # noqa: F401
 
         value += "<after>"
 
