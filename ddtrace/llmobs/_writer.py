@@ -97,6 +97,7 @@ class BaseLLMObsWriter(PeriodicService):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_eval_payload([event], error="buffer_full")
                 return
             self._buffer.append(event)
 
@@ -129,6 +130,7 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.status,
                     resp.read(),
                 )
+                telemetry.record_dropped_eval_payload(events, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
         except Exception:
@@ -198,6 +200,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
             self.buffer_size += len(safe_json(events))
@@ -214,6 +217,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
+            telemetry.record_dropped_span_payload(events, error="encoding_error")
             return None, 0
         return enc_llm_events, len(events)
 

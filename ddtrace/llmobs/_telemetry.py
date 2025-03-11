@@ -1,4 +1,6 @@
 import time
+from typing import Any
+from typing import List
 from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
@@ -20,6 +22,8 @@ class LLMObsTelemetryMetrics:
     SPAN_SIZE = "span.size"
     SPAN_STARTED = "span.start"
     SPAN_FINISHED = "span.finished"
+    DROPPED_SPAN_EVENTS = "dropped_span_events"
+    DROPPED_EVAL_EVENTS = "dropped_eval_events"
 
 
 def _find_integration_from_tags(tags):
@@ -106,4 +110,24 @@ def record_span_event_size(event: LLMObsSpanEvent, event_size: int, truncated: b
     tags.append(("truncated", str(int(truncated))))
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_SIZE, value=event_size, tags=tuple(tags)
+    )
+
+
+def record_dropped_span_payload(events: List[LLMObsSpanEvent], error: str):
+    tags = [("error", error)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS,
+        value=len(events),
+        tags=tuple(tags),
+    )
+
+
+def record_dropped_eval_payload(events: List[Any], error: str):
+    tags = [("error", error)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS,
+        value=len(events),
+        tags=tuple(tags),
     )
