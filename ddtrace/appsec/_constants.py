@@ -120,6 +120,7 @@ class APPSEC(metaclass=Constant_Class):
     OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
 
 
 TELEMETRY_OFF_NAME = "OFF"
