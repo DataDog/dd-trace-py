@@ -87,6 +87,10 @@ suites:
       - tests/appsec/iast_packages/*
     runner: hatch
     timeout: 50m
+    cache:
+      - key: v1-iast_packages-${{PYTHON_VERSION}}-cache
+        paths:
+          - .cache
   iast_tdd_propagation:
     parallelism: 5
     paths:
