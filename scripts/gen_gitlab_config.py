@@ -93,6 +93,7 @@ class JobSpec:
             lines.append(f"    paths:")
             for path in self.cache["paths"]:
                 lines.append(f"        - {path}")
+            lines.append("    protected: false")
 
         return "\n".join(lines)
 
