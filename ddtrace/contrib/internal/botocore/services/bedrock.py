@@ -4,7 +4,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Union
 
 import wrapt
 
@@ -115,26 +114,35 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
+def safe_token_count(token_count) -> Optional[int]:
+    """
+    Converse api returns integer token counts, while invoke api returns string token counts.
+
+    Use this function to safely return an integer token count from either type.
+    """
+    if isinstance(token_count, int):
+        return token_count
+    elif isinstance(token_count, str) and token_count:
+        return int(token_count)
+    return None
+
+
 def _set_llmobs_usage(
     ctx: core.ExecutionContext,
-    input_tokens: Optional[Union[int, str]],
-    output_tokens: Optional[Union[int, str]],
-    total_tokens: Optional[Union[int, str]] = None,
+    input_tokens: Optional[int],
+    output_tokens: Optional[int],
+    total_tokens: Optional[int] = None,
 ) -> None:
     """
-    Sets LLM usage metrics in the context for LLM Observability.
-
-    We check for both int and str types for token values to support
-     - invoke (extracted from headers/metadata which may be a string)
-     - converse (extracted from `usage` field in response body which returns int token counts)
+    Sets LLM usage metrics in the execution context for LLM Observability.
     """
     llmobs_usage = {}
-    if input_tokens is not None and input_tokens != "":
-        llmobs_usage["input_tokens"] = int(input_tokens)
-    if output_tokens is not None and output_tokens != "":
-        llmobs_usage["output_tokens"] = int(output_tokens)
-    if total_tokens is not None and total_tokens != "":
-        llmobs_usage["total_tokens"] = int(total_tokens)
+    if input_tokens is not None:
+        llmobs_usage["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        llmobs_usage["output_tokens"] = output_tokens
+    if total_tokens is not None:
+        llmobs_usage["total_tokens"] = total_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -342,9 +350,10 @@ def _extract_streamed_response_metadata(
         # TODO: figure out extraction for image-based models
         pass
 
-    input_tokens = metadata.get("inputTokenCount", None)
-    output_tokens = metadata.get("outputTokenCount", None)
-    _set_llmobs_usage(ctx, input_tokens, output_tokens)
+    input_tokens = metadata.get("inputTokenCount")
+    output_tokens = metadata.get("outputTokenCount")
+
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -389,7 +398,9 @@ def handle_bedrock_response(
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
-    _set_llmobs_usage(ctx, input_tokens, output_tokens, total_tokens=total_tokens)
+    _set_llmobs_usage(
+        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
+    )
 
     # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
