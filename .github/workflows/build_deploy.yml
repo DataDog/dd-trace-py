@@ -71,7 +71,7 @@ jobs:
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
         run: |
-          apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
+          apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake clang16-libclang patchelf
           cargo install --locked 'cbindgen@0.26.0' 'bindgen-cli@0.69.4'
           export PATH="/root/.cargo/bin:$PATH"
 
