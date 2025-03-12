@@ -63,9 +63,6 @@ class JobSpec:
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
 
-        if self.python_versions:
-            lines.append("    PYENV_VERSION: \"${PYTHON_VERSION}\"")
-
         if self.only:
             lines.append("  only:")
             for value in self.only:
@@ -196,9 +193,6 @@ def gen_pre_checks() -> None:
 
 
 def gen_iast_packages() -> None:
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-
     with TESTS_GEN.open("a") as f:
         f.write(
             f"""
@@ -214,7 +208,7 @@ appsec_iast_packages:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
   cache:
     # Share pip between jobs of the same Python version
-    - key: v1-appsec_iast_packages-${{PYTHON_VERSION}}-cache
+    - key: v1-appsec_iast_packages-${{PYTHON_VERSION}}-${{CI_COMMIT_REF_SLUG}}-cache
       paths:
         - .cache
         """
