@@ -515,7 +515,7 @@ class Span(object):
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
         tb = buff.getvalue()
-        while len(tb) > MAX_SPAN_META_VALUE_LEN:
+        while len(tb) > MAX_SPAN_META_VALUE_LEN and limit > 1:
             limit /= 2
             # get the traceback again with a smaller limit
             buff = StringIO()
