@@ -24,28 +24,40 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     many times (it is the case), it becomes costly.
     This function generates the version of `should_report_exception` that contains only the required checks
     """
+    if "modules" in checks:
+        # Specify the modules to instrument
+        if "all_user" in checks:
 
-    if len(checks) == 0:
+            def should_report(file_name: str, file_path: Path) -> bool:
+                return file_name in INSTRUMENTED_FILE_PATHS or ("frozen" not in file_name and is_user_code(file_path))
+
+        elif "all_third_party" in checks:
+
+            def should_report(file_name: str, file_path: Path) -> bool:
+                return file_name in INSTRUMENTED_FILE_PATHS or (
+                    is_third_party(file_path) and filename_to_package(file_path).name != "ddtrace"  # type: ignore
+                )
+
+        else:
+
+            def should_report(file_name: str, file_path: Path) -> bool:
+                return file_name in INSTRUMENTED_FILE_PATHS
+
+    elif "all_user" in checks:
+        # User code
+        def should_report(file_name: str, file_path: Path) -> bool:
+            return "frozen" not in file_name and is_user_code(file_path)
+
+    elif "all_third_party" in checks:
+        # Third party package
+        def should_report(file_name: str, file_path: Path) -> bool:
+            # if the second part of the condition is eval it means filename_to_package does not return none
+            return is_third_party(file_path) and filename_to_package(file_path).name != "ddtrace"  # type: ignore
+
+    else:
         # It means that all exceptions should be reported. We still want to exclude python internals and ddtrace
         def should_report(file_name: str, file_path: Path) -> bool:
             return "frozen" not in file_name and is_stdlib(file_path) is False and "ddtrace" not in file_name
-
-    elif "modules" in checks:
-        # Specify the modules to instrument
-        def should_report(file_name: str, file_path: Path) -> bool:
-            return file_name in INSTRUMENTED_FILE_PATHS
-
-    else:
-        if "all_user" in checks:
-            # User code
-            def should_report(file_name: str, file_path: Path) -> bool:
-                return "frozen" not in file_name and is_user_code(file_path)
-
-        elif "all_third_party" in checks:
-            # Third party package
-            def should_report(file_name: str, file_path: Path) -> bool:
-                # if the second part of the condition is eval it means filename_to_package does not return none
-                return is_third_party(file_path) and filename_to_package(file_path).name != "ddtrace"  # type: ignore
 
     return should_report
 
