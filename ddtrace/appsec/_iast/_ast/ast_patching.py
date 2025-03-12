@@ -28,6 +28,7 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 # Prefixes for modules where IAST patching is allowed
 # Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
 IAST_ALLOWLIST: Tuple[Text, ...] = (
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
     "attrs.",
     "base64.",
     "beautifulsoup4.",
@@ -41,15 +42,18 @@ IAST_ALLOWLIST: Tuple[Text, ...] = (
     "jinja2.",
     "lxml.",
     "multidict.",
+    "multipart",
     "platformdirs",
     "psycopg.",  # PostgreSQL adapter for Python (v3)
     "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pygments.",
     "pynacl.",
     "pyparsing.",
-    "multipart",
+    "requests.",
     "sqlalchemy.",
+    "sqlite3.",
     "tomli.",
+    "urllib.",
     "urllib3.",
     "xmltodict.",
     "yarl.",
@@ -57,7 +61,6 @@ IAST_ALLOWLIST: Tuple[Text, ...] = (
 
 # NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "_psycopg.",  # PostgreSQL adapter for Python (v3)
     "_pytest.",
     "aiohttp._helpers.",
     "aiohttp._http_parser.",
@@ -151,7 +154,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "cx_logging.",
     "cycler.",
     "cython.",
-    "dateutil.",
     "dateutil.",
     "ddsketch.",
     "ddtrace.",
