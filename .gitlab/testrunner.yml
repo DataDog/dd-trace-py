@@ -1,5 +1,5 @@
 .testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:0a50e839f4b1600f02157518b8d016451b346578@sha256:5dae9bc7872f69b31b612690f0748c7ad71ab90ef28a754b2ae93d0ba505837b
+  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:cee4f8852c30ae41310ab5951cff5ddb94a9f0a8@sha256:c698d8497cda4c95841ec511723eb310d4840c916a9ea3098256ec872e175de2
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
