@@ -8,6 +8,14 @@ except ImportError:
     get_request_vcr = None
 
 
+_MOCK_RESPONSE_DATA = (
+    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
+    b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
+    b'escape their event horizon. They are formed when very large stars collapse.", '
+    b'"completionReason": "FINISH"}]}'
+)
+
+
 _MODELS = {
     "ai21": "ai21.j2-mid-v1",
     "amazon": "amazon.titan-tg1-large",
