@@ -10,6 +10,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
@@ -30,7 +31,6 @@ from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
@@ -57,6 +57,7 @@ from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
+from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
@@ -70,7 +71,6 @@ from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_n
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
-from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
@@ -99,6 +99,24 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15
 DEFAULT_ITR_SKIPPABLE_TIMEOUT = 20
+UNSUPPORTED = "unsupported"
+TELEMETRY_BY_PROVIDER_NAME = {
+    "appveyor": "provider:appveyor",
+    "azurepipelines": "provider:azp",
+    "bitbucket": "provider:bitbucket",
+    "buildkite": "provider:buildkite",
+    "circleci": "provider:circleci",
+    "codefresh": "provider:codefresh",
+    "github": "provider:githubactions",
+    "gitlab": "provider:gitlab",
+    "jenkins": "provider:jenkins",
+    "teamcity": "provider:teamcity",
+    "travisci": "provider:travisci",
+    "bitrise": "provider:bitrise",
+    "buddy": "provider:buddyci",
+    "awscodepipeline": "provider:aws",
+    UNSUPPORTED: UNSUPPORTED_PROVIDER,
+}
 
 
 def _extract_repository_name_from_url(repository_url: str) -> str:
@@ -139,7 +157,7 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
         conn = get_connection(url, timeout=timeout)
         log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
         conn.request("POST", url_path, payload, headers)
-        resp = compat.get_connection_response(conn)
+        resp = conn.getresponse()
         log.debug("Response status: %s", resp.status)
         result = Response.from_http_response(resp)
     finally:
@@ -205,6 +223,7 @@ class CIVisibility(Service):
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
+        self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -906,6 +925,20 @@ class CIVisibility(Service):
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
 
+    @classmethod
+    def ci_provider_name_for_telemetry(cls) -> str:
+        instance = cls.get_instance()
+        if instance is None:
+            return UNSUPPORTED_PROVIDER
+        return TELEMETRY_BY_PROVIDER_NAME.get(instance._tags.get(ci.PROVIDER_NAME, UNSUPPORTED), UNSUPPORTED_PROVIDER)
+
+    @classmethod
+    def is_auto_injected(cls) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+        return instance._is_auto_injected
+
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
         writer = self.tracer._writer
         if isinstance(writer, CIVisibilityWriter):
@@ -1019,6 +1052,8 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs):
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
         test_management_settings=test_management_api_settings,
+        ci_provider_name=CIVisibility.ci_provider_name_for_telemetry(),
+        is_auto_injected=CIVisibility.is_auto_injected(),
     )
 
     session = TestVisibilitySession(

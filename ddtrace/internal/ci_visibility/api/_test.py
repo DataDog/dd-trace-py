@@ -191,6 +191,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             has_failed_all_retries=self.has_failed_all_retries(),
             is_rum=self._is_rum(),
             browser_driver=self._get_browser_driver(),
+            ci_provider_name=self._session_settings.ci_provider_name,
+            is_auto_injected=self._session_settings.is_auto_injected,
         )
 
     def finish_test(

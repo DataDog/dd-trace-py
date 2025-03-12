@@ -59,6 +59,8 @@ ITR_CORRELATION_ID_TAG_NAME = "itr_correlation_id"
 # Tracer configuration defaults:
 TRACER_PARTIAL_FLUSH_MIN_SPANS = 1
 
+UNSUPPORTED_PROVIDER = "provider:unsupported"
+
 
 class REQUESTS_MODE(IntEnum):
     AGENTLESS_EVENTS = 0
