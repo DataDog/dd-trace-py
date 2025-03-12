@@ -211,7 +211,7 @@ appsec_iast_packages:
     - key: v1-appsec_iast_packages-${{PYTHON_VERSION}}-${{CI_COMMIT_REF_SLUG}}-cache
       paths:
         - .cache
-      unprotected: true
+      unprotect: true
         """
         )
 
