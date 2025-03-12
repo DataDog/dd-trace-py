@@ -102,12 +102,9 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     if not InternalTestSession.is_test_skipping_enabled():
         return False
 
-    if InternalTest.is_attempt_to_fix(test_id):
-        return False
-
     suite_id = test_id.parent_id
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id)
+    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
 
     if InternalTestSuite.is_itr_skippable(suite_id):
         if item_is_unskippable:
@@ -664,9 +661,13 @@ def pytest_report_teststatus(
     if not is_test_visibility_enabled():
         return
 
+    test_status = attempt_to_fix_get_teststatus(report)
+    if test_status:
+        return test_status
+
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = (
-            atr_get_teststatus(report) or quarantine_atr_get_teststatus(report) or attempt_to_fix_get_teststatus(report)
+            atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
         )
         if test_status is not None:
             return test_status

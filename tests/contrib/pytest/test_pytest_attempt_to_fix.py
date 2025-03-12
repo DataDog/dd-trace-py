@@ -201,7 +201,7 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
 
     def test_attempt_to_fix_itr_skipped_test(self):
         self.testdir.makepyfile(test_skippable=_TEST_PASS + _TEST_FAIL)
-        rec = self.inline_run("--ddtrace", "-s", "-v", extra_env={"DD_TESTING_RAISE": "1"})
+        rec = self.inline_run("--ddtrace", "-q")
         assert rec.ret == 0
         assert_stats(rec, quarantined=1, passed=0, failed=0, skipped=1)
 
@@ -209,14 +209,18 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
         [session_span] = _get_spans_from_list(spans, "session")
         [module_span] = _get_spans_from_list(spans, "module")
         [suite_span] = _get_spans_from_list(spans, "suite", "test_skippable.py")
-        skipped_spans = _get_spans_from_list(spans, "test", "test_pass")
+        [skipped_span] = _get_spans_from_list(spans, "test", "test_pass")
         attempt_to_fix_spans = _get_spans_from_list(spans, "test", "test_fail")
 
-        assert len(test_spans) == 11
-        for span in test_spans:
+        assert skipped_span.get_tag("test.test_management.is_quarantined") is None
+        assert skipped_span.get_tag("test.test_management.is_test_disabled") is None
+        assert skipped_span.get_tag("test.status") == "skip"
+
+        assert len(attempt_to_fix_spans) == 11
+        for span in attempt_to_fix_spans:
             assert span.get_tag("test.test_management.is_quarantined") is None
             assert span.get_tag("test.test_management.is_test_disabled") == "true"
-            assert span.get_tag("test.status") == "pass"
+            assert span.get_tag("test.status") == "fail"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "true"
-        assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
+        assert attempt_to_fix_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert attempt_to_fix_spans[-1].get_tag("test.has_failed_all_retries") == "true"

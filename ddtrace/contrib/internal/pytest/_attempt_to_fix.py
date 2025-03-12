@@ -16,6 +16,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
+import traceback
 
 log = get_logger(__name__)
 
@@ -68,6 +69,7 @@ def attempt_to_fix_handle_retries(
         longrepr=None,
         outcome=final_outcomes[retries_outcome],
     )
+
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 

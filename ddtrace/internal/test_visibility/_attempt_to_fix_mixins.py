@@ -17,7 +17,7 @@ class AttemptToFixTestMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def attempt_to_fix_should_retry(item_id: InternalTestId) -> bool:
-        log.debug("Checking if item %s should be retried for Auto Test Retries", item_id)
+        log.debug("Checking if item %s should be retried for Attempt-to-Fix", item_id)
         should_retry_test = core.dispatch_with_results(
             "test_visibility.attempt_to_fix.should_retry_test", (item_id,)
         ).should_retry_test.value
@@ -27,7 +27,7 @@ class AttemptToFixTestMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def attempt_to_fix_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> int:
-        log.debug("Adding Auto Test Retries retry for item %s", item_id)
+        log.debug("Adding Attempt-to-Fix retry for item %s", item_id)
         retry_number = core.dispatch_with_results(
             "test_visibility.attempt_to_fix.add_retry", (item_id, start_immediately)
         ).retry_number.value

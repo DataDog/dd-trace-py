@@ -445,7 +445,6 @@ class _TestVisibilityAPIClientBase(abc.ABC):
     def fetch_skippable_items(
         self, timeout: t.Optional[float] = None, ignore_test_parameters: bool = False
     ) -> t.Optional[ITRData]:
-        breakpoint()
         if timeout is None:
             timeout = DEFAULT_ITR_SKIPPABLE_TIMEOUT
 
