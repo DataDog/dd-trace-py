@@ -93,7 +93,7 @@ def enable_iast_propagation():
     if _iast_propagation_enabled:
         return
     # We need to preload the package_distributions because if we call importlib_metadata inside a module hook
-    # it raises an circular-import
+    # it raises a circular-import
     from ddtrace.internal.packages import get_package_distributions
 
     get_package_distributions()

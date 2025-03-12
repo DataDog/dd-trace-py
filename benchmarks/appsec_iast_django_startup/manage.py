@@ -4,6 +4,8 @@ import sys
 # TODO: CV2 fails in the CI with ImportError: libGL.so.1: cannot open shared object file: No such file or directory
 # from cv2 import *  # noqa: F401, F403
 from django import *  # noqa: F401, F403
+
+
 # TODO: we want to check django first
 # from kombu import *  # noqa: F401, F403
 # from matplotlib import *  # noqa: F401, F403
