@@ -16,6 +16,7 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
@@ -508,6 +509,22 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+
+    def _get_traceback(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> str:
+        limit = -abs(config._span_traceback_max_size)
+        buff = StringIO()
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+        tb = buff.getvalue()
+        while len(tb) > MAX_SPAN_META_VALUE_LEN:
+            limit /= 2
+            # get the traceback again with a smaller limit
+            buff = StringIO()
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+            tb = buff.getvalue()
+
+        return tb
+
+
     def set_exc_info(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
     ) -> None:
@@ -524,10 +541,7 @@ class Span(object):
 
         self.error = 1
 
-        # get the traceback
-        buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=-abs(config._span_traceback_max_size))
-        tb = buff.getvalue()
+        tb = self._get_traceback(exc_type, exc_val, exc_tb)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
@@ -576,10 +590,7 @@ class Span(object):
         if escaped:
             self.set_exc_info(exc_type, exc_val, exc_tb)
 
-        # get the traceback
-        buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
-        tb = buff.getvalue()
+        tb = self._get_traceback(exc_type, exc_val, exc_tb)
 
         # Set exception attributes in a manner that is consistent with the opentelemetry sdk
         # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
