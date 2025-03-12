@@ -58,11 +58,12 @@ class JobSpec:
 
         if self.export_python_version or wait_for:
             lines.append("  before_script:")
+            lines.append("    - |")
             lines.append(
-                "    - export PYTHON_VERSION=$(python -c \"import sys; "
+                "      export PYTHON_VERSION=$(python -c \"import sys; "
                 "print(f'{sys.version_info.major}.{sys.version_info.minor}')\")"
             )
-            lines.append("    - echo \"Detected Python version: $PYTHON_VERSION\"")
+            lines.append("      echo \"Detected Python version: $PYTHON_VERSION\"")
 
             if wait_for:
                 lines.append(f"    - !reference [{base}, before_script]")
