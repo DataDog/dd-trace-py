@@ -15,9 +15,9 @@ include_guard(GLOBAL)
 include(FetchContent)
 
 # Set version if not already set
-if(NOT DEFINED COMMIT_LIBDATADOG)
-    set(COMMIT_LIBDATADOG
-        ce8c536ddef78a49142fe4a6c77ab0a1263c1018 # v16.0.3
+if(NOT DEFINED LIBDATADOG_GIT_TAG)
+    set(LIBDATADOG_GIT_TAG
+        "v16.0.3"
         CACHE STRING "libdatadog github tag")
 endif()
 
@@ -25,7 +25,7 @@ endif()
 FetchContent_Declare(
     libdatadog
     GIT_REPOSITORY "https://github.com/DataDog/libdatadog.git"
-    GIT_TAG "${COMMIT_LIBDATADOG}"
+    GIT_TAG "${LIBDATADOG_GIT_TAG}"
     DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
 
 # Make the content available
