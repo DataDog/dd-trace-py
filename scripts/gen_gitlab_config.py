@@ -57,6 +57,8 @@ class JobSpec:
             wait_for.add("testagent")
         if wait_for:
             lines.append("  before_script:")
+            lines.append("    - export PYTHON_VERSION=$(python -c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\")")
+            lines.append(f"    - echo \"Detected Python version: $PYTHON_VERSION\"")
             lines.append(f"    - !reference [{base}, before_script]")
             if self.runner == "riot":
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
@@ -83,12 +85,6 @@ class JobSpec:
 
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
-
-        if self.export_python_version:
-            lines.append("  script:")
-            lines.append("    - |")
-            lines.append("      export PYTHON_VERSION=$(python -c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\")")
-            lines.append("      echo 'Detected Python version: $PYTHON_VERSION'")
 
         if self.cache is not None:
             lines.append(f"  cache:")
