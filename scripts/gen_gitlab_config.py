@@ -10,6 +10,11 @@ import os
 import typing as t
 
 
+def _get_native_hash():
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    return os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+
+
 @dataclass
 class JobSpec:
     name: str
@@ -87,6 +92,7 @@ class JobSpec:
         if self.cache is not None:
             lines.append(f"  cache:")
             lines.append(f"    - key: {self.cache['key']}")
+            lines.append(f"      unprotect: true")
             lines.append(f"      paths:")
             for path in self.cache["paths"]:
                 lines.append(f"        - {path}")
@@ -209,8 +215,7 @@ def gen_pre_checks() -> None:
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+    native_hash = _get_native_hash()
 
     with TESTS_GEN.open("a") as f:
         f.write(
