@@ -40,6 +40,10 @@ file(MAKE_DIRECTORY "${LIBDD_OUTPUT_FOLDER}")
 
 message(${LIBDD_OUTPUT_FOLDER})
 
+if (NOT DEFINED ENV{CARGO_BUILD_JOBS})
+    set(ENV{CARGO_BUILD_JOBS} 4)
+endif()
+
 # Run the build
 execute_process(
     COMMAND cargo run --bin release --features profiling,crashtracker --release -- --out ${LIBDD_OUTPUT_FOLDER}
