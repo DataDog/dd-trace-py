@@ -22,7 +22,7 @@ def _exec_iast_patched_module(module_watchdog, module):
         try:
             module_path, patched_ast = astpatch_module(module)
         except Exception:
-            log.debug("[IAST] Unexpected exception while AST patching", exc_info=True)
+            log.debug("[IAST] compile_code. Unexpected exception while AST patching", exc_info=True)
             patched_ast = None
 
     if patched_ast:
@@ -30,10 +30,10 @@ def _exec_iast_patched_module(module_watchdog, module):
             # Patched source is compiled in order to execute it
             compiled_code = compile(patched_ast, module_path, "exec")
         except Exception:
-            log.debug("[IAST] Unexpected exception while compiling patched code", exc_info=True)
+            log.debug("[IAST] compile_code. Unexpected exception while compiling patched code", exc_info=True)
             compiled_code = None
     if compiled_code:
-        log.debug("[IAST] INSTRUMENTED CODE. executing %s", module_path)
+        log.debug("[IAST] compile_code. INSTRUMENTED CODE. executing %s", module_path)
         # Patched source is executed instead of original module
         # exec(compiled_code, module.__dict__)  # nosec B102
         if "__builtins__" not in module.__dict__:
@@ -41,9 +41,9 @@ def _exec_iast_patched_module(module_watchdog, module):
         PyEval_EvalCode(compiled_code, module.__dict__, module.__dict__)
     elif module_watchdog.loader is not None:
         try:
-            log.debug("[IAST] DEFAULT CODE. executing %s", module)
+            log.debug("[IAST] compile_code. DEFAULT CODE. executing %s", module)
             module_watchdog.loader.exec_module(module)
         except ImportError:
-            log.debug("[IAST] Unexpected exception on import loader fallback", exc_info=True)
+            log.debug("[IAST] compile_code. Unexpected exception on import loader fallback", exc_info=True)
     else:
-        log.debug("[IAST] Module loader is not available, cannot execute module %s", module)
+        log.debug("[IAST] compile_code. Module loader is not available, cannot execute module %s", module)
