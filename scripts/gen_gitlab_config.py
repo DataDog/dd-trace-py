@@ -54,8 +54,10 @@ class JobSpec:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
             if self.python_versions:
-                lines.append(f"    - pyenv global \"${{PYTHON_VERSION}}\"")  # Override the base version
+                lines.append("    - pyenv local ${PYTHON_VERSION}")  # Override the base version
             if self.runner == "riot" and wait_for:
+                # Have to install again after setting pyenv
+                lines.append(f"    - pip install riot==0.20.1")
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
