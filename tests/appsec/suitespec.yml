@@ -82,7 +82,7 @@ suites:
     timeout: 50m
   appsec_iast_packages:
     env:
-      PIP_CACHE_DIR: ${CI_PROJECT_DIR}/.cache/pip
+      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
@@ -93,11 +93,11 @@ suites:
       paths:
         - .cache
     python_versions:
-        - 3.8
-        - 3.9
-        - 3.10
-        - 3.11
-        - 3.12
+        - "3.8"
+        - "3.9"
+        - "3.10"
+        - "3.11"
+        - "3.12"
   iast_tdd_propagation:
     parallelism: 5
     paths:
