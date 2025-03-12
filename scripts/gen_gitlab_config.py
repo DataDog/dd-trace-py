@@ -10,11 +10,6 @@ import os
 import typing as t
 
 
-def _get_native_hash():
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    return os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-
-
 @dataclass
 class JobSpec:
     name: str
@@ -29,8 +24,7 @@ class JobSpec:
     skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
-    cache: t.Optional[t.Dict[str, t.Any]] = None
-    export_python_version: t.Optional[bool] = None
+    python_versions: t.Optional[t.List[str]] = None
 
     def __str__(self) -> str:
         lines = []
@@ -55,20 +49,11 @@ class JobSpec:
         wait_for: t.Set[str] = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
-
-        if self.export_python_version or wait_for:
+        if wait_for:
             lines.append("  before_script:")
-            lines.append("    - |")
-            lines.append(
-                "      export PYTHON_VERSION=$(python -c \"import sys; "
-                "print(f'{sys.version_info.major}.{sys.version_info.minor}')\")"
-            )
-            lines.append("      echo \"Detected Python version: $PYTHON_VERSION\"")
-
-            if wait_for:
-                lines.append(f"    - !reference [{base}, before_script]")
-                if self.runner == "riot":
-                    lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            lines.append(f"    - !reference [{base}, before_script]")
+            if self.runner == "riot":
+                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
@@ -79,26 +64,26 @@ class JobSpec:
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
 
+        if self.python_versions:
+            lines.append("    PYENV_VERSION: \"${PYTHON_VERSION}\"")
+
         if self.only:
             lines.append("  only:")
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.parallelism is not None:
-            lines.append(f"  parallel: {self.parallelism}")
+        if self.parallelism is not None or self.python_versions:
+            lines.append(f"  parallel: {self.parallelism if self.parallelism else ''}")
+            if self.python_versions:
+                lines.append("    matrix:")
+                for version in self.python_versions:
+                    lines.append(f"      - PYTHON_VERSION: {version}")
 
         if self.retry is not None:
             lines.append(f"  retry: {self.retry}")
 
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
-
-        if self.cache is not None:
-            lines.append(f"  cache:")
-            lines.append(f"    - key: {self.cache['key']}")
-            lines.append(f"      paths:")
-            for path in self.cache["paths"]:
-                lines.append(f"        - {path}")
 
         return "\n".join(lines)
 
@@ -218,7 +203,8 @@ def gen_pre_checks() -> None:
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
-    native_hash = _get_native_hash()
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
 
     with TESTS_GEN.open("a") as f:
         f.write(
