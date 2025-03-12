@@ -89,7 +89,7 @@ suites:
     runner: hatch
     timeout: 50m
     cache:
-      key: v1-iast_packages-${PYTHON_VERSION}-cache
+      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
       paths:
         - .cache
     python_versions:
