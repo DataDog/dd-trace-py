@@ -1,8 +1,6 @@
 import sys
 import typing as t
 
-from envier import Env
-
 from ddtrace.settings._core import DDConfig
 from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
