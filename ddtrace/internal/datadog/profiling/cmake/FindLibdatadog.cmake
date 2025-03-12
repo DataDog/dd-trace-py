@@ -17,7 +17,7 @@ include(FetchContent)
 # Set version if not already set
 if(NOT DEFINED LIBDATADOG_GIT_TAG)
     set(LIBDATADOG_GIT_TAG
-        "v16.0.3"
+        "2703b252e4d915c178f5ae44df625fc7244a42eb" # taegyunkim/musllinux-fix
         CACHE STRING "libdatadog github tag")
 endif()
 
