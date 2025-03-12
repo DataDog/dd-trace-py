@@ -174,11 +174,8 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_test_management(self):
-
         def _mock_fetch_tests_to_skip(self, *_, **__):
-            self._itr_data = ITRData(skippable_items={
-                _make_fqdn_suite_id("", "test_skippable.py")
-            })
+            self._itr_data = ITRData(skippable_items={_make_fqdn_suite_id("", "test_skippable.py")})
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",

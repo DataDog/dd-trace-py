@@ -13,6 +13,7 @@ log = get_logger(__name__)
 class AttemptToFixSessionMixin:
     pass
 
+
 class AttemptToFixTestMixin:
     @staticmethod
     @_catch_and_log_exceptions

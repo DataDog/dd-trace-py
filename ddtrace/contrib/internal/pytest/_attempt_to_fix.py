@@ -1,3 +1,4 @@
+import traceback
 import typing as t
 
 import _pytest
@@ -16,7 +17,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
-import traceback
 
 log = get_logger(__name__)
 
