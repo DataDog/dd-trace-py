@@ -39,7 +39,7 @@ endif()
 file(MAKE_DIRECTORY "${LIBDD_OUTPUT_FOLDER}")
 
 if(NOT DEFINED ENV{CARGO_BUILD_JOBS})
-    set(ENV{CARGO_BUILD_JOBS} 4)
+    set(ENV{CARGO_BUILD_JOBS} 8)
 endif()
 
 set(CARGO_PROFILE "release")
