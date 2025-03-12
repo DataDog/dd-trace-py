@@ -42,9 +42,17 @@ if(NOT DEFINED ENV{CARGO_BUILD_JOBS})
     set(ENV{CARGO_BUILD_JOBS} 4)
 endif()
 
+set(CARGO_PROFILE "release")
+if(DEFINED CMAKE_BUILD_TYPE)
+    string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
+    if(BUILD_TYPE STREQUAL "debug")
+        set(CARGO_PROFILE "dev")
+    endif()
+endif()
+
 # Run the build
 execute_process(
-    COMMAND cargo run --bin release --features profiling,crashtracker --release -- --out ${LIBDD_OUTPUT_FOLDER}
+    COMMAND cargo run --bin release --features profiling,crashtracker --profile ${CARGO_PROFILE} -- --out ${LIBDD_OUTPUT_FOLDER}
     WORKING_DIRECTORY "${libdatadog_SOURCE_DIR}"
     RESULT_VARIABLE CARGO_RESULT)
 if(NOT CARGO_RESULT EQUAL 0)
