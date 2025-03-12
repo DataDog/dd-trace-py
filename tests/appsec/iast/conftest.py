@@ -142,7 +142,8 @@ def iast_span_defaults(tracer):
 # "[IAST] create_context", "[IAST] reset_context", "[IAST] allowing", "[IAST] denying" or "[IAST] astpatch_source"
 # are valid logs
 IAST_VALID_LOG = re.compile(
-    r"(?=.*\[IAST\] )(?!.*\[IAST\] (Patching|Enabled|astpatch_source|compile_code|allowing|denying|create_context|reset_context))"
+    r"(?=.*\[IAST\] )(?!.*\[IAST\] "
+    r"(Patching|Enabled|astpatch_source|compile_code|allowing|denying|create_context|reset_context))"
 )
 
 
