@@ -74,7 +74,9 @@ class JobSpec:
             lines.append(f"  parallel: {self.parallelism if self.parallelism else ''}")
             if self.python_versions is not None:
                 lines.append("    matrix:")
-                lines.append("      - PYTHON_VERSION: %s" % str(self.python_versions))
+                lines.append("      - PYTHON_VERSION:")
+                for version in self.python_versions:
+                    lines.append(f"          - '{version}'")
 
         if self.retry is not None:
             lines.append(f"  retry: {self.retry}")
