@@ -210,10 +210,13 @@ appsec_iast_packages:
     PYTEST_ADDOPTS: '-s'
   cache:
     # Share pip between jobs of the same Python version
-      key: v1.1-appsec_iast_packages-${PYTHON_VERSION}-cache
+      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}-cache
       paths:
         - .cache
       unprotect: true
+  before_script:
+    - !reference [.test_base_hatch, before_script]
+    - pyenv global "${PYTHON_VERSION}"
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
