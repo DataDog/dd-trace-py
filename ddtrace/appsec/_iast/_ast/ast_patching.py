@@ -29,23 +29,29 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 # Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
 IAST_ALLOWLIST: Tuple[Text, ...] = (
     "attrs.",
+    "base64.",
     "beautifulsoup4.",
     "cachetools.",
     "cryptography.",
     "django.",
     "docutils.",
+    "fastapi.",
     "idna.",
     "iniconfig.",
     "jinja2.",
     "lxml.",
     "multidict.",
     "platformdirs",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pygments.",
     "pynacl.",
     "pyparsing.",
     "multipart",
     "sqlalchemy.",
-    "tomli",
+    "tomli.",
+    "urllib3.",
+    "xmltodict.",
     "yarl.",
 )
 
@@ -340,8 +346,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
-    "psycopg.",  # PostgreSQL adapter for Python (v3)
-    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycodestyle.",
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pydicom.",
@@ -561,17 +565,17 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     module_origin = origin(module)
     if module_origin is None:
-        log.debug("[IAST] astpatch_source couldn't find the module: %s", module_name)
+        log.debug("[IAST] astpatch_source. could not find the module: %s", module_name)
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            log.debug("[IAST] empty file: %s", module_path)
+            log.debug("[IAST] astpatch_source. empty file: %s", module_path)
             return "", None
     except OSError:
-        log.debug("[IAST] astpatch_source couldn't find the file: %s", module_path, exc_info=True)
+        log.debug("[IAST] astpatch_source. could not find the file: %s", module_path, exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -581,22 +585,22 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        log.debug("extension not supported: %s for: %s", module_ext, module_path)
+        log.debug("[IAST] astpatch_source. Extension not supported: %s for: %s", module_ext, module_path)
         return "", None
 
     with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            log.debug("[IAST] Encode decode error for file: %s", module_path, exc_info=True)
+            log.debug("[IAST] astpatch_source. Encode decode error for file: %s", module_path, exc_info=True)
             return "", None
         except Exception:
-            log.debug("[IAST] Unexpected read error: %s", module_path, exc_info=True)
+            log.debug("[IAST] astpatch_source. Unexpected read error: %s", module_path, exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        log.debug("[IAST] empty file: %s", module_path)
+        log.debug("[IAST] astpatch_source. empty file: %s", module_path)
         return "", None
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
@@ -609,7 +613,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         module_name=module_name,
     )
     if new_ast is None:
-        log.debug("[IAST] file not ast patched: %s", module_path)
+        log.debug("[IAST] astpatch_source. file not ast patched: %s", module_path)
         return "", None
 
     return module_path, new_ast
