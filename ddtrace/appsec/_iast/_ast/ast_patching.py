@@ -28,39 +28,30 @@ _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 # Prefixes for modules where IAST patching is allowed
 # Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
 IAST_ALLOWLIST: Tuple[Text, ...] = (
-    "_psycopg.",  # PostgreSQL adapter for Python (v3)
     "attrs.",
-    "base64.",
     "beautifulsoup4.",
     "cachetools.",
     "cryptography.",
     "django.",
     "docutils.",
-    "fastapi.",
     "idna.",
     "iniconfig.",
     "jinja2.",
     "lxml.",
     "multidict.",
-    "multipart",
     "platformdirs",
-    "psycopg.",  # PostgreSQL adapter for Python (v3)
-    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pygments.",
     "pynacl.",
     "pyparsing.",
-    "requests.",
+    "multipart",
     "sqlalchemy.",
-    "sqlite3.",
-    "tomli.",
-    "urllib.",
-    "urllib3.",
-    "xmltodict.",
+    "tomli",
     "yarl.",
 )
 
 # NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
 IAST_DENYLIST: Tuple[Text, ...] = (
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
     "_pytest.",
     "aiohttp._helpers.",
     "aiohttp._http_parser.",
@@ -348,6 +339,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
     "pycodestyle.",
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
     "pydicom.",
@@ -488,8 +481,9 @@ def _should_iast_patch(module_name: Text) -> bool:
         log.debug("[IAST] denying %s. it's in the python_stdlib", module_name)
         return False
 
-    # if _is_first_party(module_name):
-    #     return True
+    if _is_first_party(module_name):
+        log.debug("[IAST] allowing %s. it's a first party module", module_name)
+        return True
 
     # else: third party. Check that is in the allow list and not in the deny list
     dotted_module_name = module_name.lower() + "."
