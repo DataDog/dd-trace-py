@@ -32,7 +32,7 @@ def start() -> bool:
 
     import platform
 
-    crashtracker.set_url(crashtracker_config.debug_url or agent.get_trace_url())
+    crashtracker.set_url(crashtracker_config.debug_url or agent.config.trace_agent_url)
     crashtracker.set_service(config.service)
     crashtracker.set_version(config.version)
     crashtracker.set_env(config.env)

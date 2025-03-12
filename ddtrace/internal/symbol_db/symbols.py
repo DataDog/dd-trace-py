@@ -25,7 +25,7 @@ import typing as t
 
 from ddtrace import config
 from ddtrace.internal import packages
-from ddtrace.internal.agent import get_trace_url
+from ddtrace.internal.agent import config as agent_config
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
@@ -496,7 +496,7 @@ class ScopeContext:
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
 
-        with connector(get_trace_url(), timeout=5.0)() as conn:
+        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 

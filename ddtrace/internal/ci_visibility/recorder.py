@@ -413,7 +413,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url() if url is None else url,
+                intake_url=agent.config.trace_agent_url if url is None else url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,

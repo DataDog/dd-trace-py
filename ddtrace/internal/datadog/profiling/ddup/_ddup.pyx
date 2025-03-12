@@ -409,7 +409,7 @@ def _get_endpoint(tracer)-> str:
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
     tracer_agent_url = tracer.agent_trace_url
-    endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    endpoint = tracer_agent_url if tracer_agent_url else agent.config.trace_agent_url
     return endpoint
 
 

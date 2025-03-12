@@ -20,8 +20,8 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...settings._config import _get_config
 from ...settings._inferred_base_service import detect_service
+from ..agent import config as agent_config
 from ..agent import get_connection
-from ..agent import get_trace_url
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
@@ -159,7 +159,7 @@ class _TelemetryClient:
 
     def get_host(self, site: str, agentless: bool) -> str:
         if not agentless:
-            return get_trace_url()
+            return agent_config.trace_agent_url
         elif site == "datad0g.com":
             return "https://all-http-intake.logs.datad0g.com"
         elif site == "datadoghq.eu":

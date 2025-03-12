@@ -22,6 +22,6 @@ def data_streams_processor():
     if config._data_streams_enabled and not _processor:
         from . import processor
 
-        _processor = processor.DataStreamsProcessor(agent.get_trace_url())
+        _processor = processor.DataStreamsProcessor(agent.config.trace_agent_url)
 
     return _processor

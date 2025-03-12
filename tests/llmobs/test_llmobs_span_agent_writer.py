@@ -12,7 +12,7 @@ from tests.llmobs._utils import _oversized_retrieval_event
 from tests.llmobs._utils import _oversized_workflow_event
 
 
-INTAKE_ENDPOINT = agent.get_trace_url()
+INTAKE_ENDPOINT = agent.config.trace_agent_url
 
 
 def test_writer_start(mock_writer_logs):

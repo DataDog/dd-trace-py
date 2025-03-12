@@ -39,7 +39,7 @@ def test_civisibility_intake_with_evp_available():
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
+        assert CIVisibility._instance.tracer._writer.intake_url == agent.config.trace_agent_url
         assert (
             CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
             == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
