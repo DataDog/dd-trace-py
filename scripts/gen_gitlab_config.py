@@ -25,6 +25,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     cache: t.Optional[t.Dict[str, t.Any]] = None
+    python_versions: t.Optional[t.List[str]] = None
 
     def __str__(self) -> str:
         lines = []
@@ -69,8 +70,11 @@ class JobSpec:
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.parallelism is not None:
-            lines.append(f"  parallel: {self.parallelism}")
+        if self.parallelism is not None or self.python_versions is not None:
+            lines.append(f"  parallel: {self.parallelism if self.parallelism else ''}")
+            if self.python_versions is not None:
+                lines.append("    matrix:")
+                lines.append("      - PYTHON_VERSION: %s" % str(self.python_versions))
 
         if self.retry is not None:
             lines.append(f"  retry: {self.retry}")
