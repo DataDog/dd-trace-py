@@ -113,6 +113,19 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
+def _set_llmobs_usage_from_invoke(ctx: core.ExecutionContext, input_tokens, output_tokens) -> None:
+    """
+    Sets LLM usage metrics in the context for LLM Observability.
+    """
+    llmobs_usage = {}
+    if input_tokens:
+        llmobs_usage["input_tokens"] = int(input_tokens)
+    if output_tokens:
+        llmobs_usage["output_tokens"] = int(output_tokens)
+    if llmobs_usage:
+        ctx.set_item("llmobs.usage", llmobs_usage)
+
+
 def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
@@ -281,6 +294,9 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
 def _extract_streamed_response_metadata(
     ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
+    """
+    Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
+    """
     provider = ctx["model_provider"]
     metadata = {}
     if provider == _AI21:
@@ -290,10 +306,14 @@ def _extract_streamed_response_metadata(
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
+
+    input_tokens = metadata.get("inputTokenCount", None)
+    output_tokens = metadata.get("outputTokenCount", None)
+    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
     return {
         "response.duration": metadata.get("invocationLatency", None),
-        "usage.prompt_tokens": metadata.get("inputTokenCount", None),
-        "usage.completion_tokens": metadata.get("outputTokenCount", None),
+        "usage.prompt_tokens": input_tokens,
+        "usage.completion_tokens": output_tokens,
     }
 
 
@@ -301,11 +321,8 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
     request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    prompt = None
-    for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
-            prompt = v
-    ctx.set_item("prompt", prompt)
+    if ctx["bedrock_integration"].llmobs_enabled:
+        ctx.set_item("llmobs.request_params", request_params)
 
 
 def handle_bedrock_response(
@@ -315,14 +332,18 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
+    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
+    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
+    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
+
     core.dispatch(
         "botocore.patched_bedrock_api_call.success",
         [
             ctx,
             str(metadata.get("RequestId", "")),
             str(http_headers.get("x-amzn-bedrock-invocation-latency", "")),
-            str(http_headers.get("x-amzn-bedrock-input-token-count", "")),
-            str(http_headers.get("x-amzn-bedrock-output-token-count", "")),
+            str(input_tokens),
+            str(output_tokens),
         ],
     )
 
@@ -371,7 +392,14 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     model_id = params.get("modelId")
     model_provider, model_name = _parse_model_id(model_id)
     integration = function_vars.get("integration")
-    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
+    endpoint = getattr(instance, "_endpoint", None)
+    endpoint_host = getattr(endpoint, "host", None) if endpoint else None
+    # only report LLM Obs spans if base_url has not been changed
+    submit_to_llmobs = (
+        integration.llmobs_enabled
+        and "embed" not in model_name
+        and integration.is_default_base_url(str(endpoint_host) if endpoint_host else None)
+    )
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,

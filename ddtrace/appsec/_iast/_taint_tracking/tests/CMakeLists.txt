@@ -11,7 +11,10 @@ file(GLOB TEST_SOURCES "*.cpp" "*.hpp")
 add_executable(native_tests ${TEST_SOURCES} ${SOURCE_FILES} ${HEADER_FILES})
 
 set(NATIVE_TEST_LIBRARIES gtest gtest_main ${PYTHON_LIBRARIES} pybind11::module)
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
+
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
+   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
+                                                                                          STREQUAL "false")))
     list(APPEND NATIVE_TEST_LIBRARIES absl::node_hash_map)
 endif()
 

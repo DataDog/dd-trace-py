@@ -9,6 +9,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import warnings
 
 import cmake
 from setuptools_rust import Binding
@@ -43,7 +44,24 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+COMPILE_MODE = "Release"
+if "DD_COMPILE_DEBUG" in os.environ:
+    warnings.warn(
+        "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
+        "use DD_COMPILE_MODE=Debug|Release|RelWithDebInfo|MinSizeRel.",
+    )
+    COMPILE_MODE = "Debug"
+else:
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+
+FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
+if FAST_BUILD:
+    print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
+else:
+    print("INFO: DD_FAST_BUILD not enabled")
+
+if FAST_BUILD:
+    os.environ["DD_COMPILE_ABSEIL"] = "0"
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
@@ -328,7 +346,7 @@ class CMakeBuild(build_ext):
         else:
             super().build_extension(ext)
 
-        if not DEBUG_COMPILE:
+        if COMPILE_MODE.lower() in ("release", "minsizerel"):
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
@@ -408,6 +426,11 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
+        if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
+            cmake_args += [
+                "-DCMAKE_C_FLAGS_%s=-O0" % ext.build_type.upper(),
+                "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
+            ]
         cmake_command = (
             Path(cmake.CMAKE_BIN_DIR) / "cmake"
         ).resolve()  # explicitly use the cmake provided by the cmake package
@@ -439,8 +462,9 @@ class DebugMetadata:
             f.write("Environment:\n")
             f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
             f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
+            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
             f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
+            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
@@ -483,7 +507,7 @@ class CMakeExtension(Extension):
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
-        self.build_type = build_type or "Debug" if DEBUG_COMPILE else "Release"
+        self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
 
 
@@ -536,11 +560,13 @@ if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
+    fast_build_args = []
 else:
     linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
-    if DEBUG_COMPILE:
+    fast_build_args = ["-O0"] if FAST_BUILD else []
+    if COMPILE_MODE.lower() == "debug":
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
@@ -567,7 +593,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
             extra_compile_args=(
-                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c11"]
             ),
@@ -575,7 +601,11 @@ if not IS_PYSTON:
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
+            extra_compile_args=(
+                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                if CURRENT_OS != "Windows"
+                else ["/std:c++20", "/MT"]
+            ),
         ),
     ]
     if platform.system() not in ("Windows", ""):
@@ -586,11 +616,13 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=extra_compile_args + debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
 
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+        )
 
     if (
         platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")

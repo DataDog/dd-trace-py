@@ -1,9 +1,13 @@
+from collections import ChainMap
 import os
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
+
+from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
 
@@ -11,6 +15,23 @@ from ._otel_remapper import parse_otel_env
 
 
 FLEET_CONFIG, LOCAL_CONFIG = get_configuration_from_disk()
+
+
+class DDConfig(Env):
+    """Provides support for loading configurations from multiple sources."""
+
+    def __init__(
+        self,
+        source: Optional[Dict[str, str]] = None,
+        parent: Optional["Env"] = None,
+        dynamic: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.fleet_source = FLEET_CONFIG
+        self.local_source = LOCAL_CONFIG
+        self.env_source = os.environ
+        # Order of precedence: provided source < local stable config < environment variables < fleet stable config
+        full_source = ChainMap(self.fleet_source, self.env_source, self.local_source, source or {})
+        super().__init__(source=full_source, parent=parent, dynamic=dynamic)
 
 
 def get_config(
@@ -37,7 +58,7 @@ def get_config(
         if env in FLEET_CONFIG:
             source = "fleet_stable_config"
             effective_env = env
-            val = FLEET_CONFIG[env]["value"]
+            val = FLEET_CONFIG[env]
             break
     # Get configurations from datadog env vars
     if val is None:
@@ -61,7 +82,7 @@ def get_config(
             if env in LOCAL_CONFIG:
                 source = "local_stable_config"
                 effective_env = env
-                val = LOCAL_CONFIG[env]["value"]
+                val = LOCAL_CONFIG[env]
                 break
     # Convert the raw value to expected format, if a modifier is provided
     if val is not None and modifier:

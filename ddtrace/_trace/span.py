@@ -1,3 +1,4 @@
+from io import StringIO
 import math
 import pprint
 import sys
@@ -44,7 +45,6 @@ from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -486,8 +486,11 @@ class Span(object):
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
+        """Add an errortracking related callback to the on_finish_callback array"""
+        self._on_finish_callbacks.insert(0, callback)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
@@ -593,7 +596,7 @@ class Span(object):
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="recorded exception", attributes=attrs, timestamp=timestamp)
+        self._add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
