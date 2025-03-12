@@ -47,13 +47,15 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for: t.Set[str] = services.copy()
+        wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
-        if wait_for:
+        if wait_for or self.python_versions:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
-            if self.runner == "riot":
+            if self.python_versions:
+                lines.append(f"    - pyenv global \"${{PYTHON_VERSION}}\"")  # Override the base version
+            if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
@@ -93,7 +95,7 @@ class JobSpec:
             lines.append(f"    paths:")
             for path in self.cache["paths"]:
                 lines.append(f"        - {path}")
-            lines.append("    protected: false")
+            lines.append("    unprotect: true")
 
         return "\n".join(lines)
 
