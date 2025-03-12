@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 
 from .visitor import AstVisitor
@@ -460,8 +461,6 @@ def _is_first_party(module_name: str):
         return False
 
     if not _IMPORTLIB_PACKAGES:
-        from ddtrace.internal.packages import get_package_distributions
-
         _IMPORTLIB_PACKAGES = set(get_package_distributions())
 
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
