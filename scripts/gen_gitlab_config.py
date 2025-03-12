@@ -57,6 +57,7 @@ class JobSpec:
             wait_for.add("testagent")
 
         if self.export_python_version or wait_for:
+            lines.append("  before_script:")
             lines.append(
                 "    - export PYTHON_VERSION=$(python -c \"import sys; "
                 "print(f'{sys.version_info.major}.{sys.version_info.minor}')\")"
