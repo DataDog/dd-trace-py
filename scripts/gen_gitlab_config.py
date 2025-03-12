@@ -24,6 +24,7 @@ class JobSpec:
     skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    cache: t.Optional[t.Dict[str, t.Any]] = None
     python_versions: t.Optional[t.List[str]] = None
 
     def __str__(self) -> str:
@@ -84,6 +85,13 @@ class JobSpec:
 
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
+
+        if self.cache is not None:
+            lines.append(f"  cache:")
+            lines.append(f"    - key: {self.cache['key']}")
+            lines.append(f"      paths:")
+            for path in self.cache["paths"]:
+                lines.append(f"        - {path}")
 
         return "\n".join(lines)
 
