@@ -452,6 +452,9 @@ class Tracer(object):
                 self._writer._api_version = "v0.4"
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
+        if trace_processors:
+            self._user_trace_processors = trace_processors
+
         if any(
             x is not None
             for x in [
