@@ -52,7 +52,8 @@ endif()
 
 # Run the build
 execute_process(
-    COMMAND cargo run --bin release --features profiling,crashtracker --profile ${CARGO_PROFILE} -- --out ${LIBDD_OUTPUT_FOLDER}
+    COMMAND cargo run --bin release --features profiling,crashtracker --profile ${CARGO_PROFILE} -- --out
+            ${LIBDD_OUTPUT_FOLDER}
     WORKING_DIRECTORY "${libdatadog_SOURCE_DIR}"
     RESULT_VARIABLE CARGO_RESULT)
 if(NOT CARGO_RESULT EQUAL 0)
