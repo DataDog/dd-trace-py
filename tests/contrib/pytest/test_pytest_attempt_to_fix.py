@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestProperties
@@ -18,8 +18,8 @@ from tests.contrib.pytest.utils import assert_stats
 
 
 pytestmark = pytest.mark.skipif(
-    not (_USE_PLUGIN_V2 and _pytest_version_supports_efd()),
-    reason="Quarantine requires v2 of the plugin and pytest >=7.0",
+    not (_USE_PLUGIN_V2 and _pytest_version_supports_attempt_to_fix()),
+    reason="Attempt-to-Fix requires v2 of the plugin and pytest >=7.0",
 )
 
 _TEST_PASS = """

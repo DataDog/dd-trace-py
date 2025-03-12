@@ -8,6 +8,7 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.internal.pytest.constants import ATR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
@@ -172,6 +173,10 @@ def _pytest_version_supports_efd():
 
 def _pytest_version_supports_atr():
     return _get_pytest_version_tuple() >= ATR_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_attempt_to_fix():
+    return _get_pytest_version_tuple() >= ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 
 
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:

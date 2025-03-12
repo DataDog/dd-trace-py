@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
@@ -81,6 +82,8 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
+
+if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_handle_retries
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
@@ -517,7 +520,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
-    if is_attempt_to_fix:
+    if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
         return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
