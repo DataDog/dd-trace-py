@@ -196,7 +196,7 @@ def gen_appsec_iast_packages() -> None:
     """Generate the list of jobs for the appsec_iast_packages tests."""
     with TESTS_GEN.open("a") as f:
         f.write(
-            f"""
+            """
 appsec_iast_packages:
   extends: .test_base_hatch
   timeout: 35m
@@ -206,18 +206,18 @@ appsec_iast_packages:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
-    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
     PYTEST_ADDOPTS: '-s'
   cache:
     # Share pip between jobs of the same Python version
-    - key: v1-appsec_iast_packages-${{PYTHON_VERSION}}-cache
+      key: v1.1-appsec_iast_packages-${PYTHON_VERSION}-cache
       paths:
         - .cache
       unprotect: true
   script:
-    - export PYTEST_ADDOPTS="${{PYTEST_ADDOPTS}} --ddtrace"
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
-    - hatch run appsec_iast_packages:test
+    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
         """
         )
 
