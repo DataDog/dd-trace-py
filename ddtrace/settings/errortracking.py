@@ -30,7 +30,7 @@ class ErrorTrackingConfig(DDConfig):
     At the moment, we are also logging the exceptions so ET can fingerprint the exceptions
     It will be removed when Error Track is GA
     """
-    _internal_logger = Env.var(str, "logger", default="")
+    _internal_logger = DDConfig.var(str, "logger", default="")
 
     if sys.version_info >= (3, 12):
         """
