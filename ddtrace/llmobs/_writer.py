@@ -117,6 +117,7 @@ class BaseLLMObsWriter(PeriodicService):
 
         data = self._data(events)
         enc_llm_events = safe_json(data)
+
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_events, self._headers)

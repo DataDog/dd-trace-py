@@ -107,6 +107,7 @@ PATCH_MODULES = {
     "coverage": False,
     "selenium": True,
     "valkey": True,
+    "agents": True,
 }
 
 
