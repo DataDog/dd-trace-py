@@ -202,7 +202,7 @@ appsec_iast_packages:
   timeout: 35m
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
@@ -213,7 +213,6 @@ appsec_iast_packages:
       key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}-cache
       paths:
         - .cache
-      unprotect: true
   before_script:
     - !reference [.test_base_hatch, before_script]
     - pyenv global "${PYTHON_VERSION}"
