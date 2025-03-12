@@ -72,6 +72,12 @@ class RETRY_REASON(str, Enum):
     ATTEMPT_TO_FIX = "attempt_to_fix"
 
 
+class LIBRARY_CAPABILITIES(str, Enum):
+    QUARANTINE = "_dd.library_capabilities.test_management.quarantine"
+    DISABLE = "_dd.library_capabilities.test_management.disable"
+    ATTEMPT_TO_FIX = "_dd.library_capabilities.test_management.attempt_to_fix"
+
+
 # Miscellaneous constants
 CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
 

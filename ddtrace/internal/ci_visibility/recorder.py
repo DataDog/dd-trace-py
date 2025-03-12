@@ -896,7 +896,6 @@ class CIVisibility(Service):
         if isinstance(item_id, TestId) and instance._suite_skipping_mode:
             log.debug("Skipping mode is test, but item is not a test: %s", item_id)
             return False
-
         return item_id in instance._itr_data.skippable_items
 
     @classmethod
