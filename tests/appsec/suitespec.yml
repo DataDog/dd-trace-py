@@ -92,7 +92,6 @@ suites:
       key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
       paths:
         - .cache
-    export_python_version: true
     python_versions:
       - "3.9"
       - "3.10"

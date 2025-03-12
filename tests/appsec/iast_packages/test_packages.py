@@ -53,6 +53,8 @@ def cleanup(request):
         shutil.rmtree(CLONED_VENVS_DIR)
 
     def remove_test_dir():
+        if _DEBUG_MODE:
+            return
         if os.path.exists(TEMPLATE_VENV_DIR):
             shutil.rmtree(TEMPLATE_VENV_DIR)
         if os.path.exists(CLONED_VENVS_DIR):
