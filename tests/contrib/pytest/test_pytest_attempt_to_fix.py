@@ -1,10 +1,4 @@
-"""
-- attempt to fix a quarantined test ✓
-- attempt to fix a disabled test ✓
-- attempt to fix an ITR-skipped test
-- failure does not break the pipeline (exit status not affected) ✓
-- tag last test with all-failure or all-success or none ✓
-"""
+"""Tests Attempt-to-Fix functionality, and its interaction with Quarantine, Disabling, and Test Impact Analysis."""
 
 from unittest import mock
 
