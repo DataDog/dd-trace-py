@@ -87,7 +87,7 @@ class JobSpec:
         if self.export_python_version:
             lines.append("  script:")
             lines.append("    - |")
-            lines.append("      export PYTHON_VERSION =$(python - c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\"")
+            lines.append("      export PYTHON_VERSION =$(python -c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\"")
             lines.append("      echo 'Detected Python version: $PYTHON_VERSION'")
 
         if self.cache is not None:
