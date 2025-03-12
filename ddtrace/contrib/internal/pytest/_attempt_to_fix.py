@@ -1,4 +1,3 @@
-import traceback
 import typing as t
 
 import _pytest

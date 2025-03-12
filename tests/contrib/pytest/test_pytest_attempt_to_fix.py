@@ -123,7 +123,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
 
-    def test_attempt_to_fix_quarantined_test_fail(self):
+    def test_attempt_to_fix_quarantined_test_flaky(self):
         self.testdir.makepyfile(test_quarantined=_TEST_FLAKY)
         rec = self.inline_run("--ddtrace", "-q")
         assert rec.ret == 0
