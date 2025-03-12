@@ -88,8 +88,8 @@ class JobSpec:
 
         if self.cache is not None:
             lines.append(f"  cache:")
-            lines.append(f"    - key: {self.cache['key']}")
-            lines.append(f"      paths:")
+            lines.append(f"    key: {self.cache['key']}")
+            lines.append(f"    paths:")
             for path in self.cache["paths"]:
                 lines.append(f"        - {path}")
 
