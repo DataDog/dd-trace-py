@@ -192,7 +192,8 @@ def gen_pre_checks() -> None:
     )
 
 
-def gen_iast_packages() -> None:
+def gen_appsec_iast_packages() -> None:
+    """Generate the list of jobs for the appsec_iast_packages tests."""
     with TESTS_GEN.open("a") as f:
         f.write(
             f"""
@@ -204,7 +205,6 @@ appsec_iast_packages:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '1'
-    DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
   cache:
     # Share pip between jobs of the same Python version
