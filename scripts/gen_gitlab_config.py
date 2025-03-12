@@ -201,10 +201,10 @@ appsec_iast_packages:
   extends: .test_base_hatch
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '1'
+    PIP_VERBOSE: '0'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
   cache:
     # Share pip between jobs of the same Python version
