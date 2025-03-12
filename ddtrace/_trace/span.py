@@ -526,7 +526,7 @@ class Span(object):
 
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=-abs(config._span_traceback_max_size))
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
