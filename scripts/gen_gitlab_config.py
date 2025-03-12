@@ -199,6 +199,7 @@ def gen_appsec_iast_packages() -> None:
             f"""
 appsec_iast_packages:
   extends: .test_base_hatch
+  timeout: 35m
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13"]
