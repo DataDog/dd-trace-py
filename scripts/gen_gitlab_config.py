@@ -24,8 +24,6 @@ class JobSpec:
     skip: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
-    cache: t.Optional[t.Dict[str, t.Any]] = None
-    python_versions: t.Optional[t.List[str]] = None
 
     def __str__(self) -> str:
         lines = []
@@ -50,14 +48,10 @@ class JobSpec:
         wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
-        if wait_for or self.python_versions:
+        if wait_for:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
-            if self.python_versions:
-                lines.append("    - pyenv local ${PYTHON_VERSION}")  # Override the base version
             if self.runner == "riot" and wait_for:
-                # Have to install again after setting pyenv
-                lines.append(f"    - pip install riot==0.20.1")
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
@@ -77,12 +71,7 @@ class JobSpec:
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.python_versions:
-            lines.append("  parallel:")
-            lines.append("    matrix:")
-            for version in self.python_versions:
-                lines.append(f"      - PYTHON_VERSION: \"{version}\"")
-        elif self.parallelism is not None:
+        if self.parallelism is not None:
             lines.append(f"  parallel: {self.parallelism}")
 
         if self.retry is not None:
@@ -90,14 +79,6 @@ class JobSpec:
 
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
-
-        if self.cache is not None:
-            lines.append(f"  cache:")
-            lines.append(f"    key: {self.cache['key']}")
-            lines.append(f"    paths:")
-            for path in self.cache["paths"]:
-                lines.append(f"        - {path}")
-            lines.append("    unprotect: true")
 
         return "\n".join(lines)
 
@@ -212,6 +193,32 @@ def gen_pre_checks() -> None:
         command="hatch run lint:suitespec-check",
         paths={"*"},
     )
+
+
+def gen_iast_packages() -> None:
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            f"""
+appsec_iast_packages:
+  extends: .test_base_hatch
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '1'
+    DD_USE_SCCACHE: '1'
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+  cache:
+    # Share pip between jobs of the same Python version
+    - key: v1-appsec_iast_packages-${{PYTHON_VERSION}}-cache
+      paths:
+        - .cache
+        """
+        )
 
 
 def gen_build_base_venvs() -> None:
