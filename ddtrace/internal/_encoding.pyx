@@ -107,17 +107,12 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
         return msgpack_pack_nil(pk)
 
     if PyLong_Check(n):
-        # PyInt_Check(long) is True for Python 3.
-        # So we should test long before int.
         try:
             if n > 0:
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
             raise OverflowError("Integer value out of range")
-
-    if PyInt_Check(n):
-        return msgpack_pack_long(pk, <long> n)
 
     if PyFloat_Check(n):
         return msgpack_pack_double(pk, <double> n)
@@ -1024,8 +1019,6 @@ cdef class Packer(object):
             if o is None:
                 ret = msgpack_pack_nil(&self.pk)
             elif PyLong_CheckExact(o):
-                # PyInt_Check(long) is True for Python 3.
-                # So we should test long before int.
                 try:
                     if o > 0:
                         ullval = o
@@ -1040,9 +1033,6 @@ cdef class Packer(object):
                         continue
                     else:
                         raise OverflowError("Integer value out of range")
-            elif PyInt_CheckExact(o):
-                longval = o
-                ret = msgpack_pack_long(&self.pk, longval)
             elif PyFloat_CheckExact(o):
                 dval = o
                 ret = msgpack_pack_double(&self.pk, dval)
