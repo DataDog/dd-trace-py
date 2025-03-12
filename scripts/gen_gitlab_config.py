@@ -210,7 +210,7 @@ appsec_iast_packages:
     PYTEST_ADDOPTS: '-s'
   cache:
     # Share pip between jobs of the same Python version
-      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-${CI_COMMIT_REF_SLUG}-cache
+      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
       paths:
         - .cache
   before_script:
