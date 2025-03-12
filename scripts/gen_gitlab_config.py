@@ -73,12 +73,13 @@ class JobSpec:
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.parallelism is not None or self.python_versions:
-            lines.append(f"  parallel: {self.parallelism if self.parallelism else ''}")
-            if self.python_versions:
-                lines.append("    matrix:")
-                for version in self.python_versions:
-                    lines.append(f"      - PYTHON_VERSION: {version}")
+        if self.python_versions:
+            lines.append("  parallel:")
+            lines.append("    matrix:")
+            for version in self.python_versions:
+                lines.append(f"      - PYTHON_VERSION: \"{version}\"")
+        elif self.parallelism is not None:
+            lines.append(f"  parallel: {self.parallelism}")
 
         if self.retry is not None:
             lines.append(f"  retry: {self.retry}")
