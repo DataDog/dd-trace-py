@@ -92,12 +92,8 @@ suites:
       key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
       paths:
         - .cache
-    python_versions:
-        - "3.8"
-        - "3.9"
-        - "3.10"
-        - "3.11"
-        - "3.12"
+    parallelism: 4
+    export_python_version: true
   iast_tdd_propagation:
     parallelism: 5
     paths:

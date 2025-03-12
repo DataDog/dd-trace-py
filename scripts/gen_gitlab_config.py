@@ -30,7 +30,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     cache: t.Optional[t.Dict[str, t.Any]] = None
-    python_versions: t.Optional[t.List[str]] = None
+    export_python_version: t.Optional[str] = None
 
     def __str__(self) -> str:
         lines = []
@@ -75,13 +75,8 @@ class JobSpec:
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.parallelism is not None or self.python_versions is not None:
-            lines.append(f"  parallel: {self.parallelism if self.parallelism else ''}")
-            if self.python_versions is not None:
-                lines.append("    matrix:")
-                lines.append("      - PYTHON_VERSION:")
-                for version in self.python_versions:
-                    lines.append(f"          - '{version}'")
+        if self.parallelism is not None:
+            lines.append(f"  parallel: {self.parallelism}")
 
         if self.retry is not None:
             lines.append(f"  retry: {self.retry}")
@@ -89,10 +84,14 @@ class JobSpec:
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
 
+        if self.export_python_version and self.export_python_version.lower() in ("true", "false", "1", "0"):
+            lines.append("  script:")
+            lines.append("    - export PYTHON_VERSION =$(python - c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\"")
+            lines.append("    - echo 'Detected Python version: $PYTHON_VERSION'")
+
         if self.cache is not None:
             lines.append(f"  cache:")
             lines.append(f"    - key: {self.cache['key']}")
-            lines.append(f"      unprotect: true")
             lines.append(f"      paths:")
             for path in self.cache["paths"]:
                 lines.append(f"        - {path}")
