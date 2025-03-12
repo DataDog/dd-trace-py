@@ -30,7 +30,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     cache: t.Optional[t.Dict[str, t.Any]] = None
-    export_python_version: t.Optional[str] = None
+    export_python_version: t.Optional[bool] = None
 
     def __str__(self) -> str:
         lines = []
@@ -84,7 +84,7 @@ class JobSpec:
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
 
-        if self.export_python_version and self.export_python_version.lower() in ("true", "false", "1", "0"):
+        if self.export_python_version:
             lines.append("  script:")
             lines.append("    - export PYTHON_VERSION =$(python - c \"import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')\"")
             lines.append("    - echo 'Detected Python version: $PYTHON_VERSION'")
