@@ -64,10 +64,10 @@ class JobSpec:
             )
             lines.append("    - echo \"Detected Python version: $PYTHON_VERSION\"")
 
-        if wait_for:
-            lines.append(f"    - !reference [{base}, before_script]")
-            if self.runner == "riot":
-                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            if wait_for:
+                lines.append(f"    - !reference [{base}, before_script]")
+                if self.runner == "riot":
+                    lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
