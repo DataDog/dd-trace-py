@@ -317,10 +317,16 @@ def test_set_get_ranges_other():
     s2 = None
     set_ranges(s1, [_RANGE1, _RANGE2])
     set_ranges(s2, [_RANGE1, _RANGE2])
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s1)
 
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s2)
 
 

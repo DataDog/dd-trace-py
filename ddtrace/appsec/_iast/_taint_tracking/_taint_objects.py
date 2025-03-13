@@ -5,6 +5,8 @@ from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._logs import iast_propagation_error_log
+from ddtrace.appsec._iast._logs import iast_propagation_log_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -14,7 +16,6 @@ from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_from_values
-from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -31,7 +32,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
     try:
         return is_tainted(pyobject)
     except ValueError as e:
-        iast_taint_log_error("Checking tainted object error: %s" % e)
+        iast_propagation_error_log("Checking tainted object error: %s" % e)
     return False
 
 
@@ -63,7 +64,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         pyobject_newid = set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
         return pyobject_newid
     except ValueError as e:
-        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e, exc_info=True)
+        iast_propagation_log_log("Tainting object error (pyobject type %s): %s" % (type(pyobject), e), exc_info=True)
     return pyobject
 
 
@@ -76,7 +77,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
         set_ranges(pyobject, ranges)
         return True
     except ValueError as e:
-        iast_taint_log_error("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
+        iast_propagation_error_log("Tainting object with ranges error (pyobject type %s): %s" % (type(pyobject), e))
     return False
 
 
@@ -88,7 +89,7 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
     try:
         return get_ranges(pyobject)
     except ValueError as e:
-        iast_taint_log_error("Get ranges error (pyobject type %s): %s" % (type(pyobject), e))
+        iast_propagation_error_log("Get ranges error (pyobject type %s): %s" % (type(pyobject), e))
     return tuple()
 
 
@@ -102,7 +103,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
         return res
     except ValueError as e:
-        log.debug("Tainting object error (pyobject type %s): %s", type(pyobject), e)
+        iast_propagation_log_log("Tainting object error (pyobject type %s): %s" % (type(pyobject), e))
     return pyobject
 
 

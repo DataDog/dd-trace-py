@@ -59,8 +59,8 @@ def get_response_body(response):
     return response.text
 
 
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
+# The log contains "iast::" but "iast::propagation::context::"
+IAST_VALID_LOG = re.compile(r"^iast::(?!propagation::context::).*$")
 
 
 @pytest.fixture(autouse=True)
