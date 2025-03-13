@@ -18,6 +18,8 @@ from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
+from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
@@ -221,9 +223,11 @@ class TestLLMObsBedrock:
         if prompt_tokens is not None and completion_tokens is not None:
             token_metrics["total_tokens"] = prompt_tokens + completion_tokens
 
-        expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
+        if span.get_tag("bedrock.request.temperature"):
+            expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
         if span.get_tag("bedrock.request.max_tokens"):
             expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
+
         expected_input = [{"content": mock.ANY}]
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
@@ -743,3 +747,114 @@ class TestLLMObsBedrock:
             error_stack=span.get_tag("error.stack"),
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse(cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events):
+        system_content = "You are an expert swe that is to use the tool fetch_concept"
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        tools = [
+            {
+                "toolSpec": {
+                    "name": "fetch_concept",
+                    "description": "Fetch an expert explanation for a concept",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                            "required": ["concept"],
+                        }
+                    },
+                }
+            }
+        ]
+
+        request_params = create_bedrock_converse_request(user_message=user_content, tools=tools, system=system_content)
+
+        with request_vcr.use_cassette("bedrock_converse.yaml"):
+            response = bedrock_client.converse(**request_params)
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+
+        llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-3-sonnet-20240229-v1:0",
+            model_provider="anthropic",
+            input_messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
+            ],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": response["output"]["message"]["content"][0]["text"],
+                    "tool_calls": [
+                        {
+                            "arguments": {"concept": "distributed tracing"},
+                            "name": "fetch_concept",
+                            "tool_id": mock.ANY,
+                        }
+                    ],
+                }
+            ],
+            metadata={
+                "stop_reason": "tool_use",
+                "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
+                "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
+            },
+            token_metrics={
+                "input_tokens": response["usage"]["inputTokens"],
+                "output_tokens": response["usage"]["outputTokens"],
+                "total_tokens": response["usage"]["totalTokens"],
+            },
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+        )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_error(
+        self, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events
+    ):
+        """Test error handling for the Bedrock Converse API."""
+        import botocore
+
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        request_params = create_bedrock_converse_request(user_message=user_content)
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            with request_vcr.use_cassette("bedrock_converse_error.yaml"):
+                bedrock_client.converse(**request_params)
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-3-sonnet-20240229-v1:0",
+            model_provider="anthropic",
+            input_messages=[{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
+            output_messages=[{"content": ""}],
+            metadata={
+                "temperature": request_params.get("inferenceConfig", {}).get("temperature", 0.0),
+                "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens", 0),
+            },
+            error=span.get_tag("error.type"),
+            error_message=span.get_tag("error.message"),
+            error_stack=span.get_tag("error.stack"),
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+        )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_stream(
+        cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events
+    ):
+        """Documents behavior for streaming (currently unsupported)"""
+        user_content = "Explain the concept of distributed tracing in a simple way"
+        request_params = create_bedrock_converse_request(user_message=user_content)
+
+        with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
+            response = bedrock_client.converse_stream(**request_params)
+            # some dummy code to verify stream structure isn't broken
+            for chunk in response["stream"]:
+                if "contentBlockDelta" in chunk:
+                    chunk["contentBlockDelta"]["delta"]["text"]
+
+        assert len(llmobs_events) == 0
