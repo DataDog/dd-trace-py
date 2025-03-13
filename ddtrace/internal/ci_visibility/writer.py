@@ -131,7 +131,6 @@ class CIVisibilityWriter(HTTPWriter):
             [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
         self._coverage_enabled = coverage_enabled
-        self._itr_suite_skipping_mode = itr_suite_skipping_mode
         if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
@@ -173,7 +172,6 @@ class CIVisibilityWriter(HTTPWriter):
             reuse_connections=self._reuse_connections,
             use_evp=self._use_evp,
             coverage_enabled=self._coverage_enabled,
-            itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 
     def _put(self, data, headers, client, no_trace):
