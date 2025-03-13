@@ -74,6 +74,7 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+PROFILING_LIBDATADOG_GIT_TAG = os.getenv("DD_PROFILING_LIBDATADOG_GIT_TAG", "")
 
 CURRENT_OS = platform.system()
 
@@ -375,6 +376,9 @@ class CMakeBuild(build_ext):
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
+
+        if PROFILING_LIBDATADOG_GIT_TAG:
+            cmake_args += ["-DLIBDATADOG_GIT_TAG={}".format(PROFILING_LIBDATADOG_GIT_TAG)]
 
         # If it's been enabled, also propagate sccache to the CMake build.  We have to manually set the default CC/CXX
         # compilers here, because otherwise the way we wrap sccache will conflict with the CMake wrappers

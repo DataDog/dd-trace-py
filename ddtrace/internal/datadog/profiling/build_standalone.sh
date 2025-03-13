@@ -106,6 +106,11 @@ cmake_args=(
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
 )
 
+# If the LIBDATADOG_GIT_TAG environment variable is set, then add it to the cmake args
+if [ -n "${LIBDATADOG_GIT_TAG:-}" ]; then
+  cmake_args+=(-DLIBDATADOG_GIT_TAG=${LIBDATADOG_GIT_TAG})
+fi
+
 # Initial build targets; start out empty
 targets=()
 
