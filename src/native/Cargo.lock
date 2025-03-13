@@ -369,7 +369,6 @@ dependencies = [
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "datadog-crashtracker",
  "datadog-ddsketch",
  "datadog-library-config",
