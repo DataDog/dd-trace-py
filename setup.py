@@ -739,6 +739,7 @@ setup(
             if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
             and is_64_bit_python()
             else [],
+            rustc_flags=["-C", "link-dead-code=no", "-C", "link-arg=-Wl,--gc-sections"],
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
     ],
