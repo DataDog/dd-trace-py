@@ -728,9 +728,9 @@ setup(
                     sources=["ddtrace/profiling/collector/stack.pyx"],
                     language="c",
                     # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
-                    # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
-                    # GNU-like toolchain
+                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
+                    # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
+                    # everything else is on a GNU-like toolchain
                     extra_compile_args=extra_compile_args
                     + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
                 ),
