@@ -495,8 +495,6 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
-    elif asm_config._iast_enabled:
-        core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
 def end_context(span: Span):
