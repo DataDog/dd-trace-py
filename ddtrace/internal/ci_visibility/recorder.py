@@ -1632,6 +1632,7 @@ def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
 def _register_atr_handlers():
     log.debug("Registering ATR handlers")
     core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
+    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
     core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
     core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
     core.on("test_visibility.atr.start_retry", _on_atr_start_retry)
