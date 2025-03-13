@@ -41,9 +41,9 @@ class DjangoSimple(bm.Scenario):
         from django.test import Client
 
         django.setup()
+        client = Client()
 
         def _(loops):
-            client = Client()
             for _ in range(loops):
                 client.get(self.path)
 
