@@ -102,8 +102,8 @@ class Tracer(opentracing.Tracer):
 
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         trace_processors = None
-        if keys.SETTINGS in self._config and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
-            trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[union-attr]
+        if keys.SETTINGS in self._config and self._config[keys.SETTINGS] and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
+            trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[index]
             self._dd_tracer._user_trace_processors = trace_processors
 
         if self._config[keys.ENABLED]:

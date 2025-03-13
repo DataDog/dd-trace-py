@@ -591,6 +591,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
+    def recreate(self):
+        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
