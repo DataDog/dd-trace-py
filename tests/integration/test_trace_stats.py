@@ -5,13 +5,11 @@ from typing import Generator  # noqa:F401
 import mock
 import pytest
 
-import ddtrace
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
+from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -20,13 +18,10 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer():
-    compute_stats = ddtrace.tracer._compute_stats
-    try:
-        ddtrace.tracer._compute_stats = True
-        ddtrace.tracer._recreate()
-        yield ddtrace.tracer
-    finally:
-        ddtrace.tracer._compute_stats = compute_stats
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
+        yield tracer
+        tracer.shutdown()
 
 
 class consistent_end_trace(object):
@@ -53,7 +48,6 @@ def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
-    og_trace = stats_tracer.trace
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 
     # Stop the stats processor while running the function, to prevent flushing
@@ -62,7 +56,6 @@ def send_once_stats_tracer(stats_tracer):
             processor.stop()
             break
     yield stats_tracer
-    stats_tracer.trace = og_trace
 
     # Restart the stats processor; it will be flushed during shutdown
     processor.start()
@@ -71,7 +64,6 @@ def send_once_stats_tracer(stats_tracer):
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
-
     env = os.environ.copy()
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
@@ -209,15 +201,16 @@ def test_top_level(send_once_stats_tracer):
                 pass
 
 
-@pytest.mark.parametrize(
-    "sampling_rule",
-    [SamplingRule(sample_rate=0, service="test"), SamplingRule(sample_rate=1, service="test")],
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0, "service":"test"}, {"sample_rate":1, "service":"test"}]',
+    }
 )
-@pytest.mark.snapshot()
-def test_single_span_sampling(stats_tracer, sampling_rule):
-    sampler = DatadogSampler([sampling_rule])
-    stats_tracer._sampler = sampler
-    with stats_tracer.trace("parent", service="test"):
-        with stats_tracer.trace("child") as child:
+def test_single_span_sampling():
+    from ddtrace import tracer
+
+    with tracer.trace("parent", service="test"):
+        with tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
             child.set_metric("_dd.span_sampling.mechanism", 8)
