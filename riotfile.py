@@ -418,6 +418,14 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            name="errortracker",
+            command="pytest {cmdargs} tests/errortracking/",
+            pkgs={
+                "flask": latest,
+            },
+            pys=select_pys(min_version="3.10"),
+        ),
+        Venv(
             name="vendor",
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
@@ -1273,6 +1281,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
                 ),
             ],
         ),

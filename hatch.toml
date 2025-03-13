@@ -376,9 +376,6 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
-[envs.appsec_iast_packages.env-vars]
-DD_FAST_BUILD = "0"
-
 ## ASM iast_tdd_propagation
 
 [envs.iast_tdd_propagation]
@@ -676,6 +673,24 @@ test = [
 
 [[envs.dd_coverage.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.errortracking]
+template = "errortracking"
+dependencies = [
+    "flask",
+    "hypothesis",
+    "pytest",
+    "pytest-cov",
+]
+
+[envs.errortracking.scripts]
+test = [
+    "pip freeze",
+    "pytest tests/internal/errortracking",
+]
+
+[[envs.errortracking.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 [envs.pytest_plugin_v2]
 template = "pytest_plugin_v2"
