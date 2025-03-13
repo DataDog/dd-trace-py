@@ -283,7 +283,7 @@ def test_stats_url_default():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.config.stats_agent_url == "udp://localhost:8125"
+        assert agent.config.dogstatsd_url == "udp://localhost:8125"
 
 
 @pytest.mark.subprocess(
@@ -302,7 +302,7 @@ def test_stats_url_with_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.config.stats_agent_url == "udp://localhost:1235"
+        assert agent.config.dogstatsd_url == "udp://localhost:1235"
 
 
 @pytest.mark.subprocess(
@@ -321,7 +321,7 @@ def test_stats_url_with_host():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.config.stats_agent_url == "udp://mars:8125"
+        assert agent.config.dogstatsd_url == "udp://mars:8125"
 
 
 @pytest.mark.subprocess(
@@ -334,7 +334,7 @@ def test_stats_url_with_host_and_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.config.stats_agent_url == "udp://mars:1235"
+        assert agent.config.dogstatsd_url == "udp://mars:1235"
 
 
 @pytest.mark.subprocess(
@@ -353,7 +353,7 @@ def test_stats_url_with_uds_and_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=True):
-        assert agent.config.stats_agent_url == "udp://localhost:1235"
+        assert agent.config.dogstatsd_url == "udp://localhost:1235"
 
 
 @pytest.mark.subprocess(
@@ -372,7 +372,7 @@ def test_stats_url_with_uds_and_host():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=True):
-        assert agent.config.stats_agent_url == "udp://mars:8125"
+        assert agent.config.dogstatsd_url == "udp://mars:8125"
 
 
 @pytest.mark.subprocess(
@@ -385,7 +385,7 @@ def test_stats_url_with_uds_host_and_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=True):
-        assert agent.config.stats_agent_url == "udp://mars:1235"
+        assert agent.config.dogstatsd_url == "udp://mars:1235"
 
 
 @pytest.mark.subprocess(
@@ -398,7 +398,7 @@ def test_stats_url_with_uds_url_host_and_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=True):
-        assert agent.config.stats_agent_url == "udp://saturn:1111"
+        assert agent.config.dogstatsd_url == "udp://saturn:1111"
 
 
 @pytest.mark.subprocess(
@@ -411,7 +411,7 @@ def test_stats_url_with_url_host_and_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.config.stats_agent_url == "udp://saturn:1111"
+        assert agent.config.dogstatsd_url == "udp://saturn:1111"
 
 
 def test_get_connection():

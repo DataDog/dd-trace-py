@@ -30,7 +30,7 @@ class Metrics(object):
         self.namespace = namespace
         self.enabled = False
 
-        self._client = get_dogstatsd_client(dogstats_url or agent.config.stats_agent_url, namespace=namespace)
+        self._client = get_dogstatsd_client(dogstats_url or agent.config.dogstatsd_url, namespace=namespace)
 
     class Meter(object):
         def __init__(self, metrics, name):

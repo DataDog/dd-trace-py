@@ -130,7 +130,7 @@ def collect(tracer):
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        statsd_url=agent.config.stats_agent_url,
+        statsd_url=agent.config.dogstatsd_url,
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),

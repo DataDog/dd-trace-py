@@ -231,7 +231,7 @@ class Tracer(object):
         self.context_provider = context_provider or DefaultContextProvider()
         # _user_sampler is the backup in case we need to revert from remote config to local
         self._user_sampler = DatadogSampler()
-        self._dogstatsd_url = agent.config.stats_agent_url if dogstatsd_url is None else dogstatsd_url
+        self._dogstatsd_url = agent.config.dogstatsd_url if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
