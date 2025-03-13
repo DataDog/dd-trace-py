@@ -372,7 +372,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._efd_get_retry_test(retry_number).start()
 
     def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
-        self._efd_get_retry_test(retry_number).finish_test(status, exc_info=exc_info)
+        retry_test = self._efd_get_retry_test(retry_number)
+
+        if status is not None:
+            retry_test.set_status(status)
+
+        retry_test.finish_test(status, exc_info=exc_info)
 
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
@@ -463,6 +468,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
+            if status is not None:
+                retry_test.set_status(status)
+
             if self.atr_get_final_status() == TestStatus.FAIL:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
