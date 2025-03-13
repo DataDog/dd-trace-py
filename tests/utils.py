@@ -849,7 +849,7 @@ class TestSpan(Span):
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._events) == count, "Span count {0} != {1}".format(len(self._events), count)
+        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
