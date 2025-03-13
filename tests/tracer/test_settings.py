@@ -5,7 +5,6 @@ from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
 from tests.utils import BaseTestCase
 from tests.utils import override_env
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 class TestConfig(BaseTestCase):
