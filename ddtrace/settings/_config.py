@@ -354,11 +354,6 @@ class _ConfigItem:
         )
 
 
-def _parse_global_tags(s):
-    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-    return gitmetadata.clean_tags(parse_tags_str(s))
-
-
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
         "_trace_sampling_rules": _ConfigItem(
@@ -381,7 +376,7 @@ def _default_config() -> Dict[str, _ConfigItem]:
             default=lambda: {},
             envs=["DD_TAGS"],
             otel_env="OTEL_RESOURCE_ATTRIBUTES",
-            modifier=_parse_global_tags,
+            modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),
         ),
         "_tracing_enabled": _ConfigItem(
             default=True,
@@ -492,14 +487,15 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        self._trace_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"])
-        self._trace_agent_port = _get_config(["DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"])
+        # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
-
-        self._stats_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_DOGSTATSD_HOST"])
-        self._stats_agent_port = _get_config("DD_DOGSTATSD_PORT")
-        self._stats_agent_url = _get_config("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
+        # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
+        from ddtrace.internal.agent import config as agent_config
+
+        from ._telemetry import report_telemetry
+
+        report_telemetry(agent_config)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
