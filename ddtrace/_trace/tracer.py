@@ -229,7 +229,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._dogstatsd_url = agent.config.dogstatsd_url if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
