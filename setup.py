@@ -64,7 +64,7 @@ else:
 if FAST_BUILD:
     os.environ["DD_COMPILE_ABSEIL"] = "0"
 
-SCCACHE_COMPILE = False
+SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
