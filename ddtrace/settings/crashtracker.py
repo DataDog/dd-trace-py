@@ -104,14 +104,6 @@ class CrashtrackingConfig(DDConfig):
         help="Whether to wait for the crashtracking receiver",
     )
 
-    timeout_ms = DDConfig.v(
-        int,
-        "timeout_ms",
-        default=5000,
-        help_type="Integer",
-        help="Maximum amount of time, in milliseconds, to wait for crashtracker signal handler",
-    )
-
 
 config = CrashtrackingConfig()
 _report_telemetry(config)
