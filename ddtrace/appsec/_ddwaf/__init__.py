@@ -159,7 +159,7 @@ if _DDWAF_LOADED:
             return self._info
 
         def update_rules(self, new_rules: Dict[str, DDWafRulesType]) -> bool:
-            """update the rules of the WAF instance. return True if an error occurs."""
+            """update the rules of the WAF instance. return False if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
             result = py_ddwaf_update(self._handle, rules, diagnostics)

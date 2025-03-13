@@ -1,10 +1,10 @@
 import base64
 import json
 from typing import Any  # noqa:F401
+from urllib import parse
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
