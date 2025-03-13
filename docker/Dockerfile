@@ -47,7 +47,6 @@ RUN apt-get update \
       libsqliteodbc \
       libssh-dev \
       patch \
-      patchelf \
       unixodbc-dev \
       wget \
       zlib1g-dev \

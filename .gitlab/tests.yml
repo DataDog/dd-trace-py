@@ -42,6 +42,8 @@ include:
         hatch run ${env}:test
       done
 
+
+
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
   services:

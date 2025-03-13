@@ -151,7 +151,7 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:cee4f8852c30ae41310ab5951cff5ddb94a9f0a8@sha256:c698d8497cda4c95841ec511723eb310d4840c916a9ea3098256ec872e175de2
+        image: ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
         command: bash
         environment:
             - TOX_SKIP_DIST=True

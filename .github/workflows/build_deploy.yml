@@ -69,10 +69,8 @@ jobs:
           path: dist
 
       - name: Install build dependencies
-        run: |
-          apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake clang16-libclang patchelf
-          cargo install --locked 'cbindgen@0.26.0' 'bindgen-cli@0.69.4'
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        # Rust + Cargo are needed for Cryptography
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
 
       - name: Check source package
         run: |
