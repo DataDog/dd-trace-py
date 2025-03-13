@@ -5,13 +5,13 @@ from typing import Generator  # noqa:F401
 import mock
 import pytest
 
+import ddtrace
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -20,10 +20,13 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer():
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
-        yield tracer
-        tracer.shutdown()
+    compute_stats = ddtrace.tracer._compute_stats
+    try:
+        ddtrace.tracer._compute_stats = True
+        ddtrace.tracer._recreate()
+        yield ddtrace.tracer
+    finally:
+        ddtrace.tracer._compute_stats = compute_stats
 
 
 class consistent_end_trace(object):
@@ -50,6 +53,7 @@ def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
+    og_trace = stats_tracer.trace
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 
     # Stop the stats processor while running the function, to prevent flushing
@@ -58,6 +62,7 @@ def send_once_stats_tracer(stats_tracer):
             processor.stop()
             break
     yield stats_tracer
+    stats_tracer.trace = og_trace
 
     # Restart the stats processor; it will be flushed during shutdown
     processor.start()

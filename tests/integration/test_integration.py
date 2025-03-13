@@ -78,7 +78,7 @@ t.join()
     assert status == 0
 
 
-@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "/tmp/ddagent/trace.sock"})
+@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/trace.sock"})
 def test_single_trace_uds():
     import mock
 
@@ -91,7 +91,7 @@ def test_single_trace_uds():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "/tmp/ddagent/nosockethere"})
+@parametrize_with_all_encodings(env={"DD_TRACE_AGENT_URL": "unix:///tmp/ddagent/nosockethere"})
 def test_uds_wrong_socket_path():
     import os
 
