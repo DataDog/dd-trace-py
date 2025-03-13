@@ -109,7 +109,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         [],  # additional_files
         crashtracker_config.create_alt_stack,
         crashtracker_config.use_alt_stack,
-        5000, # timeout_ms
+        5000,  # timeout_ms
         stacktrace_resolver,
         crashtracker_config.debug_url or agent.get_trace_url(),
         None,  # unix_socket_path
