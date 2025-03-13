@@ -3,8 +3,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -30,8 +30,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
             pin.tracer.context_provider.activate(tracer_ctx)
-            if self.llmobs_enabled:
-                LLMObs._instance._llmobs_context_provider.activate(llmobs_ctx)
+            if self.llmobs_enabled and llmobs_ctx:
+                core.dispatch("threading.execution", (llmobs_ctx,))
 
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -49,8 +49,10 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _get_current_ctx(self, pin):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = pin.tracer.current_trace_context()
-        curr_llmobs_ctx = LLMObs._instance._current_trace_context() if self.llmobs_enabled else None
-        return curr_trace_ctx, curr_llmobs_ctx
+        if self.llmobs_enabled:
+            curr_llmobs_ctx = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value
+            return curr_trace_ctx, curr_llmobs_ctx
+        return curr_trace_ctx, None
 
     def _llmobs_set_tags(
         self,
@@ -92,19 +94,20 @@ class CrewAIIntegration(BaseLLMIntegration):
         task_instance = kwargs.get("instance")
         task_id = getattr(task_instance, "id", None)
         task_name = getattr(task_instance, "name", "")
-        task_expected_output = getattr(task_instance, "expected_output", "")
         task_description = getattr(task_instance, "description", "")
-        task_context = args[1] if args and len(args) >= 2 else ""
+        metadata = {
+            "expected_output": getattr(task_instance, "expected_output", ""),
+            "context": args[1] if args and len(args) >= 2 else "",
+            "async_execution": getattr(task_instance, "async_execution", False),
+            "human_input": getattr(task_instance, "human_input", False),
+            "output_file": getattr(task_instance, "output_file", ""),
+        }
         if self.span_linking_enabled and task_id:
             span_links = self._traces_to_tasks[span.trace_id].get(task_id, {}).get("span_links", [])
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
         span._set_ctx_items(
-            {
-                NAME: task_name if task_name else "CrewAI Task",
-                METADATA: {"expected_output": task_expected_output, "context": task_context},
-                INPUT_VALUE: task_description,
-            }
+            {NAME: task_name if task_name else "CrewAI Task", METADATA: metadata, INPUT_VALUE: task_description}
         )
         if span.error:
             return
@@ -149,7 +152,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_tool(self, span, args, kwargs, response):
         tool_instance = kwargs.get("instance")
         tool_name = getattr(tool_instance, "name", "")
-        description = getattr(tool_instance, "description", "")
+        description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         span._set_ctx_items(
             {
                 NAME: tool_name if tool_name else "CrewAI Tool",
@@ -198,7 +201,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 }
             ]
             return
-        for i in range(len(finished_task_outputs)):
+        for i in range(1, len(finished_task_outputs) + 1):  # Iterate backwards through last n finished tasks
             finished_task_span_id = self._traces_to_task_span_ids[span.trace_id][-i]
             span_links.append(
                 {
@@ -209,3 +212,10 @@ class CrewAIIntegration(BaseLLMIntegration):
             )
         queued_task_node["span_links"] = span_links
         return
+
+
+def _extract_tool_description_field(tool_description: str):
+    fields = tool_description.rsplit("Tool Description: ", 1)
+    if len(fields) == 1:
+        return tool_description
+    return fields[-1]
