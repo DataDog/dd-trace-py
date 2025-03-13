@@ -56,8 +56,6 @@ class TelemetryAddMetric(Scenario):
     """
 
     def run(self):
-        metricnamespace = MetricNamespace()
-
         add_metric = None
         if "count-metric" in self.name:
             add_metric = add_count_metric
@@ -74,23 +72,27 @@ class TelemetryAddMetric(Scenario):
 
             def _(loops: int):
                 for _ in range(loops):
+                    metricnamespace = MetricNamespace()
                     add_metric(metricnamespace, "metric")
         elif "create-100-" in self.name:
 
             def _(loops: int):
                 for _ in range(loops):
+                    metricnamespace = MetricNamespace()
                     for i in range(100):
                         add_metric(metricnamespace, str(i))
         elif "increment-1-" in self.name:
 
             def _(loops: int):
                 for _ in range(loops):
+                    metricnamespace = MetricNamespace()
                     for _ in range(100):
                         add_metric(metricnamespace, "metric")
         elif "increment-100-" in self.name:
 
             def _(loops: int):
                 for _ in range(loops):
+                    metricnamespace = MetricNamespace()
                     for i in range(100):
                         for _ in range(100):
                             add_metric(metricnamespace, str(i))
