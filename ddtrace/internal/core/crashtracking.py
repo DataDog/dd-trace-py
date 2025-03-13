@@ -1,7 +1,7 @@
 import os
 import platform
 import shutil
-import sys
+import sysconfig
 from typing import Dict
 from typing import Optional
 
@@ -81,13 +81,12 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     # First check whether crashtracker_exe command is available
     crashtracker_exe = shutil.which("crashtracker_exe")
     if crashtracker_exe is None:
-        # Failed to find crashtracker_exe from PATH, check if it is in the same
-        # directory as current Python executable.
-        # sys.executable can be None or an empty string.
-        if not sys.executable:
-            return (None, None, None)
-        crashtracker_exe = os.path.join(os.path.dirname(sys.executable), "crashtracker_exe")
+        print("Failed to find crashtracker_exe from PATH")
+        # Failed to find crashtracker_exe from PATH, check if it is installed
+        # in the scripts directory.
+        crashtracker_exe = os.path.join(sysconfig.get_path("scripts"), "crashtracker_exe")
         if not os.path.exists(crashtracker_exe) or not os.access(crashtracker_exe, os.X_OK):
+            print("Failed to find crashtracker_exe in the scripts directory")
             return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
