@@ -8,7 +8,6 @@ from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from tests.utils import BaseTestCase
-from tests.utils import flaky
 
 
 class TestRuntimeMetricCollector(BaseTestCase):
@@ -33,7 +32,6 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             self.assertIsNotNone(value)
             self.assertRegex(metric_name, r"^runtime.python\..*")
 
-    @flaky(1741371178)
     def test_static_metrics(self):
         import os
         import threading

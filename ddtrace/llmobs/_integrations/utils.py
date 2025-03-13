@@ -1,10 +1,27 @@
+import re
+from typing import Optional
 from typing import Tuple
 from typing import Union
+from urllib.parse import urlparse
 
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+
+
+ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
+AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
+
+
+def is_openai_default_base_url(base_url: Optional[str] = None) -> bool:
+    if base_url is None:
+        return True
+
+    parsed_url = urlparse(base_url)
+    default_azure_endpoint_regex = re.compile(AZURE_URL_REGEX_PATTERN)
+    matches_azure_endpoint = default_azure_endpoint_regex.match(parsed_url.hostname or "") is not None
+    return parsed_url.hostname in ACCEPTED_OPENAI_DEFAULT_HOSTNAMES or matches_azure_endpoint
 
 
 def extract_model_name_google(instance, model_name_attr):
@@ -213,3 +230,43 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return (role, content) if role else content
     except AttributeError:
         return str(message)
+
+
+def get_messages_from_converse_content(role: str, content: list):
+    """
+    Extracts out a list of messages from a converse `content` field.
+
+    `content` is a list of `ContentBlock` objects. Each `ContentBlock` object is a union type
+    of `text`, `toolUse`, amd more content types. We only support extracting out `text` and `toolUse`.
+
+    For more info, see `ContentBlock` spec
+    https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ContentBlock.html
+    """
+    if not content or not isinstance(content, list) or not isinstance(content[0], dict):
+        return []
+    messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
+    content_blocks = []
+    tool_calls_info = []
+    for content_block in content:
+        if content_block.get("text") and isinstance(content_block.get("text"), str):
+            content_blocks.append(content_block.get("text", ""))
+        elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
+            toolUse = content_block.get("toolUse", {})
+            tool_calls_info.append(
+                {
+                    "name": str(toolUse.get("name", "")),
+                    "arguments": toolUse.get("input", {}),
+                    "tool_id": str(toolUse.get("toolUseId", "")),
+                }
+            )
+        else:
+            content_type = ",".join(content_block.keys())
+            messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
+    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
+    if tool_calls_info:
+        message.update({"tool_calls": tool_calls_info})
+    if content_blocks:
+        message.update({"content": " ".join(content_blocks), "role": role})
+    if message:
+        messages.append(message)
+    return messages
