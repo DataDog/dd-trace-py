@@ -21,7 +21,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 import typing as t
 
-# Register operations to be performned after the preload is complete. In
+# Register operations to be performed after the preload is complete. In
 # general, we might need to perform some cleanup operations after the
 # initialisation of the library, while also execute some more code after that.
 #  _____ ___  _________  _____ ______  _____   ___   _   _  _____

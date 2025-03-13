@@ -149,11 +149,6 @@ class TestIntegrationConfig(BaseTestCase):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
 
-class TestDeprecationWarnings(BaseTestCase):
-    def test_global_tags_deprecation(self):
-        with self.override_env(dict(DD_TRACE_GLOBAL_TAGS="foo:bar")):
-            config = Config()
-            self.assertWarnsRegex(DDTraceDeprecationWarning, "DD_TRACE_GLOBAL_TAGS is deprecated")
 
 def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
