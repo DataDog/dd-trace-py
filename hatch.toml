@@ -185,6 +185,9 @@ DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
 DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
+CMAKE_BUILD_PARALLEL_LEVEL = "12"
+CARGO_BUILD_JOBS = "12"
+DD_FAST_BUILD = "1"
 
 ## ASM Django
 
@@ -638,6 +641,8 @@ dependencies = [
 [envs.multiple_os_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
+CMAKE_BUILD_PARALLEL_LEVEL="6"
+CARGO_BUILD_JOBS = "6"
 
 [envs.multiple_os_tests.scripts]
 test = [
