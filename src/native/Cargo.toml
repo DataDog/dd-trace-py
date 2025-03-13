@@ -6,7 +6,7 @@ edition = "2021"
 [profile.release]
 lto = true
 strip = "debuginfo"
-opt-level = "s"
+opt-level = "z"
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
