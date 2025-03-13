@@ -20,7 +20,7 @@ def _get_response(path="/"):
 
 def server(scenario):
     env = {
-        "DD_TRACE_DEBUG": "true",
+        "DD_TRACE_DEBUG": "false",
         "DD_ENV": "prod",
         "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
         "DD_VERSION": "1.0",
