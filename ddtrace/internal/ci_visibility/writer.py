@@ -129,7 +129,8 @@ class CIVisibilityWriter(HTTPWriter):
         clients = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
-        if coverage_enabled:
+        self._coverage_enabled = coverage_enabled
+        if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
@@ -167,6 +168,8 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
+            reuse_connections=self._reuse_connections,
+            coverage_enabled=self._coverage_enabled,
         )
 
     def _put(self, data, headers, client, no_trace):
