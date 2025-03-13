@@ -19,7 +19,6 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
-from ddtrace.internal.ci_visibility.constants import LIBRARY_CAPABILITIES
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
@@ -126,8 +125,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
 
-        self._set_library_capabilities_tags()
-
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
@@ -155,12 +152,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(TEST_IS_DISABLED, self._is_disabled)
         if self._is_attempt_to_fix:
             self.set_tag(TEST_IS_ATTEMPT_TO_FIX, self._is_attempt_to_fix)
-
-    def _set_library_capabilities_tags(self) -> None:
-        test_management_enabled = self._session_settings.test_management_settings.enabled
-        self.set_tag(LIBRARY_CAPABILITIES.QUARANTINE.value, test_management_enabled)
-        self.set_tag(LIBRARY_CAPABILITIES.DISABLE.value, test_management_enabled)
-        self.set_tag(LIBRARY_CAPABILITIES.ATTEMPT_TO_FIX.value, test_management_enabled)
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
