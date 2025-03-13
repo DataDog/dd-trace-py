@@ -371,6 +371,17 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         assert spans, spans
         assert len(spans) == 1
 
+    def test_client_with_servers_option(self):
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+
+        patch()
+        client = pylibmc.Client(servers=[url], behaviors={}, binary=True)
+        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.set("a", 1)
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+
 
 class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
