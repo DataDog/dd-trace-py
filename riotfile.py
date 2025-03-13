@@ -1282,6 +1282,10 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
+                ),
             ],
         ),
         Venv(

@@ -376,9 +376,6 @@ test = [
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
 
-[envs.appsec_iast_packages.env-vars]
-DD_FAST_BUILD = "0"
-
 ## ASM iast_tdd_propagation
 
 [envs.iast_tdd_propagation]
