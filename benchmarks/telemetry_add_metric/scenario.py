@@ -1,11 +1,9 @@
-import re
-
 from bm import Scenario
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import CountMetric
-from ddtrace.internal.telemetry.metrics import GaugeMetric
 from ddtrace.internal.telemetry.metrics import DistributionMetric
+from ddtrace.internal.telemetry.metrics import GaugeMetric
 from ddtrace.internal.telemetry.metrics import RateMetric
 from ddtrace.internal.telemetry.metrics_namespaces import MetricNamespace
 
@@ -74,6 +72,7 @@ class TelemetryAddMetric(Scenario):
                 for _ in range(loops):
                     metricnamespace = MetricNamespace()
                     add_metric(metricnamespace, "metric")
+
         elif "create-100-" in self.name:
 
             def _(loops: int):
@@ -81,6 +80,7 @@ class TelemetryAddMetric(Scenario):
                     metricnamespace = MetricNamespace()
                     for i in range(100):
                         add_metric(metricnamespace, str(i))
+
         elif "increment-1-" in self.name:
 
             def _(loops: int):
@@ -88,6 +88,7 @@ class TelemetryAddMetric(Scenario):
                     metricnamespace = MetricNamespace()
                     for _ in range(100):
                         add_metric(metricnamespace, "metric")
+
         elif "increment-100-" in self.name:
 
             def _(loops: int):
@@ -96,6 +97,7 @@ class TelemetryAddMetric(Scenario):
                     for i in range(100):
                         for _ in range(100):
                             add_metric(metricnamespace, str(i))
+
         else:
             raise ValueError(f"Unknown scenario: {self.name}")
 
