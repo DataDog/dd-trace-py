@@ -664,9 +664,10 @@ def pytest_report_teststatus(
     if not is_test_visibility_enabled():
         return
 
-    test_status = attempt_to_fix_get_teststatus(report)
-    if test_status:
-        return test_status
+    if _pytest_version_supports_attempt_to_fix():
+        test_status = attempt_to_fix_get_teststatus(report)
+        if test_status:
+            return test_status
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
