@@ -1,3 +1,5 @@
+import typing
+
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
 import ddtrace.appsec._ddwaf as ddwaf
@@ -27,30 +29,32 @@ def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None
     telemetry.telemetry_writer.add_log(level, msg, tags=tags)
 
 
-def _set_waf_updates_metric(info):
+def _set_waf_updates_metric(info, success: bool):
     try:
         if info and info.version:
-            tags = (
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
                 ("event_rules_version", info.version),
                 ("waf_version", DDWAF_VERSION),
+                ("success", bool_str[success]),
             )
         else:
-            tags = (("waf_version", DDWAF_VERSION),)
+            tags = (("waf_version", DDWAF_VERSION), ("success", bool_str[success]))
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF updates metrics", exc_info=True)
 
 
-def _set_waf_init_metric(info):
+def _set_waf_init_metric(info, success: bool):
     try:
         if info and info.version:
-            tags = (
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
                 ("event_rules_version", info.version),
                 ("waf_version", DDWAF_VERSION),
+                ("success", bool_str[success]),
             )
         else:
-            tags = (("waf_version", DDWAF_VERSION),)
+            tags = (("waf_version", DDWAF_VERSION), ("success", bool_str[success]))
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
