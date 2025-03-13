@@ -14,7 +14,7 @@ use pyo3::prelude::*;
     eq,
     eq_int,
     name = "StacktraceCollection",
-    module = "datadog.internal._crashtracker"
+    module = "datadog.internal._native"
 )]
 #[derive(Clone, PartialEq)]
 pub enum StacktraceCollectionPy {
@@ -41,7 +41,7 @@ impl From<StacktraceCollectionPy> for StacktraceCollection {
 
 #[pyclass(
     name = "CrashtrackerConfiguration",
-    module = "datadog.internal._crashtracker"
+    module = "datadog.internal._native"
 )]
 #[derive(Clone)]
 pub struct CrashtrackerConfigurationPy {
@@ -81,7 +81,7 @@ impl CrashtrackerConfigurationPy {
 
 #[pyclass(
     name = "CrashtrackerReceiverConfig",
-    module = "datadog.internal._crashtracker"
+    module = "datadog.internal._native"
 )]
 #[derive(Clone)]
 pub struct CrashtrackerReceiverConfigPy {
@@ -112,7 +112,7 @@ impl CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(name = "Metadata", module = "datadog.internal._crashtracker")]
+#[pyclass(name = "Metadata", module = "datadog.internal._native")]
 #[derive(Clone)]
 pub struct MetadataPy {
     metadata: Metadata,
@@ -145,7 +145,7 @@ impl MetadataPy {
     eq,
     eq_int,
     name = "CrashtrackerStatus",
-    module = "datadog.internal._crashtracker"
+    module = "datadog.internal._native"
 )]
 #[derive(PartialEq)]
 pub enum CrashtrackerStatus {
