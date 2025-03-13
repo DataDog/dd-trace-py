@@ -229,9 +229,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
-        # _user_sampler is the backup in case we need to revert from remote config to local
-        self._user_sampler = DatadogSampler()
-        self._dogstatsd_url = agent.config.dogstatsd_url if dogstatsd_url is None else dogstatsd_url
+        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -488,7 +486,6 @@ class Tracer(object):
 
         if sampler is not None:
             self._sampler = sampler
-            self._user_sampler = self._sampler
 
         if dogstatsd_url is not None:
             self._dogstatsd_url = dogstatsd_url
@@ -1124,7 +1121,7 @@ class Tracer(object):
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
         if "_trace_sampling_rules" in items:
-            self._handle_sampler_update(cfg)
+            self._sampler.set_sampling_rules(cfg._trace_sampling_rules)
 
         if "tags" in items:
             self._tags = cfg.tags.copy()
@@ -1147,13 +1144,3 @@ class Tracer(object):
                 from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
-
-    def _handle_sampler_update(self, cfg: Config) -> None:
-        # FIXME(munir): Recreating the sampler will overwrite agent service based sampling rules
-        if cfg._get_source("_trace_sampling_rules") != "remote_config":
-            # if trace sampling rules is not set by remote config, we should use the sampler configured
-            # on tracer startup (this sampler has "local" sampling rules)
-            self._sampler = self._user_sampler
-        else:
-            # if we get a config from rc, we should create the sampler with the new sampling rules
-            self._sampler = DatadogSampler()
