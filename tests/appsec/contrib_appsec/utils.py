@@ -1143,10 +1143,13 @@ class Contrib_TestClass_For_Threats:
     ):
         import base64
         import gzip
+        from unittest.mock import patch as mock_patch
 
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -1178,6 +1181,14 @@ class Contrib_TestClass_For_Threats:
                             api,
                             name,
                         )
+                telemetry_calls = {
+                    (c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
+                }
+                assert (
+                    "CountMetric",
+                    "appsec.api_security.request.schema",
+                    (("framework", interface.name),),
+                ) in telemetry_calls
             else:
                 assert value is None, name
 
