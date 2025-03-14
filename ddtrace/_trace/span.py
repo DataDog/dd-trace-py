@@ -520,12 +520,28 @@ class Span(object):
         exc_tb: Optional[TracebackType],
         limit: Optional[int] = None,
     ) -> str:
+        """
+        Return a formatted traceback as a string.
+        If the traceback is too long, it will be truncated to the limit parameter,
+        but from the end of the traceback (keeping the most recent frames).
+
+        If the traceback surpasses the MAX_SPAN_META_VALUE_LEN limit, it will
+        try to reduce the traceback size by half until it fits
+        within this limit (limit for tag values).
+
+        :param exc_type: the exception type
+        :param exc_val: the exception value
+        :param exc_tb: the exception traceback
+        :param limit: the maximum number of frames to keep
+        """
         if limit is None:
             limit = -abs(config._span_traceback_max_size)
+        else:
+            limit = -abs(limit)
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
         tb = buff.getvalue()
-        while len(tb) > MAX_SPAN_META_VALUE_LEN and limit > 1:
+        while len(tb) > MAX_SPAN_META_VALUE_LEN and abs(limit) > 1:
             limit //= 2
             # get the traceback again with a smaller limit
             buff = StringIO()
