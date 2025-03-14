@@ -49,13 +49,10 @@ def _wrap_call(
             callback_block = core.get_item("flask.wrapped_view.callback_block")
             if callback_block:
                 return callback_block()
-            # IAST overrides the kwargs
-            result = dispatch.check_kwargs
-            if result:
-                _kwargs = result.value
-                if _kwargs:
-                    for k in kwargs:
-                        kwargs[k] = _kwargs[k]
+            _kwargs = core.get_item("iast_on_wrapped_view")
+            if _kwargs:
+                for k in kwargs:
+                    kwargs[k] = _kwargs[k]
 
         return wrapped(*args, **kwargs)
 
