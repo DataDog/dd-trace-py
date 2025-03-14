@@ -19,6 +19,7 @@ from ddtrace.internal import core
 def iast_listen():
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
+
     core.on("django.patch", _on_django_patch)
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)

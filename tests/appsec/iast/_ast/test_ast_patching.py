@@ -70,7 +70,6 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     [
         ("tests.appsec.iast.fixtures.ast.str.class_str"),
         ("tests.appsec.iast.fixtures.ast.str.function_str"),
-        ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
     ],
 )
 def test_astpatch_module_changed(module_name):
@@ -149,6 +148,7 @@ import html"""
         ("tests.appsec.iast.fixtures.ast.str.class_no_str"),
         ("tests.appsec.iast.fixtures.ast.str.function_no_str"),
         ("tests.appsec.iast.fixtures.ast.str.__init__"),  # Empty __init__.py
+        ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
         ("tests.appsec.iast.fixtures.ast.str.empty_file"),
         ("tests.appsec.iast.fixtures.ast.subscript.store_context"),
     ],
@@ -211,8 +211,8 @@ def test_module_path_none(caplog):
             __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
         )
         assert (
-            "[IAST] astpatch_source. could not find the module: tests.appsec.iast.fixtures.ast.str.class_str"
-            in caplog.text
+            "iast::instrumentation::ast_patching::compiling:: "
+            "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
         )
 
 
