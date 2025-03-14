@@ -439,12 +439,6 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled
 
-        try:
-            self._writer.stop()
-        except ServiceStatusError:
-            # It's possible the writer never got started
-            pass
-
         if isinstance(self._writer, AgentWriter):
             if appsec_enabled:
                 self._writer._api_version = "v0.4"
@@ -507,6 +501,13 @@ class Tracer(object):
 
     def _recreate(self):
         """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+        # Stop the writer, this will stop the background thread (prevents memory leaks and unnecessary I/O)
+        try:
+            self._writer.stop()
+        except ServiceStatusError:
+            # The writer is started when the first trace chunk is encoded. Stopping
+            # the writer before that point will raise a ServiceStatusError.
+            pass
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
         # Recreate the trace and span processors
