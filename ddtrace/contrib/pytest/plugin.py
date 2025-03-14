@@ -627,6 +627,14 @@ def pytest_runtest_makereport(item, call):
             span.set_tag_str(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
             span.set_tag_str(test.RESULT, test.Status.XPASS.value)
         if call.excinfo:
+            from ddtrace.contrib.pytest.instrument import SNAPSHOT_MAP
+            snapshot_for_item = SNAPSHOT_MAP.get(item.name)
+            if snapshot_for_item:
+                span.set_tag_str("_dd.debug.error.0.snapshot_id", snapshot_for_item.get("id"))
+                span.set_tag_str("_dd.debug.error.0.file", snapshot_for_item.get("file"))
+                span.set_tag_str("_dd.debug.error.0.line", snapshot_for_item.get("line"))
+                span.set_tag_str("error.debug_info_captured", "true")
+                # span.set_tag_str("error.debug_info_captured", "true")
             span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
 
 

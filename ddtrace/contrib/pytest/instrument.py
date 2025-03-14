@@ -1,4 +1,5 @@
 from functools import cache
+from functools import partial
 import sys
 import sysconfig
 from threading import current_thread
@@ -27,6 +28,10 @@ platstdlib_path = sysconfig.get_path("platstdlib")
 purelib_path = sysconfig.get_path("purelib")
 platlib_path = sysconfig.get_path("platlib")
 
+SNAPSHOT_MAP = {}
+
+GIT_COMMIT_SHA = 'git.commit.sha'
+GIT_REPOSITORY_URL = 'git.repository_url'
 
 @cache
 def is_stdlib(filename):
@@ -57,19 +62,29 @@ class ModuleCollector(ModuleWatchdog):
 
         self._tracked_modules.add(module)
 
+
+    @classmethod
+    def add_uuid_to_snapshot_map(cls, name, probe):
+        line_no = str(probe.frame.f_lineno)
+        my_len = len('tests/test_regression.py')
+        filename = probe.frame.f_code.co_filename[-my_len:]
+        SNAPSHOT_MAP[name] = {"id": probe.uuid, "line":line_no, "file": filename}
+
     @classmethod
     def _trace(cls, f, args, kwargs):
         with cls._instance._tracer.trace(
-            name=f.__code__.co_name, resource=f.__code__.co_qualname, service=f.__module__
+            # name=f.__code__.co_name, resource=f.__code__.co_qualname, service=f.__module__
+            name=f.__code__.co_name, resource=f.__qualname__, service=f.__module__
         ) as span:
             collector = DynamicInstrumentation._instance._collector
-            message = "test"
+            message = f.__code__.co_name
             probe = LogFunctionProbe(
                 probe_id=str(uuid.uuid4()),
                 version=0,
-                tags={},
+                tags={GIT_REPOSITORY_URL: "git@github.com:Datadog/flask.git" , GIT_COMMIT_SHA: "f61172b8dd3f962d33f25c50b2f5405e90ceffa5"},
                 module=f.__module__,
-                func_qname=f.__code__.co_qualname,
+                # func_qname=f.__code__.co_qualname,
+                func_qname=f.__qualname__,
                 template=message,
                 segments=[LiteralTemplateSegment(message)],
                 take_snapshot=True,
@@ -85,6 +100,9 @@ class ModuleCollector(ModuleWatchdog):
                 thread=current_thread(),
                 trace_context=span,
             )
+            my_partial = partial(cls.add_uuid_to_snapshot_map, message)
+            collector._add_callback(my_partial)
+            # SNAPSHOT_MAP[message] = probe.uuid
             with collector.attach(signal):
                 return f(*args, **kwargs)
 

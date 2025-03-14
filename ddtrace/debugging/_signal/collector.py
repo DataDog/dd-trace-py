@@ -82,6 +82,8 @@ class SignalCollector(object):
     def __init__(self, encoder):
         # type: (BufferedEncoder) -> None
         self._encoder = encoder
+        self._callbacks = []
+
 
     def _enqueue(self, log_signal):
         # type: (LogSignal) -> None
@@ -93,6 +95,10 @@ class SignalCollector(object):
         except BufferFull:
             log.debug("Encoder buffer full")
             meter.increment("encoder.buffer.full")
+
+    def _add_callback(self, callback):
+        # type: (Callable[[Signal], None]) -> None
+        self._callbacks.append(callback)
 
     def push(self, signal):
         # type: (Signal) -> None
@@ -113,6 +119,8 @@ class SignalCollector(object):
             log.debug("Enqueueing signal %s", signal)
             # This signal emits a log message
             self._enqueue(signal)
+            for callback in self._callbacks:
+                callback(signal)
         else:
             log.debug(
                 "Skipping signal %s (has message: %s)", signal, isinstance(signal, LogSignal) and signal.has_message()

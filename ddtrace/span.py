@@ -478,8 +478,20 @@ class Span(object):
     def _set_exc_tags(self, exc_type, exc_val, exc_tb):
         # get the traceback
         buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=30)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=-20)
         tb = buff.getvalue()
+        # remove items 1 and 2 from tb
+
+        parsed_tb = tb.split("\n")
+        # Remove item containing "instrument.py" from the traceback, and the next one
+        instrument_index = -1
+        for i, line in enumerate(parsed_tb):
+            if "/instrument.py" in line:
+                instrument_index = i
+                break
+        if instrument_index != -1:
+            parsed_tb = [x for i, x in enumerate(parsed_tb) if i not in {instrument_index, instrument_index + 1}]
+            tb = "\n".join(parsed_tb)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)

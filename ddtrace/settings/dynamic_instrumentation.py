@@ -15,6 +15,8 @@ def _derive_tags(c):
     # type: (En) -> str
     _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
     _tags.update(ddconfig.tags)
+    _tags['git.commit.sha'] = "f61172b8dd3f962d33f25c50b2f5405e90ceffa5"
+    _tags['git.repository_url'] = "git@github.com:Datadog/flask.git"
 
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 

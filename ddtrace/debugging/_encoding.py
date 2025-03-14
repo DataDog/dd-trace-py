@@ -115,6 +115,7 @@ def _build_log_track_payload(
         "dd.span_id": context.span_id if context else None,
         "ddsource": "dd_debugger",
         "message": signal.message,
+        "level": "error",
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
     add_tags(payload)
