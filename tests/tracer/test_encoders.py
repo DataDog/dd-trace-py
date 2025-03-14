@@ -617,6 +617,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
+
     trace = tracer._writer.pop()
     assert trace, "DummyWriter failed to encode the trace"
 

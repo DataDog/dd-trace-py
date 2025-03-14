@@ -622,7 +622,7 @@ class DummyTracer(Tracer):
         self._writer = DummyWriter(
             trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
         )
-        self._recreate()
+        #self._recreate()
 
     @property
     def agent_url(self):
