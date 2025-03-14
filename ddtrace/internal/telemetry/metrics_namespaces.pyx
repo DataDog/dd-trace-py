@@ -11,22 +11,22 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
-class MetricType(enum.Enum):
+class MetricType(str, enum.Enum):
     DISTRIBUTION = "distributions"
     COUNT = "count"
     GAUGE = "gauge"
     RATE = "rate"
 
 cdef class MetricNamespace:
-    cdef object _lock
+    cdef object _metrics_data_lock
     cdef dict _metrics_data
 
     def __cinit__(self):
-        self._lock = forksafe.Lock()
+        self._metrics_data_lock = forksafe.Lock()
         self._metrics_data = {}
 
     cpdef dict flush(self, interval: PyFloat = None):
-        with self._lock:
+        with self._metrics_data_lock:
             namespace_metrics, self._metrics_data = self._metrics_data, {}
 
         now = time.time()
@@ -76,12 +76,13 @@ cdef class MetricNamespace:
         cdef tuple metric_id
         metric_id = (name, namespace, tags, metric_type)
 
-        with self._lock:
-            if metric_type is MetricType.DISTRIBUTION:
-                if metric_id not in self._metrics_data:
-                    self._metrics_data[metric_id] = []
-                self._metrics_data[metric_id].append((time.time(), value))
-            elif metric_type is MetricType.GAUGE:
-                self._metrics_data[metric_id] = value
-            else:
-                self._metrics_data[metric_id] = self._metrics_data.get(metric_id, 0) + value
+        if metric_type is MetricType.DISTRIBUTION:
+            with self._metrics_data_lock:
+                self._metrics_data.setdefault(metric_id, []).append((time.time(), value))
+        elif metric_type is MetricType.GAUGE:
+            # Dict writes are atomic, no need to lock
+            self._metrics_data[metric_id] = value
+        else:
+            with self._metrics_data_lock:
+                v = self._metrics_data.get(metric_id, 0)
+                self._metrics_data[metric_id] = v + value
