@@ -294,8 +294,8 @@ class SpanTestCase(TracerTestCase):
                 #     wrapper()
                 #     ~~~~~~~^^
                 multiplier = 3
-            elif PYTHON_VERSION_INFO >= (3, 12):
-                # Python 3.12 adds one extra line to the traceback:
+            elif PYTHON_VERSION_INFO >= (3, 11):
+                # Python 3.11 adds one extra line to the traceback:
                 #   File dd-trace-py/tests/tracer/test_span.py", line 272, in divide_by_zero
                 #      1 / 0
                 #      ~~^~~
