@@ -41,13 +41,9 @@ from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .logging import DDTelemetryLogHandler
-from .metrics import CountMetric
-from .metrics import DistributionMetric
-from .metrics import GaugeMetric
-from .metrics import MetricTagType  # noqa:F401
-from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType  # noqa:F401
+from .metrics_namespaces import MetricType
+from .metrics_namespaces import MetricTagType
 
 
 _inferred_service = detect_service(sys.argv)
@@ -542,7 +538,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                GaugeMetric,
+                MetricType.GAUGE,
                 namespace,
                 name,
                 value,
@@ -556,7 +552,7 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                RateMetric,
+                MetricType.RATE,
                 namespace,
                 name,
                 value,
@@ -570,20 +566,22 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                CountMetric,
+                MetricType.COUNT,
                 namespace,
                 name,
                 value,
                 tags,
             )
 
-    def add_distribution_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value, tags: MetricTagType = None):
+    def add_distribution_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None
+    ):
         """
         Queues distributions metric
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                DistributionMetric,
+                MetricType.DISTRIBUTION,
                 namespace,
                 name,
                 value,
@@ -597,14 +595,13 @@ class TelemetryWriter(PeriodicService):
             self._logs = set()
         return log_metrics
 
-    def _generate_metrics_event(self, namespace_metrics):
-        # type: (NamespaceMetricType) -> None
+    def _generate_metrics_event(self, namespace_metrics) -> None:
         for payload_type, namespaces in namespace_metrics.items():
             for namespace, metrics in namespaces.items():
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "series": [m.to_dict() for m in metrics.values()],
+                        "series": [m for m in metrics.values()],
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
                     if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
@@ -622,7 +619,7 @@ class TelemetryWriter(PeriodicService):
         self._app_started()
         self._app_product_change()
 
-        namespace_metrics = self._namespace.flush()
+        namespace_metrics = self._namespace.flush(self.interval)
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
 

@@ -1,11 +1,20 @@
 from bm import Scenario
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics import CountMetric
-from ddtrace.internal.telemetry.metrics import DistributionMetric
-from ddtrace.internal.telemetry.metrics import GaugeMetric
-from ddtrace.internal.telemetry.metrics import RateMetric
 from ddtrace.internal.telemetry.metrics_namespaces import MetricNamespace
+
+try:
+    from ddtrace.internal.telemetry.metrics_namespaces import MetricType
+
+    CountMetric = MetricType.COUNT
+    DistributionMetric = MetricType.DISTRIBUTION
+    GaugeMetric = MetricType.GAUGE
+    RateMetric = MetricType.RATE
+except ImportError:
+    from ddtrace.internal.telemetry.metrics import CountMetric
+    from ddtrace.internal.telemetry.metrics import DistributionMetric
+    from ddtrace.internal.telemetry.metrics import GaugeMetric
+    from ddtrace.internal.telemetry.metrics import RateMetric
 
 
 def add_count_metric(namespace: MetricNamespace, name: str):
