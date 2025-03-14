@@ -538,9 +538,8 @@ class Span(object):
         # If limit is None, use the default value from the configuration
         if limit is None:
             limit = config._span_traceback_max_size
-        assert isinstance(limit, int)
         # Ensure the limit is negative for traceback.print_exception (to keep most recent frames)
-        limit = -abs(limit)
+        limit: int = -abs(limit)  # type: ignore[no-redef]
 
         # Create a buffer to hold the traceback
         buff = StringIO()
