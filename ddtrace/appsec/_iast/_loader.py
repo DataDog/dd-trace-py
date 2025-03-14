@@ -35,7 +35,7 @@ def _exec_iast_patched_module(module_watchdog, module):
             compiled_code = None
 
     if compiled_code:
-        iast_compiling_debug_log("INSTRUMENTED CODE. executing %s" % module_path)
+        iast_compiling_debug_log(f"INSTRUMENTED CODE. executing {module_path}")
         # Patched source is executed instead of original module
         # exec(compiled_code, module.__dict__)  # nosec B102
         if "__builtins__" not in module.__dict__:
@@ -43,9 +43,9 @@ def _exec_iast_patched_module(module_watchdog, module):
         PyEval_EvalCode(compiled_code, module.__dict__, module.__dict__)
     elif module_watchdog.loader is not None:
         try:
-            iast_compiling_debug_log("DEFAULT CODE. executing %s" % module)
+            iast_compiling_debug_log(f"DEFAULT CODE. executing {module}")
             module_watchdog.loader.exec_module(module)
         except ImportError:
             iast_compiling_debug_log("Unexpected exception on import loader fallback", exc_info=True)
     else:
-        iast_compiling_debug_log("Module loader is not available, cannot execute module %s" % module)
+        iast_compiling_debug_log(f"Module loader is not available, cannot execute module {module}")
