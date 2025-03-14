@@ -1,12 +1,11 @@
 use ddcommon::tag::Tag;
 use ddtelemetry::{data, metrics, worker};
+use futures::executor::block_on;
 use pyo3::Bound;
 use pyo3::PyTypeInfo;
 use pyo3::prelude::*;
-use std::borrow::Cow;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// Native telemetry worker wrapper for Python.
 #[pyclass]
 struct NativeTelemetryWorker {
     handle: worker::TelemetryWorkerHandle,
@@ -26,6 +25,73 @@ impl From<PyLogLevel> for data::LogLevel {
             PyLogLevel::Error => data::LogLevel::Error,
             PyLogLevel::Warn => data::LogLevel::Warn,
             PyLogLevel::Debug => data::LogLevel::Debug,
+        }
+    }
+}
+
+// Wrap MetricBucketStats for Python
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct PyMetricBucketStats {
+    #[pyo3(get)]
+    pub buckets: u32,
+    #[pyo3(get)]
+    pub series: u32,
+    #[pyo3(get)]
+    pub series_points: u32,
+    #[pyo3(get)]
+    pub distributions: u32,
+    #[pyo3(get)]
+    pub distributions_points: u32,
+}
+
+impl From<metrics::MetricBucketStats> for PyMetricBucketStats {
+    fn from(stats: metrics::MetricBucketStats) -> Self {
+        PyMetricBucketStats {
+            buckets: stats.buckets,
+            series: stats.series,
+            series_points: stats.series_points,
+            distributions: stats.distributions,
+            distributions_points: stats.distributions_points,
+        }
+    }
+}
+// Wrap TelemetryWorkerStats for Python
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct PyTelemetryWorkerStats {
+    #[pyo3(get)]
+    pub dependencies_stored: u32,
+    #[pyo3(get)]
+    pub dependencies_unflushed: u32,
+    #[pyo3(get)]
+    pub configurations_stored: u32,
+    #[pyo3(get)]
+    pub configurations_unflushed: u32,
+    #[pyo3(get)]
+    pub integrations_stored: u32,
+    #[pyo3(get)]
+    pub integrations_unflushed: u32,
+    #[pyo3(get)]
+    pub logs: u32,
+    #[pyo3(get)]
+    pub metric_contexts: u32,
+    #[pyo3(get)]
+    pub metric_buckets: PyMetricBucketStats,
+}
+
+impl From<worker::TelemetryWorkerStats> for PyTelemetryWorkerStats {
+    fn from(stats: worker::TelemetryWorkerStats) -> Self {
+        PyTelemetryWorkerStats {
+            dependencies_stored: stats.dependencies_stored,
+            dependencies_unflushed: stats.dependencies_unflushed,
+            configurations_stored: stats.configurations_stored,
+            configurations_unflushed: stats.configurations_unflushed,
+            integrations_stored: stats.integrations_stored,
+            integrations_unflushed: stats.integrations_unflushed,
+            logs: stats.logs,
+            metric_contexts: stats.metric_contexts,
+            metric_buckets: PyMetricBucketStats::from(stats.metric_buckets),
         }
     }
 }
@@ -82,17 +148,47 @@ impl PyMetricType {
 #[pyclass]
 #[derive(Debug, Clone)]
 enum PyMetricNamespace {
-    Telemetry,
+    Tracers,
+    Profilers,
+    Rum,
     Appsec,
+    IdePlugins,
+    LiveDebugger,
+    Iast,
+    General,
+    Telemetry,
+    Apm,
+    Sidecar,
 }
 
 impl From<PyMetricNamespace> for data::metrics::MetricNamespace {
     fn from(ns: PyMetricNamespace) -> Self {
         match ns {
-            PyMetricNamespace::Telemetry => data::metrics::MetricNamespace::Telemetry,
+            PyMetricNamespace::Tracers => data::metrics::MetricNamespace::Tracers,
+            PyMetricNamespace::Profilers => data::metrics::MetricNamespace::Profilers,
+            PyMetricNamespace::Rum => data::metrics::MetricNamespace::Rum,
             PyMetricNamespace::Appsec => data::metrics::MetricNamespace::Appsec,
+            PyMetricNamespace::IdePlugins => data::metrics::MetricNamespace::IdePlugins,
+            PyMetricNamespace::LiveDebugger => data::metrics::MetricNamespace::LiveDebugger,
+            PyMetricNamespace::Iast => data::metrics::MetricNamespace::Iast,
+            PyMetricNamespace::General => data::metrics::MetricNamespace::General,
+            PyMetricNamespace::Telemetry => data::metrics::MetricNamespace::Telemetry,
+            PyMetricNamespace::Apm => data::metrics::MetricNamespace::Apm,
+            PyMetricNamespace::Sidecar => data::metrics::MetricNamespace::Sidecar,
         }
     }
+}
+
+// Internal helper function to convert Python tags to Rust Tags
+fn pytags2tags(tags: Option<Vec<(String, String)>>) -> PyResult<Vec<Tag>> {
+    tags.unwrap_or_default() // None -> empty Vec
+        .into_iter()
+        .map(|(key, value)| {
+            Tag::new(key, value).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid tag: {}", e))
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()
 }
 
 #[pymethods]
@@ -106,6 +202,7 @@ impl NativeTelemetryWorker {
             "3.12".into(),
             "3.1".into(),
         );
+        // JJJ: argument
         builder.config.telemetry_debug_logging_enabled = Some(true);
         builder.config.endpoint = Some(ddcommon::Endpoint {
             url: ddcommon::parse_uri(&endpoint).unwrap(),
@@ -121,6 +218,32 @@ impl NativeTelemetryWorker {
         })?;
 
         Ok(NativeTelemetryWorker { handle })
+    }
+
+    fn send_start(&self) -> PyResult<()> {
+        self.handle.send_start().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to send start: {}",
+                e
+            ))
+        })?;
+        Ok(())
+    }
+
+    fn wait_for_shutdown(&self) {
+        self.handle.wait_for_shutdown();
+    }
+
+    fn wait_for_shutdown_deadline(&self, timeout_secs: f64) {
+        let deadline = Instant::now() + Duration::from_secs_f64(timeout_secs);
+        self.handle.wait_for_shutdown_deadline(deadline);
+    }
+
+    fn send_stop(&self) -> PyResult<()> {
+        self.handle.send_stop().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to send stop: {}", e))
+        })?;
+        Ok(())
     }
 
     fn add_log(
@@ -180,17 +303,6 @@ impl NativeTelemetryWorker {
         Ok(())
     }
 
-    fn _pytags2tags(&self, tags: Option<Vec<(String, String)>>) -> PyResult<Vec<Tag>> {
-        tags.unwrap_or_default() // None -> empty Vec
-            .into_iter()
-            .map(|(key, value)| {
-                Tag::new(key, value).map_err(|e| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid tag: {}", e))
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?
-    }
-
     fn register_metric_context(
         &self,
         name: String,
@@ -199,7 +311,7 @@ impl NativeTelemetryWorker {
         common: bool,
         namespace: PyMetricNamespace,
     ) -> PyResult<PyContextKey> {
-        let rust_tags = self._pytags2tags(tags)?;
+        let rust_tags = pytags2tags(tags)?;
         let context_key = self.handle.register_metric_context(
             name,
             rust_tags,
@@ -217,7 +329,7 @@ impl NativeTelemetryWorker {
         extra_tags: Option<Vec<(String, String)>>,
     ) -> PyResult<()> {
         let rust_context = context.to_rust();
-        let tags: Vec<Tag> = self._pytags2tags(extra_tags)?;
+        let tags: Vec<Tag> = pytags2tags(extra_tags)?;
         self.handle
             .add_point(value, &rust_context, tags)
             .map_err(|e| {
@@ -227,6 +339,23 @@ impl NativeTelemetryWorker {
                 ))
             })?;
         Ok(())
+    }
+
+    // TODO(maybe): async version like the original libdatadog is.
+    fn stats(&self) -> PyResult<PyTelemetryWorkerStats> {
+        let receiver = self.handle.stats().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to request stats: {}",
+                e
+            ))
+        })?;
+        let stats = block_on(receiver).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive stats: {}",
+                e
+            ))
+        })?;
+        Ok(PyTelemetryWorkerStats::from(stats))
     }
 }
 
@@ -241,5 +370,10 @@ fn _native_telemetry(_py: Python<'_>, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PyMetricType", PyMetricType::type_object(_py))?;
     m.add("PyMetricNamespace", PyMetricNamespace::type_object(_py))?;
     m.add("PyContextKey", PyContextKey::type_object(_py))?;
+    m.add("PyMetricBucketStats", PyMetricBucketStats::type_object(_py))?;
+    m.add(
+        "PyTelemetryWorkerStats",
+        PyTelemetryWorkerStats::type_object(_py),
+    )?;
     Ok(())
 }

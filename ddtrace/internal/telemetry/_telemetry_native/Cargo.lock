@@ -769,6 +769,7 @@ dependencies = [
  "datadog-library-config",
  "ddcommon",
  "ddtelemetry",
+ "futures",
  "pyo3",
  "pyo3-build-config",
 ]

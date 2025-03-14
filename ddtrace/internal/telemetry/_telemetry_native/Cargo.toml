@@ -8,6 +8,7 @@ pyo3 = { version = "0.24.0", features = ["extension-module"] }
 ddtelemetry = { git = "https://github.com/DataDog/libdatadog.git", rev = "v16.0.3" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
+futures = "0.3"
 
 [build-dependencies]
 pyo3-build-config = "0.24.0"
