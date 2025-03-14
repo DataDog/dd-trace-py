@@ -621,7 +621,7 @@ if not IS_PYSTON:
                 if CURRENT_OS != "Windows"
                 else ["/std:c11"]
             ),
-            py_limited_api=True
+            py_limited_api=True,
         ),
         Extension(
             "ddtrace.internal._threads",
@@ -631,7 +631,7 @@ if not IS_PYSTON:
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
-            py_limited_api=True
+            py_limited_api=True,
         ),
     ]
     if platform.system() not in ("Windows", ""):
@@ -643,7 +643,7 @@ if not IS_PYSTON:
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
-                py_limited_api=True
+                py_limited_api=True,
             ),
         )
 
@@ -659,7 +659,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
-                py_limited_api=True
+                py_limited_api=True,
             )
         )
 
@@ -668,7 +668,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
-                py_limited_api=True
+                py_limited_api=True,
             )
         )
 
@@ -678,7 +678,7 @@ if not IS_PYSTON:
                     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                     source_dir=STACK_V2_DIR,
                     optional=False,
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
             )
 
@@ -714,16 +714,13 @@ setup(
         filter_extensions(
             [
                 Cython.Distutils.Extension(
-                    "ddtrace.internal._rand",
-                    sources=["ddtrace/internal/_rand.pyx"],
-                    language="c",
-                    py_limited_api=True
+                    "ddtrace.internal._rand", sources=["ddtrace/internal/_rand.pyx"], language="c", py_limited_api=True
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.internal._tagset",
                     sources=["ddtrace/internal/_tagset.pyx"],
                     language="c",
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Extension(
                     "ddtrace.internal._encoding",
@@ -731,7 +728,7 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
@@ -743,31 +740,31 @@ setup(
                     # everything else is on a GNU-like toolchain
                     extra_compile_args=extra_compile_args
                     + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._traceback",
                     sources=["ddtrace/profiling/collector/_traceback.pyx"],
                     language="c",
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling._threading",
                     sources=["ddtrace/profiling/_threading.pyx"],
                     language="c",
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector._task",
                     sources=["ddtrace/profiling/collector/_task.pyx"],
                     language="c",
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.exporter.pprof",
                     sources=["ddtrace/profiling/exporter/pprof.pyx"],
                     language="c",
-                    py_limited_api=True
+                    py_limited_api=True,
                 ),
             ]
         ),
