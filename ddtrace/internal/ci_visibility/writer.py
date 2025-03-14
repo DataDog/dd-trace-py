@@ -153,7 +153,8 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=timeout,
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
-            report_metrics=report_metrics,
+            # FIXME(munir): report_metrics is not used in the CI Visibility Writers
+            # self._report_metrics = report_metrics,
             reuse_connections=reuse_connections,
             headers=headers,
         )

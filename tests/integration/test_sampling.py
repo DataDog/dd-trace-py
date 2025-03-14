@@ -14,10 +14,11 @@ def test_rate_limiter_on_spans(tracer):
     Ensure that the rate limiter is applied to spans
     """
     from ddtrace._trace.sampler import DatadogSampler
+    from ddtrace.internal.sampling import SamplingRule
     from ddtrace.trace import tracer
 
     # Rate limit is only applied if a sample rate or trace sample rule is set
-    tracer._sampler = DatadogSampler(default_sample_rate=1, rate_limit=10)
+    tracer._sampler = DatadogSampler(rules=[SamplingRule(1.0)], rate_limit=10)
     spans = []
     # Generate 10 spans with the start and finish time in same second
     for x in range(10):
