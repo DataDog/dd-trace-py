@@ -185,9 +185,6 @@ DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
 DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
 
 ## ASM Django
 
@@ -323,9 +320,6 @@ test = [
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
-
-[envs.appsec_iast_packages.env-vars]
-DD_FAST_BUILD = "0"
 
 ## ASM iast_tdd_propagation
 
@@ -536,7 +530,6 @@ dependencies = [
 [envs.iast_aggregated_leak_testing.env-vars]
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "scripts.iast"
-DD_FAST_BUILD = "0"
 
 [envs.appsec_aggregated_leak_testing.scripts]
 test = [
