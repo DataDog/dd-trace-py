@@ -237,19 +237,18 @@ pub fn crashtracker_on_fork<'py>(
     receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
     metadata: &Bound<'py, MetadataPy>,
 ) -> PyResult<()> {
-    let inner_config: CrashtrackerConfiguration = (*config.borrow_mut().deref_mut())
+    let inner_config: CrashtrackerConfiguration = (*config.try_borrow_mut()?)
         .take_inner()
         .ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("CrashtrackerConfiguration is None")
     })?;
     let inner_receiver_config: CrashtrackerReceiverConfig = (*receiver_config
-        .borrow_mut()
-        .deref_mut())
+        .try_borrow_mut()?)
     .take_inner()
     .ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("CrashtrackerReceiverConfig is None")
     })?;
-    let inner_metadata: Metadata = (*metadata.borrow_mut().deref_mut())
+    let inner_metadata: Metadata = (*metadata.try_borrow_mut()?)
         .take_inner()
         .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Metadata is None"))?;
 
