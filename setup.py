@@ -72,7 +72,6 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
@@ -110,14 +109,14 @@ def interpose_sccache():
         )
         if cc_path:
             os.environ["DD_CC_OLD"] = cc_path
-            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+            os.environ["CC"] = str(sccache_path) + " " + str(cc_path)
 
         cxx_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
         )
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
-            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
+            os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -647,21 +646,11 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
-                optional=False,
-            )
-        )
-
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                source_dir=CRASHTRACKER_DIR,
                 optional=False,
             )
         )
@@ -690,7 +679,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -774,6 +762,13 @@ setup(
                 path="src/native/Cargo.toml",
                 py_limited_api="auto",
                 binding=Binding.PyO3,
+                features=["crashtracker"]
+                if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
+                and is_64_bit_python()
+                else [],
+                rustc_flags=["-C", "link-arg=-Wl,-dead_strip"]
+                if CURRENT_OS == "Darwin"
+                else ["-C", "link-dead-code=no", "-C", "link-arg=-Wl,--gc-sections"],
                 debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
             ),
         ]
