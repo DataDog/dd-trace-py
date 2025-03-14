@@ -294,3 +294,23 @@ class ExceptionReplayTestCase(TracerTestCase):
             self.assert_span_count(6)
             # no new snapshots
             assert len(uploader.collector.queue) == 3
+
+    def test_debugger_exception_in_closure(self):
+        def b():
+            with self.trace("b"):
+                nonloc = 4
+
+                def a(v):
+                    if nonloc:
+                        raise ValueError("hello", v)
+
+                a(nonloc)
+
+        with exception_replay() as uploader:
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                with pytest.raises(ValueError):
+                    b()
+
+            assert all(
+                s.line_capture["locals"]["nonloc"] == {"type": "int", "value": "4"} for s in uploader.collector.queue
+            )
