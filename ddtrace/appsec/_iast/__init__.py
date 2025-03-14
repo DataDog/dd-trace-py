@@ -98,7 +98,7 @@ def enable_iast_propagation():
 
     get_package_distributions()
 
-    log.debug("IAST enabled")
+    log.debug("iast::instrumentation::starting IAST")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     _iast_propagation_enabled = True
 
