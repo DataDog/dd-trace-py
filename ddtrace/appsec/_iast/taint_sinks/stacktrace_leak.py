@@ -1,7 +1,7 @@
 import os
 import re
 
-from ddtrace.appsec._iast._errors import iast_error
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS

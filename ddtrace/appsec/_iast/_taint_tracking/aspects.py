@@ -19,7 +19,7 @@ from typing import Union
 import _io
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._errors import iast_propagation_error_log
+from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import _aspect_ospathbasename
