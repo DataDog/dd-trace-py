@@ -678,7 +678,7 @@ def test_civisibilitywriter_agentless_url_envvar():
     ):
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS
-        assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
+        assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
     def test_civisibilitywriter_evp_proxy_url(self):
@@ -699,7 +699,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://evpproxy.bar:1234"
+            assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == "http://evpproxy.bar:1234"
             CIVisibility.disable()
 
     def test_civisibilitywriter_only_traces(self):
@@ -718,7 +718,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://onlytraces:1234"
+            assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == "http://onlytraces:1234"
             CIVisibility.disable()
 
 
@@ -1110,8 +1110,8 @@ def test_civisibility_enable_tracer_uses_partial_traces():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         CIVisibility.enable()
-        assert CIVisibility._instance.tracer._partial_flush_enabled is True
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
+        assert CIVisibility._instance.tracer._span_aggregagtor.partial_flush_enabled is True
+        assert CIVisibility._instance.tracer._span_aggregagtor.partial_flush_min_spans == 1
         CIVisibility.disable()
 
 
@@ -1124,12 +1124,12 @@ def test_civisibility_enable_respects_passed_in_tracer():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         tracer = CIVisibilityTracer()
-        tracer._partial_flush_enabled = False
-        tracer._partial_flush_min_spans = 100
+        tracer._span_aggregagtor.partial_flush_enabled = False
+        tracer._span_aggregagtor.partial_flush_min_spans = 100
         tracer._recreate()
         CIVisibility.enable(tracer=tracer)
-        assert CIVisibility._instance.tracer._partial_flush_enabled is False
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
+        assert CIVisibility._instance.tracer._span_aggregagtor.partial_flush_enabled is False
+        assert CIVisibility._instance.tracer._span_aggregagtor.partial_flush_min_spans == 100
         CIVisibility.disable()
 
 
@@ -1367,7 +1367,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
     def assert_test_session_name(self, name):
         """Check that the payload metadata contains the test session name attributes."""
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregagtor.writer._clients[0].encoder._build_payload([[Span("foo")]])
         )
         assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
         assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}

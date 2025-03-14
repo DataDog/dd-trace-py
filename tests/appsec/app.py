@@ -199,7 +199,7 @@ def iast_cmdi_vulnerability():
 
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
-    tracer._writer.flush_queue()
+    tracer._span_aggregagtor.writer.flush_queue()
     return "OK"
 
 
