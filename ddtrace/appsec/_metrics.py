@@ -141,3 +141,19 @@ def _set_waf_request_metrics(*_args):
 
     except Exception:
         log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
+
+
+def _report_api_security(route: bool, schemas: int) -> None:
+    framework = _asm_request_context.get_framework()
+    try:
+        if route:
+            metric_name = "api_security.request.schema" if schemas > 0 else "api_security.request.no_schema"
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, metric_name, 1, tags=(("framework", framework),)
+            )
+        else:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "api_security.missing_route", 1, tags=(("framework", framework),)
+            )
+    except Exception:
+        log.warning("Error reporting API security metrics", exc_info=True)

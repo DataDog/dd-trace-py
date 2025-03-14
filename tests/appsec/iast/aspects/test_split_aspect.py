@@ -178,4 +178,4 @@ def test_propagate_ranges_with_no_context(caplog):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]
     log_messages = [record.getMessage() for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
