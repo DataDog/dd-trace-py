@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 
 import wrapt
 
@@ -113,22 +114,64 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _set_llmobs_usage_from_invoke(ctx: core.ExecutionContext, input_tokens, output_tokens) -> None:
+def safe_token_count(token_count) -> Optional[int]:
     """
-    Sets LLM usage metrics in the context for LLM Observability.
+    Converse api returns integer token counts, while invoke api returns string token counts.
+
+    Use this function to safely return an integer token count from either type.
+    """
+    if isinstance(token_count, int):
+        return token_count
+    elif isinstance(token_count, str) and token_count:
+        return int(token_count)
+    return None
+
+
+def _set_llmobs_usage(
+    ctx: core.ExecutionContext,
+    input_tokens: Optional[int],
+    output_tokens: Optional[int],
+    total_tokens: Optional[int] = None,
+) -> None:
+    """
+    Sets LLM usage metrics in the execution context for LLM Observability.
     """
     llmobs_usage = {}
-    if input_tokens:
-        llmobs_usage["input_tokens"] = int(input_tokens)
-    if output_tokens:
-        llmobs_usage["output_tokens"] = int(output_tokens)
+    if input_tokens is not None:
+        llmobs_usage["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        llmobs_usage["output_tokens"] = output_tokens
+    if total_tokens is not None:
+        llmobs_usage["total_tokens"] = total_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
 
-def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for converse.
+    """
+    messages = params.get("messages", [])
+    inference_config = params.get("inferenceConfig", {})
+    prompt = []
+    system_content_block = params.get("system", None)
+    if system_content_block:
+        prompt.append({"role": "system", "content": system_content_block})
+    prompt += messages
+    return {
+        "prompt": prompt,
+        "temperature": inference_config.get("temperature", ""),
+        "top_p": inference_config.get("topP", ""),
+        "max_tokens": inference_config.get("maxTokens", ""),
+        "stop_sequences": inference_config.get("stopSequences", []),
+    }
+
+
+def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+    """
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for invoke.
     """
     request_body = json.loads(params.get("body"))
     model_id = params.get("modelId")
@@ -307,9 +350,10 @@ def _extract_streamed_response_metadata(
         # TODO: figure out extraction for image-based models
         pass
 
-    input_tokens = metadata.get("inputTokenCount", None)
-    output_tokens = metadata.get("outputTokenCount", None)
-    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
+    input_tokens = metadata.get("inputTokenCount")
+    output_tokens = metadata.get("outputTokenCount")
+
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -319,7 +363,11 @@ def _extract_streamed_response_metadata(
 
 def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
-    request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
+    request_params = (
+        _extract_request_params_for_converse(ctx["params"])
+        if ctx["resource"] == "Converse"
+        else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
+    )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
@@ -332,20 +380,43 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
+    total_tokens = None
     input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
     output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
-    _set_llmobs_usage_from_invoke(ctx, input_tokens, output_tokens)
+    request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
+    if ctx["resource"] == "Converse":
+        if "metrics" in result:
+            latency = result.get("metrics", {}).get("latencyMs", "")
+            request_latency = str(latency) if latency else request_latency
+        if "usage" in result:
+            usage = result.get("usage", {})
+            if usage:
+                input_tokens = usage.get("inputTokens", input_tokens)
+                output_tokens = usage.get("outputTokens", output_tokens)
+                total_tokens = usage.get("totalTokens", total_tokens)
+        if "stopReason" in result:
+            ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
+
+    _set_llmobs_usage(
+        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
+    )
+
+    # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
         "botocore.patched_bedrock_api_call.success",
         [
             ctx,
             str(metadata.get("RequestId", "")),
-            str(http_headers.get("x-amzn-bedrock-invocation-latency", "")),
+            request_latency,
             str(input_tokens),
             str(output_tokens),
         ],
     )
+
+    if ctx["resource"] == "Converse":
+        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        return result
 
     body = result["body"]
     result["body"] = TracedBotocoreStreamingBody(body, ctx)

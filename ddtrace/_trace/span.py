@@ -487,8 +487,11 @@ class Span(object):
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
+        """Add an errortracking related callback to the on_finish_callback array"""
+        self._on_finish_callbacks.insert(0, callback)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
