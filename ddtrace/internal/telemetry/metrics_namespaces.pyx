@@ -1,3 +1,4 @@
+# cython: freethreading_compatible=True
 import enum
 import time
 from typing import Optional
@@ -27,10 +28,7 @@ cdef class MetricNamespace:
         self._metrics_data_lock = forksafe.Lock()
         self._metrics_data = {}
 
-    cpdef dict metrics_data(self):
-        return self._metrics_data.copy()
-
-    cpdef dict flush(self, interval: float = None):
+    def flush(self, interval: float = None):
         cdef float _interval = interval or 1.0
         cdef int now
         cdef dict data
@@ -41,6 +39,7 @@ cdef class MetricNamespace:
         cdef object metric_type
         cdef tuple metric_id
         cdef object value
+        cdef dict namespace_metrics
 
         with self._metrics_data_lock:
             namespace_metrics, self._metrics_data = self._metrics_data, {}
