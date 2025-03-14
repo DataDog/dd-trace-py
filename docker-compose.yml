@@ -88,7 +88,7 @@ services:
             - "127.0.0.1:7004:7004"
             - "127.0.0.1:7005:7005"
     mongo:
-        image: mongo:3.6
+        image: mongo:4.4
         ports:
             - "127.0.0.1:27017:27017"
     memcached:
