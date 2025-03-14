@@ -511,15 +511,20 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit))
             self._meta[ERROR_STACK] = tb
 
-
-    def _get_traceback(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType, limit: Optional[int] = None) -> str:
+    def _get_traceback(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
+    ) -> str:
         if limit is None:
             limit = -abs(config._span_traceback_max_size)
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
         tb = buff.getvalue()
         while len(tb) > MAX_SPAN_META_VALUE_LEN and limit > 1:
-            limit /= 2
+            limit //= 2
             # get the traceback again with a smaller limit
             buff = StringIO()
             traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
@@ -527,9 +532,12 @@ class Span(object):
 
         return tb
 
-
     def set_exc_info(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType], limit: Optional[int] = None
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
     ) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
