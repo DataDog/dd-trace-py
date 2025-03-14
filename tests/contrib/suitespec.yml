@@ -1,0 +1,1251 @@
+---
+components:
+  aiohttp:
+    - ddtrace/contrib/aiohttp.py
+    - ddtrace/contrib/internal/aiohttp/*
+    - ddtrace/contrib/_aiohttp_jinja2.py
+    - ddtrace/contrib/internal/aiohttp_jinja2/*
+  aiopg:
+    - ddtrace/contrib/_aiopg.py
+    - ddtrace/contrib/internal/aiopg/*
+  algoliasearch:
+    - ddtrace/contrib/_algoliasearch.py
+    - ddtrace/contrib/internal/algoliasearch/*
+  asgi:
+    - ddtrace/contrib/asgi.py
+    - ddtrace/contrib/internal/asgi/*
+  asyncio:
+    - ddtrace/contrib/_asyncio.py
+  avro:
+    - ddtrace/contrib/_avro.py
+    - ddtrace/contrib/internal/avro/*
+  aws_lambda:
+    - ddtrace/contrib/_aws_lambda.py
+    - ddtrace/contrib/internal/aws_lambda/*
+    - ddtrace/ext/aws.py
+  azure_functions:
+    - ddtrace/contrib/_azure_functions.py
+    - ddtrace/contrib/internal/azure_functions/*
+  botocore:
+    - ddtrace/contrib/_botocore.py
+    - ddtrace/contrib/internal/botocore/*
+    - ddtrace/contrib/_boto.py
+    - ddtrace/contrib/internal/boto/*
+    - ddtrace/contrib/_aiobotocore.py
+    - ddtrace/contrib/internal/aiobotocore/*
+  bottle:
+    - ddtrace/contrib/bottle.py
+    - ddtrace/contrib/internal/bottle/*
+  cassandra:
+    - ddtrace/contrib/_cassandra.py
+    - ddtrace/contrib/internal/cassandra/*
+    - ddtrace/ext/cassandra.py
+  celery:
+    - ddtrace/contrib/celery.py
+    - ddtrace/contrib/internal/celery/*
+  cherrypy:
+    - ddtrace/contrib/cherrypy.py
+    - ddtrace/contrib/internal/cherrypy/*
+  consul:
+    - ddtrace/contrib/_consul.py
+    - ddtrace/contrib/internal/consul/*
+    - ddtrace/ext/consul.py
+  contrib:
+    - ddtrace/contrib/__init__.py
+    - ddtrace/contrib/trace_utils.py
+    - ddtrace/contrib/internal/trace_utils_async.py
+    - ddtrace/contrib/internal/trace_utils.py
+    - ddtrace/contrib/internal/redis_utils.py
+    - ddtrace/ext/__init__.py
+    - ddtrace/ext/http.py
+    - ddtrace/ext/net.py
+    - ddtrace/ext/schema.py
+    - ddtrace/ext/sql.py
+    - ddtrace/ext/test.py
+    - ddtrace/ext/user.py
+    - ddtrace/propagation/*
+    - ddtrace/settings/_database_monitoring.py
+    - tests/contrib/patch.py
+    - tests/contrib/config.py
+    - tests/contrib/__init__.py
+    - tests/contrib/suitespec.yml
+  coverage:
+    - ddtrace/contrib/_coverage.py
+    - ddtrace/contrib/internal/coverage/*
+  dbapi:
+    - ddtrace/contrib/dbapi.py
+    - ddtrace/contrib/dbapi_async.py
+    - ddtrace/ext/db.py
+  dd_trace_api:
+    - ddtrace/contrib/internal/dd_trace_api/*
+    - tests/snapshots/tests.contrib.dd_trace_api.*
+  django:
+    - ddtrace/contrib/_django.py
+    - ddtrace/contrib/internal/django/*
+  dogpile_cache:
+    - ddtrace/contrib/_dogpile_cache.py
+    - ddtrace/contrib/internal/dogpile_cache/*
+  dramatiq:
+    - ddtrace/contrib/_dramatiq.py
+    - ddtrace/contrib/internal/dramatiq/*
+  elasticsearch:
+    - ddtrace/contrib/_elasticsearch.py
+    - ddtrace/contrib/internal/elasticsearch/*
+    - ddtrace/ext/elasticsearch.py
+  falcon:
+    - ddtrace/contrib/falcon.py
+    - ddtrace/contrib/internal/falcon/*
+  fastapi:
+    - ddtrace/contrib/_fastapi.py
+    - ddtrace/contrib/internal/fastapi/*
+  flask:
+    - ddtrace/contrib/_flask.py
+    - ddtrace/contrib/internal/flask/*
+    - ddtrace/contrib/flask_cache.py
+    - ddtrace/contrib/internal/flask_cache/*
+  freezegun:
+    - ddtrace/contrib/_freezegun.py
+    - ddtrace/contrib/internal/freezegun/*
+  futures:
+    - ddtrace/contrib/_futures.py
+    - ddtrace/contrib/internal/futures/*
+  gevent:
+    - ddtrace/contrib/_gevent.py
+    - ddtrace/contrib/internal/gevent/*
+  graphql:
+    - ddtrace/contrib/_graphql.py
+    - ddtrace/contrib/internal/graphql/*
+  grpc:
+    - ddtrace/contrib/_grpc.py
+    - ddtrace/contrib/internal/grpc/*
+  gunicorn:
+    - ddtrace/contrib/_gunicorn.py
+  httplib:
+    - ddtrace/contrib/_httplib.py
+    - ddtrace/contrib/internal/httplib/*
+  httpx:
+    - ddtrace/contrib/_httpx.py
+    - ddtrace/contrib/internal/httpx/*
+  jinja2:
+    - ddtrace/contrib/_jinja2.py
+    - ddtrace/contrib/internal/jinja2/*
+  kafka:
+    - ddtrace/contrib/_kafka.py
+    - ddtrace/contrib/internal/kafka/*
+    - ddtrace/ext/kafka.py
+  kombu:
+    - ddtrace/contrib/_kombu.py
+    - ddtrace/contrib/internal/kombu/*
+    - ddtrace/ext/kombu.py
+  logbook:
+    - ddtrace/contrib/_logbook.py
+    - ddtrace/contrib/internal/logbook/*
+  logging:
+    - ddtrace/contrib/_logging.py
+    - ddtrace/contrib/internal/logging/*
+  loguru:
+    - ddtrace/contrib/_logging.py
+    - ddtrace/contrib/internal/logging/*
+    - ddtrace/contrib/_loguru.py
+    - ddtrace/contrib/internal/loguru/*
+  mako:
+    - ddtrace/contrib/_mako.py
+    - ddtrace/contrib/internal/mako/*
+  mariadb:
+    - ddtrace/contrib/_mariadb.py
+    - ddtrace/contrib/internal/mariadb/*
+  molten:
+    - ddtrace/contrib/_molten.py
+    - ddtrace/contrib/internal/molten/*
+  mongo:
+    - ddtrace/contrib/_pymongo.py
+    - ddtrace/contrib/internal/pymongo/*
+    - ddtrace/contrib/_mongoengine.py
+    - ddtrace/contrib/internal/mongoengine/*
+    - ddtrace/ext/mongo.py
+  mysql:
+    - ddtrace/contrib/_mysql.py
+    - ddtrace/contrib/internal/mysql/*
+    - ddtrace/contrib/_mysqldb.py
+    - ddtrace/contrib/internal/mysqldb/*
+    - ddtrace/contrib/_pymysql.py
+    - ddtrace/contrib/internal/pymysql/*
+    - ddtrace/contrib/_aiomysql.py
+    - ddtrace/contrib/internal/aiomysql/*
+  pg:
+    - ddtrace/contrib/_aiopg.py
+    - ddtrace/contrib/internal/aiopg/*
+    - ddtrace/contrib/_asyncpg.py
+    - ddtrace/contrib/internal/psycopg/*
+    - ddtrace/contrib/internal/asyncpg/*
+    - ddtrace/contrib/_psycopg.py
+  protobuf:
+    - ddtrace/contrib/_protobuf.py
+    - ddtrace/contrib/internal/protobuf/*
+  pylibmc:
+    - ddtrace/contrib/pylibmc.py
+    - ddtrace/contrib/internal/pylibmc/*
+  pymemcache:
+    - ddtrace/contrib/_pymemcache.py
+    - ddtrace/contrib/internal/pymemcache/*
+    - ddtrace/ext/memcached.py
+  pynamodb:
+    - ddtrace/contrib/_pynamodb.py
+    - ddtrace/contrib/internal/pynamodb/*
+  pyodbc:
+    - ddtrace/contrib/_pyodbc.py
+    - ddtrace/contrib/internal/pyodbc/*
+  pyramid:
+    - ddtrace/contrib/pyramid.py
+    - ddtrace/contrib/internal/pyramid/*
+  redis:
+    - ddtrace/contrib/_rediscluster.py
+    - ddtrace/contrib/internal/rediscluster/*
+    - ddtrace/contrib/_redis.py
+    - ddtrace/contrib/internal/redis/*
+    - ddtrace/contrib/_aredis.py
+    - ddtrace/contrib/internal/aredis/*
+    - ddtrace/contrib/_yaaredis.py
+    - ddtrace/contrib/internal/yaaredis/*
+    - ddtrace/_trace/utils_redis.py
+    - ddtrace/contrib/internal/redis_utils.py
+    - ddtrace/ext/redis.py
+  requests:
+    - ddtrace/contrib/requests.py
+    - ddtrace/contrib/internal/requests/*
+  rq:
+    - ddtrace/contrib/_rq.py
+  sanic:
+    - ddtrace/contrib/_sanic.py
+    - ddtrace/contrib/internal/sanic/*
+  snowflake:
+    - ddtrace/contrib/_snowflake.py
+    - ddtrace/contrib/internal/snowflake/*
+  sqlalchemy:
+    - ddtrace/contrib/sqlalchemy.py
+    - ddtrace/contrib/internal/sqlalchemy/*
+  sqlite3:
+    - ddtrace/contrib/_sqlite3.py
+    - ddtrace/contrib/internal/sqlite3/*
+  starlette:
+    - ddtrace/contrib/_starlette.py
+    - ddtrace/contrib/internal/starlette/*
+  structlog:
+    - ddtrace/contrib/_structlog.py
+    - ddtrace/contrib/internal/structlog/*
+  subprocess:
+    - ddtrace/contrib/_subprocess.py
+    - ddtrace/contrib/internal/subprocess/*
+  tornado:
+    - ddtrace/contrib/tornado.py
+    - ddtrace/contrib/internal/tornado/*
+  urllib3:
+    - ddtrace/contrib/_urllib3.py
+    - ddtrace/contrib/internal/urllib3/*
+  valkey:
+    - ddtrace/contrib/internal/valkey/*
+    - ddtrace/contrib/internal/valkey_utils.py
+    - ddtrace/_trace/utils_valkey.py
+    - ddtrace/ext/valkey.py
+  vertica:
+    - ddtrace/contrib/_vertica.py
+    - ddtrace/contrib/internal/vertica/*
+  wsgi:
+    - ddtrace/contrib/wsgi.py
+    - ddtrace/contrib/internal/wsgi/*
+suites:
+  aiobotocore:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@botocore'
+      - tests/contrib/aiobotocore/*
+    runner: riot
+    services:
+      - moto
+    env:
+      TEST_MOTO_PORT: '3000'
+    snapshot: true
+  aiohttp:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aiohttp'
+      - tests/contrib/aiohttp/*
+      - tests/contrib/aiohttp_jinja2/*
+      - tests/snapshots/tests.contrib.aiohttp_jinja2.*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
+    services:
+      - httpbin_local
+    snapshot: true
+  aiomysql:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/aiomysql/*
+      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/shared_tests_async.py
+    runner: riot
+    services:
+      - mysql
+    snapshot: true
+  aiopg:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dbapi'
+      - '@pg'
+      - '@aiopg'
+      - tests/contrib/aiopg/*
+      - tests/contrib/shared_tests_async.py
+    runner: riot
+    snapshot: true
+    services:
+      - postgres
+  algoliasearch:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@algoliasearch'
+      - tests/contrib/algoliasearch/*
+    runner: riot
+    snapshot: true
+  aredis:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/aredis/*
+      - tests/snapshots/tests.{suite}.*
+    pattern: aredis$
+    runner: riot
+    services:
+      - redis
+    snapshot: true
+  asgi:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@asyncio'
+      - '@appsec'
+      - '@asgi'
+      - tests/contrib/asgi/*
+    pattern: asgi$
+    runner: riot
+    snapshot: true
+  asyncpg:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pg'
+      - tests/contrib/asyncpg/*
+      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/shared_tests_async.py
+    runner: riot
+    snapshot: true
+    services:
+      - postgres
+  asynctest:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - tests/contrib/asynctest/*
+    pattern: asynctest$
+    runner: riot
+  avro:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@avro'
+      - tests/contrib/avro/*
+    runner: riot
+    snapshot: true
+  aws_lambda:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aws_lambda'
+      - tests/contrib/aws_lambda/*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
+    snapshot: true
+  azure_functions:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - tests/contrib/azure_functions/*
+      - tests/snapshots/tests.contrib.azure_functions.*
+    runner: riot
+    snapshot: true
+  botocore:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@llmobs'
+      - '@botocore'
+      - '@llmobs'
+      - '@datastreams'
+      - tests/contrib/botocore/*
+      - tests/contrib/boto/*
+      - tests/snapshots/tests.contrib.botocore*
+    pattern: ^botocore$
+    runner: riot
+    snapshot: true
+    services:
+      - localstack
+  bottle:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@bottle'
+      - tests/contrib/bottle/*
+    runner: riot
+    snapshot: true
+  cassandra:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@cassandra'
+      - tests/contrib/cassandra/*
+    runner: riot
+    snapshot: true
+    parallelism: 2
+    services:
+      - cassandra
+  celery:
+    env:
+      DD_DISABLE_ERROR_RESPONSES: true
+      DD_POOL_TRACE_CHECK_FAILURES: true
+      ENABLED_CHECKS: trace_stall,meta_tracer_version_header,trace_content_length,trace_peer_service,trace_dd_service
+      LOG_LEVEL: DEBUG
+      PORT: 9126
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@celery'
+      - tests/contrib/celery/*
+    runner: riot
+    services:
+      - rabbitmq
+      - redis
+    snapshot: true
+  cherrypy:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@cherrypy'
+      - tests/contrib/cherrypy/*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
+    snapshot: true
+  consul:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@consul'
+      - tests/contrib/consul/*
+    runner: riot
+    snapshot: true
+    services:
+      - consul
+  datastreams:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@datastreams'
+      - tests/datastreams/*
+    runner: riot
+  dd_trace_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@dd_trace_api'
+      - tests/contrib/dd_trace_api/*
+    runner: riot
+    snapshot: true
+  django:
+    env:
+      TEST_MEMCACHED_HOST: memcached
+      TEST_POSTGRES_HOST: postgres
+      TEST_REDIS_HOST: redis
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@django'
+      - '@dbapi'
+      - '@asgi'
+      - '@pg'
+      - tests/appsec/*
+      - tests/contrib/django/*
+      - tests/contrib/django_celery/*
+      - tests/snapshots/tests.{suite}.*
+    pattern: django($|_celery)
+    runner: riot
+    services:
+      - postgres
+      - memcached
+      - redis
+    snapshot: true
+  django_hosts:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@appsec'
+      - '@django'
+      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/django_hosts/*
+      - tests/contrib/django_hosts/django_app/*
+    pattern: django_hosts$
+    runner: riot
+    snapshot: true
+  djangorestframework:
+    env:
+      TEST_MEMCACHED_HOST: memcached
+      TEST_REDIS_HOST: redis
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@appsec'
+      - '@django'
+      - tests/contrib/djangorestframework/*
+      - tests/contrib/djangorestframework/app/*
+    runner: riot
+    services:
+      - memcached
+      - redis
+    snapshot: true
+  dogpile_cache:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dogpile_cache'
+      - tests/contrib/dogpile_cache/*
+    runner: riot
+    snapshot: true
+  dramatiq:
+    env:
+      TEST_REDIS_HOST: redis
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dramatiq'
+      - tests/contrib/dramatiq/*
+      - tests/snapshots/tests.contrib.dramatiq.*
+    runner: riot
+    services:
+      - redis
+    snapshot: true
+  elasticsearch:
+    env:
+      TEST_ELASTICSEARCH_HOST: elasticsearch
+      TEST_OPENSEARCH_HOST: opensearch
+    parallelism: 17
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elasticsearch'
+      - tests/contrib/elasticsearch/*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
+    services:
+      - opensearch
+      - elasticsearch
+    snapshot: true
+  falcon:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@falcon'
+      - tests/contrib/falcon/*
+    runner: riot
+    snapshot: true
+  fastapi:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@starlette'
+      - '@fastapi'
+      - '@asgi'
+      - '@asyncio'
+      - tests/contrib/fastapi/*
+      - tests/snapshots/tests.contrib.starlette.*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
+    snapshot: true
+  flask:
+    env:
+      TEST_MEMCACHED_HOST: memcached
+      TEST_REDIS_HOST: redis
+    parallelism: 11
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@flask'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@wsgi'
+      - '@redis'
+      - tests/appsec/*
+      - tests/contrib/flask/*
+      - tests/contrib/flask_autopatch/*
+      - tests/contrib/flask_cache/*
+      - tests/snapshots/tests.contrib.flask.*
+    runner: riot
+    services:
+      - memcached
+      - redis
+    snapshot: true
+  freezegun:
+    paths:
+        - '@bootstrap'
+        - '@core'
+        - '@contrib'
+        - '@tracing'
+        - '@freezegun'
+        - tests/contrib/freezegun/*
+    runner: hatch
+    snapshot: true
+  gevent:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@gevent'
+      - tests/contrib/gevent/*
+    runner: riot
+    snapshot: false
+  graphene:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - tests/contrib/graphene/*
+      - tests/snapshots/tests.contrib.graphene*
+    runner: riot
+    snapshot: true
+  graphql:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@graphql'
+      - tests/contrib/graphql/*
+      - tests/snapshots/tests.contrib.graphql.*
+    runner: riot
+    snapshot: true
+  grpc:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@grpc'
+      - tests/contrib/grpc/*
+      - tests/contrib/grpc_aio/*
+      - tests/snapshots/tests.contrib.grpc.*
+    runner: riot
+    snapshot: true
+  gunicorn:
+    parallelism: 12
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@gunicorn'
+      - tests/contrib/gunicorn/*
+      - tests/snapshots/tests.contrib.gunicorn.*
+    runner: riot
+    snapshot: true
+  httplib:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@httplib'
+      - tests/contrib/httplib/*
+    runner: riot
+    services:
+      - httpbin_local
+    snapshot: true
+  httpx:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@httpx'
+      - tests/contrib/httpx/*
+      - tests/snapshots/tests.contrib.httpx.*
+    runner: riot
+    services:
+      - httpbin_local
+    snapshot: true
+  jinja2:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@jinja2'
+      - tests/contrib/jinja2/*
+    runner: riot
+    snapshot: true
+  kafka:
+    env:
+      TEST_KAFKA_HOST: kafka
+      TEST_KAFKA_PORT: '29092'
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@kafka'
+      - '@datastreams'
+      - tests/contrib/kafka/*
+      - tests/snapshots/tests.contrib.kafka.*
+    runner: riot
+    services:
+      - kafka
+    snapshot: true
+  kombu:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@kombu'
+      - '@datastreams'
+      - tests/contrib/kombu/*
+    runner: riot
+    services:
+      - rabbitmq
+    snapshot: true
+  logbook:
+    paths:
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@logbook'
+      - tests/contrib/logbook/*
+    runner: riot
+    snapshot: true
+  loguru:
+    paths:
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@loguru'
+      - tests/contrib/loguru/*
+    runner: riot
+    snapshot: true
+  mako:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mako'
+      - tests/contrib/mako/*
+    runner: riot
+    snapshot: true
+  mariadb:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dbapi'
+      - '@mariadb'
+      - tests/contrib/mariadb/*
+      - tests/snapshots/tests.contrib.mariadb.*
+    runner: riot
+    services:
+      - mariadb
+    snapshot: true
+  molten:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@molten'
+      - tests/contrib/molten/*
+    runner: riot
+    snapshot: true
+  mongoengine:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mongo'
+      - tests/contrib/mongoengine/*
+    runner: riot
+    snapshot: true
+    services:
+      - mongo
+  mysqlpython:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/mysqldb/*
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    pattern: mysqldb$
+    runner: riot
+    skip: true
+    services:
+      - mysql
+  opentelemetry:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@opentelemetry'
+      - tests/opentelemetry/*
+      - tests/snapshots/tests.opentelemetry.*
+    runner: riot
+    snapshot: true
+  opentracer:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@opentracer'
+      - tests/opentracer/*
+    runner: riot
+  protobuf:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@protobuf'
+      - tests/contrib/protobuf/*
+    runner: riot
+    snapshot: true
+  psycopg:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@pg'
+      - tests/contrib/psycopg/*
+      - tests/contrib/psycopg2/*
+      - tests/snapshots/tests.contrib.psycopg.*
+      - tests/snapshots/tests.contrib.psycopg2.*
+      - tests/contrib/shared_tests.py
+    runner: riot
+    services:
+      - postgres
+    snapshot: true
+  pylibmc:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pylibmc'
+      - tests/contrib/pylibmc/*
+    runner: riot
+    services:
+      - memcached
+    snapshot: true
+  pymemcache:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pymemcache'
+      - tests/contrib/pymemcache/*
+    runner: riot
+    services:
+      - memcached
+    snapshot: true
+  pymongo:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@mongo'
+      - tests/contrib/pymongo/*
+    runner: riot
+    services:
+      - mongo
+    snapshot: true
+  pymysql:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/pymysql/*
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    runner: riot
+    services:
+      - mysql
+    snapshot: true
+  pynamodb:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pynamodb'
+      - tests/contrib/pynamodb/*
+    runner: riot
+    snapshot: true
+  pyodbc:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pyodbc'
+      - '@dbapi'
+      - tests/contrib/pyodbc/*
+    runner: riot
+    snapshot: true
+  pyramid:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pyramid'
+      - tests/contrib/pyramid/*
+      - tests/snapshots/tests.contrib.pyramid.*
+    runner: riot
+    snapshot: true
+  redis:
+    parallelism: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/redis/*
+      - tests/snapshots/tests.contrib.redis.*
+    pattern: ^redis$
+    runner: riot
+    services:
+      - rediscluster
+      - redis
+    snapshot: true
+  rediscluster:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/rediscluster/*
+      - tests/snapshots/tests.contrib.rediscluster.*
+    runner: riot
+    services:
+      - redis
+      - rediscluster
+    snapshot: true
+  requests:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@requests'
+      - tests/contrib/requests/*
+    runner: riot
+    services:
+      - httpbin_local
+    snapshot: true
+  rq:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@rq'
+      - tests/contrib/rq/*
+      - tests/snapshots/tests.contrib.rq.*
+    runner: riot
+    services:
+      - redis
+    snapshot: true
+  sanic:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@sanic'
+      - '@asyncio'
+      - tests/contrib/sanic/*
+      - tests/snapshots/tests.contrib.sanic.*
+    runner: riot
+    snapshot: true
+  snowflake:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@dbapi'
+      - '@snowflake'
+      - tests/contrib/snowflake/*
+      - tests/snapshots/tests.contrib.snowflake.*
+    runner: riot
+    snapshot: true
+  sourcecode:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@sourcecode'
+      - tests/sourcecode/*
+    runner: riot
+  sqlalchemy:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@sqlalchemy'
+      - '@dbapi'
+      - tests/contrib/sqlalchemy/*
+    runner: riot
+    services:
+      - postgres
+      - mysql
+    snapshot: true
+  starlette:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@asyncio'
+      - '@starlette'
+      - '@asgi'
+      - tests/contrib/starlette/*
+    runner: riot
+    snapshot: true
+  stdlib:
+    paths:
+      - '@tracing'
+      - '@bootstrap'
+      - '@core'
+      - '@logging'
+      - '@asyncio'
+      - '@futures'
+      - '@sqlite3'
+      - '@dbapi'
+      - '@contrib'
+      - tests/contrib/logging/*
+      - tests/contrib/sqlite3/*
+      - tests/contrib/asyncio/*
+      - tests/contrib/futures/*
+      - tests/contrib/dbapi/*
+      - tests/contrib/dbapi_async/*
+    pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
+    runner: riot
+    snapshot: true
+  structlog:
+    paths:
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@structlog'
+      - tests/contrib/structlog/*
+    runner: riot
+    snapshot: true
+  subprocess:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@subprocess'
+      - '@appsec'
+      - tests/contrib/subprocess/*
+    runner: riot
+  test_logging:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@logging'
+      - tests/contrib/logging/*
+    runner: riot
+    snapshot: true
+  tornado:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@tornado'
+      - '@futures'
+      - tests/contrib/tornado/*
+    runner: riot
+    snapshot: true
+  urllib3:
+    env:
+      TEST_HTTPBIN_HOST: httpbin-local
+      TEST_HTTPBIN_PORT: '8001'
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@urllib3'
+      - tests/contrib/urllib3/*
+      - tests/snapshots/tests.contrib.urllib3.*
+    runner: riot
+    services:
+      - httpbin_local
+    snapshot: true
+  vertica:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@vertica'
+      - tests/contrib/vertica/*
+    runner: riot
+    skip: true # Vertica tests are flaky
+  wsgi:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@wsgi'
+      - tests/contrib/wsgi/*
+      - tests/contrib/django/test_django_wsgi.py
+      - tests/contrib/uwsgi/__init__.py
+      - tests/snapshots/tests.contrib.wsgi.*
+    runner: riot
+    snapshot: true
+  yaaredis:
+    paths:
+      - '@core'
+      - '@bootstrap'
+      - '@contrib'
+      - '@tracing'
+      - '@redis'
+      - tests/contrib/yaaredis/*
+      - tests/snapshots/tests.contrib.yaaredis.*
+    pattern: yaaredis$
+    runner: riot
+    services:
+      - redis
+    snapshot: true
+  valkey:
+    parallelism: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@valkey'
+      - tests/contrib/valkey/*
+      - tests/snapshots/tests.contrib.valkey.*
+    pattern: ^valkey*
+    runner: riot
+    services:
+      - valkeycluster
+      - valkey
+    snapshot: true

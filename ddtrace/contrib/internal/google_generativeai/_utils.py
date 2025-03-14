@@ -5,6 +5,7 @@ import wrapt
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.utils import get_generation_config_google
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
 
@@ -29,9 +30,8 @@ class TracedGenerateContentResponse(BaseTracedGenerateContentResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
@@ -50,9 +50,8 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
@@ -109,7 +108,7 @@ def tag_request(span, integration, instance, args, kwargs):
     """
     contents = get_argument_value(args, kwargs, 0, "contents")
     generation_config = get_generation_config_google(instance, kwargs)
-    system_instruction = getattr(instance, "_system_instruction", None)
+    system_instruction = get_system_instructions_from_google_model(instance)
     stream = kwargs.get("stream", None)
 
     try:
@@ -127,10 +126,8 @@ def tag_request(span, integration, instance, args, kwargs):
         return
 
     if system_instruction:
-        for idx, part in enumerate(system_instruction.parts):
-            span.set_tag_str(
-                "google_generativeai.request.system_instruction.%d.text" % idx, integration.trunc(str(part.text))
-            )
+        for idx, text in enumerate(system_instruction):
+            span.set_tag_str("google_generativeai.request.system_instruction.%d.text" % idx, integration.trunc(text))
 
     if isinstance(contents, str):
         span.set_tag_str("google_generativeai.request.contents.0.text", integration.trunc(contents))

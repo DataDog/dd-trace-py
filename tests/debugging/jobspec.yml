@@ -1,5 +1,0 @@
-debugger:
-  runner: riot
-  env:
-    SUITE_NAME: debugger
-  parallelism: 2

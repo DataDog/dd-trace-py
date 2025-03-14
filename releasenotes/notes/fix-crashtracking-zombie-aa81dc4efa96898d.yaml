@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    crashtracking: Resolve issue where the crashtracker receiver may leave a zombie process behind after a crash.

@@ -1,6 +1,7 @@
 # Acquire a reference to the open function from the builtins module. This is
 # necessary to ensure that the open function can be used unpatched when required.
 from builtins import open as unpatched_open  # noqa
+from json import loads as unpatched_json_loads  # noqa
 
 # Acquire a reference to the threading module. Some parts of the library (e.g.
 # the profiler) might be enabled programmatically and therefore might end up

@@ -1,5 +1,9 @@
+import sys
+
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+
+
+PY = sys.version_info[:2]
 
 
 # -----------------------------------------------------------------------------
@@ -362,77 +366,6 @@ elif PY >= (3, 8):
             call_function_ex            0
             rot_four
         pop_except
-            jump_absolute               @yield
-
-        stopiter:
-            dup_top
-            load_const                  StopIteration
-            compare_op                  asm.Compare.EXC_MATCH
-            pop_jump_if_false           @propagate
-            pop_top
-            pop_top
-            pop_top
-        pop_except
-            load_const                  None
-            return_value
-
-        propagate:
-        end_finally
-            load_const                  None
-            return_value
-        """
-    )
-
-
-elif PY >= (3, 7):
-    GENERATOR_ASSEMBLY.parse(
-        r"""
-        setup_except                    @stopiter
-            dup_top
-            store_fast                  $__ddgen
-            load_attr                   $send
-            store_fast                  $__ddgensend
-            load_const                  next
-            load_fast                   $__ddgen
-
-        loop:
-            call_function               1
-
-        yield:
-        setup_except                    @genexit
-            yield_value
-        pop_block
-            load_fast                   $__ddgensend
-            rot_two
-            jump_absolute               @loop
-
-        genexit:
-            dup_top
-            load_const                  GeneratorExit
-            compare_op                  asm.Compare.EXC_MATCH
-            pop_jump_if_false           @exc
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                   $__ddgen
-            load_attr                   $close
-            call_function               0
-            return_value
-
-        exc:
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                   $__ddgen
-            load_attr                   $throw
-            load_const                  sys.exc_info
-            call_function               0
-            call_function_ex            0
-            store_fast                  $__value
-        pop_except
-            load_fast                   $__value
             jump_absolute               @yield
 
         stopiter:

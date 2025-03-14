@@ -1,12 +1,13 @@
 import os
+import time
 
 import aiobotocore
 from botocore.errorfactory import ClientError
 import pytest
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.aiobotocore.patch import patch
-from ddtrace.contrib.aiobotocore.patch import unpatch
+from ddtrace.contrib.internal.aiobotocore.patch import patch
+from ddtrace.contrib.internal.aiobotocore.patch import unpatch
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -69,15 +70,18 @@ async def test_s3_client(tracer):
     assert span.get_tag("span.kind") == "client"
 
 
-async def _test_s3_put(tracer, use_make_api_call):
-    params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
+async def _test_s3_put(tracer, use_make_api_call, bucket_name):
+    params = dict(Key="foo", Bucket=bucket_name, Body=b"bar")
 
     async with aiobotocore_client("s3", tracer) as s3:
         if use_make_api_call:
-            await s3._make_api_call(operation_name="CreateBucket", api_params={"Bucket": "mybucket"})
+            await s3._make_api_call(
+                operation_name="CreateBucket",
+                api_params={"Bucket": bucket_name, "CreateBucketConfiguration": {"LocationConstraint": "us-west-2"}},
+            )
             await s3._make_api_call(operation_name="PutObject", api_params=params)
         else:
-            await s3.create_bucket(Bucket="mybucket")
+            await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
             await s3.put_object(**params)
 
     spans = [trace[0] for trace in tracer.pop_traces()]
@@ -100,16 +104,18 @@ async def _test_s3_put(tracer, use_make_api_call):
 @pytest.mark.parametrize("use_make_api_call", [True, False])
 @pytest.mark.asyncio
 async def test_s3_put(tracer, use_make_api_call):
-    span = await _test_s3_put(tracer, use_make_api_call)
-    assert span.get_tag("aws.s3.bucket_name") == "mybucket"
-    assert span.get_tag("bucketname") == "mybucket"
+    bucket_name = f"{time.time()}bucket".replace(".", "")
+    span = await _test_s3_put(tracer, use_make_api_call, bucket_name)
+    assert span.get_tag("aws.s3.bucket_name") == bucket_name
+    assert span.get_tag("bucketname") == bucket_name
     assert span.get_tag("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
 async def test_s3_put_no_params(tracer):
+    bucket_name = f"{time.time()}bucket".replace(".", "")
     with override_config("aiobotocore", dict(tag_no_params=True)):
-        span = await _test_s3_put(tracer, False)
+        span = await _test_s3_put(tracer, False, bucket_name)
         assert span.get_tag("aws.s3.bucket_name") is None
         assert span.get_tag("bucketname") is None
         assert span.get_tag("params.Key") is None
@@ -140,13 +146,14 @@ async def test_s3_client_error(tracer):
 
 @pytest.mark.asyncio
 async def test_s3_client_read(tracer):
+    bucket_name = f"{time.time()}bucket".replace(".", "")
     async with aiobotocore_client("s3", tracer) as s3:
         # prepare S3 and flush traces if any
-        await s3.create_bucket(Bucket="tracing")
-        await s3.put_object(Bucket="tracing", Key="apm", Body=b"")
+        await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
+        await s3.put_object(Bucket=bucket_name, Key="apm", Body=b"")
         tracer.pop_traces()
         # calls under test
-        response = await s3.get_object(Bucket="tracing", Key="apm")
+        response = await s3.get_object(Bucket=bucket_name, Key="apm")
         await response["Body"].read()
 
     traces = tracer.pop_traces()
@@ -419,8 +426,8 @@ def test_schematized_env_specified_service(ddtrace_run_python_code_in_subprocess
     service_name, schema_version, expected_service_name, expected_operation_name = schema_params
     code = """
 import asyncio
-from ddtrace.contrib.aiobotocore.patch import patch
-from ddtrace.contrib.aiobotocore.patch import unpatch
+from ddtrace.contrib.internal.aiobotocore.patch import patch
+from ddtrace.contrib.internal.aiobotocore.patch import unpatch
 from tests.contrib.aiobotocore.utils import *
 from tests.conftest import *
 
@@ -492,15 +499,16 @@ if __name__ == "__main__":
 
 @pytest.mark.asyncio
 async def test_response_context_manager(tracer):
+    bucket_name = f"{time.time()}bucket".replace(".", "")
     # the client should call the wrapped __aenter__ and return the
     # object proxy
     async with aiobotocore_client("s3", tracer) as s3:
         # prepare S3 and flush traces if any
-        await s3.create_bucket(Bucket="tracing")
-        await s3.put_object(Bucket="tracing", Key="apm", Body=b"")
+        await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
+        await s3.put_object(Bucket=bucket_name, Key="apm", Body=b"")
         tracer.pop_traces()
         # `async with` under test
-        response = await s3.get_object(Bucket="tracing", Key="apm")
+        response = await s3.get_object(Bucket=bucket_name, Key="apm")
         async with response["Body"] as stream:
             await stream.read()
 

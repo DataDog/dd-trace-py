@@ -3,20 +3,23 @@ from dataclasses import field
 import typing as t
 
 import ddtrace
-from ddtrace._trace.span import Span
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
+from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationMixin
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.debugging._signal.model import LogSignal
 from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -49,7 +52,7 @@ class DynamicSpan(Signal):
 
         span.set_tags(probe.tags)  # type: ignore[arg-type]
         span.set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
-        span.set_tag_str(ORIGIN_KEY, "di")
+        span.set_tag_str(_ORIGIN_KEY, "di")
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         if self._span_cm is not None:
@@ -112,3 +115,18 @@ class SpanDecoration(LogSignal):
 
     def has_message(self) -> bool:
         return bool(self.errors)
+
+
+@probe_to_signal.register
+def _(probe: SpanFunctionProbe, frame, thread, trace_context, meter):
+    return DynamicSpan(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
+
+
+@probe_to_signal.register
+def _(probe: SpanDecorationFunctionProbe, frame, thread, trace_context, meter):
+    return SpanDecoration(probe=probe, frame=frame, thread=thread)
+
+
+@probe_to_signal.register
+def _(probe: SpanDecorationLineProbe, frame, thread, trace_context, meter):
+    return SpanDecoration(probe=probe, frame=frame, thread=thread)

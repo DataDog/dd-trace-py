@@ -23,12 +23,16 @@ class WrappedConnect(wrapt.ObjectProxy):
 
     def __init__(self, connect):
         super(WrappedConnect, self).__init__(connect)
-        ddtrace.Pin(_SERVICE, tracer=ddtrace.tracer).onto(self)
+        ddtrace.trace.Pin(_SERVICE).onto(self)
 
     def __call__(self, *args, **kwargs):
         client = self.__wrapped__(*args, **kwargs)
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.trace.Pin.get_from(self)
         if pin:
-            ddtrace.Pin(service=pin.service, tracer=pin.tracer).onto(client)
+            tracer = pin.tracer
+            pp = ddtrace.trace.Pin(service=pin.service)
+            if tracer is not None:
+                pp._tracer = tracer
+            pp.onto(client)
 
         return client

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: resolves a JSON decoding issue resulting from tagging streamed outputs from chains ending with a PydanticOutputParser.

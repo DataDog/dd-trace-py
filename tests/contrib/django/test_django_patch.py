@@ -1,5 +1,5 @@
-from ddtrace.contrib.django import get_version
-from ddtrace.contrib.django import patch
+from ddtrace.contrib.internal.django.patch import get_version
+from ddtrace.contrib.internal.django.patch import patch
 from tests.contrib.patch import PatchTestCase
 
 

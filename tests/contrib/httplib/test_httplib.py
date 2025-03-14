@@ -1,6 +1,8 @@
 import contextlib
+import http.client as httplib
 import socket
 import sys
+from urllib import parse
 from urllib.request import Request
 from urllib.request import build_opener
 from urllib.request import urlopen
@@ -9,15 +11,13 @@ import pytest
 import wrapt
 
 from ddtrace import config
-from ddtrace.contrib.httplib import patch
-from ddtrace.contrib.httplib import unpatch
-from ddtrace.contrib.httplib.patch import should_skip_request
+from ddtrace.contrib.internal.httplib.patch import patch
+from ddtrace.contrib.internal.httplib.patch import should_skip_request
+from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
@@ -41,7 +41,7 @@ class HTTPLibBaseMixin(object):
         super(HTTPLibBaseMixin, self).setUp()
 
         patch()
-        Pin.override(httplib, tracer=self.tracer)
+        Pin._override(httplib, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
@@ -59,12 +59,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def get_http_connection(self, *args, **kwargs):
         conn = httplib.HTTPConnection(*args, **kwargs)
-        Pin.override(conn, tracer=self.tracer)
+        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def get_https_connection(self, *args, **kwargs):
         conn = httplib.HTTPSConnection(*args, **kwargs)
-        Pin.override(conn, tracer=self.tracer)
+        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def test_patch(self):

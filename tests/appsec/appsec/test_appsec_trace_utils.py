@@ -11,7 +11,7 @@ from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.appsec.trace_utils import track_user_signup_event
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
@@ -235,10 +235,12 @@ class EventsSDKTestCase(TracerTestCase):
             assert span.get_tag(user.ROLE)
             assert span.get_tag(user.SCOPE)
             assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+            assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
             assert is_blocked(span)
 
     def test_no_span_doesnt_raise(self):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         with self._caplog.at_level(logging.DEBUG):
             try:

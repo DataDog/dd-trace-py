@@ -1,3 +1,4 @@
+from time import time_ns
 import traceback
 from typing import TYPE_CHECKING
 
@@ -10,16 +11,15 @@ from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
 from ddtrace import config
-from ddtrace import tracer as ddtracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.http import w3c_tracestate_add_p
+from ddtrace.trace import tracer as ddtracer
 
 
 if TYPE_CHECKING:
@@ -220,9 +220,16 @@ class Span(OtelSpan):
             return
 
         if isinstance(status, Status):
+            if description is not None and description != status.description:
+                log.warning(
+                    "Conflicting descriptions detected. The following description will not be set on the %s span: %s. "
+                    "Ensure `Span.set_status(...)` is called with `(Status(status_code, description), None)` "
+                    "or `(status_code, description)`",
+                    self._ddspan.name,
+                    description,
+                )
             status_code = status.status_code
             message = status.description
-            log.warning("Description %s ignored. Use either `Status` or `(StatusCode, Description)`", description)
         else:
             status_code = status
             message = description

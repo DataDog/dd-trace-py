@@ -3,12 +3,12 @@
 import ast
 import codecs
 import os
-import re
 from sys import builtin_module_names
-from sys import version_info
 import textwrap
 from types import ModuleType
+from typing import Iterable
 from typing import Optional
+from typing import Set
 from typing import Text
 from typing import Tuple
 
@@ -16,8 +16,11 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
+from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 
+from .._logs import iast_ast_debug_log
+from .._logs import iast_compiling_debug_log
 from .visitor import AstVisitor
 
 
@@ -26,16 +29,44 @@ _VISITOR = AstVisitor()
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
 # Prefixes for modules where IAST patching is allowed
-IAST_ALLOWLIST: Tuple[Text, ...] = ("tests.appsec.iast.",)
+# Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
+IAST_ALLOWLIST: Tuple[Text, ...] = (
+    "attrs.",
+    "beautifulsoup4.",
+    "cachetools.",
+    "cryptography.",
+    "django.",
+    "docutils.",
+    "idna.",
+    "iniconfig.",
+    "jinja2.",
+    "lxml.",
+    "multidict.",
+    "platformdirs",
+    "pygments.",
+    "pynacl.",
+    "pyparsing.",
+    "multipart",
+    "sqlalchemy.",
+    "tomli",
+    "yarl.",
+)
+
+# NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "flask.",
-    "werkzeug.",
+    "_psycopg.",  # PostgreSQL adapter for Python (v3)
+    "_pytest.",
     "aiohttp._helpers.",
     "aiohttp._http_parser.",
     "aiohttp._http_writer.",
     "aiohttp._websocket.",
     "aiohttp.log.",
     "aiohttp.tcp_helpers.",
+    "aioquic.",
+    "altgraph.",
+    "anyio.",
+    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
+    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
     "asyncio.base_events.",
     "asyncio.base_futures.",
     "asyncio.base_subprocess.",
@@ -58,11 +89,15 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "asyncio.transports.",
     "asyncio.trsock.",
     "asyncio.unix_events.",
+    "asyncpg.pgproto.",
     "attr._config.",
     "attr._next_gen.",
     "attr.filters.",
     "attr.setters.",
+    "autopep8.",
     "backports.",
+    "black.",
+    "blinker.",
     "boto3.docs.docstring.",
     "boto3.s3.",
     "botocore.docs.bcdoc.",
@@ -70,6 +105,8 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "botocore.vendored.requests.",
     "brotli.",
     "brotlicffi.",
+    "bytecode.",
+    "cattrs.",
     "cchardet.",
     "certifi.",
     "cffi.",
@@ -104,13 +141,23 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "colorama.",
     "concurrent.futures.",
     "configparser.",
+    "contourpy.",
     "coreschema.",
     "crispy_forms.",
+    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
+    "cx_logging.",
+    "cycler.",
+    "cython.",
     "dateutil.",
+    "dateutil.",
+    "ddsketch.",
+    "ddtrace.",
     "defusedxml.",
+    "deprecated.",
     "difflib.",
     "dill.info.",
     "dill.settings.",
+    "dipy.",
     "django.apps.config.",
     "django.apps.registry.",
     "django.conf.",
@@ -256,73 +303,136 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django_filters.rest_framework.filterset.",
     "django_filters.utils.",
     "django_filters.widgets.",
-    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
-    "deprecated.",
-    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "asyncpg.pgproto.",
-    "blinker.",
-    "bytecode.",
-    "cattrs.",
-    "ddsketch.",
-    "ddtrace.",
+    "dnspython.",
+    "elasticdeform.",
     "envier.",
     "exceptiongroup.",
+    "flask.",
+    "fonttools.",
     "freezegun.",  # Testing utilities for time manipulation
+    "google.auth.",
+    "googlecloudsdk.",
+    "gprof2dot.",
+    "h11.",
+    "h5py.",
+    "httpcore.",
+    "httptools.",
+    "httpx.",
     "hypothesis.",  # Testing utilities
+    "imageio.",
     "importlib_metadata.",
     "inspect.",  # this package is used to get the stack frames, propagation is not needed
     "itsdangerous.",
+    "kiwisolver.",
+    "matplotlib.",
     "moto.",  # used for mocking AWS, propagation is not needed
+    "mypy.",
+    "mypy_extensions.",
+    "networkx.",
+    "nibabel.",
+    "nilearn.",
+    "numba.",
+    "numpy.",
     "opentelemetry-api.",
     "packaging.",
+    "pandas.",
+    "pdf2image.",
+    "pefile.",
+    "pil.",
     "pip.",
     "pkg_resources.",
     "pluggy.",
     "protobuf.",
+    "psycopg.",  # PostgreSQL adapter for Python (v3)
+    "psycopg2.",  # PostgreSQL adapter for Python (v2)
+    "pycodestyle.",
     "pycparser.",  # this package is called when a module is imported, propagation is not needed
-    "pytest.",  # Testing framework
-    "_pytest.",
-    "setuptools.",
-    "sklearn.",  # Machine learning library
-    "sqlalchemy.orm.interfaces.",  # Performance optimization
-    "typing_extensions.",
-    "unittest.mock.",
-    "uvloop.",
-    "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
-    "wrapt.",
-    "zipp.",
-    # This is a workaround for Sanic failures:
-    "websocket.",
-    "h11.",
-    "aioquic.",
-    "httptools.",
-    "sniffio.",
-    "sanic.",
-    "rich.",
-    "httpx.",
-    "websockets.",
-    "uvicorn.",
-    "anyio.",
-    "httpcore.",
-    "google.auth.",
-    "googlecloudsdk.",
-    "umap.",
+    "pydicom.",
+    "pyinstaller.",
     "pynndescent.",
-    "numba.",
+    "pystray.",
+    "pytest.",  # Testing framework
+    "pytz.",
+    "rich.",
+    "sanic.",
+    "scipy.",
+    "setuptools.",
+    "silk.",  # django-silk package
+    "skbase.",
+    "sklearn.",  # Machine learning library
+    "sniffio.",
+    "sqlalchemy.orm.interfaces.",  # Performance optimization
+    "threadpoolctl.",
+    "tifffile.",
+    "tqdm.",
+    "trx.",
+    "typing_extensions.",
+    "umap.",
+    "unittest.mock.",
+    "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
+    "uvicorn.",
+    "uvloop.",
+    "wcwidth.",
+    "websocket.",
+    "websockets.",
+    "werkzeug.",
+    "win32ctypes.",
+    "wrapt.",
+    "xlib.",
+    "zipp.",
 )
 
-
-if IAST.PATCH_MODULES in os.environ:
-    IAST_ALLOWLIST += tuple(os.environ[IAST.PATCH_MODULES].split(IAST.SEP_MODULES))
-
-if IAST.DENY_MODULES in os.environ:
-    IAST_DENYLIST += tuple(os.environ[IAST.DENY_MODULES].split(IAST.SEP_MODULES))
-
+USER_ALLOWLIST = tuple(os.environ.get(IAST.PATCH_MODULES, "").split(IAST.SEP_MODULES))
+USER_DENYLIST = tuple(os.environ.get(IAST.DENY_MODULES, "").split(IAST.SEP_MODULES))
 
 ENCODING = ""
 
 log = get_logger(__name__)
+
+
+class _TrieNode:
+    __slots__ = ("children", "is_end")
+
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+    def __iter__(self):
+        if self.is_end:
+            yield ("", None)
+        else:
+            for k, v in self.children.items():
+                yield (k, dict(v))
+
+
+def build_trie(words: Iterable[str]) -> _TrieNode:
+    root = _TrieNode()
+    for word in words:
+        node = root
+        for char in word:
+            if char not in node.children:
+                node.children[char] = _TrieNode()
+            node = node.children[char]
+        node.is_end = True
+    return root
+
+
+_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
+_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
+_TRIE_USER_ALLOWLIST = build_trie(USER_ALLOWLIST)
+_TRIE_USER_DENYLIST = build_trie(USER_DENYLIST)
+
+
+def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
+    node = trie
+    for char in string:
+        node = node.children.get(char)
+        if not node:
+            return False
+
+        if node.is_end:
+            return True
+    return node.is_end
 
 
 def get_encoding(module_path: Text) -> Text:
@@ -339,11 +449,24 @@ def get_encoding(module_path: Text) -> Text:
     return ENCODING
 
 
-_NOT_PATCH_MODULE_NAMES = _stdlib_for_python_version() | set(builtin_module_names)
+_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
+
+_IMPORTLIB_PACKAGES: Set[str] = set()
 
 
 def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in [x.lower() for x in _NOT_PATCH_MODULE_NAMES]
+    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
+
+
+def _is_first_party(module_name: str):
+    global _IMPORTLIB_PACKAGES
+    if "vendor." in module_name or "vendored." in module_name:
+        return False
+
+    if not _IMPORTLIB_PACKAGES:
+        _IMPORTLIB_PACKAGES = set(get_package_distributions())
+
+    return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
 
 
 def _should_iast_patch(module_name: Text) -> bool:
@@ -356,17 +479,34 @@ def _should_iast_patch(module_name: Text) -> bool:
     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
     # diff = max_allow - max_deny
     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    dotted_module_name = module_name.lower() + "."
-    if dotted_module_name.startswith(IAST_ALLOWLIST):
-        log.debug("IAST: allowing %s. it's in the IAST_ALLOWLIST", module_name)
-        return True
-    if dotted_module_name.startswith(IAST_DENYLIST):
-        log.debug("IAST: denying %s. it's in the IAST_DENYLIST", module_name)
-        return False
     if _in_python_stdlib(module_name):
-        log.debug("IAST: denying %s. it's in the _in_python_stdlib", module_name)
+        iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
         return False
-    return True
+
+    if _is_first_party(module_name):
+        iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
+        return True
+
+    # else: third party. Check that is in the allow list and not in the deny list
+    dotted_module_name = module_name.lower() + "."
+
+    # User allow or deny list set by env var have priority
+    if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
+        iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
+        return True
+
+    if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
+        iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
+        return False
+
+    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
+        if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
+            iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
+            return False
+        iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
+        return True
+    iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
+    return False
 
 
 def visit_ast(
@@ -383,27 +523,6 @@ def visit_ast(
 
     ast.fix_missing_locations(modified_ast)
     return modified_ast
-
-
-_FLASK_INSTANCE_REGEXP = re.compile(r"(\S*)\s*=.*Flask\(.*")
-
-
-def _remove_flask_run(text: Text) -> Text:
-    """
-    Find and remove flask app.run() call. This is used for patching
-    the app.py file and exec'ing to replace the module without creating
-    a new instance.
-    """
-    flask_instance_name = re.search(_FLASK_INSTANCE_REGEXP, text)
-    if not flask_instance_name:
-        return text
-    groups = flask_instance_name.groups()
-    if not groups:
-        return text
-
-    instance_name = groups[-1]
-    new_text = re.sub(instance_name + r"\.run\(.*\)", "pass", text)
-    return new_text
 
 
 _DIR_WRAPPER = textwrap.dedent(
@@ -439,22 +558,22 @@ def {_PREFIX}set_dir_filter():
 )
 
 
-def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple[str, Optional[ast.Module]]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     module_name = module.__name__
 
     module_origin = origin(module)
     if module_origin is None:
-        log.debug("astpatch_source couldn't find the module: %s", module_name)
+        iast_compiling_debug_log(f"could not find the module: {module_name}")
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            log.debug("empty file: %s", module_path)
+            iast_compiling_debug_log(f"empty file: {module_path}")
             return "", None
     except OSError:
-        log.debug("astpatch_source couldn't find the file: %s", module_path, exc_info=True)
+        iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -464,27 +583,26 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
 
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        log.debug("extension not supported: %s for: %s", module_ext, module_path)
+        iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
     with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            log.debug("unicode decode error for file: %s", module_path, exc_info=True)
+            iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
+            return "", None
+        except Exception:
+            iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        log.debug("empty file: %s", module_path)
+        iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
-    if remove_flask_run:
-        source_text = _remove_flask_run(source_text)
-
-    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")) and version_info > (3, 7):
+    if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
         # Add the dir filter so __ddtrace stuff is not returned by dir(module)
-        # does not work in 3.7 because it enters into infinite recursion
         source_text += _DIR_WRAPPER
 
     new_ast = visit_ast(
@@ -493,7 +611,7 @@ def astpatch_module(module: ModuleType, remove_flask_run: bool = False) -> Tuple
         module_name=module_name,
     )
     if new_ast is None:
-        log.debug("file not ast patched: %s", module_path)
+        iast_compiling_debug_log(f"file not ast patched: {module_path}")
         return "", None
 
     return module_path, new_ast

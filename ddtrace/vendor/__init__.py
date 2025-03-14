@@ -26,19 +26,6 @@ Notes:
   removed unnecessary compat utils
 
 
-monotonic
----------
-
-Website: https://pypi.org/project/monotonic/
-Source: https://github.com/atdt/monotonic
-Version: 1.5
-License: Apache License 2.0
-
-Notes:
-  The source `monotonic.py` was added as `monotonic/__init__.py`
-
-  No other changes were made
-
 debtcollector
 -------------
 
@@ -58,20 +45,6 @@ Website: https://github.com/giampaolo/psutil
 Source: https://github.com/giampaolo/psutil
 Version: 5.6.7
 License: BSD 3
-
-
-contextvars
--------------
-
-Source: https://github.com/MagicStack/contextvars
-Version: 2.4
-License: Apache License 2.0
-
-Notes:
-  - removal of metaclass usage
-  - formatting
-  - use a plain old dict instead of immutables.Map
-  - removal of `*` syntax
 
 
 sqlcommenter
@@ -107,7 +80,7 @@ Notes:
     yacc.py and lex.py files here.
     Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
 
-    
+
 jsonpath-ng
 ---------
 
@@ -120,12 +93,15 @@ Notes:
     Changed "-" to "_" as was causing errors when importing.
 """
 
-# Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
-# DEV: This helps ensure if there are connection issues we do not spam their logs
-# DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
-#      not conflict with any non-vendored datadog.dogstatsd logger
-from ..internal.logger import get_logger
-from .dogstatsd import base
+from ddtrace.internal.module import ModuleWatchdog
 
 
-base.log = get_logger("ddtrace.vendor.dogstatsd")
+@ModuleWatchdog.after_module_imported("ddtrace.vendor.dogstatsd.base")
+def _(base):
+    # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
+    # DEV: This helps ensure if there are connection issues we do not spam their logs
+    # DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
+    #      not conflict with any non-vendored datadog.dogstatsd logger
+    from ddtrace.internal.logger import get_logger
+
+    base.log = get_logger("ddtrace.vendor.dogstatsd")

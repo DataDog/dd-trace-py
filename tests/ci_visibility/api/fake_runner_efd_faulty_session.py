@@ -1,6 +1,5 @@
-"""Fake test runner where all too many tests are new, so the session is faulty and no retries are done
-
-Incorporates setting and deleting tags, as well.
+"""Fake test runner where too many tests are new, so the session is faulty and no retries are done
+.
 Starts session before discovery (simulating pytest behavior)
 
 Comment lines in the test start/finish lines are there for visual distinction.
@@ -90,18 +89,8 @@ def run_tests():
     m2_s1_id = ext_api.TestSuiteId(m2_id, "m2_s1")
     api.InternalTestSuite.discover(m2_s1_id)
 
-    # M2_S1 tests (mostly exist to keep under faulty session threshold)
-    m2_s1_test_ids = [
-        api.InternalTestId(m2_s1_id, "m2_s1_t1"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t2"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t3"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t4"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t5"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t6"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t7"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t8"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t9"),
-    ]
+    # M2_S1 tests
+    m2_s1_test_ids = [api.InternalTestId(m2_s1_id, f"m2_s1_t{i}") for i in range(35)]
     for test_id in m2_s1_test_ids:
         api.InternalTest.discover(test_id)
 

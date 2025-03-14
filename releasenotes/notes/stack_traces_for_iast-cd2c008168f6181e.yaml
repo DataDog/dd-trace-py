@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security: This introduces stack trace reports for Code Security.

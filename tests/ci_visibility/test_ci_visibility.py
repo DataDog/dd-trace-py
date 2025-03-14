@@ -14,7 +14,6 @@ import msgpack
 import pytest
 
 import ddtrace
-from ddtrace._trace.span import Span
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
@@ -29,9 +28,11 @@ from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
 from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
+from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.utils.http import Response
+from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
@@ -123,7 +124,10 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._service == "test-service"
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_processors
+            )
             CIVisibility.disable()
 
 
@@ -150,7 +154,10 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._service == "test-repo"  # Inherited from environment
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
-            assert any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in dummy_tracer._filters)
+            assert any(
+                isinstance(tracer_filter, TraceCiVisibilityFilter)
+                for tracer_filter in dummy_tracer._user_trace_processors
+            )
             CIVisibility.disable()
 
 
@@ -450,7 +457,7 @@ def test_get_client_do_request_agentless_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -465,7 +472,7 @@ def test_get_client_do_request_evp_proxy_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -513,7 +520,7 @@ def test_git_do_request_agentless(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()
@@ -546,7 +553,7 @@ def test_git_do_request_evp(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()
@@ -678,8 +685,8 @@ def test_civisibilitywriter_agentless_url_envvar():
             )
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
-        ), mock.patch("ddtrace.settings.config.Config", _get_default_civisibility_ddconfig()), mock.patch(
-            "ddtrace.tracer", ddtrace.Tracer()
+        ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
+            "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), _dummy_noop_git_client(), mock.patch(
@@ -699,7 +706,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             )
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
-        ), mock.patch("ddtrace.tracer", ddtrace.Tracer()), mock.patch(
+        ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
@@ -1113,8 +1120,8 @@ def test_civisibility_enable_respects_passed_in_tracer():
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
-        tracer = ddtrace.Tracer()
-        tracer.configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        tracer = CIVisibilityTracer()
+        tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
         CIVisibility.enable(tracer=tracer)
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 100

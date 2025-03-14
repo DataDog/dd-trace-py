@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+import logging
 import os
 import random
 
@@ -7,12 +8,17 @@ from asgiref.testing import ApplicationCommunicator
 import httpx
 import pytest
 
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import DummyTracer
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -193,8 +199,8 @@ from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 
 @pytest.mark.asyncio
@@ -252,8 +258,8 @@ from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
 from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
-from ddtrace.contrib.asgi import TraceMiddleware
-from ddtrace.contrib.asgi import span_from_scope
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 @pytest.mark.asyncio
 async def test(scope, tracer, test_spans):
@@ -635,6 +641,52 @@ async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
+async def test_request_parse_response_cookies(tracer, test_spans, caplog):
+    """
+    Regression test https://github.com/DataDog/dd-trace-py/issues/11818
+    """
+
+    async def tasks_cookies(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"set-cookie", b"test_cookie"]]})
+            await send({"type": "http.response.body", "body": b"*"})
+            await asyncio.sleep(1)
+
+    with caplog.at_level(logging.DEBUG):
+        app = TraceMiddleware(tasks_cookies, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+    assert "failed to extract response cookies" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "headers,expected_result",
+    [
+        ({}, {}),
+        ({"cookie": "cookie1=value1"}, {}),
+        ({"header-1": ""}, {}),
+        ({"Set-cookie": "cookie1=value1"}, {}),
+        ({"set-Cookie": "cookie1=value1"}, {}),
+        ({"SET-cookie": "cookie1=value1"}, {}),
+        ({"set-cookie": "a"}, {}),
+        ({"set-cookie": "1234"}, {}),
+        ({"set-cookie": "cookie1=value1"}, {"cookie1": "value1"}),
+        ({"set-cookie": "cookie2=value1=value2"}, {"cookie2": "value1=value2"}),
+        ({"set-cookie": "cookie3=="}, {"cookie3": "="}),
+    ],
+)
+def test__parse_response_cookies(headers, expected_result, caplog):
+    with caplog.at_level(logging.DEBUG):
+        result = _parse_response_cookies(headers)
+
+    assert "failed to extract response cookies" not in caplog.text
+    assert result == expected_result
+
+
+@pytest.mark.asyncio
 async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
     """
     When an application does have more_body calls and does background tasks,
@@ -681,3 +733,89 @@ async def test_response_headers(scope, tracer, test_spans):
             assert test_spans.spans
             request_span = test_spans.spans[0]
             assert "http.response.headers.content-type" in request_span.get_tags().keys()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "app_type",
+    [
+        {"testapp": basic_app, "status_code": "200"},
+        {"testapp": error_app, "status_code": "500"},
+        {"testapp": error_handled_app, "status_code": "500"},
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
+async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app_type, inferred_proxy_enabled):
+    app = TraceMiddleware(app_type["testapp"], tracer=tracer)
+    default_headers = [
+        ("x-dd-proxy", "aws-apigateway"),
+        ("x-dd-proxy-request-time-ms", "1736973768000"),
+        ("x-dd-proxy-path", "/"),
+        ("x-dd-proxy-httpmethod", "GET"),
+        ("x-dd-proxy-domain-name", "local"),
+        ("x-dd-proxy-stage", "stage"),
+    ]
+
+    distributed_headers = [
+        ("x-dd-proxy", "aws-apigateway"),
+        ("x-dd-proxy-request-time-ms", "1736973768000"),
+        ("x-dd-proxy-path", "/"),
+        ("x-dd-proxy-httpmethod", "GET"),
+        ("x-dd-proxy-domain-name", "local"),
+        ("x-dd-proxy-stage", "stage"),
+        ("x-datadog-trace-id", "1"),
+        ("x-datadog-parent-id", "2"),
+        ("x-datadog-origin", "rum"),
+        ("x-datadog-sampling-priority", "2"),
+    ]
+
+    for headers in [default_headers, distributed_headers]:
+        scope["headers"] = headers
+
+        # When the inferred proxy feature is enabled, there should be an inferred span
+        with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+            test_spans.reset()
+            instance = ApplicationCommunicator(app, scope)
+
+            if app_type["testapp"] == error_app:
+                with pytest.raises(RuntimeError):
+                    await instance.send_input({"type": "http.request", "body": b""})
+                    await instance.receive_output(1)
+            else:
+                await instance.send_input({"type": "http.request", "body": b""})
+                await instance.receive_output(1)
+
+            web_span = test_spans.find_span(name="asgi.request")
+            if inferred_proxy_enabled is False:
+                assert web_span._parent is None
+
+                if headers == distributed_headers:
+                    web_span.assert_matches(
+                        name="asgi.request",
+                        trace_id=1,
+                        parent_id=2,
+                        metrics={
+                            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+                        },
+                    )
+            else:
+                aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+                assert_web_and_inferred_aws_api_gateway_span_data(
+                    aws_gateway_span,
+                    web_span,
+                    web_span_name="asgi.request",
+                    web_span_component="asgi",
+                    web_span_service_name="tests.contrib.asgi",
+                    web_span_resource="GET /",
+                    api_gateway_service_name="local",
+                    api_gateway_resource="GET /",
+                    method="GET",
+                    status_code=app_type["status_code"],
+                    url="local/",
+                    start=1736973768,
+                    is_distributed=headers == distributed_headers,
+                    distributed_trace_id=1,
+                    distributed_parent_id=2,
+                    distributed_sampling_priority=USER_KEEP,
+                )

@@ -2,11 +2,10 @@ import importlib
 
 import wrapt
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -18,7 +17,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -190,7 +189,6 @@ def _install_init(patch_item, patch_class, patch_mod, config):
         # create and attach a pin with the defaults
         Pin(
             tags=config.get("tags", {}),
-            tracer=config.get("tracer", ddtrace.tracer),
             _config=config["patch"][patch_item],
         ).onto(instance)
         return r
@@ -233,7 +231,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
                 if conf.get("measured", False):
-                    span.set_tag(SPAN_MEASURED_KEY)
+                    span.set_tag(_SPAN_MEASURED_KEY)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:

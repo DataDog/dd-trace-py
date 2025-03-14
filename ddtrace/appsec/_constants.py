@@ -1,3 +1,5 @@
+# this module must not load any other unsafe appsec module directly
+
 import os
 from re import Match
 import sys
@@ -55,7 +57,7 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
-    STANDALONE_ENV: Literal["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
+    APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
@@ -71,10 +73,16 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION: Literal["_dd.appsec.rasp.duration"] = "_dd.appsec.rasp.duration"
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
+    RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
+    TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
+    TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
+    TRUNCATION_CONTAINER_DEPTH: Literal["_dd.appsec.truncated.container_depth"] = "_dd.appsec.truncated.container_depth"
     ORIGIN_VALUE: Literal["appsec"] = "appsec"
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
     USER_LOGIN_EVENT_PREFIX_PUBLIC: Literal["appsec.events.users.login"] = "appsec.events.users.login"
+    USER_LOGIN_USERID: Literal["_dd.appsec.usr.id"] = "_dd.appsec.usr.id"
+    USER_LOGIN_USERNAME: Literal["_dd.appsec.usr.login"] = "_dd.appsec.usr.login"
     USER_LOGIN_EVENT_SUCCESS_TRACK: Literal[
         "appsec.events.users.login.success.track"
     ] = "appsec.events.users.login.success.track"
@@ -82,17 +90,20 @@ class APPSEC(metaclass=Constant_Class):
         "appsec.events.users.login.failure.track"
     ] = "appsec.events.users.login.failure.track"
     USER_SIGNUP_EVENT: Literal["appsec.events.users.signup.track"] = "appsec.events.users.signup.track"
+    USER_SIGNUP_EVENT_USERNAME: Literal["appsec.events.users.signup.usr.login"] = "appsec.events.users.signup.usr.login"
+    USER_SIGNUP_EVENT_USERID: Literal["appsec.events.users.signup.usr.id"] = "appsec.events.users.signup.usr.id"
+    USER_SIGNUP_EVENT_MODE: Literal[
+        "_dd.appsec.events.users.signup.auto.mode"
+    ] = "_dd.appsec.events.users.signup.auto.mode"
     AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal[
         "_dd.appsec.events.users.login.success.auto.mode"
     ] = "_dd.appsec.events.users.login.success.auto.mode"
     AUTO_LOGIN_EVENTS_FAILURE_MODE: Literal[
         "_dd.appsec.events.users.login.failure.auto.mode"
     ] = "_dd.appsec.events.users.login.failure.auto.mode"
+    AUTO_LOGIN_EVENTS_COLLECTION_MODE: Literal["_dd.appsec.user.collection_mode"] = "_dd.appsec.user.collection_mode"
     BLOCKED: Literal["appsec.blocked"] = "appsec.blocked"
     EVENT: Literal["appsec.event"] = "appsec.event"
-    AUTOMATIC_USER_EVENTS_TRACKING: Literal[
-        "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
-    ] = "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING"
     AUTO_USER_INSTRUMENTATION_MODE: Literal[
         "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
     ] = "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"
@@ -102,13 +113,14 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
-    PROPAGATION_HEADER: Literal["_dd.p.appsec"] = "_dd.p.appsec"
+    PROPAGATION_HEADER: Literal["_dd.p.ts"] = "_dd.p.ts"
     OBFUSCATION_PARAMETER_KEY_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -129,6 +141,10 @@ class IAST(metaclass=Constant_Class):
     ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
     ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
     ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
+    DD_IAST_VULNERABILITIES_PER_REQUEST: Literal[
+        "DD_IAST_VULNERABILITIES_PER_REQUEST"
+    ] = "DD_IAST_VULNERABILITIES_PER_REQUEST"
+    DD_IAST_MAX_CONCURRENT_REQUESTS: Literal["DD_IAST_MAX_CONCURRENT_REQUESTS"] = "DD_IAST_MAX_CONCURRENT_REQUESTS"
     ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
@@ -138,6 +154,11 @@ class IAST(metaclass=Constant_Class):
     DENY_MODULES: Literal["_DD_IAST_DENY_MODULES"] = "_DD_IAST_DENY_MODULES"
     SEP_MODULES: Literal[","] = ","
     PATCH_ADDED_SYMBOL_PREFIX: Literal["_ddtrace_"] = "_ddtrace_"
+    REDACTION_ENABLED: Literal["DD_IAST_REDACTION_ENABLED"] = "DD_IAST_REDACTION_ENABLED"
+    REDACTION_NAME_PATTERN: Literal["DD_IAST_REDACTION_NAME_PATTERN"] = "DD_IAST_REDACTION_NAME_PATTERN"
+    REDACTION_VALUE_PATTERN: Literal["DD_IAST_REDACTION_VALUE_PATTERN"] = "DD_IAST_REDACTION_VALUE_PATTERN"
+    REDACTION_VALUE_NUMERAL: Literal["DD_IAST_REDACTION_VALUE_NUMERAL"] = "DD_IAST_REDACTION_VALUE_NUMERAL"
+    STACK_TRACE_ENABLED: Literal["DD_IAST_STACK_TRACE_ENABLED"] = "DD_IAST_STACK_TRACE_ENABLED"
 
     METRICS_REPORT_LVLS = (
         (TELEMETRY_DEBUG_VERBOSITY, TELEMETRY_DEBUG_NAME),
@@ -148,6 +169,7 @@ class IAST(metaclass=Constant_Class):
 
     TEXT_TYPES = (str, bytes, bytearray)
     TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 
 class IAST_SPAN_TAGS(metaclass=Constant_Class):
@@ -171,6 +193,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_COOKIES: Literal["server.request.cookies"] = "server.request.cookies"
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
+    REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -185,6 +208,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_COOKIES,
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
+            REQUEST_USERNAME,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
@@ -193,7 +217,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
 
     # EPHEMERAL ADDRESSES
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
-    CMDI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
+    CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
+    SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
     LFI_ADDRESS: Literal["server.io.fs.file"] = "server.io.fs.file"
     SSRF_ADDRESS: Literal["server.io.net.url"] = "server.io.net.url"
     SQLI_ADDRESS: Literal["server.db.statement"] = "server.db.statement"
@@ -319,15 +344,19 @@ class DEFAULT(metaclass=Constant_Class):
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
-    STACK_TRACES: Literal["_dd.stack"] = "_dd.stack"
+    BLOCKING: Literal["exploit_prevention"] = "exploit_prevention"
     STACK_TRACE_ID: Literal["stack_id"] = "stack_id"
     EP_ENABLED: Literal["DD_APPSEC_RASP_ENABLED"] = "DD_APPSEC_RASP_ENABLED"
     STACK_TRACE_ENABLED: Literal["DD_APPSEC_STACK_TRACE_ENABLED"] = "DD_APPSEC_STACK_TRACE_ENABLED"
     MAX_STACK_TRACES: Literal["DD_APPSEC_MAX_STACK_TRACES"] = "DD_APPSEC_MAX_STACK_TRACES"
     MAX_STACK_TRACE_DEPTH: Literal["DD_APPSEC_MAX_STACK_TRACE_DEPTH"] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH"
+    STACK_TOP_PERCENT: Literal[
+        "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
+    ] = "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT"
 
     class TYPE(metaclass=Constant_Class):
         CMDI: Literal["command_injection"] = "command_injection"
+        SHI: Literal["shell_injection"] = "shell_injection"
         LFI: Literal["lfi"] = "lfi"
         SSRF: Literal["ssrf"] = "ssrf"
         SQLI: Literal["sql_injection"] = "sql_injection"
@@ -335,6 +364,7 @@ class EXPLOIT_PREVENTION(metaclass=Constant_Class):
     class ADDRESS(metaclass=Constant_Class):
         CMDI: Literal["CMDI_ADDRESS"] = "CMDI_ADDRESS"
         LFI: Literal["LFI_ADDRESS"] = "LFI_ADDRESS"
+        SHI: Literal["SHI_ADDRESS"] = "SHI_ADDRESS"
         SSRF: Literal["SSRF_ADDRESS"] = "SSRF_ADDRESS"
         SQLI: Literal["SQLI_ADDRESS"] = "SQLI_ADDRESS"
         SQLI_TYPE: Literal["SQLI_SYSTEM_ADDRESS"] = "SQLI_SYSTEM_ADDRESS"
@@ -346,3 +376,9 @@ class FINGERPRINTING(metaclass=Constant_Class):
     HEADER = PREFIX + "http.header"
     NETWORK = PREFIX + "http.network"
     SESSION = PREFIX + "session"
+
+
+class STACK_TRACE(metaclass=Constant_Class):
+    RASP = "exploit"
+    IAST = "vulnerability"
+    TAG: Literal["_dd.stack"] = "_dd.stack"

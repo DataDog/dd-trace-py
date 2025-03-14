@@ -1,8 +1,8 @@
 import rest_framework.views
 from wrapt import wrap_function_wrapper as wrap
 
-from ddtrace.contrib.trace_utils import iswrapped
-from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 
 
 @with_traced_module

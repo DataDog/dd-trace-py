@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "GET /api/httpgeterror",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6750ad8500000000",
+      "aas.function.name": "http_get_error",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "error.message": "Test Error",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/internal/azure_functions/patch.py\", line 65, in wrap_function\n    res = func(req)\n          ^^^^^^^^^\n  File \"/root/project/tests/contrib/azure_functions/azure_function_app/function_app.py\", line 19, in http_get_error\n    raise Exception(\"Test Error\")\nException: Test Error\n",
+      "error.type": "builtins.Exception",
+      "http.method": "GET",
+      "http.route": "/api/httpgeterror",
+      "http.url": "http://0.0.0.0:7071/api/httpgeterror",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "d7efb82603894b91af0e18f95bfb40ce",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 98042
+    },
+    "duration": 3862875,
+    "start": 1733340549814399761
+  }]]

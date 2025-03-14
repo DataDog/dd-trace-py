@@ -8,7 +8,6 @@ import django
 import pytest
 
 from tests.utils import _build_env
-from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -84,7 +83,6 @@ def daphne_client(django_asgi, additional_env=None):
         server_process.terminate()
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(variants={"": django.VERSION >= (2, 2)}, ignores=SNAPSHOT_IGNORES)
 def test_urlpatterns_include(client):
@@ -107,7 +105,6 @@ def test_middleware_trace_callable_view(client):
     assert client.get("/feed-view/").status_code == 200
 
 
-@flaky(until=1706677200)
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
     reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
@@ -157,8 +154,8 @@ def test_404_exceptions(client):
 def psycopg2_patched(transactional_db):
     from django.db import connections
 
-    from ddtrace.contrib.psycopg.patch import patch
-    from ddtrace.contrib.psycopg.patch import unpatch
+    from ddtrace.contrib.internal.psycopg.patch import patch
+    from ddtrace.contrib.internal.psycopg.patch import unpatch
 
     patch()
 
@@ -172,7 +169,6 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
-@flaky(1735812000)
 @pytest.mark.django_db
 def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
     """Execute a psycopg2 query on a Django database wrapper.
@@ -205,8 +201,8 @@ def psycopg3_patched(transactional_db):
     else:
         from django.db import connections
 
-        from ddtrace.contrib.psycopg.patch import patch
-        from ddtrace.contrib.psycopg.patch import unpatch
+        from ddtrace.contrib.internal.psycopg.patch import patch
+        from ddtrace.contrib.internal.psycopg.patch import unpatch
 
         patch()
 
@@ -220,7 +216,6 @@ def psycopg3_patched(transactional_db):
         unpatch()
 
 
-@flaky(1735812000)
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
 def test_psycopg3_query_default(client, snapshot_context, psycopg3_patched):
@@ -262,7 +257,6 @@ def test_asgi_200(django_asgi):
         assert resp.content == b"Hello, test app."
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():

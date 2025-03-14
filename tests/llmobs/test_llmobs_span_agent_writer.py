@@ -44,20 +44,21 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
         [
             mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
             mock.call("encode %d LLMObs span events to be sent", 5),
-        ]
+        ],
+        any_order=True,
     )
 
 
 def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=True, interval=1000, timeout=1)
+    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
     llmobs_span_writer.enqueue(_oversized_llm_event())
     llmobs_span_writer.enqueue(_oversized_retrieval_event())
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400720),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400460),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400441),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445),
         ]
     )
 

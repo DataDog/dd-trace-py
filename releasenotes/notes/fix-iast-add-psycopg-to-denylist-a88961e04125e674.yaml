@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code security: This fix resolves a patching issue with `psycopg3`.

@@ -1,10 +1,16 @@
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
+import http.client as httplib
+from urllib import parse
+
+from ddtrace.internal.runtime import container
 
 
-class BasePathMixin(httplib.HTTPConnection, object):
+class HTTPConnectionMixin:
     """
-    Mixin for HTTPConnection to insert a base path to requested URLs
+    Mixin for HTTP(S) connections for performing internal adjustments.
+
+    Currently this mixin performs the following adjustments:
+    - insert a base path to requested URLs
+    - update headers with container info
     """
 
     _base_path = "/"  # type: str
@@ -12,7 +18,7 @@ class BasePathMixin(httplib.HTTPConnection, object):
     def putrequest(self, method, url, skip_host=False, skip_accept_encoding=False):
         # type: (str, str, bool, bool) -> None
         url = parse.urljoin(self._base_path, url)
-        return super(BasePathMixin, self).putrequest(
+        return super().putrequest(  # type: ignore[misc]
             method, url, skip_host=skip_host, skip_accept_encoding=skip_accept_encoding
         )
 
@@ -23,14 +29,21 @@ class BasePathMixin(httplib.HTTPConnection, object):
         obj._base_path = base_path
         return obj
 
+    def request(self, method, url, body=None, headers={}, *, encode_chunked=False):
+        _headers = headers.copy()
 
-class HTTPConnection(BasePathMixin, httplib.HTTPConnection):
+        container.update_headers(_headers)
+
+        return super().request(method, url, body=body, headers=_headers, encode_chunked=encode_chunked)
+
+
+class HTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     """
     httplib.HTTPConnection wrapper to add a base path to requested URLs
     """
 
 
-class HTTPSConnection(BasePathMixin, httplib.HTTPSConnection):
+class HTTPSConnection(HTTPConnectionMixin, httplib.HTTPSConnection):
     """
     httplib.HTTPSConnection wrapper to add a base path to requested URLs
     """

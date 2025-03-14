@@ -1,4 +1,5 @@
 import contextlib
+import http.client as httplib
 import http.server
 import os
 import socket
@@ -14,11 +15,8 @@ import pytest
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.span import Span
-from ddtrace.constants import KEEP_SPANS_RATE_KEY
+from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -26,6 +24,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
@@ -366,7 +365,7 @@ class AgentWriterTests(BaseTestCase):
             # 100% of traces kept (refers to the past).
             # No traces sent before now so 100% kept.
             for trace in payload:
-                assert 1.0 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+                assert 1.0 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
             # 2. We fail to write 4 traces because of size limitation.
             for trace in traces_too_big:
@@ -392,7 +391,7 @@ class AgentWriterTests(BaseTestCase):
             # 50% of traces kept (refers to the past).
             # We had 4 successfully written and 4 dropped.
             for trace in payload:
-                assert 0.5 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+                assert 0.5 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
             # 4. We write 1 trace successfully and fail to write 3.
             writer.write(traces[0])
@@ -408,7 +407,7 @@ class AgentWriterTests(BaseTestCase):
             # 60% of traces kept (refers to the past).
             # We had 4 successfully written, then 4 dropped, then 2 written.
             for trace in payload:
-                assert 0.6 == trace[0]["metrics"].get(KEEP_SPANS_RATE_KEY, -1)
+                assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
 
 class CIVisibilityWriterTests(AgentWriterTests):
@@ -532,7 +531,7 @@ def _make_uds_server(path, request_handler):
         conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
         try:
             conn.request("PUT", "/")
-            resp = get_connection_response(conn).status
+            resp = conn.getresponse().status
         finally:
             conn.close()
         time.sleep(0.01)

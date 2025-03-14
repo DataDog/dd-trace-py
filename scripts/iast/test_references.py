@@ -4,9 +4,9 @@ import sys
 
 from mod_leak_functions import test_doit
 
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
 
 async def test_main():

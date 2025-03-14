@@ -1,0 +1,110 @@
+---
+components:
+  anthropic:
+    - ddtrace/contrib/_anthropic.py
+    - ddtrace/contrib/internal/anthropic/*
+  google_generativeai:
+    - ddtrace/contrib/_google_generativeai.py
+    - ddtrace/contrib/internal/google_generativeai/*
+  vertexai:
+    - ddtrace/contrib/_vertexai.py
+    - ddtrace/contrib/internal/vertexai/*
+  langchain:
+    - ddtrace/contrib/_langchain.py
+    - ddtrace/contrib/internal/langchain/*
+  llmobs:
+    - ddtrace/llmobs/*
+  openai:
+    - ddtrace/contrib/_openai.py
+    - ddtrace/contrib/internal/openai/*
+  langgraph:
+    - ddtrace/contrib/_langgraph.py
+    - ddtrace/contrib/internal/langgraph/*
+suites:
+  anthropic:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@anthropic'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/anthropic/*
+      - tests/snapshots/tests.contrib.anthropic.*
+    runner: riot
+    snapshot: true
+  google_generativeai:
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@tracing'
+    - '@contrib'
+    - '@google_generativeai'
+    - '@llmobs'
+    - tests/contrib/google_generativeai/*
+    - tests/snapshots/tests.contrib.google_generativeai.*
+    runner: riot
+    snapshot: true
+  vertexai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@vertexai'
+      - '@llmobs'
+      - tests/contrib/vertexai/*
+      - tests/snapshots/tests.contrib.vertexai.*
+    runner: riot
+    snapshot: true
+  langchain:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@langchain'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/langchain/*
+      - tests/snapshots/tests.contrib.langchain.*
+    runner: riot
+    snapshot: true
+  llmobs:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@llmobs'
+      - tests/llmobs/*
+    runner: riot
+  openai:
+    parallelism: 10
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@openai'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/openai/*
+      - tests/snapshots/tests.contrib.openai.*
+    runner: riot
+    snapshot: true
+  langgraph:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@langgraph'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/langgraph/*
+    runner: riot
+    snapshot: true

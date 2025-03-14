@@ -1,28 +1,27 @@
 import functools
+import http.client as httplib
 import os
 import sys
+from urllib import parse
 
 import wrapt
 
 from ddtrace import config
-from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import unwrap as _u
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 span_name = "http.client.request"
@@ -77,12 +76,14 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 
 def _call_asm_wrap(func, instance, *args, **kwargs):
+    from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
+
     _wrap_request_asm(func, instance, args, kwargs)
 
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._iast_enabled or asm_config._asm_enabled:
+    if asm_config._iast_enabled or (asm_config._asm_enabled and asm_config._ep_enabled):
         func_to_call = functools.partial(_call_asm_wrap, func, instance)
     else:
         func_to_call = func
@@ -91,7 +92,7 @@ def _wrap_request(func, instance, args, kwargs):
     if should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
-    cfg = config.get_from(instance)
+    cfg = config._get_from(instance)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)

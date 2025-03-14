@@ -15,6 +15,7 @@ import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
+from tests.utils import flaky
 
 
 @pytest.mark.snapshot(wait_for_num_traces=3)
@@ -82,6 +83,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
 
 
 @pytest.mark.snapshot
+@flaky(1741838400, reason="Did not receive expected traces: 'client','server','producer','consumer','internal'")
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
         pass
@@ -119,8 +121,9 @@ def test_otel_span_status_with_status_obj(oteltracer, caplog):
         assert errspan_dup_des._ddspan.error == 1
         assert errspan_dup_des._ddspan.get_tag("error.message") in "main otel err message"
         assert (
-            "Description ot_duplicate_message ignored. Use either `Status` or `(StatusCode, Description)`"
-            in caplog.text
+            "Conflicting descriptions detected. The following description will not be set "
+            "on the otel-error-dup-description span: ot_duplicate_message. Ensure `Span.set_status(...)` "
+            "is called with `(Status(status_code, description), None)` or `(status_code, description)`" in caplog.text
         )
 
     with oteltracer.start_span("set-status-on-otel-span") as span1:

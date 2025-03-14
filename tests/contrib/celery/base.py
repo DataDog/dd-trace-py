@@ -3,17 +3,23 @@ from functools import wraps
 import celery
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.celery import patch
-from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.internal.celery.patch import patch
+from ddtrace.contrib.internal.celery.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
+from ..config import RABBITMQ_CONFIG
 from ..config import REDIS_CONFIG
 
 
 REDIS_URL = "redis://127.0.0.1:{port}".format(port=REDIS_CONFIG["port"])
 BROKER_URL = "{redis}/{db}".format(redis=REDIS_URL, db=0)
 BACKEND_URL = "{redis}/{db}".format(redis=REDIS_URL, db=1)
+
+AMQP_URL = "amqp://{user}:{password}@127.0.0.1:{port}".format(
+    user=RABBITMQ_CONFIG["user"], password=RABBITMQ_CONFIG["password"], port=RABBITMQ_CONFIG["port"]
+)
+AMQP_BROKER_URL = "{amqp}//".format(amqp=AMQP_URL)
 
 
 @pytest.fixture(scope="session")
@@ -82,10 +88,11 @@ class CeleryBaseTestCase(TracerTestCase):
     def setUp(self):
         super(CeleryBaseTestCase, self).setUp()
 
-        self.pin = Pin(service="celery-unittest", tracer=self.tracer)
+        self.pin = Pin(service="celery-unittest")
+        self.pin._tracer = self.tracer
         # override pins to use our Dummy Tracer
-        Pin.override(self.app, tracer=self.tracer)
-        Pin.override(celery.beat.Scheduler, tracer=self.tracer)
+        Pin._override(self.app, tracer=self.tracer)
+        Pin._override(celery.beat.Scheduler, tracer=self.tracer)
 
     def tearDown(self):
         self.app = None

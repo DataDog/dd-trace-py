@@ -4,13 +4,12 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_itr
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.coverage.util import collapse_ranges
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
@@ -21,9 +20,6 @@ from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
 
 
 pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
-
-# TODO: investigate why pytest 3.7 does not mark the decorated function line when skipped as covered
-_DONT_COVER_SKIPPED_FUNC_LINE = PYTHON_VERSION_INFO <= (3, 8, 0)
 
 
 def _get_tuples_from_bytearray(bitmap):
@@ -146,35 +142,19 @@ class PytestTestCase(PytestTestCaseBase):
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
         assert len(first_suite_coverage) == 3
         if _USE_PLUGIN_V2:
-            if _DONT_COVER_SKIPPED_FUNC_LINE:
-                assert first_suite_coverage["/test_cov.py"] == [
-                    (1, 2),
-                    (4, 5),
-                    (7, 9),
-                    (11, 13),
-                    (16, 16),
-                    (20, 22),
-                    (24, 24),
-                    (28, 31),
-                    (33, 33),
-                    (35, 36),
-                    (39, 42),
-                    (44, 44),
-                ]
-            else:
-                assert first_suite_coverage["/test_cov.py"] == [
-                    (1, 2),
-                    (4, 5),
-                    (7, 9),
-                    (11, 13),
-                    (16, 17),
-                    (20, 22),
-                    (24, 25),
-                    (28, 31),
-                    (33, 36),
-                    (39, 42),
-                    (44, 45),
-                ]
+            assert first_suite_coverage["/test_cov.py"] == [
+                (1, 2),
+                (4, 5),
+                (7, 9),
+                (11, 13),
+                (16, 17),
+                (20, 22),
+                (24, 25),
+                (28, 31),
+                (33, 36),
+                (39, 42),
+                (44, 45),
+            ]
             assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
             assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
 

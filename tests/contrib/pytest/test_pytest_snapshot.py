@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
@@ -85,6 +85,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                     )
                 ),
             )
@@ -130,6 +131,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                     )
                 ),
             )
@@ -164,6 +166,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_CIVISIBILITY_ITR_ENABLED="false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                         DD_PATCH_MODULES="httpx:true",
                     )
                 ),

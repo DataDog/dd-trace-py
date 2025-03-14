@@ -1,4 +1,5 @@
 import functools
+import http.client as httplib
 import importlib
 import json
 import os
@@ -9,7 +10,6 @@ import unittest
 
 import wrapt
 
-from ddtrace.internal.compat import httplib
 from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -150,7 +150,7 @@ class PatchTestCase(object):
         Example:
         A simple implementation inheriting this TestCase looks like::
 
-            from ddtrace.contrib.redis import patch, unpatch
+            from ddtrace.contrib.internal.redis.patch import patch, unpatch
 
             class RedisPatchTestCase(PatchTestCase.Base):
                 __integration_name__ = 'redis'
@@ -454,7 +454,7 @@ class PatchTestCase(object):
             For example::
 
                 import redis
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 unpatch()
@@ -480,7 +480,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 import redis
@@ -506,7 +506,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 import redis
@@ -531,7 +531,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 unpatch()
@@ -553,7 +553,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
                 unpatch()
                 ddtrace.patch(redis=True)
                 import redis
@@ -576,7 +576,7 @@ class PatchTestCase(object):
             For example::
 
                 ddtrace.patch(redis=True)
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
                 unpatch()
                 import redis
                 self.assert_not_module_patched(redis)
@@ -596,7 +596,7 @@ class PatchTestCase(object):
             For example::
 
                 import redis
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
                 ddtrace.patch(redis=True)
                 unpatch()
                 self.assert_not_module_patched(redis)
@@ -617,7 +617,7 @@ class PatchTestCase(object):
             For example::
 
                 import redis
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
                 ddtrace.patch(redis=True)
                 unpatch()
                 self.assert_not_module_patched(redis)
@@ -638,7 +638,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
                 ddtrace.patch(redis=True)
                 import redis
                 unpatch()
@@ -659,7 +659,7 @@ class PatchTestCase(object):
             For example::
 
                 import redis
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
@@ -684,7 +684,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 unpatch()
@@ -708,7 +708,7 @@ class PatchTestCase(object):
 
             For example::
 
-                from ddtrace.contrib.redis import unpatch
+                from ddtrace.contrib.internal.redis.patch import unpatch
 
                 ddtrace.patch(redis=True)
                 unpatch()
@@ -748,7 +748,7 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 

@@ -51,6 +51,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
                                   // since we don't know if we'll get a CPU time here.
 
+    pushed_task_name = false;
+
     // Finalize the thread information we have
     ddup_push_threadinfo(sample, static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
@@ -64,7 +66,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view name)
+StackRenderer::render_task_begin(std::string_view)
 {
     static bool failed = false;
     if (failed) {
@@ -89,9 +91,18 @@ StackRenderer::render_task_begin(std::string_view name)
         ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
         ddup_push_cputime(sample, thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
         ddup_push_monotonic_ns(sample, thread_state.now_time_ns);
-    }
 
-    ddup_push_task_name(sample, name);
+        // We also want to make sure the tid -> span_id mapping is present in the sample for the task
+        const std::optional<Span> active_span =
+          ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
+        if (active_span) {
+            ddup_push_span_id(sample, active_span->span_id);
+            ddup_push_local_root_span_id(sample, active_span->local_root_span_id);
+            ddup_push_trace_type(sample, std::string_view(active_span->span_type));
+        }
+
+        pushed_task_name = false;
+    }
 }
 
 void
@@ -119,6 +130,15 @@ StackRenderer::render_python_frame(std::string_view name, std::string_view file,
     if (!utf8_check_is_valid(file.data(), file.size())) {
         file = invalid;
     }
+    // DEV: Echion pushes a dummy frame containing task name, and its line
+    // number is set to 0.
+    if (!pushed_task_name and line == 0) {
+        ddup_push_task_name(sample, name);
+        pushed_task_name = true;
+        // And return early to avoid pushing task name as a frame
+        return;
+    }
+
     ddup_push_frame(sample, name, file, 0, line);
 }
 

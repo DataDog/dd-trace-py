@@ -1,7 +1,7 @@
 import flask
 
-from ddtrace import Pin
-from ddtrace.contrib.flask import unpatch
+from ddtrace.contrib.internal.flask.patch import unpatch
+from ddtrace.trace import Pin
 
 from . import BaseFlaskTestCase
 
@@ -36,7 +36,9 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
                 We do not use the ``flask.Flask`` app ``Pin``
         """
         bp = flask.Blueprint("pinned", __name__)
-        Pin(service="flask-bp", tracer=self.tracer).onto(bp)
+        pin = Pin(service="flask-bp")
+        pin._tracer = self.tracer
+        pin.onto(bp)
 
         # DEV: This is more common than calling ``flask.Blueprint.register`` directly
         self.app.register_blueprint(bp)
@@ -58,7 +60,9 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         """
         # When the Blueprint has a Pin attached
         bp = flask.Blueprint("pinned", __name__)
-        Pin(service="flask-bp", tracer=self.tracer).onto(bp)
+        pin = Pin(service="flask-bp")
+        pin._tracer = self.tracer
+        pin.onto(bp)
 
         @bp.route("/")
         def test_view():
@@ -113,7 +117,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
                 We create the expected spans
         """
         bp = flask.Blueprint("bp", __name__)
-        Pin.override(bp, service="flask-bp", tracer=self.tracer)
+        Pin._override(bp, service="flask-bp", tracer=self.tracer)
 
         @bp.route("/")
         def test():

@@ -214,6 +214,18 @@ def iast_modulo_aspect():
     return modulo_aspect("hello %s", "foo")  # noqa: F821
 
 
+def iast_modulo_aspect_for_bytes():
+    return modulo_aspect(b"hello %s", b"foo")  # noqa: F821
+
+
+def iast_modulo_aspect_for_bytes_bytearray():
+    return modulo_aspect(b"hello %s", bytearray(b"foo"))  # noqa: F821
+
+
+def iast_modulo_aspect_for_bytearray_bytearray():
+    return modulo_aspect(bytearray(b"hello %s"), bytearray(b"foo"))  # noqa: F821
+
+
 def modulo_noaspect():
     return "{} {}".format("hello", "world")
 

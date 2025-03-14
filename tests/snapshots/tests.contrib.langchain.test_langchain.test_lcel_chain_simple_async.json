@@ -1,0 +1,66 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67ab8c5a00000000",
+      "langchain.request.inputs.0.input": "how can langsmith help with testing?",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs.0": "I am a helpful assistant.",
+      "language": "python",
+      "runtime-id": "fdd2b886af3f4444aebc1cf48ee7e540"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 62462
+    },
+    "duration": 3958000,
+    "start": 1739295834981664000
+  },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "langchain_openai.llms.base.OpenAI",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.model": "gpt-3.5-turbo-instruct",
+         "langchain.request.openai.parameters.frequency_penalty": "0",
+         "langchain.request.openai.parameters.logprobs": "None",
+         "langchain.request.openai.parameters.max_tokens": "256",
+         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
+         "langchain.request.openai.parameters.n": "1",
+         "langchain.request.openai.parameters.presence_penalty": "0",
+         "langchain.request.openai.parameters.seed": "None",
+         "langchain.request.openai.parameters.temperature": "0.7",
+         "langchain.request.openai.parameters.top_p": "1",
+         "langchain.request.prompts.0": "System: You are world class technical documentation writer.\\nHuman: how can langsmith help with testing?",
+         "langchain.request.provider": "openai",
+         "langchain.request.type": "llm",
+         "langchain.response.completions.0.finish_reason": "length",
+         "langchain.response.completions.0.logprobs": "None",
+         "langchain.response.completions.0.text": "I am a helpful assistant."
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "langchain.tokens.completion_tokens": 5,
+         "langchain.tokens.prompt_tokens": 5,
+         "langchain.tokens.total_tokens": 10
+       },
+       "duration": 2873000,
+       "start": 1739295834982625000
+     }]]

@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracer: Deprecates support for configuring samplers via a programmatic API. In v3.0.0 samplers will only be configurable via environment variables or remote configuration. 

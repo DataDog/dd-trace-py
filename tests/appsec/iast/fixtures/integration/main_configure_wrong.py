@@ -4,8 +4,8 @@ import logging
 import os
 import sys
 
-from ddtrace import tracer
 from ddtrace.ext import SpanTypes
+from ddtrace.trace import tracer
 
 
 logger = logging.getLogger(__name__)
@@ -24,5 +24,5 @@ def main():
 if __name__ == "__main__":
     iast_enabled = os.environ.get("DD_IAST_ENABLED", "false")
     logger.info("configuring IAST to %s", iast_enabled)
-    tracer.configure(iast_enabled=iast_enabled)
+    tracer._configure(iast_enabled=iast_enabled)
     main()

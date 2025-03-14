@@ -1,7 +1,7 @@
 # DEV: Use `debian:slim` instead of an `alpine` image to support installing wheels from PyPI
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
-FROM debian:buster-20221219-slim
+FROM debian:bookworm-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.12.0
@@ -21,9 +21,8 @@ ENV PYTHON_CONFIGURE_OPTS=--enable-shared
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /root/
 
-RUN \
-  # Install system dependencies
-  apt-get update \
+# Install system dependencies
+RUN apt-get update \
   && apt-get install -y --no-install-recommends \
       apt-transport-https \
       build-essential \
@@ -35,7 +34,6 @@ RUN \
       gnupg \
       jq \
       libbz2-dev \
-      libenchant-dev \
       libffi-dev \
       liblzma-dev \
       libmemcached-dev \
@@ -48,31 +46,51 @@ RUN \
       libsqlite3-dev \
       libsqliteodbc \
       libssh-dev \
-      libssl-dev \
       patch \
-      python-openssl\
       unixodbc-dev \
       wget \
       zlib1g-dev \
-      awscli \
-  # For running datadog-ci CLI with npx
-  && apt-get install -y --no-install-recommends nodejs npm \
-  && npm install -g @datadog/datadog-ci \
-  # Install Mariadb last because mariadb_repo_setup currently breaks apt
-  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
-  && chmod +x mariadb_repo_setup \
-  && ./mariadb_repo_setup \
-  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
-  && rm mariadb_repo_setup \
-  # Cleaning up apt cache space
-  && rm -rf /var/lib/apt/lists/*
+      awscli
+
+# Allow running datadog-ci in CI with npx
+RUN apt-get install -y --no-install-recommends nodejs npm \
+  && npm install -g @datadog/datadog-ci
+
+# MariaDB is a dependency for tests
+RUN curl https://mariadb.org/mariadb_release_signing_key.pgp | gpg --dearmor > /etc/apt/trusted.gpg.d/mariadb.gpg \
+  && echo "deb [arch=amd64,arm64] https://mirror.mariadb.org/repo/11.rolling/debian/ bookworm main" > /etc/apt/sources.list.d/mariadb.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat
+
+# Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
+# https://github.com/Azure/azure-functions-core-tools/issues/3112
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+  then \
+    curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg \
+    && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
+    && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" > /etc/apt/sources.list.d/dotnetdev.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
+  fi
+
+# Google Chrome is needed for selenium contrib tests but is currently only available on amd64
+RUN if [ "$TARGETARCH" = "amd64" ]; \
+  then \
+    curl https://dl.google.com/linux/linux_signing_key.pub |gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg \
+    && echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable ; \
+  fi
+
+# Cleaning up apt cache space
+RUN rm -rf /var/lib/apt/lists/*
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch v2.4.2 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch v2.4.22 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -

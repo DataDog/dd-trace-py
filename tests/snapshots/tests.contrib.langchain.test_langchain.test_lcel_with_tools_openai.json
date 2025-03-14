@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67ab7e7800000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.messages.0.0.content": "What is the sum of 1 and 2?",
+      "langchain.request.messages.0.0.message_type": "HumanMessage",
+      "langchain.request.model": "gpt-3.5-turbo-0125",
+      "langchain.request.openai.parameters.model": "gpt-3.5-turbo-0125",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-0125",
+      "langchain.request.openai.parameters.n": "1",
+      "langchain.request.openai.parameters.stream": "False",
+      "langchain.request.openai.parameters.temperature": "0.7",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
+      "langchain.response.completions.0.0.content": "Hello world!",
+      "langchain.response.completions.0.0.message_type": "AIMessage",
+      "langchain.response.completions.0.0.tool_calls.0.args.a": "1",
+      "langchain.response.completions.0.0.tool_calls.0.args.b": "2",
+      "langchain.response.completions.0.0.tool_calls.0.id": "bar",
+      "langchain.response.completions.0.0.tool_calls.0.name": "add",
+      "language": "python",
+      "runtime-id": "e7478e576a0c4f41af375b5462892fc3"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 5,
+      "langchain.tokens.prompt_tokens": 5,
+      "langchain.tokens.total_tokens": 10,
+      "process_id": 44634
+    },
+    "duration": 6422000,
+    "start": 1739292280572397000
+  }]]

@@ -1,0 +1,315 @@
+[
+    {
+        "integration": "aiobotocore",
+        "minimum_tracer_supported": "1.4.2",
+        "max_tracer_supported": "2.13.3",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "aiohttp",
+        "minimum_tracer_supported": "3.8.6",
+        "max_tracer_supported": "3.11.10",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "aiomysql",
+        "minimum_tracer_supported": "0.1.1",
+        "max_tracer_supported": "0.2.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "aiopg",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "algoliasearch",
+        "minimum_tracer_supported": "2.6.3",
+        "max_tracer_supported": "2.6.3",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "anthropic",
+        "minimum_tracer_supported": "0.26.0",
+        "max_tracer_supported": "0.40.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "aredis",
+        "minimum_tracer_supported": "1.1.8",
+        "max_tracer_supported": "1.1.8",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "asyncpg",
+        "minimum_tracer_supported": "0.23.0",
+        "max_tracer_supported": "0.30.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "avro",
+        "minimum_tracer_supported": "1.12.0",
+        "max_tracer_supported": "1.12.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "boto",
+        "minimum_tracer_supported": "2.49.0",
+        "max_tracer_supported": "2.49.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "botocore",
+        "minimum_tracer_supported": "1.20.106",
+        "max_tracer_supported": "1.35.78",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "bottle",
+        "minimum_tracer_supported": "0.12.25",
+        "max_tracer_supported": "0.13.2",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "celery",
+        "minimum_tracer_supported": "4.4.7",
+        "max_tracer_supported": "5.4.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "cherrypy",
+        "minimum_tracer_supported": "17.4.2",
+        "max_tracer_supported": "18.10.0",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "coverage",
+        "minimum_tracer_supported": "7.2.7",
+        "max_tracer_supported": "7.4.4",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "django",
+        "minimum_tracer_supported": "2.2.1",
+        "max_tracer_supported": "5.1",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "dramatiq",
+        "minimum_tracer_supported": "1.16.0",
+        "max_tracer_supported": "1.17.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "falcon",
+        "minimum_tracer_supported": "3.0.1",
+        "max_tracer_supported": "3.1.3",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "fastapi",
+        "minimum_tracer_supported": "0.64.0",
+        "max_tracer_supported": "0.115.6",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "flask",
+        "minimum_tracer_supported": "0.12.5",
+        "max_tracer_supported": "3.0.3",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "gevent",
+        "minimum_tracer_supported": "20.12.1",
+        "max_tracer_supported": "24.11.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "httpx",
+        "minimum_tracer_supported": "0.15.4",
+        "max_tracer_supported": "0.28.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "jinja2",
+        "minimum_tracer_supported": "2.10.3",
+        "max_tracer_supported": "3.1.4",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "kombu",
+        "minimum_tracer_supported": "4.2.2.post1",
+        "max_tracer_supported": "5.4.2",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "langchain",
+        "minimum_tracer_supported": "0.0.192",
+        "max_tracer_supported": "0.3.10",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "logbook",
+        "minimum_tracer_supported": "1.0.0",
+        "max_tracer_supported": "1.7.0.post0",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "loguru",
+        "minimum_tracer_supported": "0.4.1",
+        "max_tracer_supported": "0.7.3",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "mako",
+        "minimum_tracer_supported": "1.1.6",
+        "max_tracer_supported": "1.3.5",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "mariadb",
+        "minimum_tracer_supported": "1.0.11",
+        "max_tracer_supported": "1.1.11",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "molten",
+        "minimum_tracer_supported": "1.0.2",
+        "max_tracer_supported": "1.0.2",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "mongoengine",
+        "minimum_tracer_supported": "0.29.1",
+        "max_tracer_supported": "0.29.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "openai",
+        "minimum_tracer_supported": "0.26.5",
+        "max_tracer_supported": "1.57.2",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "protobuf",
+        "minimum_tracer_supported": "3.8.0",
+        "max_tracer_supported": "5.28.3",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "pylibmc",
+        "minimum_tracer_supported": "1.6.3",
+        "max_tracer_supported": "1.6.3",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pymemcache",
+        "minimum_tracer_supported": "3.4.4",
+        "max_tracer_supported": "4.0.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pymongo",
+        "minimum_tracer_supported": "3.8.0",
+        "max_tracer_supported": "4.10.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pymysql",
+        "minimum_tracer_supported": "0.10.1",
+        "max_tracer_supported": "1.1.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pynamodb",
+        "minimum_tracer_supported": "5.5.1",
+        "max_tracer_supported": "5.5.1",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pyodbc",
+        "minimum_tracer_supported": "4.0.39",
+        "max_tracer_supported": "5.2.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "pyramid",
+        "minimum_tracer_supported": "1.10.8",
+        "max_tracer_supported": "2.0.2",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "redis",
+        "minimum_tracer_supported": "2.10.6",
+        "max_tracer_supported": "5.2.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "requests",
+        "minimum_tracer_supported": "2.20.1",
+        "max_tracer_supported": "2.32.3",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "sanic",
+        "minimum_tracer_supported": "20.12.7",
+        "max_tracer_supported": "24.6.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "sqlalchemy",
+        "minimum_tracer_supported": "1.2.19",
+        "max_tracer_supported": "2.0.36",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "starlette",
+        "minimum_tracer_supported": "0.13.6",
+        "max_tracer_supported": "0.41.3",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "structlog",
+        "minimum_tracer_supported": "20.2.0",
+        "max_tracer_supported": "24.4.0",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "tornado",
+        "minimum_tracer_supported": "4.5.3",
+        "max_tracer_supported": "6.4",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "urllib3",
+        "minimum_tracer_supported": "1.24.3",
+        "max_tracer_supported": "2.2.3",
+        "auto-instrumented": false
+    },
+    {
+        "integration": "valkey",
+        "minimum_tracer_supported": "6.0.0",
+        "max_tracer_supported": "6.0.2",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "vertexai",
+        "minimum_tracer_supported": "1.71.1",
+        "max_tracer_supported": "1.71.1",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "yaaredis",
+        "minimum_tracer_supported": "2.0.4",
+        "max_tracer_supported": "3.0.0",
+        "auto-instrumented": true
+    }
+]

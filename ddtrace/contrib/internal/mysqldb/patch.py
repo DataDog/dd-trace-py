@@ -3,15 +3,12 @@ import os
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import Pin
 from ddtrace import config
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
-from ddtrace.contrib.trace_utils import _convert_to_string
-from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -23,6 +20,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 config._add(
@@ -67,6 +65,9 @@ def patch():
         _w("MySQLdb", "connect", _connect)
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+
         _set_metric_iast_instrumented_sink(VULN_SQL_INJECTION)
 
 
@@ -101,7 +102,7 @@ def _connect(func, instance, args, kwargs):
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 

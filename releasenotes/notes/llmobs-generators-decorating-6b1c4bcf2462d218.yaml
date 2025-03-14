@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where decorators were not tracing generator functions properly.

@@ -13,9 +13,8 @@ from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
@@ -29,6 +28,7 @@ from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
+from ddtrace.trace import Span
 
 
 try:
@@ -255,7 +255,7 @@ def _before_request_tags(pin, span, request):
     #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
-    span._metrics[SPAN_MEASURED_KEY] = 1
+    span._metrics[_SPAN_MEASURED_KEY] = 1
 
     analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
     if analytics_sr is not None:

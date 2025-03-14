@@ -11,7 +11,6 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from urllib.parse import urljoin
 
-from ddtrace import Tracer  # noqa: F401
 from ddtrace.ext import ci
 from ddtrace.ext.git import _build_git_packfiles_with_details
 from ddtrace.ext.git import _extract_clone_defaultremotename_with_details
@@ -26,11 +25,10 @@ from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.agent import get_trace_url
-from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.trace import Tracer  # noqa: F401
 
-from .. import compat
 from .. import telemetry
 from ..utils.http import Response
 from ..utils.http import get_connection
@@ -291,7 +289,7 @@ class CIVisibilityGitClient(object):
                 try:
                     result = serializer.search_commits_decode(response.body)
                     return result
-                except JSONDecodeError:
+                except json.JSONDecodeError:
                     request_error = ERROR_TYPES.BAD_JSON
                     log.warning("Error searching commits, response not parsable: %s", response.body)
                     return None
@@ -318,7 +316,7 @@ class CIVisibilityGitClient(object):
             conn = get_connection(url, timeout=timeout)
             log.debug("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
             conn.request("POST", url_path, payload, _headers)
-            resp = compat.get_connection_response(conn)
+            resp = conn.getresponse()
             log.debug("Response status: %s", resp.status)
             result = Response.from_http_response(resp)
         finally:
@@ -468,7 +466,7 @@ class CIVisibilityGitClientSerializerV1(object):
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)
-        except JSONDecodeError:
+        except json.JSONDecodeError:
             log.warning("Unexpected decode error in search_commits response", exc_info=True)
 
         return res

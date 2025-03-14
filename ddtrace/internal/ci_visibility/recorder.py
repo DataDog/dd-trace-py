@@ -10,9 +10,9 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional
 from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
 import ddtrace
-from ddtrace import Tracer
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -31,7 +31,6 @@ from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.agent import get_connection
@@ -39,6 +38,8 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import TestProperties
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import _TestVisibilityAPIClientBase
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -56,6 +57,7 @@ from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
+from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
@@ -65,22 +67,25 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
+from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
-from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
+from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
+from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
+from ddtrace.trace import Tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -93,6 +98,24 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 15
 DEFAULT_ITR_SKIPPABLE_TIMEOUT = 20
+UNSUPPORTED = "unsupported"
+TELEMETRY_BY_PROVIDER_NAME = {
+    "appveyor": "provider:appveyor",
+    "azurepipelines": "provider:azp",
+    "bitbucket": "provider:bitbucket",
+    "buildkite": "provider:buildkite",
+    "circleci": "provider:circleci",
+    "codefresh": "provider:codefresh",
+    "github": "provider:githubactions",
+    "gitlab": "provider:gitlab",
+    "jenkins": "provider:jenkins",
+    "teamcity": "provider:teamcity",
+    "travisci": "provider:travisci",
+    "bitrise": "provider:bitrise",
+    "buddy": "provider:buddyci",
+    "awscodepipeline": "provider:aws",
+    UNSUPPORTED: UNSUPPORTED_PROVIDER,
+}
 
 
 def _extract_repository_name_from_url(repository_url: str) -> str:
@@ -133,12 +156,18 @@ def _do_request(method, url, payload, headers, timeout=DEFAULT_TIMEOUT):
         conn = get_connection(url, timeout=timeout)
         log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
         conn.request("POST", url_path, payload, headers)
-        resp = compat.get_connection_response(conn)
+        resp = conn.getresponse()
         log.debug("Response status: %s", resp.status)
         result = Response.from_http_response(resp)
     finally:
         conn.close()
     return result
+
+
+class CIVisibilityTracer(Tracer):
+    def __init__(self, *args, **kwargs):
+        # Allows for multiple instances of the civis tracer to be created without logging a warning
+        super(CIVisibilityTracer, self).__init__(*args, **kwargs)
 
 
 class CIVisibility(Service):
@@ -162,13 +191,13 @@ class CIVisibility(Service):
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
 
-                self.tracer = Tracer(context_provider=CIContextProvider(), url=url)
+                self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:
                 self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
+            self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
@@ -193,6 +222,7 @@ class CIVisibility(Service):
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         self._tags = ci.tags(cwd=_get_git_repo())  # type: Dict[str, str]
+        self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -200,6 +230,7 @@ class CIVisibility(Service):
         self._itr_meta = {}  # type: Dict[str, Any]
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
+        self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -389,7 +420,7 @@ class CIVisibility(Service):
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer.configure(writer=writer)
+            self.tracer._configure(writer=writer)
 
     def _agent_evp_proxy_is_available(self):
         # type: () -> bool
@@ -444,6 +475,14 @@ class CIVisibility(Service):
         )
 
     @classmethod
+    def is_test_management_enabled(cls):
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.test_management.enabled and asbool(
+            os.getenv("DD_TEST_MANAGEMENT_ENABLED", default=True)
+        )
+
+    @classmethod
     def should_collect_coverage(cls):
         return cls._instance._api_settings.coverage_enabled or asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
@@ -480,6 +519,15 @@ class CIVisibility(Service):
             if self._api_client is not None:
                 return self._api_client.fetch_unique_tests()
             log.warning("API client not initialized, cannot fetch unique tests")
+        except Exception:
+            log.debug("Error fetching unique tests", exc_info=True)
+        return None
+
+    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
+        try:
+            if self._api_client is not None:
+                return self._api_client.fetch_test_management_tests()
+            log.warning("API client not initialized, cannot fetch tests from Test Management")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
         return None
@@ -543,11 +591,13 @@ class CIVisibility(Service):
             "Final settings: coverage collection: %s, "
             "test skipping: %s, "
             "Early Flake Detection: %s, "
-            "Auto Test Retries: %s",
+            "Auto Test Retries: %s, "
+            "Flaky Test Management: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
             CIVisibility.is_atr_enabled(),
+            CIVisibility.is_test_management_enabled(),
         )
 
     @classmethod
@@ -569,10 +619,10 @@ class CIVisibility(Service):
 
     def _start_service(self):
         # type: () -> None
-        tracer_filters = self.tracer._filters
+        tracer_filters = self.tracer._user_trace_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            self.tracer.configure(settings={"FILTERS": tracer_filters})
+            self.tracer._configure(trace_processors=tracer_filters)
 
         if self.test_skipping_enabled():
             self._fetch_tests_to_skip()
@@ -607,6 +657,13 @@ class CIVisibility(Service):
                 "Auto Test Retries is enabled by API but disabled by "
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
             )
+
+        if self._api_settings.test_management.enabled:
+            test_properties = self._fetch_test_management_tests()
+            if test_properties is None:
+                log.warning("Failed to fetch quarantined tests from Test Management")
+            else:
+                self._test_properties = test_properties
 
     def _stop_service(self):
         # type: () -> None
@@ -819,6 +876,17 @@ class CIVisibility(Service):
         return None
 
     @classmethod
+    def get_test_management_api_settings(cls) -> Optional[TestManagementSettings]:
+        if not cls.enabled:
+            error_msg = "CI Visibility is not enabled"
+            log.warning(error_msg)
+            raise CIVisibilityError(error_msg)
+        instance = cls.get_instance()
+        if instance is None or instance._api_settings is None:
+            return None
+        return instance._api_settings.test_management
+
+    @classmethod
     def get_workspace_path(cls) -> Optional[str]:
         if not cls.enabled:
             error_msg = "CI Visibility is not enabled"
@@ -846,7 +914,6 @@ class CIVisibility(Service):
         if isinstance(item_id, TestId) and instance._suite_skipping_mode:
             log.debug("Skipping mode is test, but item is not a test: %s", item_id)
             return False
-
         return item_id in instance._itr_data.skippable_items
 
     @classmethod
@@ -856,6 +923,20 @@ class CIVisibility(Service):
             return False
 
         return instance._tags.get(ci.PROVIDER_NAME) is None
+
+    @classmethod
+    def ci_provider_name_for_telemetry(cls) -> str:
+        instance = cls.get_instance()
+        if instance is None:
+            return UNSUPPORTED_PROVIDER
+        return TELEMETRY_BY_PROVIDER_NAME.get(instance._tags.get(ci.PROVIDER_NAME, UNSUPPORTED), UNSUPPORTED_PROVIDER)
+
+    @classmethod
+    def is_auto_injected(cls) -> bool:
+        instance = cls.get_instance()
+        if instance is None:
+            return False
+        return instance._is_auto_injected
 
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
         writer = self.tracer._writer
@@ -897,6 +978,14 @@ class CIVisibility(Service):
 
         return test_id in instance._unique_test_ids
 
+    @classmethod
+    def get_test_properties(cls, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
+        instance = cls.get_instance()
+        if instance is None:
+            return None
+
+        return instance._test_properties.get(test_id)
+
 
 def _requires_civisibility_enabled(func):
     def wrapper(*args, **kwargs):
@@ -909,9 +998,7 @@ def _requires_civisibility_enabled(func):
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(
-    discover_args: TestSession.DiscoverArgs, test_framework_telemetry_name: Optional[TEST_FRAMEWORKS] = None
-):
+def _on_discover_session(discover_args: TestSession.DiscoverArgs):
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -927,7 +1014,8 @@ def _on_discover_session(
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
     workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
-    test_framework_telemetry_name = test_framework_telemetry_name or TEST_FRAMEWORKS.MANUAL
+    # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
+    test_framework_telemetry_name = _get_test_framework_telemetry_name(discover_args.test_framework)
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
     if efd_api_settings is None or not CIVisibility.is_efd_enabled():
@@ -936,6 +1024,10 @@ def _on_discover_session(
     atr_api_settings = CIVisibility.get_atr_api_settings()
     if atr_api_settings is None or not CIVisibility.is_atr_enabled():
         atr_api_settings = AutoTestRetriesSettings()
+
+    test_management_api_settings = CIVisibility.get_test_management_api_settings()
+    if test_management_api_settings is None or not CIVisibility.is_test_management_enabled():
+        test_management_api_settings = TestManagementSettings()
 
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
@@ -958,6 +1050,9 @@ def _on_discover_session(
         coverage_enabled=CIVisibility.should_collect_coverage(),
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
+        test_management_settings=test_management_api_settings,
+        ci_provider_name=CIVisibility.ci_provider_name_for_telemetry(),
+        is_auto_injected=CIVisibility.is_auto_injected(),
     )
 
     session = TestVisibilitySession(
@@ -1008,6 +1103,12 @@ def _on_session_get_codeowners() -> None:
 
 
 @_requires_civisibility_enabled
+def _on_session_get_tracer() -> Optional[Tracer]:
+    log.debug("Getting tracer")
+    return CIVisibility.get_tracer()
+
+
+@_requires_civisibility_enabled
 def _on_session_is_atr_enabled() -> bool:
     log.debug("Getting Auto Test Retries enabled")
     return CIVisibility.is_atr_enabled()
@@ -1031,7 +1132,7 @@ def _on_session_get_path_codeowners(path: Path) -> None:
     codeowners = CIVisibility.get_codeowners()
     core.set_item(
         f"test_visibility.session.get_path_codeowners.{path}",
-        None if codeowners is None else codeowners.of(str(path.absolute())),
+        None if codeowners is None else codeowners.of(str(path)),
     )
 
 
@@ -1041,6 +1142,7 @@ def _register_session_handlers():
     core.on("test_visibility.session.start", _on_start_session)
     core.on("test_visibility.session.finish", _on_finish_session)
     core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
+    core.on("test_visibility.session.get_tracer", _on_session_get_tracer, "tracer")
     core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
     core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
     core.on("test_visibility.session.is_atr_enabled", _on_session_is_atr_enabled, "is_atr_enabled")
@@ -1142,6 +1244,13 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
     else:
         is_new = False
 
+    test_properties = None
+    if CIVisibility.is_test_management_enabled():
+        test_properties = CIVisibility.get_test_properties(discover_args.test_id)
+
+    if not test_properties:
+        test_properties = TestProperties()
+
     suite.add_child(
         discover_args.test_id,
         TestVisibilityTest(
@@ -1152,6 +1261,9 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             source_file_info=discover_args.source_file_info,
             resource=discover_args.resource,
             is_new=is_new,
+            is_quarantined=test_properties.quarantined,
+            is_disabled=test_properties.disabled,
+            is_attempt_to_fix=test_properties.attempt_to_fix,
         ),
     )
 
@@ -1160,6 +1272,24 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
 def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> None:
     log.debug("Handling is new test for test %s", test_id)
     core.set_item(f"test_visibility.test.is_new.{test_id}", CIVisibility.get_test_by_id(test_id).is_new())
+
+
+@_requires_civisibility_enabled
+def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is quarantined test for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_quarantined()
+
+
+@_requires_civisibility_enabled
+def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is disabled test for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_disabled()
+
+
+@_requires_civisibility_enabled
+def _on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is attempt to fix for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_attempt_to_fix()
 
 
 @_requires_civisibility_enabled
@@ -1182,13 +1312,39 @@ def _on_set_test_parameters(item_id: TestId, parameters: str):
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
 
+@_requires_civisibility_enabled
+def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs):
+    item_id = set_benchmark_data_args.test_id
+    data = set_benchmark_data_args.benchmark_data
+    is_benchmark = set_benchmark_data_args.is_benchmark
+    log.debug("Handling set benchmark data for test id %s, data %s, is_benchmark %s", item_id, data, is_benchmark)
+    CIVisibility.get_test_by_id(item_id).set_benchmark_data(data, is_benchmark)
+
+
+@_requires_civisibility_enabled
+def _on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.OverwriteAttributesArgs):
+    item_id = overwrite_attribute_args.test_id
+    name = overwrite_attribute_args.name
+    suite_name = overwrite_attribute_args.suite_name
+    parameters = overwrite_attribute_args.parameters
+    codeowners = overwrite_attribute_args.codeowners
+
+    log.debug("Handling overwrite attributes: %s", overwrite_attribute_args)
+    CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
+
+
 def _register_test_handlers():
     log.debug("Registering test handlers")
     core.on("test_visibility.test.discover", _on_discover_test)
     core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
+    core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
+    core.on("test_visibility.test.is_disabled", _on_is_disabled_test, "is_disabled")
+    core.on("test_visibility.test.is_attempt_to_fix", _on_is_attempt_to_fix, "is_attempt_to_fix")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
+    core.on("test_visibility.test.set_benchmark_data", _on_set_benchmark_data)
+    core.on("test_visibility.test.overwrite_attributes", _on_test_overwrite_attributes)
 
 
 @_requires_civisibility_enabled
@@ -1501,6 +1657,48 @@ def _register_atr_handlers():
     core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
 
 
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_should_retry()
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int):
+    CIVisibility.get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_finish_retry(attempt_to_fix_finish_args: AttemptToFixTestMixin.AttemptToFixRetryFinishArgs):
+    CIVisibility.get_test_by_id(attempt_to_fix_finish_args.test_id).attempt_to_fix_finish_retry(
+        attempt_to_fix_finish_args.retry_number, attempt_to_fix_finish_args.status, attempt_to_fix_finish_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
+    return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
+
+
+def _register_attempt_to_fix_handlers():
+    log.debug("Registering AttemptToFix handlers")
+    core.on(
+        "test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test"
+    )
+    core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
+    core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
+    core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
+    core.on(
+        "test_visibility.attempt_to_fix.get_final_status",
+        _on_attempt_to_fix_get_final_status,
+        "attempt_to_fix_final_status",
+    )
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
@@ -1511,3 +1709,4 @@ _register_coverage_handlers()
 _register_itr_handlers()
 _register_efd_handlers()
 _register_atr_handlers()
+_register_attempt_to_fix_handlers()

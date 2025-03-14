@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    vertexai: Introduces tracing support for Google's Vertex AI SDK for Python's ``generate_content`` and ``send_message`` calls.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#vertexai>`_
+      for more information.

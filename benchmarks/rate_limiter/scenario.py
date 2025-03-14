@@ -9,7 +9,8 @@ class RateLimiter(bm.Scenario):
     num_windows: int
 
     def run(self):
-        from ddtrace.internal.compat import time_ns
+        from time import time_ns
+
         from ddtrace.internal.rate_limiter import RateLimiter
 
         rate_limiter = RateLimiter(rate_limit=self.rate_limit, time_window=self.time_window)
@@ -22,8 +23,8 @@ class RateLimiter(bm.Scenario):
             windows = [start + (i * self.time_window) for i in range(self.num_windows)]
             per_window = math.floor(loops / self.num_windows)
 
-            for window in windows:
+            for _ in windows:
                 for _ in range(per_window):
-                    rate_limiter.is_allowed(window)
+                    rate_limiter.is_allowed()
 
         yield _

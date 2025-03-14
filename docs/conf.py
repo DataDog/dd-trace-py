@@ -140,6 +140,12 @@ language = None
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+
+# autodoc_mock_imports contains a list of modules to be mocked up.
+# This is useful when some external dependencies are installed at build time and break the building process.
+# The following modules require third party packages and should be mocked when generating docs:
+autodoc_mock_imports = ["ddtrace.contrib.internal"]
+
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
 #

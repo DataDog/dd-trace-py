@@ -1,20 +1,19 @@
-#!/usr/bin/env python3
-# -*- encoding: utf-8 -*-
 import logging
 
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -272,10 +271,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
         ranges_result = get_tainted_ranges(result)
         assert len(ranges_result) == 0
 
-        assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
-            record.message for record in caplog.records
-        ]
-        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+        assert not any("iast::propagation::native::error::" in record.message for record in caplog.records)
 
         _start_iast_context_and_oce()
         result = taint_pyobject(
@@ -319,11 +315,13 @@ def test_propagate_ranges_with_no_context(caplog):
     )
 
     reset_context()
-    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
+    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        dict(_iast_debug=True)
+    ), caplog.at_level(logging.DEBUG):
         result_2 = add_aspect(result, "another_string")
 
     create_context()
     ranges_result = get_tainted_ranges(result_2)
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
     assert len(ranges_result) == 0

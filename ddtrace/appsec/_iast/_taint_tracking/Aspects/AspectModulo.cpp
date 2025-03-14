@@ -20,45 +20,17 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 
     if (PyUnicode_Check(text)) {
         result = PyUnicode_Format(text, insert_tuple);
-    } else if (PyBytes_Check(text)) {
-        if (PyObject* text_unicode = PyUnicode_FromEncodedObject(text, "utf-8", "strict"); text_unicode != nullptr) {
-            result = PyUnicode_Format(text_unicode, insert_tuple);
-            Py_DECREF(text_unicode);
-
-            if (result != nullptr) {
-                PyObject* encoded_result = PyUnicode_AsEncodedString(result, "utf-8", "strict");
-                Py_DECREF(result);
-                result = encoded_result;
-            }
-        }
-    } else if (PyByteArray_Check(text)) {
-        if (PyObject* text_bytes = PyBytes_FromStringAndSize(PyByteArray_AsString(text), PyByteArray_Size(text));
-            text_bytes != nullptr) {
-            PyObject* text_unicode = PyUnicode_FromEncodedObject(text_bytes, "utf-8", "strict");
-            Py_DECREF(text_bytes);
-            if (text_unicode != nullptr) {
-                result = PyUnicode_Format(text_unicode, insert_tuple);
-                Py_DECREF(text_unicode);
-
-                if (result != nullptr) {
-                    PyObject* encoded_result = PyUnicode_AsEncodedString(result, "utf-8", "strict");
-                    Py_DECREF(result);
-                    result = encoded_result;
-                }
-            }
-        }
-
-        if (result != nullptr) {
-            PyObject* result_bytearray = PyByteArray_FromObject(result);
-            Py_DECREF(result);
-            result = result_bytearray;
-        }
+    } else if (PyBytes_Check(text) or PyByteArray_Check(text)) {
+        auto method_name = PyUnicode_FromString("__mod__");
+        result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
+        Py_DECREF(method_name);
     } else {
-        Py_DECREF(insert_tuple);
+    }
+    Py_DECREF(insert_tuple);
+    if (has_pyerr()) {
+        Py_XDECREF(result);
         return nullptr;
     }
-
-    Py_DECREF(insert_tuple);
     return result;
 }
 

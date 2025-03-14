@@ -1,8 +1,7 @@
 import pytest
 
+from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -16,7 +15,7 @@ def test_context_multiprocess(run_python_code_in_subprocess):
 from multiprocessing import Process
 import time
 
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 def _target(ctx):

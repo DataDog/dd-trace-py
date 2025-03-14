@@ -11,14 +11,14 @@ from ddtrace.contrib.internal.anthropic.utils import handle_non_streamed_respons
 from ddtrace.contrib.internal.anthropic.utils import tag_params_on_span
 from ddtrace.contrib.internal.anthropic.utils import tag_tool_result_input_on_span
 from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_input_on_span
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -43,11 +43,14 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
+    client = getattr(instance, "_client", None)
+    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.is_default_base_url(str(base_url) if base_url else None),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
@@ -115,11 +118,14 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
+    client = getattr(instance, "_client", None)
+    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.is_default_base_url(str(base_url) if base_url else None),
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),

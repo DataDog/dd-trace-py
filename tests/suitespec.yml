@@ -1,0 +1,262 @@
+---
+components:
+  $harness:
+    - docker/*
+    - docker-compose.yml
+    - riotfile.py
+    - .riot/requirements/*
+    - scripts/ddtest
+    - scripts/run-test-suite
+    - hatch.toml
+    - tests/conftest.py
+    - tests/utils.py
+    - tests/__init__.py
+    - tests/suitespec.yml
+    - tests/suitespec.py
+    - .circleci/*
+    - tests/meta/*
+    - tests/smoke_test.py
+    - tests/subprocesstest.py
+    - tests/wait-for-services.py
+    - tests/webclient.py
+    - tests/test_module/*
+    - .gitlab-ci.yml
+    - .gitlab/*
+    - tests/suitespec.yml
+  $setup:
+    - setup.py
+    - setup.cfg
+    - pyproject.toml
+  bootstrap:
+    - ddtrace/bootstrap/*
+    - ddtrace/commands/*
+    - ddtrace/auto.py
+  ci:
+    - ddtrace/ext/ci.py
+  codeowners:
+    - ddtrace/internal/codeowners.py
+  core:
+    - ddtrace/internal/__init__.py
+    - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_file_queue.py
+    - ddtrace/internal/_rand.pyi
+    - ddtrace/internal/_rand.pyx
+    - ddtrace/internal/_stdint.h
+    - ddtrace/internal/_threads.*
+    - ddtrace/internal/_unpatched.py
+    - ddtrace/internal/agent.py
+    - ddtrace/internal/assembly.py
+    - ddtrace/internal/atexit.py
+    - ddtrace/internal/compat.py
+    - ddtrace/internal/core/*
+    - ddtrace/internal/datadog/__init__.py
+    - ddtrace/internal/debug.py
+    - ddtrace/internal/dogstatsd.py
+    - ddtrace/internal/forksafe.py
+    - ddtrace/internal/gitmetadata.py
+    - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/logger.py
+    - ddtrace/internal/hostname.py
+    - ddtrace/internal/http.py
+    - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/logger.py
+    - ddtrace/internal/metrics.py
+    - ddtrace/internal/module.py
+    - ddtrace/internal/native/*
+    - ddtrace/internal/packages.py
+    - ddtrace/internal/third-party.tar.gz
+    - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
+    - ddtrace/internal/rate_limiter.py
+    - ddtrace/internal/safety.py
+    - ddtrace/internal/service.py
+    - ddtrace/internal/uds.py
+    - ddtrace/internal/utils/*
+    - ddtrace/internal/uwsgi.py
+    - ddtrace/internal/wrapping/*
+    - ddtrace/__init__.py
+    - ddtrace/py.typed
+    - ddtrace/version.py
+    - ddtrace/settings/_config.py
+    - src/native/*
+  datastreams:
+    - ddtrace/internal/datastreams/*
+    - ddtrace/data_streams.py
+    - ddtrace/ext/schema.py
+  git:
+    - ddtrace/ext/git.py
+  opentelemetry:
+    - ddtrace/opentelemetry/*
+    - ddtrace/internal/opentelemetry/*
+  opentracer:
+    - ddtrace/opentracer/*
+  profiling:
+    - ddtrace/profiling/*
+    - ddtrace/internal/datadog/profiling/*
+    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/settings/profiling.py
+  remoteconfig:
+    - ddtrace/internal/remoteconfig/*
+  runtime:
+    - ddtrace/runtime/*
+  serverless:
+    - ddtrace/internal/serverless/*
+  settings:
+    - ddtrace/settings/*
+  sourcecode:
+    - ddtrace/sourcecode/*
+  symbol_db:
+    - ddtrace/internal/symbol_db/*
+    - ddtrace/settings/symbol_db.py
+  telemetry:
+    - ddtrace/internal/telemetry/*
+  tracing:
+    - ddtrace/_hooks.py
+    - ddtrace/_logger.py
+    - ddtrace/_monkey.py
+    - ddtrace/_trace/*
+    - ddtrace/trace/*
+    - ddtrace/constants.py
+    - ddtrace/settings/__init__.py
+    - ddtrace/settings/_config.py
+    - ddtrace/settings/http.py
+    - ddtrace/settings/exceptions.py
+    - ddtrace/settings/integration.py
+    - ddtrace/internal/_encoding.py*
+    - ddtrace/internal/_tagset.py*
+    - ddtrace/internal/_utils.*
+    - ddtrace/internal/constants.py
+    - ddtrace/internal/encoding.py
+    - ddtrace/internal/flare/*
+    - ddtrace/internal/pack.h
+    - ddtrace/internal/pack_template.h
+    - ddtrace/internal/peer_service/*
+    - ddtrace/settings/peer_service.py
+    - ddtrace/internal/processor/__init__.py
+    - ddtrace/internal/processor/stats.py
+    - ddtrace/internal/runtime/*
+    - ddtrace/internal/sampling.py
+    - ddtrace/internal/schema/*
+    - ddtrace/internal/sma.py
+    - ddtrace/internal/tracemethods.py
+    - ddtrace/internal/sysdep.h
+    - ddtrace/internal/writer/*
+  vendor:
+    - ddtrace/vendor/*
+suites:
+  conftest:
+    parallelism: 1
+    paths:
+      - 'conftest.py'
+      - '**/conftest.py'
+    pattern: meta-testing
+    runner: hatch
+    snapshot: false
+  ddtracerun:
+    parallelism: 6
+    paths:
+      - '@contrib'
+      - '@bootstrap'
+      - '@core'
+      - tests/commands/*
+      - tests/ddtrace_run.py
+    runner: riot
+    services:
+      - redis
+  integration_agent:
+    paths:
+      - '@tracing'
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - tests/integration/*
+      - tests/snapshots/tests.integration.*
+    pattern: integration-latest*
+    runner: riot
+  integration_testagent:
+    paths:
+      - '@tracing'
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - tests/integration/*
+      - tests/snapshots/tests.integration.*
+    pattern: integration-snapshot*
+    runner: riot
+    snapshot: true
+  internal:
+    paths:
+      - '@core'
+      - '@remoteconfig'
+      - '@symbol_db'
+      - '@tracing'
+      - ddtrace/internal/*
+      - tests/internal/*
+      - tests/submod/*
+      - tests/cache/*
+    runner: riot
+    snapshot: true
+  slotscheck:
+    parallelism: 1
+    paths:
+      - 'ddtrace/**/*.py'
+    runner: hatch
+    snapshot: false
+  profile:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    parallelism: 20
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - tests/profiling/*
+      - tests/profiling_v2/*
+    pattern: profile$|profile-v2
+    retry: 2
+    runner: riot
+  runtime:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@runtime'
+      - tests/runtime/*
+    runner: riot
+    skip: true
+  telemetry:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@contrib'
+      - '@core'
+      - '@telemetry'
+      - '@tracing'
+      - '@settings'
+      - '@profiling'
+      - tests/telemetry/*
+      - tests/snapshots/tests.telemetry.*
+    runner: riot
+    snapshot: true
+  tracer:
+    env:
+      DD_TRACE_AGENT_URL: http://localhost:8126
+    parallelism: 9
+    paths:
+      - '@tracing'
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@llmobs'
+      - '@serverless'
+      - '@remoteconfig'
+      - '@futures'
+      - '@ci_visibility'
+      - tests/tracer/*
+      - tests/snapshots/test_*
+    retry: 2
+    runner: riot
+  vendor:
+    paths:
+      - '@vendor'
+      - tests/vendor/*
+    runner: riot

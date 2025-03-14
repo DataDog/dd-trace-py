@@ -1,20 +1,22 @@
 from typing import Optional  # noqa:F401
+from urllib import parse
 
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -59,21 +61,21 @@ def _wrap_send(func, instance, args, kwargs):
     tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
 
     # skip if tracing is not enabled
-    if not tracer.enabled and not tracer._apm_opt_out:
+    if not tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
     if not request:
         return func(*args, **kwargs)
 
-    url = trace_utils._sanitized_url(request.url)
+    url = _sanitized_url(request.url)
     method = ""
     if request.method is not None:
         method = request.method.upper()
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = config.get_from(instance)
+    cfg = config._get_from(instance)
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -91,11 +93,11 @@ def _wrap_send(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
         # DEV: analytics enabled on per-session basis
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         analytics_enabled = cfg.get("analytics_enabled")
         if analytics_enabled:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))

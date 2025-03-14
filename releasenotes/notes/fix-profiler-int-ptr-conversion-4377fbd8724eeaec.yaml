@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Updates setup.py to ignore int-ptr conversion warnings for the profiler stack.pyx file.
+    This is important because gcc 14 makes these conversions an error, alpine 3.21.0 ships with gcc 14,
+    and any patch version of a Python alpine image cut after December 5th, 2024, will have this issue.

@@ -5,9 +5,13 @@ from typing import Text
 from wrapt import FunctionWrapper
 
 from ddtrace.appsec._common_module_patches import wrap_object
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
-
-from ._taint_utils import taint_structure
 
 
 log = get_logger(__name__)
@@ -38,7 +42,7 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)
+        iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
 
 def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
@@ -48,10 +52,6 @@ def _patched_dictionary(origin_key, origin_value, original_func, instance, args,
 
 
 def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     def path(self) -> str:
         return taint_pyobject(
             self.components.path,
@@ -65,8 +65,6 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
 
 
 def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-
     def receive(self):
         """This pattern comes from a Request._receive property, which returns a callable"""
 
@@ -82,10 +80,6 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
 
 
 async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import origin_to_str
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     result = await wrapped(*args, **kwargs)
 
     return taint_pyobject(
@@ -94,9 +88,6 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 
 def _iast_instrument_starlette_scope(scope):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
     if scope.get("path_params"):
         try:
             for k, v in scope["path_params"].items():
@@ -104,4 +95,4 @@ def _iast_instrument_starlette_scope(scope):
                     v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                 )
         except Exception:
-            log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

@@ -45,7 +45,8 @@ namespace Datadog {
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \
     X(class_name, "class name")                                                                                        \
-    X(lock_name, "lock name")
+    X(lock_name, "lock name")                                                                                          \
+    X(gpu_device_name, "gpu device name")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,

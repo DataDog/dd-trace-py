@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ensure that Telemetry heartbeats are not skipped for forked processes, as doing so could result in the dependency list being lost over time.

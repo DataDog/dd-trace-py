@@ -35,20 +35,15 @@ To configure the foo integration on an per-instance basis use the
 ``Pin`` API::
 
     import foo
-    from ddtrace import Pin
+    from ddtrace.trace import Pin
 
     myfoo = foo.Foo()
     Pin.override(myfoo, service="myfoo")
 """
-from ...internal.utils.importlib import require_modules
+
+from .patch import get_version
+from .patch import patch
+from .patch import unpatch
 
 
-required_modules = ["foo"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        from .patch import get_version
-        from .patch import patch
-        from .patch import unpatch
-
-        __all__ = ["patch", "unpatch", "get_version"]
+__all__ = ["patch", "unpatch", "get_version"]

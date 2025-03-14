@@ -8,18 +8,16 @@ from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
-from ddtrace.internal.core import DDSketch
+from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
-from ...constants import SPAN_MEASURED_KEY
+from ...constants import _SPAN_MEASURED_KEY
 from .._encoding import packb
 from ..agent import get_connection
-from ..compat import get_connection_response
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..runtime import container
 from ..writer import _human_size
 
 
@@ -30,7 +28,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -39,7 +37,7 @@ log = get_logger(__name__)
 def _is_measured(span):
     # type: (Span) -> bool
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(SPAN_MEASURED_KEY) == 1
+    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
 
 
 """
@@ -108,7 +106,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
-        container.update_headers_with_container_info(self._headers, container.get_container_info())
         self._hostname = ""
         if config._report_hostname:
             self._hostname = get_hostname()
@@ -203,7 +200,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("PUT", self._endpoint, payload, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise

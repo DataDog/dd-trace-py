@@ -7,28 +7,27 @@ import sys
 import mock
 import pytest
 
-from ddtrace import Tracer
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.runtime import container
-from ddtrace.internal.writer import AgentWriter
-from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import BadEncoder
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
-from tests.integration.utils import send_invalid_payload_and_get_logs
 from tests.integration.utils import skip_if_testagent
+from tests.utils import DummyTracer
 from tests.utils import call_program
 
 
 FOUR_KB = 1 << 12
 
 
+@pytest.mark.subprocess()
 def test_configure_keeps_api_hostname_and_port():
-    tracer = Tracer()
+    from ddtrace.trace import tracer
+    from tests.integration.utils import AGENT_VERSION
+
     assert tracer._writer.agent_url == "http://localhost:{}".format("9126" if AGENT_VERSION == "testagent" else "8126")
-    tracer.configure(hostname="127.0.0.1", port=8127)
+    tracer._configure(hostname="127.0.0.1", port=8127)
     assert tracer._writer.agent_url == "http://127.0.0.1:8127"
-    tracer.configure(api_version="v0.5")
+    tracer._configure(api_version="v0.5")
     assert (
         tracer._writer.agent_url == "http://127.0.0.1:8127"
     ), "Previous overrides of hostname and port are retained after a configure() call without those arguments"
@@ -38,7 +37,7 @@ def test_configure_keeps_api_hostname_and_port():
 @mock.patch("signal.getsignal")
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_get_signal.return_value = None
-    tracer = Tracer()
+    tracer = DummyTracer()
     register_on_exit_signal(tracer._atexit)
     assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
@@ -97,10 +96,10 @@ t.join()
 def test_single_trace_uds():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     sockdir = "/tmp/ddagent/trace.sock"
-    t.configure(uds_path=sockdir)
+    t._configure(uds_path=sockdir)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
@@ -115,10 +114,10 @@ def test_uds_wrong_socket_path():
 
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    t.configure(uds_path="/tmp/ddagent/nosockethere")
+    t._configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
@@ -147,7 +146,7 @@ def test_payload_too_large():
 
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_integration import FOUR_KB
     from tests.utils import AnyInt
     from tests.utils import AnyStr
@@ -186,7 +185,7 @@ def test_payload_too_large():
 def test_resource_name_too_large():
     import pytest
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.integration.test_integration import FOUR_KB
 
     assert t._writer._buffer_size == FOUR_KB
@@ -206,7 +205,7 @@ def test_resource_name_too_large():
 def test_large_payload_is_sent_without_warning_logs():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for _ in range(10000):
@@ -222,7 +221,7 @@ def test_large_payload_is_sent_without_warning_logs():
 def test_child_spans_do_not_cause_warning_logs():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         spans = []
@@ -240,7 +239,7 @@ def test_child_spans_do_not_cause_warning_logs():
 def test_metrics():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
@@ -288,11 +287,11 @@ def test_metrics():
 def test_metrics_partial_flush_disabled():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    t.configure(
+    t._configure(
         partial_flush_enabled=False,
     )
 
@@ -332,8 +331,8 @@ def test_metrics_partial_flush_disabled():
 def test_single_trace_too_large():
     import mock
 
-    from ddtrace import tracer as t
     from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
@@ -369,7 +368,7 @@ def test_single_trace_too_large():
 def test_single_trace_too_large_partial_flush_disabled():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -390,9 +389,9 @@ def test_trace_generates_error_logs_when_hostname_invalid():
 
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
-    t.configure(hostname="bad", port=1111)
+    t._configure(hostname="bad", port=1111)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
@@ -416,8 +415,8 @@ def test_validate_headers_in_payload_to_intake():
     import mock
 
     from ddtrace import __version__
-    from ddtrace import tracer as t
     from ddtrace.internal.runtime import container
+    from ddtrace.trace import tracer as t
 
     t._writer._put = mock.Mock(wraps=t._writer._put)
     t.trace("op").finish()
@@ -431,7 +430,7 @@ def test_validate_headers_in_payload_to_intake():
     if container.get_container_info():
         assert "Datadog-Container-Id" in headers
         assert "Datadog-Entity-ID" in headers
-        assert headers["Datadog-Entity-ID"].startswith("cid")
+        assert headers["Datadog-Entity-ID"].startswith("ci")
 
 
 @skip_if_testagent
@@ -439,7 +438,7 @@ def test_validate_headers_in_payload_to_intake():
 def test_inode_entity_id_header_present():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     t._writer._put = mock.Mock(wraps=t._writer._put)
     with mock.patch("container.get_container_info") as gcimock:
@@ -454,10 +453,30 @@ def test_inode_entity_id_header_present():
 
 @skip_if_testagent
 @parametrize_with_all_encodings
+def test_external_env_header_present():
+    import mock
+
+    from ddtrace.trace import tracer as t
+
+    mocked_external_env = "it-false,cn-nginx-webserver,pu-75a2b6d5-3949-4afb-ad0d-92ff0674e759"
+
+    t._writer._put = mock.Mock(wraps=t._writer._put)
+    with mock.patch("os.environ.get") as oegmock:
+        oegmock.return_value = mocked_external_env
+        t.trace("op").finish()
+        t.shutdown()
+    assert t._writer._put.call_count == 1
+    headers = t._writer._put.call_args[0][1]
+    assert "Datadog-External-Env" in headers
+    assert headers["Datadog-External-Env"] == mocked_external_env
+
+
+@skip_if_testagent
+@parametrize_with_all_encodings
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(100):
@@ -473,7 +492,7 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces():
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(10):
@@ -486,8 +505,12 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@parametrize_with_all_encodings
 def test_trace_with_invalid_client_endpoint_generates_error_log():
-    t = Tracer()
+    import mock
+
+    from ddtrace.trace import tracer as t
+
     for client in t._writer._clients:
         client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -506,7 +529,12 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
 
 
 @skip_if_testagent
+@pytest.mark.subprocess(err=None)
 def test_trace_with_invalid_payload_generates_error_log():
+    import mock
+
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
         [
@@ -521,11 +549,11 @@ def test_trace_with_invalid_payload_generates_error_log():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
     log.error.assert_has_calls(
@@ -542,12 +570,12 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
 
 @skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"})
+@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from tests.integration.test_integration import send_invalid_payload_and_get_logs
     from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
@@ -570,7 +598,11 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     )
 
 
+@pytest.mark.subprocess(err=None)
 def test_trace_with_failing_encoder_generates_error_log():
+    from tests.integration.utils import BadEncoder
+    from tests.integration.utils import send_invalid_payload_and_get_logs
+
     class ExceptionBadEncoder(BadEncoder):
         def encode(self):
             raise Exception()
@@ -587,8 +619,8 @@ def test_trace_with_failing_encoder_generates_error_log():
 def test_api_version_downgrade_generates_no_warning_logs():
     import mock
 
-    from ddtrace import tracer as t
     from ddtrace.internal.utils.http import Response
+    from ddtrace.trace import tracer as t
 
     t._writer.api_version = "v0.5"
     t._writer._downgrade(Response(status=404), t._writer._clients[0])
@@ -600,9 +632,12 @@ def test_api_version_downgrade_generates_no_warning_logs():
     log.error.assert_not_called()
 
 
+@pytest.mark.subprocess()
 def test_synchronous_writer_shutdown_raises_no_exception():
-    tracer = Tracer()
-    tracer.configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
+    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import tracer
+
+    tracer._configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     tracer.shutdown()
 
 
@@ -723,10 +758,10 @@ assert ddtrace.tracer._writer._interval == 1.0
 def test_partial_flush_log():
     import mock
 
-    from ddtrace import tracer as t
+    from ddtrace.trace import tracer as t
 
     partial_flush_min_spans = 2
-    t.configure(
+    t._configure(
         partial_flush_min_spans=partial_flush_min_spans,
     )
 
@@ -772,7 +807,6 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     ), "stderr should not contain any exception logs"
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 def test_no_warnings_when_Wall():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <unistd.h>
+#include <unordered_map>
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -24,6 +25,7 @@ ddup_postfork_child()
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
     Datadog::CodeProvenance::postfork_child();
+    Datadog::UploaderBuilder::postfork_child();
 }
 
 void
@@ -194,6 +196,24 @@ ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unuse
 }
 
 void
+ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_gputime(time, count);
+}
+
+void
+ddup_push_gpu_memory(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_memory(size, count);
+}
+
+void
+ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_flops(flops, count);
+}
+
+void
 ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppcheck-suppress unusedFunction
 {
     sample->push_lock_name(lock_name);
@@ -253,6 +273,12 @@ ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cp
 }
 
 void
+ddup_push_gpu_device_name(Datadog::Sample* sample, std::string_view gpu_device_name) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_device_name(gpu_device_name);
+}
+
+void
 ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 std::string_view _name,
                 std::string_view _filename,
@@ -260,6 +286,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
+{
+    sample->push_absolute_ns(timestamp_ns);
 }
 
 void
@@ -319,7 +351,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
 void
 ddup_profile_set_endpoints(
-  std::map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
+  std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
@@ -336,7 +368,7 @@ ddup_profile_set_endpoints(
 }
 
 void
-ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {

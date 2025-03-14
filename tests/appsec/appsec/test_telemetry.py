@@ -1,20 +1,20 @@
 import os
 from time import sleep
+from unittest import mock
 
-import mock
 import pytest
 
-from ddtrace import tracer
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
-from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_APPSEC
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.trace import tracer
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -26,9 +26,10 @@ invalid_rule_update = {"rules": {"test": "invalid"}}
 invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', obtained 'map'"""
 
 
-def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]
-    assert len(generate_metrics) == 2, "Expected 2 generate_metrics"
+def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
+    metric_update = 0
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
+    assert len(generate_metrics) == 3 + is_updated, f"Expected {2 + is_updated} generate_metrics"
     for _metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
             assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
@@ -39,12 +40,28 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert any("event_rules_version" in k for k, v in metric._tags)
         elif metric.name == "waf.init":
             assert len(metric._points) == 1
+            assert ("waf_version", version()) in metric._tags
+            assert ("success", "true") in metric._tags
+            assert any("event_rules_version" in k for k, v in metric._tags)
+            assert len(metric._tags) == 3
+        elif metric.name == "waf.updates":
+            assert len(metric._points) == 1
+            assert ("waf_version", version()) in metric._tags
+            assert ("success", "true") in metric._tags
+            assert any("event_rules_version" in k for k, v in metric._tags)
+            assert len(metric._tags) == 3
+            metric_update += 1
+        elif metric.name == "api_security.missing_route":
+            assert len(metric._points) == 1
+            assert ("framework", "test") in metric._tags or ("framework", "flask") in metric._tags, metric._tags
+            assert len(metric._tags) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric.name))
+    assert metric_update == is_updated
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]
+    distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
     for _metric_id, metric in distributions_metrics.items():
@@ -61,7 +78,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
     with override_global_config(dict(_asm_enabled=False)):
-        tracer.configure(api_version="v0.4", appsec_enabled=False)
+        tracer._configure(api_version="v0.4", appsec_enabled=False)
         telemetry_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -69,8 +86,8 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 rules.Config(),
             )
     metrics_data = telemetry_writer._namespace._metrics_data
-    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
-    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE_TAG_APPSEC]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
 
 
 def test_metrics_when_appsec_runs(telemetry_writer, tracer):
@@ -93,22 +110,43 @@ def test_metrics_when_appsec_attack(telemetry_writer, tracer):
 def test_metrics_when_appsec_block(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_good_rules) as span:
-        set_http_meta(
-            span,
-            rules.Config(),
-        )
+        set_http_meta(span, rules.Config())
     _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True)
+
+
+def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
+    telemetry_writer._namespace.flush()
+    with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_asm) as span:
+        from ddtrace.appsec._remoteconfiguration import _appsec_rules_data
+
+        _appsec_rules_data(
+            {
+                "actions": [
+                    {
+                        "id": "block",
+                        "type": "block_request",
+                        "parameters": {"status_code": 429, "type": "json"},
+                    },
+                ]
+            },
+            tracer,
+        )
+        set_http_meta(span, rules.Config(), request_headers={"User-Agent": "Arachni/v1.5.1"})
+    _assert_generate_metrics(
+        telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=False, is_updated=1
+    )
 
 
 def test_log_metric_error_ddwaf_init(telemetry_writer):
     with override_global_config(
         dict(
             _asm_enabled=True,
-            _deduplication_enabled=False,
+            _asm_deduplication_enabled=False,
             _asm_static_rule_file=os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"),
         )
     ):
-        AppSecSpanProcessor()
+        processor = AppSecSpanProcessor()
+        processor.delayed_init()
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
@@ -123,7 +161,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     config = dict(
         _asm_enabled=True,
         _waf_timeout=0.0,
-        _deduplication_enabled=False,
+        _asm_deduplication_enabled=False,
         _asm_static_rule_file=rules.RULES_GOOD_PATH,
     )
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config) as span:
@@ -136,7 +174,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     assert len(list_metrics_logs) == 0
 
     generate_metrics = telemetry_writer._namespace._metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
-        TELEMETRY_NAMESPACE_TAG_APPSEC
+        TELEMETRY_NAMESPACE.APPSEC.value
     ]
 
     timeout_found = False
@@ -148,7 +186,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 
 
 def test_log_metric_error_ddwaf_update(telemetry_writer):
-    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
         span_processor._update_rules(invalid_rule_update)
 
@@ -169,7 +207,7 @@ def _wrapped_run(*args, **kwargs):
 @mock.patch.object(ddtrace.appsec._ddwaf, "ddwaf_run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
-    with override_global_config(dict(_asm_enabled=True, _deduplication_enabled=False)):
+    with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
             span_processor = AppSecSpanProcessor()
             span_processor.on_span_start(span)

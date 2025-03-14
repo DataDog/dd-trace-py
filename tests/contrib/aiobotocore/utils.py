@@ -3,17 +3,8 @@ from async_generator import async_generator
 from async_generator import asynccontextmanager
 from async_generator import yield_
 
-from ddtrace import Pin
-
-
-LOCALSTACK_ENDPOINT_URL = {
-    "s3": "http://localhost:5000",
-    "ec2": "http://localhost:5001",
-    "kms": "http://localhost:5002",
-    "sqs": "http://localhost:5003",
-    "lambda": "http://localhost:5004",
-    "kinesis": "http://localhost:5005",
-}
+from ddtrace.trace import Pin
+from tests.contrib.config import MOTO_CONFIG
 
 
 @asynccontextmanager
@@ -23,7 +14,7 @@ async def aiobotocore_client(service, tracer):
     it is closed at the end of the context manager.
     """
     session = aiobotocore.session.get_session()
-    endpoint = LOCALSTACK_ENDPOINT_URL[service]
+    endpoint = "http://{host}:{port}".format(**MOTO_CONFIG)
     client = session.create_client(
         service,
         region_name="us-west-2",
@@ -42,11 +33,11 @@ async def aiobotocore_client(service, tracer):
         client, aiobotocore.session.ClientCreatorContext
     ):
         async with client as client:
-            Pin.override(client, tracer=tracer)
+            Pin._override(client, tracer=tracer)
             await yield_(client)
 
     else:
-        Pin.override(client, tracer=tracer)
+        Pin._override(client, tracer=tracer)
         try:
             await yield_(client)
         finally:

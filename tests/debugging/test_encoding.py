@@ -16,9 +16,9 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
+from ddtrace.debugging._signal.utils import BUILTIN_MAPPING_TYPES
+from ddtrace.debugging._signal.utils import BUILTIN_SEQUENCE_TYPES
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal.compat import BUILTIN_MAPPING_TYPES
-from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
 from tests.debugging.test_config import debugger_config
 from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe
@@ -191,7 +191,21 @@ def test_capture_context_exc():
 
         exc = context.pop("throwable")
         assert context["arguments"] == {}
-        assert context["locals"] == {"@exception": {"type": "Exception", "fields": {}}}
+        assert context["locals"] == {
+            "@exception": {
+                "type": "Exception",
+                "fields": {
+                    "args": {
+                        "type": "tuple",
+                        "elements": [{"type": "str", "value": "'test'"}, {"type": "str", "value": "'me'"}],
+                        "size": 2,
+                    },
+                    "__cause__": {"type": "NoneType", "isNull": True},
+                    "__context__": {"type": "NoneType", "isNull": True},
+                    "__suppress_context__": {"type": "bool", "value": "False"},
+                },
+            }
+        }
         assert exc["message"] == "'test', 'me'"
         assert exc["type"] == "Exception"
 

@@ -9,6 +9,7 @@ from ddtrace import config as ddconfig
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
+from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
 
 
@@ -49,7 +50,7 @@ def get_source_lines_for_test_method(
 
 
 def _add_start_end_source_file_path_data_to_span(
-    span: ddtrace.Span, test_method_object, test_name: str, repo_directory: str
+    span: ddtrace.trace.Span, test_method_object, test_name: str, repo_directory: str
 ):
     if not test_method_object:
         log.debug(
@@ -74,7 +75,7 @@ def _add_start_end_source_file_path_data_to_span(
         span.set_tag(test.SOURCE_END, end_line)
 
 
-def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
+def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
     if not coverage_data or PCT_COVERED_KEY not in coverage_data:
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
@@ -147,3 +148,10 @@ def combine_url_path(*args: str):
     NOTE: this is custom-built for its current usage in the Test Visibility codebase. Use with care.
     """
     return "/".join(str(segment).strip("/") for segment in args)
+
+
+def _get_test_framework_telemetry_name(test_framework: str) -> TEST_FRAMEWORKS:
+    for framework in TEST_FRAMEWORKS:
+        if framework.value == test_framework:
+            return framework
+    return TEST_FRAMEWORKS.MANUAL

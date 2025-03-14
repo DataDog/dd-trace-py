@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "tests.contrib.langchain",
-    "resource": "langchain.vectorstores.pinecone.Pinecone",
+    "resource": "langchain_pinecone.vectorstores.PineconeVectorStore",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,13 +10,10 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
-      "langchain.request.api_key": "...key>",
+      "_dd.p.tid": "67ab842e00000000",
+      "langchain.request.api_key": "",
       "langchain.request.k": "1",
-      "langchain.request.pinecone.environment": "<not-a-real-env>",
-      "langchain.request.pinecone.index_name": "langchain-retrieval",
-      "langchain.request.pinecone.project_name": "74ce8fe",
-      "langchain.request.provider": "pinecone",
+      "langchain.request.provider": "pineconevectorstore",
       "langchain.request.query": "Who was Alan Turing?",
       "langchain.request.type": "similarity_search",
       "langchain.response.document.0.metadata.chunk": "1.0",
@@ -25,7 +22,7 @@
       "langchain.response.document.0.metadata.wiki-id": "13",
       "langchain.response.document.0.page_content": "A brilliant mathematician and cryptographer Alan was to become the founder of modern-day computer science and artificial intelli...",
       "language": "python",
-      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
+      "runtime-id": "dc68dcd2a98949a29ce685a3e5a3f4b5"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -33,22 +30,21 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "langchain.response.document_count": 1,
-      "process_id": 10515
+      "process_id": 51835
     },
-    "duration": 12926462,
-    "start": 1694032468335861335
+    "duration": 2439000,
+    "start": 1739293742483257000
   },
      {
        "name": "langchain.request",
        "service": "tests.contrib.langchain",
-       "resource": "langchain.embeddings.openai.OpenAIEmbeddings",
+       "resource": "langchain_openai.embeddings.base.OpenAIEmbeddings",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "654a694400000000",
          "langchain.request.api_key": "...key>",
          "langchain.request.inputs.0.text": "Who was Alan Turing?",
          "langchain.request.model": "text-embedding-ada-002",
@@ -60,6 +56,6 @@
          "langchain.request.input_count": 1,
          "langchain.response.outputs.embedding_length": 1536
        },
-       "duration": 3701578,
-       "start": 1694032468336059072
+       "duration": 69000,
+       "start": 1739293742483435000
      }]]

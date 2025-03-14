@@ -9,11 +9,11 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
 from ddtrace.appsec._iast._taint_tracking import _aspect_split
 from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
 from tests.utils import override_global_config
 
@@ -178,4 +178,4 @@ def test_propagate_ranges_with_no_context(caplog):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]
     log_messages = [record.getMessage() for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages

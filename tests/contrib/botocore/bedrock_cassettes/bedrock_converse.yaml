@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"system": [{"text": "You are an expert swe that is to use the tool fetch_concept"}],
+      "messages": [{"role": "user", "content": [{"text": "Explain the concept of distributed
+      tracing in a simple way"}]}], "inferenceConfig": {"temperature": 0.7, "topP":
+      0.9, "maxTokens": 1000, "stopSequences": []}, "toolConfig": {"tools": [{"toolSpec":
+      {"name": "fetch_concept", "description": "Fetch an expert explanation for a
+      concept, especially relevant for technical concepts like distributed tracing",
+      "inputSchema": {"json": {"type": "object", "properties": {"concept": {"type":
+      "string", "description": "The concept to explain"}}, "required": ["concept"]}}}}]}}'
+    headers:
+      Content-Length:
+      - '651'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNy40IG1kL0JvdG9jb3JlIzEuMzcuNCB1YS8yLjEgb3MvbWFjb3MjMjMuNi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC4xMyBtZC9weWltcGwjQ1B5dGhvbiBjZmcvcmV0
+        cnktbW9kZSNsZWdhY3kgQm90b2NvcmUvMS4zNy40
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTAzMDNUMDQ1MTI2Wg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NzA1Yzg1NGEtMWYxYy00OWQ5LWFhYWUtZjYzOTg3ZWVhMzdi
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1%3A0/converse
+  response:
+    body:
+      string: '{"metrics":{"latencyMs":1300},"output":{"message":{"content":[{"text":"Okay,
+        let me use the tool to fetch an expert explanation for the concept of distributed
+        tracing."},{"toolUse":{"input":{"concept":"distributed tracing"},"name":"fetch_concept","toolUseId":"tooluse_iPA5tRLlQ5qSvfeYGeQVPg"}}],"role":"assistant"}},"stopReason":"tool_use","usage":{"inputTokens":269,"outputTokens":77,"totalTokens":346}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '404'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 03 Mar 2025 04:51:28 GMT
+      x-amzn-RequestId:
+      - bcbf9de0-6aaa-4602-b591-6c2ad87964a6
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -3,6 +3,8 @@ from collections import ChainMap
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
+from functools import singledispatch
+import threading
 from threading import Thread
 import time
 from types import FrameType
@@ -16,19 +18,20 @@ from typing import Union
 from typing import cast
 from uuid import uuid4
 
-from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
-from ddtrace.debugging._probe.model import FunctionLocationMixin
-from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
+from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.metrics import Metrics
+from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 
 
 @dataclass
@@ -42,6 +45,7 @@ class SignalState(str, Enum):
     SKIP_COND = "SKIP_COND"
     SKIP_COND_ERROR = "SKIP_COND_ERROR"
     SKIP_RATE = "SKIP_RATE"
+    SKIP_BUDGET = "SKIP_BUDGET"
     COND_ERROR = "COND_ERROR"
     DONE = "DONE"
 
@@ -119,11 +123,36 @@ class Signal(abc.ABC):
             # We don't have a rate limiter, so no rate was exceeded.
             return False
 
-        exceeded = probe.limiter.limit() is RateLimitExceeded
+        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
         if exceeded:
             self.state = SignalState.SKIP_RATE
 
         return exceeded
+
+    def _session_check(self) -> bool:
+        # Check that we emit signals from probes with a session ID only if the
+        # session is active. If the probe has no session ID, or the session ID
+        # is active, we can proceed with the signal emission.
+        session_id = self.probe.tags.get("session_id")
+        if session_id is not None:
+            session = Session.lookup(session_id)
+            return session is not None and session.level >= 1
+        return True
+
+    def _budget_exceeded(self) -> bool:
+        session = self.session
+        if session is not None:
+            probe = self.probe
+            session.count_probe(probe.probe_id)
+            if session.get_probe_count(probe.probe_id) > getattr(probe, "__budget__", float("inf")):
+                self.state = SignalState.SKIP_BUDGET
+                return True
+        return False
+
+    @property
+    def session(self):
+        session_id = self.probe.tags.get("session_id")
+        return Session.lookup(session_id) if session_id is not None else None
 
     @property
     def args(self):
@@ -142,6 +171,9 @@ class Signal(abc.ABC):
         pass
 
     def do_enter(self) -> None:
+        if not self._session_check():
+            return
+
         if self._timing is not ProbeEvalTiming.ENTRY:
             return
 
@@ -152,9 +184,15 @@ class Signal(abc.ABC):
         if self._rate_limit_exceeded():
             return
 
+        if self._budget_exceeded():
+            return
+
         self.enter(scope)
 
     def do_exit(self, retval: Any, exc_info: ExcInfoType, duration: int) -> None:
+        if not self._session_check():
+            return
+
         if self.state is not SignalState.NONE:
             # The signal has already been handled and move to a final state
             return
@@ -179,80 +217,50 @@ class Signal(abc.ABC):
             if self._rate_limit_exceeded():
                 return
 
+            if self._budget_exceeded():
+                return
+
         self.exit(retval, cast(ExcInfoType, exc_info), duration or 0, scope)
 
         self.state = SignalState.DONE
 
-    def do_line(self) -> None:
+    def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
+        if not self._session_check():
+            return
+
         frame = self.frame
         scope = ChainMap(frame.f_locals, frame.f_globals)
 
         if not self._eval_condition(scope):
             return
 
+        if global_limiter is not None and global_limiter.limit() is RateLimitExceeded:
+            self.state = SignalState.SKIP_RATE
+            return
+
         if self._rate_limit_exceeded():
+            return
+
+        if self._budget_exceeded():
             return
 
         self.line(scope)
 
         self.state = SignalState.DONE
 
+    @staticmethod
+    def from_probe(
+        probe: Probe, frame: FrameType, thread: Thread, trace_context: Optional[Any], meter: Metrics.Meter
+    ) -> "Signal":
+        return probe_to_signal(probe, frame, thread, trace_context, meter)
 
-@dataclass
-class LogSignal(Signal):
-    """A signal that also emits a log message.
 
-    Some signals might require sending a log message along with the base signal
-    data. For example, all the collected errors from expression evaluations
-    (e.g. conditions) might need to be reported.
-    """
-
-    @property
-    @abc.abstractmethod
-    def message(self) -> Optional[str]:
-        """The log message to emit."""
-        pass
-
-    @abc.abstractmethod
-    def has_message(self) -> bool:
-        """Whether the signal has a log message to emit."""
-        pass
-
-    @property
-    def data(self) -> Dict[str, Any]:
-        """Extra data to include in the snapshot portion of the log message."""
-        return {}
-
-    def _probe_details(self) -> Dict[str, Any]:
-        probe = self.probe
-        if isinstance(probe, LineLocationMixin):
-            location = {
-                "file": str(probe.resolved_source_file),
-                "lines": [str(probe.line)],
-            }
-        elif isinstance(probe, FunctionLocationMixin):
-            location = {
-                "type": probe.module,
-                "method": probe.func_qname,
-            }
-        else:
-            return {}
-
-        return {
-            "id": probe.probe_id,
-            "version": probe.version,
-            "location": location,
-        }
-
-    @property
-    def snapshot(self) -> Dict[str, Any]:
-        full_data = {
-            "id": self.uuid,
-            "timestamp": int(self.timestamp * 1e3),  # milliseconds
-            "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in self.errors],
-            "probe": self._probe_details(),
-            "language": "python",
-        }
-        full_data.update(self.data)
-
-        return full_data
+@singledispatch
+def probe_to_signal(
+    probe: Probe,
+    frame: FrameType,
+    thread: threading.Thread,
+    trace_context: Optional[Any],
+    meter: Metrics.Meter,
+) -> Signal:
+    raise TypeError(f"Unsupported probe type: {type(probe)}")

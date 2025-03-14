@@ -2,7 +2,7 @@
 To trace sqlalchemy queries, add instrumentation to the engine class or
 instance you are using::
 
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
     from ddtrace.contrib.sqlalchemy import trace_engine
     from sqlalchemy import create_engine
 
@@ -19,8 +19,8 @@ from sqlalchemy.event import listen
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -29,7 +29,7 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -37,7 +37,7 @@ def trace_engine(engine, tracer=None, service=None):
     Add tracing instrumentation to the given sqlalchemy engine or instance.
 
     :param sqlalchemy.Engine engine: a SQLAlchemy engine class or instance
-    :param ddtrace.Tracer tracer: a tracer instance. will default to the global
+    :param ddtrace.trace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
     tracer = tracer or ddtrace.tracer  # by default use global
@@ -67,7 +67,9 @@ class EngineTracer(object):
         self.name = schematize_database_operation("%s.query" % self.vendor, database_provider=self.vendor)
 
         # attach the PIN
-        Pin(tracer=tracer, service=self.service).onto(engine)
+        pin = Pin(service=self.service)
+        pin._tracer = self.tracer
+        pin.onto(engine)
 
         listen(engine, "before_cursor_execute", self._before_cur_exec)
         listen(engine, "after_cursor_execute", self._after_cur_exec)
@@ -97,7 +99,7 @@ class EngineTracer(object):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)

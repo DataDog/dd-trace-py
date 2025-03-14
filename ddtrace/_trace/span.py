@@ -1,6 +1,8 @@
+from io import StringIO
 import math
 import pprint
 import sys
+from time import time_ns
 import traceback
 from types import TracebackType
 from typing import Any
@@ -23,17 +25,17 @@ from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_AGENT_DECISION
-from ddtrace.constants import SAMPLING_LIMIT_DECISION
-from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import SERVICE_VERSION_KEY
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
@@ -43,17 +45,14 @@ from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.settings._config import _JSONType
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -62,9 +61,14 @@ _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
-    def __init__(self, name: str, attributes: Optional[Dict[str, str]] = None, time_unix_nano: Optional[int] = None):
+    def __init__(
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
+    ):
         self.name: str = name
-        self.attributes: Dict[str, str] = attributes or {}
+        if attributes is None:
+            self.attributes = {}
+        else:
+            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
@@ -76,7 +80,12 @@ class SpanEvent:
         return d
 
     def __str__(self):
-        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
+        """
+        Stringify and return value.
+        Attribute value can be either str, bool, int, float, or a list of these.
+        """
+
+        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
 
@@ -279,29 +288,6 @@ class Span(object):
     def duration(self, value: float) -> None:
         self.duration_ns = int(value * 1e9)
 
-    @property
-    def sampled(self) -> Optional[bool]:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled references the state of span.context.sampling_priority.
-            Please use span.context.sampling_priority instead to check if a span is sampled.""",
-            category=DDTraceDeprecationWarning,
-        )
-        if self.context.sampling_priority is None:
-            # this maintains original span.sampled behavior, where all spans would start
-            # with span.sampled = True until sampling runs
-            return True
-        return self.context.sampling_priority > 0
-
-    @sampled.setter
-    def sampled(self, value: bool) -> None:
-        deprecate(
-            "span.sampled is deprecated and will be removed in a future version of the tracer.",
-            message="""span.sampled has a no-op setter.
-            Please use span.set_tag('manual.keep'/'manual.drop') to keep or drop spans.""",
-            category=DDTraceDeprecationWarning,
-        )
-
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
         If the span has already been finished don't do anything.
@@ -327,7 +313,7 @@ class Span(object):
         self.context.sampling_priority = decision
         set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
         if self._local_root:
-            for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
+            for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
@@ -401,7 +387,7 @@ class Span(object):
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
             self.set_tag(VERSION_KEY, value)
-        elif key == SPAN_MEASURED_KEY:
+        elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
@@ -458,7 +444,7 @@ class Span(object):
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
-        if key == SPAN_MEASURED_KEY:
+        if key == _SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
             except (ValueError, TypeError):
@@ -498,10 +484,13 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, str]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
+        """Add an errortracking related callback to the on_finish_callback array"""
+        self._on_finish_callbacks.insert(0, callback)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
@@ -545,12 +534,69 @@ class Span(object):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-
-        self._meta[ERROR_MSG] = str(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
+
+        try:
+            self._meta[ERROR_MSG] = str(exc_val)
+        except Exception:
+            # An exception can occur if a custom Exception overrides __str__
+            # If this happens str(exc_val) won't work, so best we can do is print the class name
+            # Otherwise, don't try to set an error message
+            if exc_val and hasattr(exc_val, "__class__"):
+                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+
         self._meta[ERROR_STACK] = tb
 
+        # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
+        # this event such that the additional tags for inferred aws api gateway spans can be appended here.
+        core.dispatch("web.request.final_tags", (self,))
+
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
+
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Dict[str, _JSONType]] = None,
+        timestamp: Optional[int] = None,
+        escaped=False,
+    ) -> None:
+        """
+        Records an exception as span event.
+        If the exception is uncaught, :obj:`escaped` should be set :obj:`True`. It
+        will tag the span with an error tuple.
+
+        :param Exception exception: the exception to record
+        :param dict attributes: optional attributes to add to the span event. It will override
+            the base attributes if :obj:`attributes` contains existing keys.
+        :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
+        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for a uncaught exception.
+        """
+        if timestamp is None:
+            timestamp = time_ns()
+
+        exc_type, exc_val, exc_tb = type(exception), exception, exception.__traceback__
+
+        if escaped:
+            self.set_exc_info(exc_type, exc_val, exc_tb)
+
+        # get the traceback
+        buff = StringIO()
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
+        tb = buff.getvalue()
+
+        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
+        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
+        attrs = {
+            "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
+            "exception.message": str(exception),
+            "exception.escaped": escaped,
+            "exception.stacktrace": tb,
+        }
+        if attributes:
+            # User provided attributes must take precedence over attrs
+            attrs.update(attributes)
+
+        self._add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""

@@ -30,7 +30,7 @@ into the runtime execution of third-party libraries. The essential task of writi
 the functions in the third-party library that would serve as useful entrypoints and wrapping them with ``wrap_function_wrapper``.
 There are exceptions, but this is generally a useful starting point.
 
-The Pin API in ``ddtrace.pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
+The Pin API in ``ddtrace.trace.Pin`` is used to configure the instrumentation at runtime. It provides a ``Pin`` class
 that can store configuration data in memory in a manner that is accessible from within functions wrapped by Wrapt.
 ``Pin`` objects are most often used for storing configuration data scoped to a given integration, such as
 enable/disable flags and service name overrides.
@@ -211,12 +211,11 @@ What does a complete PR look like when adding a new integration?
 
 The following is the check list for ensuring you have all of the components to have a complete PR that is ready for review.
 
-- Patch code for your new integration under ``ddtrace/contrib/your_integration_name``.
+- Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
+- Document your integration in a ``ddtrace/contrib/_integration_name.py`` module and reference the doc string in ``docs/integrations.rst``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
 - The virtual environment configurations for your tests in ``riotfile.py``.
 - The Circle CI configurations for your tests in ``.circleci/config.templ.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
-- The relevant file paths for your integration added to ``tests/.suitespec.json`` in two locations:
-    - Add non-test file paths under ``components``.
-    - Add test file paths under ``suites``.
+- The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

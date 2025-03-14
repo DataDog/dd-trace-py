@@ -20,8 +20,13 @@ class GILGuard
   public:
     inline GILGuard()
     {
-        if (!_Py_IsFinalizing())
+#if PY_VERSION_HEX >= 0x030d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
             _state = PyGILState_Ensure();
+        }
     }
     inline ~GILGuard()
     {
@@ -42,13 +47,23 @@ class AllowThreads
   public:
     inline AllowThreads()
     {
-        if (!_Py_IsFinalizing())
+#if PY_VERSION_HEX >= 0x30d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
             _state = PyEval_SaveThread();
+        }
     }
     inline ~AllowThreads()
     {
-        if (!_Py_IsFinalizing())
+#if PY_VERSION_HEX >= 0x30d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
             PyEval_RestoreThread(_state);
+        }
     }
 
   private:
@@ -266,8 +281,13 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 }
             }
 
-            if (_Py_IsFinalizing())
+#if PY_VERSION_HEX >= 0x30d0000
+            if (Py_IsFinalizing()) {
+#else
+            if (_Py_IsFinalizing()) {
+#endif
                 break;
+            }
 
             if (PeriodicThread__periodic(self)) {
                 // Error
@@ -278,8 +298,15 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None && !_Py_IsFinalizing())
-            PeriodicThread__on_shutdown(self);
+        if (!self->_atexit && !error && self->_on_shutdown != Py_None) {
+#if PY_VERSION_HEX >= 0x30d0000
+            if (!Py_IsFinalizing()) {
+#else
+            if (!_Py_IsFinalizing()) {
+#endif
+                PeriodicThread__on_shutdown(self);
+            }
+        }
 
         // Notify the join method that the thread has stopped
         self->_stopped->set();
@@ -418,9 +445,14 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Since the native thread holds a strong reference to this object, we
     // can only get here if the thread has actually stopped.
 
-    if (_Py_IsFinalizing())
+#if PY_VERSION_HEX >= 0x30d0000
+    if (Py_IsFinalizing()) {
+#else
+    if (_Py_IsFinalizing()) {
+#endif
         // Do nothing. We are about to terminate and release resources anyway.
         return;
+    }
 
     // If we are trying to stop from the same thread, then we are still running.
     // This should happen rarely, so we don't worry about the memory leak this

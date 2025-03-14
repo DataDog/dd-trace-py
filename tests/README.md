@@ -2,37 +2,70 @@
 
 This repository makes use of dynamic features of CI providers to run only the
 jobs that are necessary for the changes in the pull request. This is done by
-giving a logical description of the test suites in terms of _components_. A
-component is a logical grouping of tests that can be run independently of other
+giving a logical description of the test suites in terms of _components_ and _suites_.
+These are declared in a modular way in `suitespec.yml` files within the `/tests`
+sub-tree. When the CI configuration is generated, these files are aggregated to
+build the full test suite specification.
+
+## Components
+
+A component is a logical grouping of tests that can be run independently of other
 components. For example, a component could be a test suite for a specific
 package, or a test suite for a specific feature, e.g. the tracer, the profiler,
-etc... . Components may depend on each other, provide that the resulting
-dependency graph is acyclic. For example, the library has a _core_ component
-on which most, if not all, other components depend. When a change is made to the
-core component, all other components depending on it must be re-tested. This
-logical description is contained in the `/tests/.suitespec.json` file.
-
-The jobs to be run are defined in `jobspec.yml` files under the `/tests`
-sub-tree. Each entry has the name of a suite from the suitespec file, and
-defines the parameters for the runner image. The general structure of a job spec
-is
+etc... . Inside a `suitespec.yml` file, a component declares the patterns of
+files that should trigger the tests in that component.
 
 ```yaml
-suite_name: # A suite name from the .suitespec.json file
-  runner: # The runner image to use (riot | hatch)
-  is_snapshot: # Whether this is a snapshot test run (optional, defaults to false)
-  services: # Any services to spawn for the tests (e.g. redis, optional)
-  env: # Environment variables to set for the tests
-    SUITE_NAME: # The suite pattern from the riotfile|hatch env names (mandatory)
-  parallelism: # The parallel degree of the job (optional, defaults to 1)
-  retry: # The number of retries for the job (optional)
-  timeout: # The timeout for the job (optional)
+components:
+  tracer:
+  - ddtrace/tracer/*.py
+  ...
 ```
 
-To create a new job for a new test suite, create a new suite entry in the
-`.suitespec.json` file and declare the file patterns that should trigger it.
-Then create a new job in a `jobspec.yml` file under the `/tests` sub-tree with
-the format described above, matching the name of the suite in the
-`.suitespec.json` just created. The `SUITE_NAME` environment variable must be
-a regular expression matching at least one riotfile environment (for the riot
-runner) or a hatch environment (for the hatch runner).
+Some file patterns need to trigger all the tests in the test suite. This is
+generally the case for setup files, such as `setup.py`, `pyproject.toml`, etc...
+Tests harness sources too need to trigger all tests in general. To avoid
+declaring these patterns, or the component explicitly in the suites, their name
+can be prefixed with `$`. Components prefixed with `$` will be applied to _all_
+suites automatically.
+
+## Suites
+
+A suite declares what job needs to run when the associated paths are modified.
+The suite schema is as follows:
+
+```yaml
+  suite_name:
+    runner: # The test runner (riot | hatch)
+    skip: # Skip the suite, even when needed
+    env: # Environment variables to pass to the runner
+    parallelism: # The parallel degree of the job
+    retry: # The number of retries for the job
+    timeout: # The timeout for the job
+    pattern: # The pattern/environment name (if different from the suite name)
+    paths: # The paths/components that trigger the job
+```
+
+For example
+
+```yaml
+suites:
+  profile:
+    runner: riot
+    env:
+      DD_TRACE_AGENT_URL: ''
+    parallelism: 20
+    retry: 2
+    pattern: profile$|profile-v2
+    paths:
+    - '@bootstrap'
+    - '@core'
+    - '@profiling'
+    - tests/profiling/*
+    - tests/profiling_v2/*
+```
+
+Components do not need to be declared within the same `suitespec.yml` file. They
+can be declared in any file within the `/tests` sub-tree. The CI configuration
+generator will aggregate all the components and suites to build the full test
+suite specification and resolve the components after that.

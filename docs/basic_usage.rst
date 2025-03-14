@@ -3,39 +3,19 @@
 Basic Usage
 ===========
 
-Tracing
-~~~~~~~
+Automatic Instrumentation
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``ddtrace.auto``
 ----------------
 
-To set up instrumentation within your application, call :ref:`import ddtrace.auto<ddtraceauto>` as early as possible
+To enable full ddtrace support (library instrumentation, profiling, application security monitoring, dynamic instrumentation, etc.) call :ref:`import ddtrace.auto<ddtraceauto>` as the very first thing
 in your application. This will only work if your application is not running under ``ddtrace-run``.
 
-``patch_all``
--------------
+Note: Some Datadog products and instrumentation are disabled by default. Products and instrumentation can be enabled/disable via environment variables, see :ref:`configurations <Configuration>` page for more details.
 
-For fine-grained control over instrumentation setup, use ``patch_all`` as early as possible
-in the application::
-
-  from ddtrace import patch_all
-  patch_all()
-
-To toggle instrumentation for a particular module::
-
-  from ddtrace import patch_all
-  patch_all(redis=False, cassandra=False)
-
-By default all supported libraries will be instrumented when ``patch_all`` is
-used.
-
-**Note:** To ensure that the supported libraries are instrumented properly in
-the application, they must be patched *prior* to being imported. So make sure
-to call ``patch_all`` *before* importing libraries that are to be instrumented.
-
-More information about ``patch_all`` is available in the :py:func:`patch_all<ddtrace.patch_all>` API
-documentation.
-
+Tracing
+~~~~~~~
 
 Manual Instrumentation
 ----------------------
@@ -55,13 +35,13 @@ in your application::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer.wrap`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer.wrap`.
 
 Context Manager
 ---------------
 
-To trace an arbitrary block of code, you can use :py:meth:`ddtrace.Tracer.trace`
-that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
+To trace an arbitrary block of code, you can use :py:meth:`ddtrace.trace.Tracer.trace`
+that returns a :py:mod:`ddtrace.trace.Span` which can be used as a context manager::
 
   # trace some interesting operation
   with tracer.trace('interesting.operations'):
@@ -69,7 +49,7 @@ that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer`.
 
 Using the API
 -------------
@@ -87,8 +67,8 @@ manual API to provide complete control over starting and stopping spans is avail
 
 API details for creating and finishing spans can be found here:
 
-- :py:meth:`ddtrace.Tracer.trace`
-- :py:meth:`ddtrace.Span.finish`.
+- :py:meth:`ddtrace.trace.Tracer.trace`
+- :py:meth:`ddtrace.trace.Span.finish`.
 
 
 Profiling

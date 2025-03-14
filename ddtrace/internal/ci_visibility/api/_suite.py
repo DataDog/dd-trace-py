@@ -57,7 +57,7 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
 
     def finish_itr_skipped(self) -> None:
-        """Suites should only count themselves as ITR-skipped of all children are ITR skipped"""
+        """Suites should only count themselves as ITR-skipped if all children are ITR skipped"""
         log.debug("Finishing CI Visibility suite %s as ITR skipped", self)
         for child in self._children.values():
             if not (child.is_finished() and child.is_itr_skipped()):

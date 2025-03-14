@@ -31,7 +31,7 @@ jobs:
           name: Generate config
           command: |
             export GIT_COMMIT_DESC=$(git log -n 1 $CIRCLE_SHA1)
-            pip3 install riot==0.20.0
+            pip3 install riot==0.20.1
             riot -P -v run --pass-env -s circleci-gen-config -- -v
       - continuation/continue:
           configuration_path: .circleci/config.gen.yml

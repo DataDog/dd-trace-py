@@ -35,7 +35,7 @@ In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ an
 
 .. code-block:: bash
 
-    $ pip install riot==0.19.1
+    $ pip install riot==0.20.1
 
 Refer `hatch install <https://hatch.pypa.io/latest/install/>`_ for installation instructions
 
@@ -153,24 +153,8 @@ Next, we will need to add a new CircleCI job to run the newly added test suite a
           pattern: 'asyncio'
 
 
-After this, a new component must be added to ``tests/.suitespec.json`` under ``"components":`` like:
-
-.. code-block:: JSON
-
-    "asyncio": [
-        "ddtrace/contrib/asyncio/*"
-    ],
-
-Lastly, we will register it as a suite in the same file under ``"suites":``:
-
-.. code-block:: JSON
-
-    "asyncio": [
-        "@asyncio",
-        "tests/contrib/asyncio/*"
-    ],
-
-Once you've completed these steps, CircleCI will run the new test suite.
+After this, check out ``tests/README.md`` for instructions on how to add new
+jobs to run the new tests in CI.
 
 How do I update a Riot environment to use the latest version of a package?
 --------------------------------------------------------------------------

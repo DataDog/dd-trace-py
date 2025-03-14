@@ -5,10 +5,9 @@ from typing import Dict
 from typing import Mapping
 from typing import Optional
 
-from ddtrace import Tracer
 from ddtrace.appsec._capabilities import _asm_feature_is_required
+from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import PRODUCTS
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
@@ -18,6 +17,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -52,12 +52,6 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
     Parameters `test_tracer` and `start_subscribers` are needed for testing purposes
     """
-    # Import tracer here to avoid a circular import
-    if test_tracer is None:
-        from ddtrace import tracer
-    else:
-        tracer = test_tracer
-
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
     asm_callback = (
         remoteconfig_poller.get_registered(PRODUCTS.ASM_FEATURES)
@@ -66,15 +60,20 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     )
 
     if _asm_feature_is_required():
-        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback)
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()])
 
-    if tracer._asm_enabled and asm_config._asm_static_rule_file is None:
+    if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
         remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
         remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+    # ensure exploit prevention patches are loaded by one-click activation
+    if asm_config._asm_enabled:
+        from ddtrace.appsec import load_common_appsec_modules
 
-    forksafe.register(_forksafe_appsec_rc)
+        load_common_appsec_modules()
+
     telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, True)
+    asm_config._rc_client_id = remoteconfig_poller._client.id
 
 
 def disable_appsec_rc():
@@ -112,7 +111,7 @@ def _appsec_rules_data(features: Mapping[str, Any], test_tracer: Optional[Tracer
     # Tracer is a parameter for testing propose
     # Import tracer here to avoid a circular import
     if test_tracer is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
     else:
         tracer = test_tracer
 
@@ -201,7 +200,7 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
         # Tracer is a parameter for testing propose
         # Import tracer here to avoid a circular import
         if test_tracer is None:
-            from ddtrace import tracer
+            from ddtrace.trace import tracer
         else:
             tracer = test_tracer
 
@@ -221,13 +220,13 @@ def _appsec_1click_activation(features: Mapping[str, Any], test_tracer: Optional
             )
 
             if rc_asm_enabled:
-                if not tracer._asm_enabled:
-                    tracer.configure(appsec_enabled=True)
+                if not asm_config._asm_enabled:
+                    tracer._configure(appsec_enabled=True)
                 else:
                     asm_config._asm_enabled = True
             else:
-                if tracer._asm_enabled:
-                    tracer.configure(appsec_enabled=False)
+                if asm_config._asm_enabled:
+                    tracer._configure(appsec_enabled=False)
                 else:
                     asm_config._asm_enabled = False
 

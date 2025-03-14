@@ -1,0 +1,4 @@
+--- 
+fixes:
+  - |
+    Integrations: Improved error handling for exceptions raised during the startup of ddtrace integrations. This reduces the likelihood of the ddtrace library raising unhandled exceptions.

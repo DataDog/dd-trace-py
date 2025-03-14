@@ -15,7 +15,6 @@ import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder  # noqa:F401
@@ -41,7 +40,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     def __init__(
         self,
-        tracer: ddtrace.Tracer = ddtrace.tracer,
+        tracer: ddtrace.trace.Tracer = ddtrace.tracer,
         enable_code_provenance: bool = True,
         api_key: typing.Optional[str] = None,
         timeout: float = config.api_timeout,
@@ -67,7 +66,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         self.version: typing.Optional[str] = version
         self.tags: typing.Dict[str, str] = tags if tags is not None else {}
         self.max_retry_delay: typing.Optional[float] = max_retry_delay
-        self._container_info: typing.Optional[container.CGroupInfo] = container.get_container_info()
         self.endpoint_call_counter_span_processor: typing.Optional[
             EndpointCallCounterProcessor
         ] = endpoint_call_counter_span_processor
@@ -183,8 +181,6 @@ class PprofHTTPExporter(pprof.PprofExporter):
         else:
             headers = {}
 
-        container.update_headers_with_container_info(headers, self._container_info)
-
         profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         pprof = io.BytesIO()
         with gzip.GzipFile(fileobj=pprof, mode="wb") as gz:
@@ -224,8 +220,18 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "family": "python",
             "attachments": [item["filename"].decode("utf-8") for item in data],
             "tags_profiler": self._get_tags(service),
-            "start": (datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
-            "end": (datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"),
+            "start": (
+                datetime.datetime.fromtimestamp(start_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
+                + "Z"
+            ),
+            "end": (
+                datetime.datetime.fromtimestamp(end_time_ns / 1e9, tz=datetime.timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()[0:-6]  # removes the trailing +00:00 portion of the time
+                + "Z"
+            ),
         }  # type: Dict[str, Any]
 
         if self.endpoint_call_counter_span_processor is not None:

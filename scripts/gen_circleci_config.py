@@ -11,16 +11,19 @@ import typing as t
 def gen_required_suites(template: dict) -> None:
     """Generate the list of test suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
-    from needs_testrun import for_each_testrun_needed as fetn
+    from needs_testrun import for_each_testrun_needed
     from suitespec import get_suites
 
-    suites = get_suites()
-    jobs = set(template["jobs"].keys())
-
     required_suites = template["requires_tests"]["requires"] = []
-    fetn(
-        suites=sorted(suites & jobs),
-        action=lambda suite: required_suites.append(suite),
+    for_each_testrun_needed(
+        suites=sorted(
+            set(
+                n
+                for n, s in get_suites().items()
+                if not s.get("skip", False) and n.rpartition("::")[-1] in template["jobs"]
+            )
+        ),
+        action=lambda suite: required_suites.append(suite.rpartition("::")[-1]),
         git_selections=extract_git_commit_selections(os.getenv("GIT_COMMIT_DESC", "")),
     )
 
@@ -52,7 +55,7 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Style",
         command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h", "CMakeLists.txt"},
     )
     check(
         name="Typing",
@@ -77,28 +80,13 @@ def gen_pre_checks(template: dict) -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "tests/.suitespec.json"},
-    )
-    check(
-        name="Validate suitespec JSON file",
-        command="python -m tests.suitespec",
-        paths={"docker*", "tests/.suitespec.json", "tests/suitespec.py"},
+        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
     )
-
-
-def gen_build_docs(template: dict) -> None:
-    """Include the docs build step if the docs have changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
-    ):
-        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
 
 
 # -----------------------------------------------------------------------------

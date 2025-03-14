@@ -4,21 +4,21 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
+from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
+from ddtrace.trace import Span
 
 
 class GeminiIntegration(BaseLLMIntegration):
@@ -40,69 +40,34 @@ class GeminiIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
-        span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
-
         instance = kwargs.get("instance", None)
-        metadata = self._llmobs_set_metadata(kwargs, instance)
-        span.set_tag_str(METADATA, safe_json(metadata))
+        metadata = llmobs_get_metadata_google(kwargs, instance)
 
-        system_instruction = _get_attr(instance, "_system_instruction", None)
+        system_instruction = get_system_instructions_from_google_model(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
-        if span.error or response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-        else:
+        output_messages = [{"content": ""}]
+        if response is not None:
             output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
-        usage = self._get_llmobs_metrics_tags(span)
-        if usage:
-            span.set_tag_str(METRICS, safe_json(usage))
-
-    @staticmethod
-    def _llmobs_set_metadata(kwargs, instance):
-        metadata = {}
-        model_config = _get_attr(instance, "_generation_config", {})
-        request_config = kwargs.get("generation_config", {})
-        parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
-        for param in parameters:
-            model_config_value = _get_attr(model_config, param, None)
-            request_config_value = _get_attr(request_config, param, None)
-            if model_config_value or request_config_value:
-                metadata[param] = request_config_value or model_config_value
-        return metadata
-
-    @staticmethod
-    def _extract_message_from_part(part, role):
-        text = _get_attr(part, "text", "")
-        function_call = _get_attr(part, "function_call", None)
-        function_response = _get_attr(part, "function_response", None)
-        message = {"content": text}
-        if role:
-            message["role"] = role
-        if function_call:
-            function_call_dict = function_call
-            if not isinstance(function_call, dict):
-                function_call_dict = type(function_call).to_dict(function_call)
-            message["tool_calls"] = [
-                {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-            ]
-        if function_response:
-            function_response_dict = function_response
-            if not isinstance(function_response, dict):
-                function_response_dict = type(function_response).to_dict(function_response)
-            message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
-        return message
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("google_generativeai.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("google_generativeai.request.provider") or "",
+                METADATA: metadata,
+                INPUT_MESSAGES: input_messages,
+                OUTPUT_MESSAGES: output_messages,
+                METRICS: get_llmobs_metrics_tags("google_generativeai", span),
+            }
+        )
 
     def _extract_input_message(self, contents, system_instruction=None):
         messages = []
         if system_instruction:
-            for part in system_instruction.parts:
-                messages.append({"content": part.text or "", "role": "system"})
+            for instruction in system_instruction:
+                messages.append({"content": instruction or "", "role": "system"})
         if isinstance(contents, str):
             messages.append({"content": contents})
             return messages
@@ -128,7 +93,7 @@ class GeminiIntegration(BaseLLMIntegration):
                 messages.append(message)
                 continue
             for part in parts:
-                message = self._extract_message_from_part(part, role)
+                message = extract_message_from_part_google(part, role)
                 messages.append(message)
         return messages
 
@@ -140,21 +105,6 @@ class GeminiIntegration(BaseLLMIntegration):
             role = content.get("role", "model")
             parts = content.get("parts", [])
             for part in parts:
-                message = self._extract_message_from_part(part, role)
+                message = extract_message_from_part_google(part, role)
                 output_messages.append(message)
         return output_messages
-
-    @staticmethod
-    def _get_llmobs_metrics_tags(span):
-        usage = {}
-        input_tokens = span.get_metric("google_generativeai.response.usage.prompt_tokens")
-        output_tokens = span.get_metric("google_generativeai.response.usage.completion_tokens")
-        total_tokens = span.get_metric("google_generativeai.response.usage.total_tokens")
-
-        if input_tokens is not None:
-            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens is not None:
-            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-        return usage

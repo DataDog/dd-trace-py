@@ -875,6 +875,21 @@ def do_args_kwargs_4(format_string, *args_safe, **kwargs_safe) -> Text:
     return format_string.format("1", "2", test_kwarg=3, *args_safe, **kwargs_safe)
 
 
+def psycopg_queries_dump_bytes(args: tuple) -> bytes:
+    template = b'INSERT INTO "show_client" ("username") VALUES (%s) RETURNING "show_client"."id"'
+    return template % args
+
+
+def psycopg_queries_dump_bytes_with_keys(args: dict) -> bytes:
+    template = b'INSERT INTO "show_client" ("username") VALUES (%(name)s) RETURNING "show_client"."id"'
+    return template % args
+
+
+def psycopg_queries_dump_bytearray(args: tuple) -> bytes:
+    template = b'INSERT INTO "show_client" ("username") VALUES (%s) RETURNING "show_client"."id"'
+    return template % args
+
+
 def do_format_key_error(param1: str) -> Text:
     return "Test {param1}, {param2}".format(param1=param1)  # noqa:F524
 

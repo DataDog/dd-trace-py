@@ -7,7 +7,6 @@ import uuid
 import pytest
 
 from ddtrace import ext
-from ddtrace import tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import asyncio as collector_asyncio
 from tests.profiling.collector import pprof_utils
@@ -85,7 +84,7 @@ class TestAsyncioLockCollector:
             ],
         )
 
-    async def test_asyncio_lock_events_tracer(self):
+    async def test_asyncio_lock_events_tracer(self, tracer):
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -103,7 +102,7 @@ class TestAsyncioLockCollector:
             lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
             async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")

@@ -13,14 +13,14 @@ from typing import TYPE_CHECKING  # noqa:F401
 import pytest
 
 import ddtrace
-from ddtrace import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
-from ddtrace.contrib.sqlite3.patch import patch
-from ddtrace.contrib.sqlite3.patch import unpatch
+from ddtrace.contrib.internal.sqlite3.patch import TracedSQLiteCursor
+from ddtrace.contrib.internal.sqlite3.patch import patch
+from ddtrace.contrib.internal.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -64,7 +64,7 @@ class TestSQLite(TracerTestCase):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
-            pin.clone(service=service, tracer=self.tracer).onto(db)
+            pin._clone(service=service, tracer=self.tracer).onto(db)
 
             # Ensure we can run a query and it's correctly traced
             q = "select * from sqlite_master"
@@ -216,7 +216,7 @@ class TestSQLite(TracerTestCase):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
-            pin.clone(tracer=self.tracer).onto(db)
+            pin._clone(tracer=self.tracer).onto(db)
             cursor = db.execute(q)
             rows = cursor.fetchall()
         assert not rows
@@ -233,7 +233,7 @@ class TestSQLite(TracerTestCase):
                 db = sqlite3.connect(":memory:")
                 pin = Pin.get_from(db)
                 assert pin
-                pin.clone(tracer=self.tracer).onto(db)
+                pin._clone(tracer=self.tracer).onto(db)
                 cursor = db.execute(q)
                 rows = cursor.fetchall()
                 assert not rows
@@ -270,7 +270,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=self.tracer).onto(db)
+        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -292,7 +292,7 @@ class TestSQLite(TracerTestCase):
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=self.tracer).onto(db)
+        pin._clone(tracer=self.tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         self.assert_structure(
@@ -301,7 +301,7 @@ class TestSQLite(TracerTestCase):
 
     def _given_a_traced_connection(self, tracer):
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db).clone(tracer=tracer).onto(db)
+        Pin.get_from(db)._clone(tracer=tracer).onto(db)
         return db
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))

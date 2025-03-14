@@ -1,10 +1,10 @@
 import base64
 import json
 from typing import Any  # noqa:F401
+from urllib import parse
 
 from ddtrace import config
 from ddtrace.internal import core
-from ddtrace.internal.compat import parse
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 from ddtrace.internal.logger import get_logger
@@ -187,6 +187,10 @@ def handle_sqs_receive(_, params, result, *args):
             log.debug("Error receiving SQS message with data streams monitoring enabled", exc_info=True)
 
 
+class StreamMetadataNotFound(Exception):
+    pass
+
+
 def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record):
     from . import data_streams_processor as processor
 
@@ -194,7 +198,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
 
     if not stream:
         log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
-        return
+        raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)
     ctx = DsmPathwayCodec.decode(context_json, processor())
@@ -210,7 +214,7 @@ def handle_kinesis_receive(_, params, time_estimate, context_json, record, *args
     try:
         record_data_streams_path_for_kinesis_stream(params, time_estimate, context_json, record)
     except Exception:
-        log.debug("Failed to report data streams monitoring info for kinesis", exc_info=True)
+        log.warning("Failed to report data streams monitoring info for kinesis", exc_info=True)
 
 
 if config._data_streams_enabled:

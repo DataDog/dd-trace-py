@@ -8,6 +8,7 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -22,9 +23,12 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
+        asm_config._bypass_instrumentation_for_waf = True
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
+    finally:
+        asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
 
@@ -40,9 +44,6 @@ DDWAF_MAX_CONTAINER_DEPTH = 20
 DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
 DDWAF_DEPTH_NO_LIMIT = 1000
-_TRUNC_STRING_LENGTH = 1
-_TRUNC_CONTAINER_DEPTH = 4
-_TRUNC_CONTAINER_SIZE = 2
 
 
 class DDWAF_OBJ_TYPE(IntEnum):
@@ -86,13 +87,6 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # Objects Definitions
 #
 
-# obj_struct = DDWafRulesType
-
-
-class _observator:
-    def __init__(self):
-        self.truncation = 0
-
 
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
@@ -114,10 +108,10 @@ class ddwaf_object(ctypes.Structure):
         max_string_length: int = DDWAF_MAX_STRING_LENGTH,
     ) -> None:
         def truncate_string(string: bytes) -> bytes:
-            if len(string) > max_string_length - 1:
-                observator.truncation |= _TRUNC_STRING_LENGTH
+            if len(string) > max_string_length:
+                observator.set_string_length(len(string))
                 # difference of 1 to take null char at the end on the C side into account
-                return string[: max_string_length - 1]
+                return string[:max_string_length]
             return string
 
         if isinstance(struct, bool):
@@ -132,12 +126,12 @@ class ddwaf_object(ctypes.Structure):
             ddwaf_object_float(self, struct)
         elif isinstance(struct, list):
             if max_depth <= 0:
-                observator.truncation |= _TRUNC_CONTAINER_DEPTH
+                observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
                 max_objects = 0
             array = ddwaf_object_array(self)
             for counter_object, elt in enumerate(struct):
                 if counter_object >= max_objects:
-                    observator.truncation |= _TRUNC_CONTAINER_SIZE
+                    observator.set_container_size(len(struct))
                     break
                 obj = ddwaf_object(
                     elt,
@@ -149,7 +143,7 @@ class ddwaf_object(ctypes.Structure):
                 ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
             if max_depth <= 0:
-                observator.truncation |= _TRUNC_CONTAINER_DEPTH
+                observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
                 max_objects = 0
             map_o = ddwaf_object_map(self)
             # order is unspecified and could lead to problems if max_objects is reached
@@ -157,7 +151,7 @@ class ddwaf_object(ctypes.Structure):
                 if not isinstance(key, (bytes, str)):  # discards non string keys
                     continue
                 if counter_object >= max_objects:
-                    observator.truncation |= _TRUNC_CONTAINER_SIZE
+                    observator.set_container_size(len(struct))
                     break
                 res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, str) else key)
                 obj = ddwaf_object(
