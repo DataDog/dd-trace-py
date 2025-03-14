@@ -863,7 +863,6 @@ Other
 
      description: |
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
-mabdinur marked this conversation as resolved.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
    DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
