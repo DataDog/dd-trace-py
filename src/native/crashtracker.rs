@@ -210,15 +210,22 @@ pub fn crashtracker_init<'py>(
             (inner_config, inner_receiver_config, inner_metadata)
         {
             match datadog_crashtracker::init(*config, *receiver_config, *metadata) {
-                Ok(_) => CRASHTRACKER_STATUS.store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
+                Ok(_) => CRASHTRACKER_STATUS
+                    .store(CrashtrackerStatus::Initialized as u8, Ordering::SeqCst),
                 Err(e) => {
                     eprintln!("Failed to initialize crashtracker: {}", e);
-                    CRASHTRACKER_STATUS.store(CrashtrackerStatus::FailedToInitialize as u8, Ordering::SeqCst);
+                    CRASHTRACKER_STATUS.store(
+                        CrashtrackerStatus::FailedToInitialize as u8,
+                        Ordering::SeqCst,
+                    );
                 }
             }
         } else {
             eprintln!("Failed to initialize crashtracker: malformed configuration");
-            CRASHTRACKER_STATUS.store(CrashtrackerStatus::FailedToInitialize as u8, Ordering::SeqCst);
+            CRASHTRACKER_STATUS.store(
+                CrashtrackerStatus::FailedToInitialize as u8,
+                Ordering::SeqCst,
+            );
         }
     });
     Ok(())
