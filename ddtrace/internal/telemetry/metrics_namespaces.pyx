@@ -1,7 +1,5 @@
 import enum
 from time import time
-from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -9,13 +7,12 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
 
 
-MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
-
 class MetricType(str, enum.Enum):
     DISTRIBUTION = "distributions"
     COUNT = "count"
     GAUGE = "gauge"
     RATE = "rate"
+
 
 cdef class MetricNamespace:
     cdef object _metrics_data_lock
@@ -78,7 +75,7 @@ cdef class MetricNamespace:
         namespace: TELEMETRY_NAMESPACE,
         name: str,
         value: float = 1.0,
-        tags: MetricTagType = None,
+        tags: object = None,
     ) -> None:
         """
         Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
