@@ -1,0 +1,18 @@
+[package]
+name = "native_telemetry"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pyo3 = { version = "0.24.0", features = ["extension-module"] }
+ddtelemetry = { git = "https://github.com/DataDog/libdatadog.git", rev = "v16.0.3" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
+
+[build-dependencies]
+pyo3-build-config = "0.24.0"
+
+[lib]
+name = "_native_telemetry"
+crate-type = ["cdylib"]
+

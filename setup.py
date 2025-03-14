@@ -776,6 +776,13 @@ setup(
                 binding=Binding.PyO3,
                 debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
             ),
+            RustExtension(
+                "ddtrace.internal.telemetry._telemetry_native",
+                path="ddtrace/internal/telemetry/_telemetry_native/Cargo.toml",
+                py_limited_api="auto",
+                binding=Binding.PyO3,
+                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+            ),
         ]
     ),
 )
