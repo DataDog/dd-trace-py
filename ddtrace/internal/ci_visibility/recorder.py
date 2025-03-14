@@ -75,6 +75,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
@@ -917,7 +918,6 @@ class CIVisibility(Service):
         if isinstance(item_id, TestId) and instance._suite_skipping_mode:
             log.debug("Skipping mode is test, but item is not a test: %s", item_id)
             return False
-
         return item_id in instance._itr_data.skippable_items
 
     @classmethod
@@ -1266,6 +1266,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs):
             is_new=is_new,
             is_quarantined=test_properties.quarantined,
             is_disabled=test_properties.disabled,
+            is_attempt_to_fix=test_properties.attempt_to_fix,
         ),
     )
 
@@ -1286,6 +1287,12 @@ def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
 def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is disabled test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_disabled()
+
+
+@_requires_civisibility_enabled
+def _on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
+    log.debug("Handling is attempt to fix for test %s", test_id)
+    return CIVisibility.get_test_by_id(test_id).is_attempt_to_fix()
 
 
 @_requires_civisibility_enabled
@@ -1335,6 +1342,7 @@ def _register_test_handlers():
     core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
     core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
     core.on("test_visibility.test.is_disabled", _on_is_disabled_test, "is_disabled")
+    core.on("test_visibility.test.is_attempt_to_fix", _on_is_attempt_to_fix, "is_attempt_to_fix")
     core.on("test_visibility.test.start", _on_start_test)
     core.on("test_visibility.test.finish", _on_finish_test)
     core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
@@ -1635,6 +1643,48 @@ def _register_atr_handlers():
     core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
 
 
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_should_retry()
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int):
+    CIVisibility.get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_finish_retry(attempt_to_fix_finish_args: AttemptToFixTestMixin.AttemptToFixRetryFinishArgs):
+    CIVisibility.get_test_by_id(attempt_to_fix_finish_args.test_id).attempt_to_fix_finish_retry(
+        attempt_to_fix_finish_args.retry_number, attempt_to_fix_finish_args.status, attempt_to_fix_finish_args.exc_info
+    )
+
+
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
+    return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
+
+
+def _register_attempt_to_fix_handlers():
+    log.debug("Registering AttemptToFix handlers")
+    core.on(
+        "test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test"
+    )
+    core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
+    core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
+    core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
+    core.on(
+        "test_visibility.attempt_to_fix.get_final_status",
+        _on_attempt_to_fix_get_final_status,
+        "attempt_to_fix_final_status",
+    )
+
+
 _register_session_handlers()
 _register_module_handlers()
 _register_suite_handlers()
@@ -1645,3 +1695,4 @@ _register_coverage_handlers()
 _register_itr_handlers()
 _register_efd_handlers()
 _register_atr_handlers()
+_register_attempt_to_fix_handlers()
