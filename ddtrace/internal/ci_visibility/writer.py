@@ -104,6 +104,7 @@ class CIVisibilityWriter(HTTPWriter):
         timeout=None,  # type: Optional[float]
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
+        report_metrics=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
@@ -152,6 +153,7 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=timeout,
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
+            report_metrics=report_metrics,
             reuse_connections=reuse_connections,
             headers=headers,
         )
@@ -168,6 +170,7 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
+            report_metrics=self._report_metrics,
             reuse_connections=self._reuse_connections,
             headers=self._headers,
             use_evp=self._use_evp,
