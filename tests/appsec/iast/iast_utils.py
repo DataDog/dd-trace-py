@@ -7,7 +7,7 @@ import zlib
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
 # "iast::instrumentation::" or "iast::instrumentation::"
 # are valid logs
-IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentadddtion::|propagation::context::).*$")
+IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::).*$")
 
 
 def get_line(label: Text, filename: Optional[Text] = None):
