@@ -9,7 +9,7 @@ on:
   #   branches:
   #     - main
   #     - 'mq-working-branch**'
-  # pull_request:
+  pull_request:
   workflow_dispatch: {}
   schedule:
     - cron: '0 5 * * *'
@@ -44,18 +44,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: Bottle 0.12.25 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -124,6 +124,12 @@ jobs:
     strategy:
       matrix:
         include:
+          - suffix: Profiling
+            expl_profiler: 0
+            expl_coverage: 0
+            profiling: 1
+            iast: 0
+            appsec: 0
           #- suffix: DI profiler
           #  expl_profiler: 1
           #  expl_coverage: 0
@@ -143,18 +149,18 @@ jobs:
           #   profiling: 0
           #   iast: 1
           #   appsec: 0
-          - suffix: APPSEC
-            expl_profiler: 0
-            expl_coverage: 0
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            expl_profiler: 0
-            expl_coverage: 0
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: APPSEC
+          #   expl_profiler: 0
+          #   expl_coverage: 0
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   expl_profiler: 0
+          #   expl_coverage: 0
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     runs-on: ubuntu-latest
     needs: needs-run
     timeout-minutes: 15
@@ -260,18 +266,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: Graphene 3.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -330,18 +336,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: FastAPI 0.92 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -408,18 +414,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: Flask 3.0.3 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -471,15 +477,19 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: IAST
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
+          - suffix: Profiling
+            profiling: 1
             iast: 0
             appsec: 0
+          # - suffix: IAST
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   iast: 0
+          #   appsec: 0
     name: Httpx 0.22.0 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -521,6 +531,7 @@ jobs:
           DD_HTTPX_DISTRIBUTED_TRACING: "false"
           # Debugger exploration testing does not work in CI
           # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+          DD_PROFILING_ENABLED: ${{ matrix.profiling }}
           DD_IAST_ENABLED: ${{ matrix.iast }}
           DD_APPSEC_ENABLED: ${{ matrix.appsec }}
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
@@ -534,18 +545,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: Mako 1.3.5 (with ${{ matrix.suffix }})
     runs-on: ubuntu-latest
     needs: needs-run
@@ -601,18 +612,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
     name: Starlette 0.38.4 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -670,18 +681,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: Requests 2.26.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -740,18 +751,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: AsyncPG 0.29.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
@@ -800,20 +811,25 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: IAST
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
+          - suffix: Profiling
+            profiling: 1
             iast: 0
             appsec: 0
+          # - suffix: IAST
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   iast: 0
+          #   appsec: 0
     name: gunicorn 20.1.0 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
     env:
       DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
       DD_IAST_ENABLED: ${{ matrix.iast }}
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
@@ -854,18 +870,18 @@ jobs:
             profiling: 1
             iast: 0
             appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
+          # - suffix: Tracer only
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 0
     name: uwsgi 2.0.21 (with ${{ matrix.suffix }})
     runs-on: "ubuntu-latest"
     needs: needs-run
