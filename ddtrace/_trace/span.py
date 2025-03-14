@@ -499,19 +499,22 @@ class Span(object):
         relevant error info. If not, tag it with the current python stack.
         """
         if limit is None:
-            limit = config._span_traceback_max_size
+            limit = -abs(config._span_traceback_max_size)
+        else:
+            limit = -abs(limit)
 
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
-            self.set_exc_info(exc_type, exc_val, exc_tb)
+            self.set_exc_info(exc_type, exc_val, exc_tb, limit=limit)
         else:
-            tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
+            tb = "".join(traceback.format_stack(limit=limit))
             self._meta[ERROR_STACK] = tb
 
 
-    def _get_traceback(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> str:
-        limit = -abs(config._span_traceback_max_size)
+    def _get_traceback(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType, limit: Optional[int] = None) -> str:
+        if limit is None:
+            limit = -abs(config._span_traceback_max_size)
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
         tb = buff.getvalue()
@@ -526,7 +529,7 @@ class Span(object):
 
 
     def set_exc_info(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType], limit: Optional[int] = None
     ) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
@@ -541,7 +544,7 @@ class Span(object):
 
         self.error = 1
 
-        tb = self._get_traceback(exc_type, exc_val, exc_tb)
+        tb = self._get_traceback(exc_type, exc_val, exc_tb, limit=limit)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
