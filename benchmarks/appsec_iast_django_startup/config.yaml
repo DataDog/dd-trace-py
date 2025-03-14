@@ -1,5 +1,6 @@
 baseline: &baseline
   tracer_enabled: false
+  tracer_debug: false
   appsec_enabled: false
   iast_enabled: false
 tracer: &tracer
@@ -10,6 +11,10 @@ appsec:
   appsec_enabled: true
 iast:
   <<: *tracer
+  iast_enabled: true
+iast_debug_mode:
+  <<: *tracer
+  tracer_debug: true
   iast_enabled: true
 appsec_iast:
   <<: *tracer
