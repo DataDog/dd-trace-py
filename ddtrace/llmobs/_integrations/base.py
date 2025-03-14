@@ -26,10 +26,6 @@ class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
         self.integration_config = integration_config
         self._span_pc_sampler = RateSampler(
             sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)

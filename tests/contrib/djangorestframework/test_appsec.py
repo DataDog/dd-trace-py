@@ -13,7 +13,7 @@ from tests.utils import override_global_config
 def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer._configure(api_version="v0.4")
+        tracer._recreate()
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
         client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
         root_span = test_spans.spans[0]
@@ -29,9 +29,8 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)):
-        tracer._asm_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer._configure(api_version="v0.4")
+        tracer._recreate()
         payload, content_type = (
             '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="json"\r\n'
             'Content-Type: application/json\r\n\r\n{"value": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
