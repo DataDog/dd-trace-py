@@ -19,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
@@ -286,11 +287,21 @@ class SpanTestCase(TracerTestCase):
             assert stack, "No error stack collected"
             # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
             header_and_footer_lines = 2
-            # Python 3.13 adds extra lines to the traceback:
-            #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
-            #     wrapper()
-            #     ~~~~~~~^^
-            multiplier = 3 if "~~" in stack else 2
+            multiplier = 2
+            if PYTHON_VERSION_INFO >= (3, 13):
+                # Python 3.13 adds extra lines to the traceback:
+                #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
+                #     wrapper()
+                #     ~~~~~~~^^
+                multiplier = 3
+            elif PYTHON_VERSION_INFO >= (3, 12):
+                # Python 3.12 adds one extra line to the traceback:
+                #   File dd-trace-py/tests/tracer/test_span.py", line 272, in divide_by_zero
+                #      1 / 0
+                #      ~~^~~
+                #      ZeroDivisionError: division by zero
+                header_and_footer_lines += 1
+
             assert (
                 len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
             ), "stacktrace should contain two lines per entry"
