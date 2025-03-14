@@ -273,9 +273,3 @@ pub fn crashtracker_receiver() -> PyResult<()> {
     datadog_crashtracker::receiver_entry_point_stdin()
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
 }
-
-#[cfg(not(unix))]
-#[pyfunction(name = "crashtracker_receiver")]
-pub fn crashtracker_receiver() -> PyResult<()> {
-    Ok(())
-}
