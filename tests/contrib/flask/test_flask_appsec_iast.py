@@ -20,7 +20,6 @@ from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import flaky
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -37,7 +36,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        with override_global_config(
             dict(
                 _iast_enabled=True,
                 _iast_deduplication_enabled=False,
@@ -49,7 +48,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer._configure(api_version="v0.4", iast_enabled=True)
             oce.reconfigure()
 
     @flaky(1735812000)
