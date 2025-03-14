@@ -1013,8 +1013,8 @@ def test_get_traceback_exact_limit():
     split_result = result.splitlines()
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
 
-    if PYTHON_VERSION_INFO >= (3, 12):
-        exc_len -= 1  # From Python 3.12, adds an extra line to the traceback
+    if PYTHON_VERSION_INFO >= (3, 11):
+        exc_len -= 1  # From Python 3.11, adds an extra line to the traceback
 
     assert len(split_result) == exc_len - 2  # Should be exactly the same length as the traceback
 
