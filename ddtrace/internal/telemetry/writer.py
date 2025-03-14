@@ -177,7 +177,7 @@ class TelemetryWriter(PeriodicService):
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
-        super(TelemetryWriter, self).__init__(interval=min(_TelemetryConfig.HEARTBEAT_INTERVAL, 10))
+        super(TelemetryWriter, self).__init__(interval=min(_TelemetryConfig.HEARTBEAT_INTERVAL, 10.0))
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
         # By default this will occur at 10 second intervals.

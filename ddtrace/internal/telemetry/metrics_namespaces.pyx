@@ -1,5 +1,5 @@
 import enum
-import time
+from time import time
 from typing import Optional
 from typing import Tuple
 
@@ -25,18 +25,29 @@ cdef class MetricNamespace:
         self._metrics_data_lock = forksafe.Lock()
         self._metrics_data = {}
 
-    cpdef dict flush(self, interval: PyFloat = None):
+    cpdef dict flush(self, interval: float = None):
+        cdef float _interval = interval or 1.0
+        cdef float now
+        cdef dict data
+        cdef tuple _tags
+        cdef list tags
+        cdef str name
+        cdef object namespace
+        cdef object metric_type
+        cdef tuple metric_id
+        cdef object value
+
         with self._metrics_data_lock:
             namespace_metrics, self._metrics_data = self._metrics_data, {}
 
-        now = time.time()
+        now = time()
         data = {
             TELEMETRY_TYPE_GENERATE_METRICS: {},
             TELEMETRY_TYPE_DISTRIBUTION: {},
         }
         for metric_id, value in namespace_metrics.items():
-            name, namespace, tags, metric_type = metric_id
-            tags = ["{}:{}".format(k, v).lower() for k, v in tags] if tags else []
+            name, namespace, _tags, metric_type = metric_id
+            tags = ["{}:{}".format(k, v).lower() for k, v in _tags] if _tags else []
             if metric_type is MetricType.DISTRIBUTION:
                 data[TELEMETRY_TYPE_DISTRIBUTION].setdefault(namespace.value, {})[name] = {
                     "metric": name,
@@ -47,7 +58,7 @@ cdef class MetricNamespace:
                 }
             else:
                 if metric_type is MetricType.RATE:
-                    value = value / interval
+                    value = value / _interval
                 metric = {
                     "metric": name,
                     "type": metric_type.value,
@@ -56,7 +67,7 @@ cdef class MetricNamespace:
                     "tags": tags,
                 }
                 if metric_type in (MetricType.RATE, MetricType.GAUGE):
-                    metric["interval"] = interval
+                    metric["interval"] = _interval
                 data[TELEMETRY_TYPE_GENERATE_METRICS].setdefault(namespace.value, {})[name] = metric
 
         return data
@@ -66,7 +77,7 @@ cdef class MetricNamespace:
         metric_type: MetricType,
         namespace: TELEMETRY_NAMESPACE,
         name: str,
-        value: PyFloat = 1.0,
+        value: float = 1.0,
         tags: MetricTagType = None,
     ) -> None:
         """
@@ -78,7 +89,7 @@ cdef class MetricNamespace:
 
         if metric_type is MetricType.DISTRIBUTION:
             with self._metrics_data_lock:
-                self._metrics_data.setdefault(metric_id, []).append((time.time(), value))
+                self._metrics_data.setdefault(metric_id, []).append((time(), value))
         elif metric_type is MetricType.GAUGE:
             # Dict writes are atomic, no need to lock
             self._metrics_data[metric_id] = value
