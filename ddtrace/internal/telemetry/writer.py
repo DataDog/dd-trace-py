@@ -543,7 +543,6 @@ class TelemetryWriter(PeriodicService):
                 name,
                 value,
                 tags,
-                self.interval,
             )
 
     def add_rate_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
@@ -557,7 +556,6 @@ class TelemetryWriter(PeriodicService):
                 name,
                 value,
                 tags,
-                self.interval,
             )
 
     def add_count_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: MetricTagType = None):
@@ -601,7 +599,7 @@ class TelemetryWriter(PeriodicService):
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "series": [m for m in metrics.values()],
+                        "series": metrics,
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
                     if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
