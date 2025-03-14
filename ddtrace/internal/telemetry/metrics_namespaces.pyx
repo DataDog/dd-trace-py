@@ -27,6 +27,9 @@ cdef class MetricNamespace:
         self._metrics_data_lock = forksafe.Lock()
         self._metrics_data = {}
 
+    cpdef dict metrics_data(self):
+        return self._metrics_data.copy()
+
     cpdef dict flush(self, interval: float = None):
         cdef float _interval = interval or 1.0
         cdef int now

@@ -81,7 +81,7 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 span,
                 rules.Config(),
             )
-    metrics_data = telemetry_writer._namespace._metrics_data
+    metrics_data = telemetry_writer._namespace.metrics_data
     assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
     assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
 
@@ -93,21 +93,21 @@ def test_metrics_when_appsec_runs(telemetry_writer, tracer):
             span,
             rules.Config(),
         )
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data)
+    _assert_generate_metrics(telemetry_writer._namespace.metrics_data)
 
 
 def test_metrics_when_appsec_attack(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config(), request_cookies={"attack": "1' or '1' = '1'"})
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True)
+    _assert_generate_metrics(telemetry_writer._namespace.metrics_data, is_rule_triggered=True)
 
 
 def test_metrics_when_appsec_block(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config())
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True)
+    _assert_generate_metrics(telemetry_writer._namespace.metrics_data, is_rule_triggered=True, is_blocked_request=True)
 
 
 def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
@@ -129,7 +129,7 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
         )
         set_http_meta(span, rules.Config(), request_headers={"User-Agent": "Arachni/v1.5.1"})
     _assert_generate_metrics(
-        telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=False, is_updated=1
+        telemetry_writer._namespace.metrics_data, is_rule_triggered=True, is_blocked_request=False, is_updated=1
     )
 
 
@@ -169,7 +169,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 0
 
-    generate_metrics = telemetry_writer._namespace._metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
+    generate_metrics = telemetry_writer._namespace.metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
         TELEMETRY_NAMESPACE.APPSEC.value
     ]
 
