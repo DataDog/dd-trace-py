@@ -501,11 +501,12 @@ class Tracer(object):
 
     def _recreate(self):
         """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
-        # Stop the writer, this will stop the background thread (prevents memory leaks and unnecessary I/O)
+        # Stop the writer.
+        # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
         try:
             self._writer.stop()
         except ServiceStatusError:
-            # The writer is started when the first trace chunk is encoded. Stopping
+            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
             # the writer before that point will raise a ServiceStatusError.
             pass
         # Re-create the background writer thread

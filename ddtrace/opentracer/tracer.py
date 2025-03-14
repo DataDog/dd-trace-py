@@ -102,7 +102,7 @@ class Tracer(opentracing.Tracer):
 
         self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         trace_processors = None
-        if keys.SETTINGS in self._config and self._config[keys.SETTINGS] and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
+        if isinstance(self._config.get(keys.SETTINGS), dict) and self._config[keys.SETTINGS].get("FILTERS"):  # type: ignore[union-attr]
             trace_processors = self._config[keys.SETTINGS]["FILTERS"]  # type: ignore[index]
             self._dd_tracer._user_trace_processors = trace_processors
 
@@ -116,10 +116,10 @@ class Tracer(opentracing.Tracer):
             or self._config[keys.UDS_PATH]
         ):
             curr_agent_url = urlparse(self._dd_tracer._agent_url)
-            scheme = "https" if self._config.get(keys.AGENT_HTTPS) else curr_agent_url.scheme
-            hostname = self._config.get(keys.AGENT_HOSTNAME) or curr_agent_url.hostname
-            port = self._config.get(keys.AGENT_PORT) or curr_agent_url.port
-            uds_path = self._config.get(keys.UDS_PATH)
+            scheme = "https" if self._config[keys.AGENT_HTTPS] else curr_agent_url.scheme
+            hostname = self._config[keys.AGENT_HOSTNAME] or curr_agent_url.hostname
+            port = self._config[keys.AGENT_PORT] or curr_agent_url.port
+            uds_path = self._config[keys.UDS_PATH]
 
             if uds_path:
                 new_url = f"unix://{uds_path}"

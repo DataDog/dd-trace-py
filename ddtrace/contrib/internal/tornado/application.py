@@ -46,9 +46,9 @@ def tracer_config(__init__, app, args, kwargs):
     tracer._wrap_executor = decorators.wrap_executor
     # TODO: Remove `enabled`, `hostname` and `port` settings in v4.0
     # Tracer should be configured via environment variables
-    if "enabled" in settings:
+    if settings.get("enabled") is not None:
         tracer.enabled = settings["enabled"]
-    if "hostname" in settings or "port" in settings:
+    if settings.get("hostname") is not None or settings.get("port") is not None:
         curr_agent_url = urlparse(tracer._agent_url)
         hostname = settings.get("hostname", curr_agent_url.hostname)
         port = settings.get("port", curr_agent_url.port)
