@@ -211,7 +211,7 @@ def test_module_path_none(caplog):
             __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
         )
         assert (
-            "iast::instrumentation::ast_patching::compiling:: "
+            "iast::instrumentation::ast_patching::compiling::"
             "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
         )
 
