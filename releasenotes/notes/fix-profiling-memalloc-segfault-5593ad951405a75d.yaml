@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue where the memory allocation profiler can cause a segmentation fault due to
+    data races when accessing its own global data structures from multiple threads.

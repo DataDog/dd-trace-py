@@ -13,8 +13,4 @@
 #define _PY38
 #endif
 
-#if PY_VERSION_HEX >= 0x03070000
-#define _PY37_AND_LATER
-#endif
-
 #endif
