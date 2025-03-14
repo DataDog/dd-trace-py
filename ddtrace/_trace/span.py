@@ -501,17 +501,16 @@ class Span(object):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
         """
-        if limit is None:
-            limit = -abs(config._span_traceback_max_size)
-        else:
-            limit = -abs(limit)
-
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
+            if limit:
+                limit = -abs(limit)
             self.set_exc_info(exc_type, exc_val, exc_tb, limit=limit)
         else:
-            tb = "".join(traceback.format_stack(limit=limit))
+            if limit is None:
+                limit = config._span_traceback_max_size
+            tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
     def _get_traceback(
