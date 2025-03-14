@@ -31,3 +31,14 @@ create-1-rate-metric: {}
 create-100-rate-metrics: {}
 increment-1-rate-metric-100-times: {}
 increment-100-rate-metrics-100-times: {}
+
+# Flush
+# DEV: We have to test a baseline without the flush because we have to recreate the metrics every loop iteration
+#      otherwise we'll flush on the first iteration and then every other iteration won't have any metrics to flush
+#      Make sure to subtract the baseline from the other test to get the flush time
+flush-1-baseline: {}
+flush-1-metric: {}
+flush-100-baseline: {}
+flush-100-metrics: {}
+flush-1000-baseline: {}
+flush-1000-metrics: {}

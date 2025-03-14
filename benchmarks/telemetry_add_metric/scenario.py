@@ -72,6 +72,8 @@ class TelemetryAddMetric(Scenario):
             add_metric = add_distribution_metric
         elif "rate-metric" in self.name:
             add_metric = add_rate_metric
+        elif self.name.startswith("flush-"):
+            pass
         else:
             raise ValueError(f"Unknown scenario: {self.name}")
 
@@ -106,6 +108,46 @@ class TelemetryAddMetric(Scenario):
                     for i in range(100):
                         for _ in range(100):
                             add_metric(metricnamespace, str(i))
+
+        elif self.name.startswith("flush-"):
+            should_flush = not self.name.endswith("-baseline")
+
+            metrics = (
+                [(f"count-{i}", add_count_metric) for i in range(250)]
+                + [(f"gauge-{i}", add_gauge_metric) for i in range(250)]
+                + [(f"distribution-{i}", add_distribution_metric) for i in range(250)]
+                + [(f"rate-{i}", add_rate_metric) for i in range(250)]
+            )
+
+            if self.name.startswith("flush-1-"):
+
+                def _(loops: int):
+                    for _ in range(loops):
+                        metricnamespace = MetricNamespace()
+                        metrics[0][1](metricnamespace, metrics[0][0])
+                        if should_flush:
+                            metricnamespace.flush()
+
+            elif self.name.startswith("flush-100-"):
+
+                def _(loops: int):
+                    for _ in range(loops):
+                        metricnamespace = MetricNamespace()
+                        for i in range(0, 1000, 100):
+                            metrics[i][1](metricnamespace, metrics[i][0])
+                        if should_flush:
+                            metricnamespace.flush()
+            elif self.name.startswith("flush-1000-"):
+
+                def _(loops: int):
+                    for _ in range(loops):
+                        metricnamespace = MetricNamespace()
+                        for metric_name, add_metric in metrics:
+                            add_metric(metricnamespace, metric_name)
+                        if should_flush:
+                            metricnamespace.flush()
+            else:
+                raise ValueError(f"Unknown scenario: {self.name}")
 
         else:
             raise ValueError(f"Unknown scenario: {self.name}")
