@@ -15,7 +15,6 @@ from scipy import *  # noqa: F401, F403
 # from PIL import *  # noqa: F401, F403
 
 
-
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
