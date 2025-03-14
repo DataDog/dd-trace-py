@@ -31,7 +31,7 @@ def _exec_iast_patched_module(module_watchdog, module):
             compiled_code = None
 
     if compiled_code:
-        iast_compiling_debug_log("INSTRUMENTED CODE. executing %s", module_path)
+        iast_compiling_debug_log("INSTRUMENTED CODE. executing %s" % module_path)
         # Patched source is executed instead of original module
         exec(compiled_code, module.__dict__)  # nosec B102
     elif module_watchdog.loader is not None:

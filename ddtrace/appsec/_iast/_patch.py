@@ -42,7 +42,7 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
-        iast_instrumentation_wrapt_debug_log("Module %s.%s not exists", module, name)
+        iast_instrumentation_wrapt_debug_log("Module %s.%s not exists" % (module, name))
 
 
 def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
