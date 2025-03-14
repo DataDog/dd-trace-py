@@ -1,3 +1,5 @@
+import time
+
 from bm import Scenario
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -62,94 +64,62 @@ class TelemetryAddMetric(Scenario):
     This scenario checks to see if there's an impact on sending metrics via instrumentation telemetry
     """
 
-    def run(self):
+    metric_type: str
+    num_metrics: int
+    per_metric: int
+
+    # Override `_pyperf` instead of `run` so we get better control over
+    # how we run/time the scenario. This way we can ignore the creation time
+    # of the MetricNamespace or other parts and only time the actual flush or
+    # metrics adding
+    def _pyperf(self, loops: int) -> float:
+        if self.name.startswith("flush-"):
+            return self.run_flush(loops)
+        return self.run_add_metric(loops)
+
+    def run_add_metric(self, loops: int) -> float:
         add_metric = None
-        if "count-metric" in self.name:
+        if self.metric_type == "count":
             add_metric = add_count_metric
-        elif "gauge-metric" in self.name:
+        elif self.metric_type == "gauge":
             add_metric = add_gauge_metric
-        elif "distribution-metric" in self.name:
+        elif self.metric_type == "distribution":
             add_metric = add_distribution_metric
-        elif "rate-metric" in self.name:
+        elif self.metric_type == "rate":
             add_metric = add_rate_metric
-        elif self.name.startswith("flush-"):
-            pass
         else:
-            raise ValueError(f"Unknown scenario: {self.name}")
+            raise ValueError(f"Scenario {self.name} has an unknown metric type: {self.metric_type}")
 
-        if "create-1-" in self.name:
+        total = 0
+        metric_names = [str(i) for i in range(self.num_metrics)]
+        for _ in range(loops):
+            metricnamespace = MetricNamespace()
+            st = time.perf_counter()
+            for m in metric_names:
+                for _ in range(self.per_metric):
+                    add_metric(metricnamespace, m)
 
-            def _(loops: int):
-                for _ in range(loops):
-                    metricnamespace = MetricNamespace()
-                    add_metric(metricnamespace, "metric")
+            total += time.perf_counter() - st
+        return total
 
-        elif "create-100-" in self.name:
+    def run_flush(self, loops: int) -> float:
+        # Pool of metrics to use for adding
+        metrics = (
+            [(f"count-{i}", add_count_metric) for i in range(250)]
+            + [(f"gauge-{i}", add_gauge_metric) for i in range(250)]
+            + [(f"distribution-{i}", add_distribution_metric) for i in range(250)]
+            + [(f"rate-{i}", add_rate_metric) for i in range(250)]
+        )
+        start = 0
+        end = len(metrics)
+        step = end // self.num_metrics
+        total = 0.0
+        for _ in range(loops):
+            metricnamespace = MetricNamespace()
+            for i in range(start, end, step):
+                metrics[i][1](metricnamespace, metrics[i][0])
 
-            def _(loops: int):
-                for _ in range(loops):
-                    metricnamespace = MetricNamespace()
-                    for i in range(100):
-                        add_metric(metricnamespace, str(i))
-
-        elif "increment-1-" in self.name:
-
-            def _(loops: int):
-                for _ in range(loops):
-                    metricnamespace = MetricNamespace()
-                    for _ in range(100):
-                        add_metric(metricnamespace, "metric")
-
-        elif "increment-100-" in self.name:
-
-            def _(loops: int):
-                for _ in range(loops):
-                    metricnamespace = MetricNamespace()
-                    for i in range(100):
-                        for _ in range(100):
-                            add_metric(metricnamespace, str(i))
-
-        elif self.name.startswith("flush-"):
-            should_flush = not self.name.endswith("-baseline")
-
-            metrics = (
-                [(f"count-{i}", add_count_metric) for i in range(250)]
-                + [(f"gauge-{i}", add_gauge_metric) for i in range(250)]
-                + [(f"distribution-{i}", add_distribution_metric) for i in range(250)]
-                + [(f"rate-{i}", add_rate_metric) for i in range(250)]
-            )
-
-            if self.name.startswith("flush-1-"):
-
-                def _(loops: int):
-                    for _ in range(loops):
-                        metricnamespace = MetricNamespace()
-                        metrics[0][1](metricnamespace, metrics[0][0])
-                        if should_flush:
-                            metricnamespace.flush()
-
-            elif self.name.startswith("flush-100-"):
-
-                def _(loops: int):
-                    for _ in range(loops):
-                        metricnamespace = MetricNamespace()
-                        for i in range(0, 1000, 100):
-                            metrics[i][1](metricnamespace, metrics[i][0])
-                        if should_flush:
-                            metricnamespace.flush()
-            elif self.name.startswith("flush-1000-"):
-
-                def _(loops: int):
-                    for _ in range(loops):
-                        metricnamespace = MetricNamespace()
-                        for metric_name, add_metric in metrics:
-                            add_metric(metricnamespace, metric_name)
-                        if should_flush:
-                            metricnamespace.flush()
-            else:
-                raise ValueError(f"Unknown scenario: {self.name}")
-
-        else:
-            raise ValueError(f"Unknown scenario: {self.name}")
-
-        yield _
+            st = time.perf_counter()
+            metricnamespace.flush()
+            total += time.perf_counter() - st
+        return total
