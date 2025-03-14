@@ -70,8 +70,13 @@ class ASM_Environment:
         if context_span is None:
             info = add_context_log(log, "appsec.asm_context.warning::ASM_Environment::no_span")
             log.warning(info)
-            context_span = tracer.trace("asm.context")
+            context_span = tracer.trace("sdk.request")
         self.span: Span = context_span
+        if self.span.name.endswith(".request"):
+            self.framework = self.span.name[:-8]
+        else:
+            self.framework = self.span.name
+        self.framework = self.framework.lower().replace(" ", "_")
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
@@ -120,6 +125,13 @@ def get_blocked() -> Dict[str, Any]:
     if env is None:
         return {}
     return env.blocked or {}
+
+
+def get_framework() -> str:
+    env = _get_asm_context()
+    if env is None:
+        return ""
+    return env.framework
 
 
 def _use_html(headers) -> bool:
