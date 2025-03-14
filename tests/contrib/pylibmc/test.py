@@ -379,7 +379,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
         patch()
         client = pylibmc.Client(servers=[url])
-        # Client should come back as Client(['127.0.0.1:11211'], binary=False)
         assert client.addresses[0] is url
         Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
