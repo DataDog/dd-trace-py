@@ -36,7 +36,7 @@ def metric_verbosity(lvl):
             try:
                 return f
             except Exception:
-                log.warning("[IAST] Error reporting metrics", exc_info=True)
+                log.warning("iast::metrics::error::metric_verbosity", exc_info=True)
         return lambda: None  # noqa: E731
 
     return wrapper
@@ -65,7 +65,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         }
         telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
-        log.warning("[IAST] Error reporting logs metrics", exc_info=True)
+        log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
