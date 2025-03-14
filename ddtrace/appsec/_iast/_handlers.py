@@ -119,9 +119,10 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
             _set_metric_iast_instrumented_source(OriginType.COOKIE)
             _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
             iast_instrumentation_wrapt_debug_log("Patching flask correctly")
         except Exception:
-            iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Flak", exc_info=True)
+            iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Flask", exc_info=True)
 
 
 def _iast_on_wrapped_view(kwargs):
