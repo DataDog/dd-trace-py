@@ -41,7 +41,7 @@ class TracedClient(ObjectProxy):
         if not isinstance(client, _Client):
             # We are in the patched situation, just pass down all arguments to the pylibmc.Client
             # Note that, in that case, client isn't a real client (just the first argument)
-            if kwargs.get("servers"):
+            if "servers" in kwargs:
                 # When using servers=[], the servers shows up in kwargs,
                 # so we should not try to pass it in again or it leads to
                 # got multiple values for argument 'servers'
