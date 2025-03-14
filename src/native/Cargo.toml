@@ -10,7 +10,7 @@ codegen-units = 1
 opt-level = "z"
 
 [dependencies]
-pyo3 = { version = "0.22.3", features = ["extension-module"] }
+pyo3 = { version = "0.22.3", features = ["extension-module", "abi3-py38"] }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3", optional = true }
 datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3", optional = true }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
