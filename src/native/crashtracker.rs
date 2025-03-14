@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 
@@ -200,14 +199,14 @@ pub fn crashtracker_init<'py>(
     metadata: &Bound<'py, MetadataPy>,
 ) -> PyResult<()> {
     INIT.call_once(|| {
-        let (inner_config, inner_receiver_config, inner_metadata) = (
-            config.borrow_mut().deref_mut().take_inner(),
-            receiver_config.borrow_mut().deref_mut().take_inner(),
-            metadata.borrow_mut().deref_mut().take_inner(),
+        let (config_opt, receiver_config_opt, metadata_opt) = (
+            config.try_borrow_mut().ok().and_then(|mut c| (*c).take_inner()),
+            receiver_config.try_borrow_mut().ok().and_then(|mut rc| (*rc).take_inner()),
+            metadata.try_borrow_mut().ok().and_then(|mut m| (*m).take_inner()),
         );
 
         if let (Some(config), Some(receiver_config), Some(metadata)) =
-            (inner_config, inner_receiver_config, inner_metadata)
+            (config_opt, receiver_config_opt, metadata_opt)
         {
             match datadog_crashtracker::init(config, receiver_config, metadata) {
                 Ok(_) => CRASHTRACKER_STATUS
@@ -221,7 +220,7 @@ pub fn crashtracker_init<'py>(
                 }
             }
         } else {
-            eprintln!("Failed to initialize crashtracker: malformed configuration");
+            eprintln!("Failed to initialize crashtracker: config, receiver_config, metadat inner values are None");
             CRASHTRACKER_STATUS.store(
                 CrashtrackerStatus::FailedToInitialize as u8,
                 Ordering::SeqCst,
