@@ -21,8 +21,8 @@ def iast_listen():
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("flask.patch", _on_flask_patch)
     core.on("flask.request_init", _on_request_init)
-    core.on("flask._patched_request", _on_pre_tracedrequest_iast)
     core.on("flask.set_request_tags", _on_set_request_tags_iast)
+    core.on("flask._patched_request", _on_pre_tracedrequest_iast)
 
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)
