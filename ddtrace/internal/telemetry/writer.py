@@ -42,8 +42,8 @@ from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .logging import DDTelemetryLogHandler
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import MetricType
 from .metrics_namespaces import MetricTagType
+from .metrics_namespaces import MetricType
 
 
 _inferred_service = detect_service(sys.argv)

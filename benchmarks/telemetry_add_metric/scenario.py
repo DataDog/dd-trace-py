@@ -5,6 +5,7 @@ from bm import Scenario
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricNamespace
 
+
 try:
     from ddtrace.internal.telemetry.metrics_namespaces import MetricType
 
