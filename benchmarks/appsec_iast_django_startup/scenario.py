@@ -58,6 +58,7 @@ def server(scenario):
 
 class IASTDjangoStartup(bm.Scenario):
     tracer_enabled: bool
+    tracer_debug: bool
     appsec_enabled: bool
     iast_enabled: bool
 
