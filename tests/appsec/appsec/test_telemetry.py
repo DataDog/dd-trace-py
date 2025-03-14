@@ -53,7 +53,7 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             metric_update += 1
         elif metric.name == "api_security.missing_route":
             assert len(metric._points) == 1
-            assert ("framework", "test") in metric._tags
+            assert ("framework", "test") in metric._tags, metric._tags
             assert len(metric._tags) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric.name))
