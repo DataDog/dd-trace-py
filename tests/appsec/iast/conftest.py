@@ -138,8 +138,13 @@ def iast_span_defaults(tracer):
             yield span
 
 
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
+# Check if the log contains "[IAST]" to raise an error if that’s the case BUT, if the logs contains
+# "[IAST] create_context", "[IAST] reset_context", "[IAST] allowing", "[IAST] denying" or "[IAST] astpatch_source"
+# are valid logs
+IAST_VALID_LOG = re.compile(
+    r"(?=.*\[IAST\] )(?!.*\[IAST\] "
+    r"(Patching|Enabled|astpatch_source|compile_code|allowing|denying|create_context|reset_context))"
+)
 
 
 @pytest.fixture(autouse=True)

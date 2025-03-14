@@ -180,7 +180,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info)
+                self.metrics._set_waf_init_metric(self._ddwaf.info, bool(self._ddwaf._handle))
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
@@ -202,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if asm_config._asm_static_rule_file is not None:
             return result
         result = self._ddwaf.update_rules(new_rules)
-        self.metrics._set_waf_updates_metric(self._ddwaf.info)
+        self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
 
