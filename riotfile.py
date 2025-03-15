@@ -2937,10 +2937,10 @@ venv = Venv(
             },
             venvs=[
                 # Python 3.8
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"greenlet": "==3.1.0"},
-                ),
+                # Venv(
+                #     pys=["3.8"],
+                #     pkgs={"greenlet": "==3.1.0"},
+                # ),
                 # Python 3.9+
                 Venv(
                     pys=select_pys(min_version="3.9"),
@@ -2961,7 +2961,10 @@ venv = Venv(
             pkgs={"vcrpy": latest, "pytest-asyncio": "==0.21.1"},
             venvs=[
                 Venv(pys="3.7"),
-                Venv(pys=select_pys(min_version="3.8"), pkgs={"ragas": "==0.1.21", "langchain": latest}),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={"ragas": "==0.1.21", "langchain": latest},
+                ),
             ],
         ),
         Venv(
