@@ -229,7 +229,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._dogstatsd_url = agent.config.dogstatsd_url if dogstatsd_url is None else dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -241,7 +241,7 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = agent.config.trace_agent_url if url is None else url
         verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:

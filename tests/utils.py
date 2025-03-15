@@ -563,7 +563,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent.get_trace_url()
+            kwargs["agent_url"] = agent.config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -1300,9 +1300,8 @@ def git_repo(git_repo_empty):
 
 
 def check_test_agent_status():
-    agent_url = agent.get_trace_url()
     try:
-        parsed = parse.urlparse(agent_url)
+        parsed = parse.urlparse(agent.config.trace_agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/info")
         response = conn.getresponse()

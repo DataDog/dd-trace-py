@@ -655,7 +655,7 @@ def test_writer_flush_queue_generates_debug_log():
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    writer = AgentWriter(agent.get_trace_url())
+    writer = AgentWriter(agent.config.trace_agent_url)
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])

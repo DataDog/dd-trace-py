@@ -264,7 +264,7 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent.config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
         super(LLMObsSpanWriter, self).__init__(
