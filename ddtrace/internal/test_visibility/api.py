@@ -20,6 +20,7 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility._utils import _get_item_span
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -134,6 +135,11 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin,
             "test_visibility.session.get_path_codeowners", (path,)
         ).path_codeowners.value
         return path_codeowners
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_library_capabilities(capabilities: LibraryCapabilities) -> None:
+        core.dispatch("test_visibility.session.set_library_capabilities", (capabilities,))
 
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):

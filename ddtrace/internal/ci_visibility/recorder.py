@@ -81,6 +81,7 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -966,6 +967,15 @@ class CIVisibility(Service):
         client.set_test_session_name(test_session_name)
 
     @classmethod
+    def set_library_capabilities(cls, capabilities: LibraryCapabilities) -> None:
+        instance = cls.get_instance()
+        client = instance._get_ci_visibility_event_client()
+        if not client:
+            log.debug("Not setting library capabilities because no CIVisibilityEventClient is active")
+            return
+        client.set_metadata("test", capabilities.tags())
+
+    @classmethod
     def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
         instance = cls.get_instance()
         if instance is None:
@@ -1128,6 +1138,12 @@ def _on_session_set_covered_lines_pct(coverage_pct) -> None:
 
 
 @_requires_civisibility_enabled
+def _on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> None:
+    log.debug("Setting library capabilities")
+    CIVisibility.set_library_capabilities(capabilities)
+
+
+@_requires_civisibility_enabled
 def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
@@ -1158,6 +1174,7 @@ def _register_session_handlers():
         "is_test_skipping_enabled",
     )
     core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
+    core.on("test_visibility.session.set_library_capabilities", _on_session_set_library_capabilities)
 
 
 @_requires_civisibility_enabled
