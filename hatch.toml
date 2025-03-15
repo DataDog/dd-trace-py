@@ -386,6 +386,7 @@ dependencies = [
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
+DD_FAST_BUILD = "0"
 
 [envs.appsec_iast_packages.scripts]
 test = [
@@ -396,9 +397,6 @@ test = [
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
-
-[envs.appsec_iast_packages.env-vars]
-DD_FAST_BUILD = "0"
 
 ## ASM iast_tdd_propagation
 
