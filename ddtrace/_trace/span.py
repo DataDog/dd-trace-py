@@ -16,6 +16,7 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
@@ -500,19 +501,68 @@ class Span(object):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
         """
-        if limit is None:
-            limit = config._span_traceback_max_size
-
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
-            self.set_exc_info(exc_type, exc_val, exc_tb)
+            if limit:
+                limit = -abs(limit)
+            self.set_exc_info(exc_type, exc_val, exc_tb, limit=limit)
         else:
+            if limit is None:
+                limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+    def _get_traceback(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
+    ) -> str:
+        """
+        Return a formatted traceback as a string.
+        If the traceback is too long, it will be truncated to the limit parameter,
+        but from the end of the traceback (keeping the most recent frames).
+
+        If the traceback surpasses the MAX_SPAN_META_VALUE_LEN limit, it will
+        try to reduce the traceback size by half until it fits
+        within this limit (limit for tag values).
+
+        :param exc_type: the exception type
+        :param exc_val: the exception value
+        :param exc_tb: the exception traceback
+        :param limit: the maximum number of frames to keep
+        :return: the formatted traceback as a string
+        """
+        # If limit is None, use the default value from the configuration
+        if limit is None:
+            limit = config._span_traceback_max_size
+        # Ensure the limit is negative for traceback.print_exception (to keep most recent frames)
+        limit: int = -abs(limit)  # type: ignore[no-redef]
+
+        # Create a buffer to hold the traceback
+        buff = StringIO()
+        # Print the exception traceback to the buffer with the specified limit
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+        tb = buff.getvalue()
+
+        # Check if the traceback exceeds the maximum allowed length
+        while len(tb) > MAX_SPAN_META_VALUE_LEN and abs(limit) > 1:
+            # Reduce the limit by half and print the traceback again
+            limit //= 2
+            buff = StringIO()
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+            tb = buff.getvalue()
+
+        return tb
+
     def set_exc_info(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
     ) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
@@ -527,10 +577,7 @@ class Span(object):
 
         self.error = 1
 
-        # get the traceback
-        buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
-        tb = buff.getvalue()
+        tb = self._get_traceback(exc_type, exc_val, exc_tb, limit=limit)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
@@ -579,10 +626,7 @@ class Span(object):
         if escaped:
             self.set_exc_info(exc_type, exc_val, exc_tb)
 
-        # get the traceback
-        buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
-        tb = buff.getvalue()
+        tb = self._get_traceback(exc_type, exc_val, exc_tb)
 
         # Set exception attributes in a manner that is consistent with the opentelemetry sdk
         # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
