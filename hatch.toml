@@ -185,8 +185,6 @@ DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
 DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
 
 ## ASM Django
 
@@ -425,6 +423,7 @@ dependencies = [
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
+DD_CIVISIBILITY_ITR_ENABLED = "0"
 
 [envs.iast_tdd_propagation.scripts]
 test = [
@@ -547,6 +546,43 @@ dependencies = [
     "fastapi{matrix:fastapi}"
 ]
 
+[envs.appsec_integrations_fastapi.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+]
+
+
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.86.0"]
+anyio = ["==3.7.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.94.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["~=0.114.2"]
+
+[envs.appsec_integrations_fastapi]
+template = "appsec_integrations_fastapi"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "python-multipart",
+    "jinja2",
+    "httpx<0.28.0",
+    "anyio{matrix:anyio:}",
+    "fastapi{matrix:fastapi}"
+]
+
 [envs.appsec_integrations_fastapi.env-vars]
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
@@ -616,7 +652,6 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-
 ## ASM Appsec Aggregated Leak Testing
 
 [envs.appsec_aggregated_leak_testing]
@@ -632,8 +667,7 @@ dependencies = [
     "pydantic-settings",
 ]
 
-[envs.appsec_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
+[envs.iast_aggregated_leak_testing.env-vars]
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
 
@@ -796,7 +830,6 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.selenium.scripts]
 test = [
