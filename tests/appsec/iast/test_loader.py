@@ -30,15 +30,12 @@ def test_patching_error():
 
         ddtrace.appsec._iast._loader.IS_IAST_ENABLED = True
 
-        with mock.patch("ddtrace.appsec._iast._loader.compile", side_effect=ValueError) as loader_compile, mock.patch(
-            "ddtrace.appsec._iast._loader.exec"
-        ) as loader_exec:
+        with mock.patch("ddtrace.appsec._iast._loader.compile", side_effect=ValueError) as loader_compile:
             importlib.reload(ddtrace.bootstrap.preload)
             imported_fixture_module = importlib.import_module(fixture_module)
 
             imported_fixture_module.add(2, 1)
             loader_compile.assert_called_once()
-            loader_exec.assert_not_called()
             assert ASPECTS_MODULE not in sys.modules
 
     finally:

@@ -149,7 +149,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "cycler.",
     "cython.",
     "dateutil.",
-    "dateutil.",
     "ddsketch.",
     "ddtrace.",
     "defusedxml.",
@@ -471,7 +470,7 @@ def _is_first_party(module_name: str):
 
 def _should_iast_patch(module_name: Text) -> bool:
     """
-    select if module_name should be patch from the longest prefix that match in allow or deny list.
+    select if module_name should be patched from the longest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
     # TODO: A better solution would be to migrate the original algorithm to C++:
@@ -510,7 +509,7 @@ def _should_iast_patch(module_name: Text) -> bool:
 
 
 def visit_ast(
-    source_text: Text,
+    source_text: bytes,
     module_path: Text,
     module_name: Text = "",
 ) -> Optional[ast.Module]:
@@ -555,7 +554,7 @@ def {_PREFIX}set_dir_filter():
 {_PREFIX}set_dir_filter()
 
     """
-)
+).encode()
 
 
 def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
@@ -586,7 +585,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
