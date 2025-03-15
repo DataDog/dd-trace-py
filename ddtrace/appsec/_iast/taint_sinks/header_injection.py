@@ -18,6 +18,7 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from .._logs import iast_instrumentation_wrapt_debug_log
 from ._base import VulnerabilityBase
 
 
@@ -81,6 +82,7 @@ def patch():
         try_wrap_function_wrapper(m, "Response.init_headers", _iast_h)
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
+    iast_instrumentation_wrapt_debug_log("Patching header injection correctly")
 
 
 def unpatch():
