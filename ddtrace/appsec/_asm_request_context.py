@@ -25,11 +25,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
 
-if asm_config._iast_enabled:
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-
 if TYPE_CHECKING:
     from ddtrace.appsec._ddwaf import DDWaf_info
     from ddtrace.appsec._ddwaf import DDWaf_result
@@ -481,7 +476,7 @@ def _on_context_ended(ctx):
 
 
 def _on_wrapped_view(kwargs):
-    return_value = [None, None]
+    callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
     if asm_config._asm_enabled and in_asm_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
@@ -490,21 +485,7 @@ def _on_wrapped_view(kwargs):
         call_waf_callback()
         if is_blocked():
             callback_block = get_value(_CALLBACKS, "flask_block")
-            return_value[0] = callback_block
-
-    # If IAST is enabled, taint the Flask function kwargs (path parameters)
-
-    if asm_config._iast_enabled and kwargs:
-        if not asm_config.is_iast_request_enabled:
-            return return_value
-
-        _kwargs = {}
-        for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(
-                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-            )
-        return_value[1] = _kwargs
-    return return_value
+    return callback_block
 
 
 def _on_pre_tracedrequest(ctx):
@@ -569,7 +550,7 @@ def asm_listen():
     listen()
 
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
+    core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf_first, "waf")
