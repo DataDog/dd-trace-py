@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import inspect
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -132,6 +133,37 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
     for name, hook in _listeners[event_id].items():
         try:
             results[name] = EventResult(ResultType.RESULT_OK, hook(*args))
+        except Exception as e:
+            if config._raise:
+                raise
+            results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, e)
+
+    return results
+
+
+async def dispatch_async(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:
+    """Call all hooks for the provided event_id with the provided args
+    returning the results and exceptions from the called hooks
+    """
+    global _listeners
+    global _all_listeners
+
+    for hook in _all_listeners:
+        try:
+            hook(event_id, args)
+        except Exception:
+            if config._raise:
+                raise
+
+    if event_id not in _listeners:
+        return _MissingEventDict
+
+    results = EventResultDict()
+    for name, hook in _listeners[event_id].items():
+        if not inspect.iscoroutinefunction(hook):
+            raise ValueError("dispatch_async should only be called for events listened to by coroutine functions")
+        try:
+            results[name] = EventResult(ResultType.RESULT_OK, await hook(*args))
         except Exception as e:
             if config._raise:
                 raise

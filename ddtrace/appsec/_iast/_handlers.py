@@ -16,6 +16,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -137,6 +138,7 @@ def _iast_on_wrapped_view(kwargs):
                 pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
             )
         return _kwargs
+    core.set_item("iast_on_wrapped_view", kwargs)
     return kwargs
 
 

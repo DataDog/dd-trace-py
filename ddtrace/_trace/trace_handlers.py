@@ -350,7 +350,10 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     )
     modifier(resp_span, closing_iterable)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
+    ctx.set_item(
+        "wsgi.request.complete",
+        _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator),
+    )
 
 
 def _on_response_prepared(resp_span, response):
@@ -816,10 +819,10 @@ def _on_test_visibility_disable() -> None:
     CIVisibility.disable()
 
 
-def _on_test_visibility_is_enabled() -> bool:
+def _on_test_visibility_is_enabled() -> None:
     from ddtrace.internal.ci_visibility import CIVisibility
 
-    return CIVisibility.enabled
+    core.set_item("civisibility_enabled", CIVisibility.enabled)
 
 
 def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescription) -> None:

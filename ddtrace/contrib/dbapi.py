@@ -89,7 +89,7 @@ class TracedCursor(wrapt.ObjectProxy):
 
         with pin.tracer.trace(
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
-        ) as s:
+        ) as s, core.context_with_data("dbapi.trace_method") as ctx:
             if measured:
                 s.set_tag(_SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
@@ -123,11 +123,12 @@ class TracedCursor(wrapt.ObjectProxy):
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
-                result = core.dispatch_with_results(
-                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
-                ).result
+                core.dispatch(
+                    f"{self._self_config.integration_name}.execute", (ctx, self._self_config, s, args, kwargs)
+                )
+                result = core.get_item(f"{self._self_config.integration_name}.execute")
                 if result:
-                    s, args, kwargs = result.value
+                    s, args, kwargs = result
 
             try:
                 return method(*args, **kwargs)
