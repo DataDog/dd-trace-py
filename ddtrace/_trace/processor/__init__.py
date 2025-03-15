@@ -1,5 +1,6 @@
 import abc
 from collections import defaultdict
+from itertools import chain
 from threading import Lock
 from threading import RLock
 from typing import Dict
@@ -23,11 +24,15 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.writer import AgentResponse
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -255,6 +260,20 @@ class SpanAggregator(SpanProcessor):
         self._partial_flush_enabled = partial_flush_enabled
         self._partial_flush_min_spans = partial_flush_min_spans
         self._trace_processors = trace_processors
+
+        if asm_config._apm_opt_out:
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+        else:
+            sampler = DatadogSampler()
+        self._sampling_processor = TraceSamplingProcessor(
+            config._trace_compute_stats, sampler, get_span_sampling_rules(), asm_config._apm_opt_out
+        )
+
+        if isinstance(writer, AgentWriter):
+            writer._response_cb = self._agent_response_callback
         self._writer = writer
 
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -335,7 +354,7 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in self._trace_processors:
+                for tp in chain(self._trace_processors, [self._sampling_processor]):
                     try:
                         if spans is None:
                             return
@@ -349,6 +368,18 @@ class SpanAggregator(SpanProcessor):
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            self._sampling_processor.sampler.update_rate_by_service_sample_rates(
+                resp.rate_by_service,
+            )
+        except ValueError as e:
+            log.error("Failed to set agent service sample rates: %s", str(e))
 
     def shutdown(self, timeout: Optional[float]) -> None:
         """
