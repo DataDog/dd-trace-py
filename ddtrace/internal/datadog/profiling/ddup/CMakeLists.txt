@@ -43,7 +43,7 @@ set(ENV{PY_MICRO_VERSION} ${Python3_VERSION_PATCH})
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
 add_custom_command(
     OUTPUT ${DDUP_CPP_SRC}
-    COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
+    COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC} -+ -X freethreading_compatible=True
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx)
 
 # Specify the target C-extension that we want to build

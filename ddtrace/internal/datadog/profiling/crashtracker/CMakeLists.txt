@@ -40,7 +40,7 @@ set(ENV{PY_MICRO_VERSION} ${Python3_VERSION_PATCH})
 set(CRASHTRACKER_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_crashtracker.cpp)
 add_custom_command(
     OUTPUT ${CRASHTRACKER_CPP_SRC}
-    COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_crashtracker.pyx -o ${CRASHTRACKER_CPP_SRC}
+    COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_crashtracker.pyx -o ${CRASHTRACKER_CPP_SRC} -+ -X freethreading_compatible=True
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_crashtracker.pyx)
 
 # Specify the target C-extension that we want to build
