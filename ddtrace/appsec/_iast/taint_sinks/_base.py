@@ -60,7 +60,7 @@ class VulnerabilityBase(Operation):
             if not asm_config.is_iast_request_enabled:
                 if _is_iast_debug_enabled():
                     log.debug(
-                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
+                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
                         "is outside the context"
                     )
                 return wrapped(*args, **kwargs)
@@ -87,7 +87,7 @@ class VulnerabilityBase(Operation):
         if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
-                    "[IAST] VulnerabilityBase._prepare_report. "
+                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
                     "No request quota or this vulnerability is outside the context"
                 )
             return False

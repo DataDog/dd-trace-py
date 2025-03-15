@@ -29,7 +29,7 @@ def _test_replace_result(
     should_be_tainted_replstr,
     str_type,
 ):
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         if str_type == bytes:
             origstr = str_type(origstr, encoding="utf-8")
             substr = str_type(substr, encoding="utf-8")
