@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Resolves an issue where trace information, such as span links, baggage, and trace-level tags (ex: sampling decision maker), could be lost when a new process was created while a trace was active.
