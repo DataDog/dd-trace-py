@@ -8,6 +8,27 @@ use datadog_crashtracker::{
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
+#[macro_export]
+macro_rules! to_pyresult {
+    ($expr:expr) => {
+        $expr.map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    };
+}
+
+pub trait RustWrapper {
+    type Inner;
+    const INNER_TYPE_NAME: &'static str;
+    fn take_inner(&mut self) -> Option<Self::Inner>;
+    fn take_inner_or_err(&mut self) -> PyResult<Self::Inner> {
+        self.take_inner().ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "{} is None",
+                Self::INNER_TYPE_NAME
+            ))
+        })
+    }
+}
+
 // We redefine the Enum here to expose it to Python as datadog_crashtracker::StacktraceCollection
 // is defined in an external crate.
 #[pyclass(
@@ -65,24 +86,24 @@ impl CrashtrackerConfigurationPy {
         let endpoint = endpoint.map(Endpoint::from_slice);
 
         Ok(Self {
-            config: Some(
-                CrashtrackerConfiguration::new(
-                    additional_files,
-                    create_alt_stack,
-                    use_alt_stack,
-                    endpoint,
-                    resolve_frames,
-                    timeout_ms,
-                    unix_socket_path,
-                )
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
-            ),
+            config: Some(to_pyresult!(CrashtrackerConfiguration::new(
+                additional_files,
+                create_alt_stack,
+                use_alt_stack,
+                endpoint,
+                resolve_frames,
+                timeout_ms,
+                unix_socket_path,
+            ))),
         })
     }
 }
 
-impl CrashtrackerConfigurationPy {
-    pub fn take_inner(&mut self) -> Option<CrashtrackerConfiguration> {
+impl RustWrapper for CrashtrackerConfigurationPy {
+    type Inner = CrashtrackerConfiguration;
+    const INNER_TYPE_NAME: &'static str = "CrashtrackerConfiguration";
+
+    fn take_inner(&mut self) -> Option<Self::Inner> {
         self.config.take()
     }
 }
@@ -108,22 +129,22 @@ impl CrashtrackerReceiverConfigPy {
         stdout_filename: Option<String>,
     ) -> PyResult<Self> {
         Ok(Self {
-            config: Some(
-                CrashtrackerReceiverConfig::new(
-                    args,
-                    env.into_iter().collect(),
-                    path_to_receiver_binary,
-                    stderr_filename,
-                    stdout_filename,
-                )
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?,
-            ),
+            config: Some(to_pyresult!(CrashtrackerReceiverConfig::new(
+                args,
+                env.into_iter().collect(),
+                path_to_receiver_binary,
+                stderr_filename,
+                stdout_filename,
+            ))),
         })
     }
 }
 
-impl CrashtrackerReceiverConfigPy {
-    pub fn take_inner(&mut self) -> Option<CrashtrackerReceiverConfig> {
+impl RustWrapper for CrashtrackerReceiverConfigPy {
+    type Inner = CrashtrackerReceiverConfig;
+    const INNER_TYPE_NAME: &'static str = "CrashtrackerReceiverConfig";
+
+    fn take_inner(&mut self) -> Option<Self::Inner> {
         self.config.take()
     }
 }
@@ -154,8 +175,11 @@ impl MetadataPy {
     }
 }
 
-impl MetadataPy {
-    pub fn take_inner(&mut self) -> Option<Metadata> {
+impl RustWrapper for MetadataPy {
+    type Inner = Metadata;
+    const INNER_TYPE_NAME: &'static str = "Metadata";
+
+    fn take_inner(&mut self) -> Option<Self::Inner> {
         self.metadata.take()
     }
 }
@@ -236,25 +260,18 @@ pub fn crashtracker_on_fork<'py>(
     receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
     metadata: &Bound<'py, MetadataPy>,
 ) -> PyResult<()> {
-    let inner_config: CrashtrackerConfiguration = (*config.try_borrow_mut()?)
-        .take_inner()
-        .ok_or_else(|| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("CrashtrackerConfiguration is None")
-    })?;
-    let inner_receiver_config: CrashtrackerReceiverConfig = (*receiver_config
-        .try_borrow_mut()?)
-    .take_inner()
-    .ok_or_else(|| {
-        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("CrashtrackerReceiverConfig is None")
-    })?;
-    let inner_metadata: Metadata = (*metadata.try_borrow_mut()?)
-        .take_inner()
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Metadata is None"))?;
-
+    let inner_config: CrashtrackerConfiguration =
+        (*config.try_borrow_mut()?).take_inner_or_err()?;
+    let inner_receiver_config: CrashtrackerReceiverConfig =
+        (*receiver_config.try_borrow_mut()?).take_inner_or_err()?;
+    let inner_metadata: Metadata = (*metadata.try_borrow_mut()?).take_inner_or_err()?;
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    to_pyresult!(datadog_crashtracker::on_fork(
+        inner_config,
+        inner_receiver_config,
+        inner_metadata,
+    ))
 }
 
 #[pyfunction(name = "crashtracker_status")]
@@ -270,6 +287,5 @@ pub fn crashtracker_status() -> PyResult<CrashtrackerStatus> {
 #[cfg(unix)]
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> PyResult<()> {
-    datadog_crashtracker::receiver_entry_point_stdin()
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+    to_pyresult!(datadog_crashtracker::receiver_entry_point_stdin())
 }
