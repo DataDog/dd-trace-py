@@ -1,3 +1,4 @@
+use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
@@ -8,24 +9,13 @@ use datadog_crashtracker::{
 use ddcommon::Endpoint;
 use pyo3::prelude::*;
 
-#[macro_export]
-macro_rules! to_pyresult {
-    ($expr:expr) => {
-        $expr.map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
-    };
-}
-
 pub trait RustWrapper {
     type Inner;
     const INNER_TYPE_NAME: &'static str;
     fn take_inner(&mut self) -> Option<Self::Inner>;
-    fn take_inner_or_err(&mut self) -> PyResult<Self::Inner> {
-        self.take_inner().ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "{} is None",
-                Self::INNER_TYPE_NAME
-            ))
-        })
+    fn take_inner_or_err(&mut self) -> anyhow::Result<Self::Inner> {
+        self.take_inner()
+            .ok_or_else(|| anyhow::anyhow!("Inner value of {} is None", Self::INNER_TYPE_NAME))
     }
 }
 
@@ -81,12 +71,12 @@ impl CrashtrackerConfigurationPy {
         resolve_frames: StacktraceCollectionPy,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
-    ) -> PyResult<Self> {
+    ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let endpoint = endpoint.map(Endpoint::from_slice);
 
         Ok(Self {
-            config: Some(to_pyresult!(CrashtrackerConfiguration::new(
+            config: Some(CrashtrackerConfiguration::new(
                 additional_files,
                 create_alt_stack,
                 use_alt_stack,
@@ -94,7 +84,7 @@ impl CrashtrackerConfigurationPy {
                 resolve_frames,
                 timeout_ms,
                 unix_socket_path,
-            ))?),
+            )?),
         })
     }
 }
@@ -127,15 +117,15 @@ impl CrashtrackerReceiverConfigPy {
         path_to_receiver_binary: String,
         stderr_filename: Option<String>,
         stdout_filename: Option<String>,
-    ) -> PyResult<Self> {
+    ) -> anyhow::Result<Self> {
         Ok(Self {
-            config: Some(to_pyresult!(CrashtrackerReceiverConfig::new(
+            config: Some(CrashtrackerReceiverConfig::new(
                 args,
                 env.into_iter().collect(),
                 path_to_receiver_binary,
                 stderr_filename,
                 stdout_filename,
-            ))?),
+            )?),
         })
     }
 }
@@ -163,7 +153,7 @@ impl MetadataPy {
         library_version: String,
         family: String,
         tags: HashMap<String, String>,
-    ) -> PyResult<Self> {
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             metadata: Some(Metadata::new(
                 library_name,
@@ -199,15 +189,16 @@ pub enum CrashtrackerStatus {
 }
 
 impl std::convert::TryFrom<u8> for CrashtrackerStatus {
-    type Error = PyErr;
+    type Error = anyhow::Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(CrashtrackerStatus::NotInitialized),
             1 => Ok(CrashtrackerStatus::Initialized),
             2 => Ok(CrashtrackerStatus::FailedToInitialize),
-            _ => Err(pyo3::exceptions::PyValueError::new_err(
-                "Invalid value for CrashtrackerStatus",
+            _ => Err(anyhow::anyhow!(
+                "Invalid value for CrashtrackerStatus: {}",
+                value
             )),
         }
     }
@@ -221,7 +212,7 @@ pub fn crashtracker_init<'py>(
     config: &Bound<'py, CrashtrackerConfigurationPy>,
     receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
     metadata: &Bound<'py, MetadataPy>,
-) -> PyResult<()> {
+) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
             config.try_borrow_mut().ok().and_then(|mut c| (*c).take_inner()),
@@ -259,23 +250,18 @@ pub fn crashtracker_on_fork<'py>(
     config: &Bound<'py, CrashtrackerConfigurationPy>,
     receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
     metadata: &Bound<'py, MetadataPy>,
-) -> PyResult<()> {
-    let inner_config: CrashtrackerConfiguration =
-        (*config.try_borrow_mut()?).take_inner_or_err()?;
+) -> anyhow::Result<()> {
+    let inner_config: CrashtrackerConfiguration = (*config.borrow_mut()).take_inner_or_err()?;
     let inner_receiver_config: CrashtrackerReceiverConfig =
-        (*receiver_config.try_borrow_mut()?).take_inner_or_err()?;
-    let inner_metadata: Metadata = (*metadata.try_borrow_mut()?).take_inner_or_err()?;
+        (*receiver_config.borrow_mut()).take_inner_or_err()?;
+    let inner_metadata: Metadata = (*metadata.borrow_mut()).take_inner_or_err()?;
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
-    to_pyresult!(datadog_crashtracker::on_fork(
-        inner_config,
-        inner_receiver_config,
-        inner_metadata,
-    ))
+    datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
 #[pyfunction(name = "crashtracker_status")]
-pub fn crashtracker_status() -> PyResult<CrashtrackerStatus> {
+pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
     CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
 }
 
@@ -285,6 +271,6 @@ pub fn crashtracker_status() -> PyResult<CrashtrackerStatus> {
 // and Python library. Another side effect is that we no longer has to worry about platform specific
 // binary names for crashtracker_exe, since it's just a Python script.
 #[pyfunction(name = "crashtracker_receiver")]
-pub fn crashtracker_receiver() -> PyResult<()> {
-    to_pyresult!(datadog_crashtracker::receiver_entry_point_stdin())
+pub fn crashtracker_receiver() -> anyhow::Result<()> {
+    datadog_crashtracker::receiver_entry_point_stdin()
 }
