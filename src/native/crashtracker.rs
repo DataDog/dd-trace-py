@@ -220,7 +220,7 @@ pub fn crashtracker_init<'py>(
                 }
             }
         } else {
-            eprintln!("Failed to initialize crashtracker: config, receiver_config, metadat inner values are None");
+            eprintln!("Failed to initialize crashtracker: config, receiver_config, metadata inner values are None");
             CRASHTRACKER_STATUS.store(
                 CrashtrackerStatus::FailedToInitialize as u8,
                 Ordering::SeqCst,
