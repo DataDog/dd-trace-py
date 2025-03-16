@@ -141,6 +141,18 @@ def _on_flask_patch(flask_version):
             iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Flask", exc_info=True)
 
 
+def _iast_on_wrapped_view(kwargs):
+    # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    if kwargs and asm_config._iast_enabled:
+        _kwargs = {}
+        for k, v in kwargs.items():
+            _kwargs[k] = taint_pyobject(
+                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+            )
+        return _kwargs
+    return kwargs
+
+
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
     if asm_config._iast_enabled and args and is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)

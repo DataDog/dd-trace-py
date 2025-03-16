@@ -9,6 +9,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import _iast_start_request
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -19,12 +20,10 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import flaky
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-TEST_FILE_PATH = "tests/contrib/flask/test_flask_appsec_iast.py"
+TEST_FILE_PATH = "tests/appsec/integrations/flask_tests/test_iast_flask.py"
 
 werkzeug_version = version("werkzeug")
 flask_version = tuple([int(v) for v in version("flask").split(".")])
@@ -37,7 +36,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        with override_global_config(
             dict(
                 _iast_enabled=True,
                 _iast_deduplication_enabled=False,
@@ -49,10 +48,9 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_json()
 
-            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer._configure(api_version="v0.4", iast_enabled=True)
             oce.reconfigure()
 
-    @flaky(1735812000)
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
@@ -1462,8 +1460,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             from flask import Response
             from flask import request
 
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
@@ -1635,8 +1631,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
         def test_sqli(param_str):
             from flask import request
-
-            from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
             assert not is_pyobject_tainted(request.headers["User-Agent"])
             assert not is_pyobject_tainted(request.query_string)
