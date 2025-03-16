@@ -284,7 +284,6 @@ pub fn crashtracker_status() -> PyResult<CrashtrackerStatus> {
 // the package. This way results in referring to the same .so file from the crashtracker_exe script
 // and Python library. Another side effect is that we no longer has to worry about platform specific
 // binary names for crashtracker_exe, since it's just a Python script.
-#[cfg(unix)]
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> PyResult<()> {
     to_pyresult!(datadog_crashtracker::receiver_entry_point_stdin())

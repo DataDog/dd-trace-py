@@ -1,4 +1,4 @@
-#[cfg(feature = "crashtracker")]
+#[cfg(all(unix, feature = "crashtracker"))]
 #[allow(clippy::useless_conversion)]
 mod crashtracker;
 #[allow(clippy::useless_conversion)]
@@ -13,7 +13,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ddsketch::DDSketchPy>()?;
     m.add_class::<library_config::PyConfigurator>()?;
 
-    #[cfg(feature = "crashtracker")]
+    #[cfg(all(unix, feature = "crashtracker"))]
     {
         m.add_class::<crashtracker::StacktraceCollectionPy>()?;
         m.add_class::<crashtracker::CrashtrackerConfigurationPy>()?;
