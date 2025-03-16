@@ -137,7 +137,6 @@ def _on_flask_patch(flask_version):
 def _iast_on_wrapped_view(kwargs):
     # If IAST is enabled, taint the Flask function kwargs (path parameters)
     if kwargs and asm_config._iast_enabled:
-
         _kwargs = {}
         for k, v in kwargs.items():
             _kwargs[k] = taint_pyobject(
