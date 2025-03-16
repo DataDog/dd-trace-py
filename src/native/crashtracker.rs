@@ -94,7 +94,7 @@ impl CrashtrackerConfigurationPy {
                 resolve_frames,
                 timeout_ms,
                 unix_socket_path,
-            ))),
+            ))?),
         })
     }
 }
@@ -135,7 +135,7 @@ impl CrashtrackerReceiverConfigPy {
                 path_to_receiver_binary,
                 stderr_filename,
                 stdout_filename,
-            ))),
+            ))?),
         })
     }
 }
