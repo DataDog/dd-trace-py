@@ -885,6 +885,35 @@ def test_context_header_injection_works_no_client_added_headers(kafka_topic, pro
         assert propagation_asserted is True
 
 
+def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
+    kafka_topic, producer, consumer, dummy_tracer
+):
+    # use a random int in this string to prevent reading a message produced by a previous test run
+    test_string = "producer does not inject context test " + str(random.randint(0, 1000))
+    test_key = "producer does not inject context test " + str(random.randint(0, 1000))
+    PAYLOAD = bytes(test_string, encoding="utf-8")
+
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.flush()
+
+    Pin.override(consumer, tracer=dummy_tracer)
+
+    with dummy_tracer.trace("kafka consumer parent span") as parent_span:
+        with override_config("kafka", dict(distributed_tracing_enabled=True)):
+            message = None
+            while message is None or str(message.value()) != str(PAYLOAD):
+                message = consumer.poll()
+
+    traces = dummy_tracer.pop_traces()
+    consume_span = traces[len(traces) - 1][-1]
+
+    # assert consumer_span parent is our custom span
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id == parent_span.span_id
+
+    Pin.override(consumer, tracer=None)
+
+
 def test_span_has_dsm_payload_hash(dummy_tracer, consumer, producer, kafka_topic):
     Pin.override(producer, tracer=dummy_tracer)
     Pin.override(consumer, tracer=dummy_tracer)
