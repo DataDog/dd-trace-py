@@ -1,5 +1,7 @@
+from pydantic import BaseModel
 import pytest
 
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 
@@ -99,3 +101,62 @@ def test_documents_dictionary_with_incorrect_value_types():
         Documents({"text": "hello", "name": {"key": "value"}})
     with pytest.raises(TypeError):
         Documents([{"text": "hello", "score": "123"}])
+
+
+def test_json_serialize_primitives():
+    assert safe_json(123) == "123"
+    assert safe_json(123.45) == "123.45"
+    assert safe_json("hello world") == "hello world"
+    assert safe_json(True) == "true"
+    assert safe_json(None) == "null"
+
+
+def test_json_serialize_list():
+    assert safe_json([1, 2, 3]) == "[1, 2, 3]"
+    assert safe_json(["hello", "world"]) == '["hello", "world"]'
+
+
+def test_json_serialize_dict():
+    assert safe_json({"name": "hello world", "age": 123}) == '{"name": "hello world", "age": 123}'
+
+
+def test_json_serialize_pydantic_model():
+    class Model(BaseModel):
+        name: str
+        age: int
+
+    pydantic_model = Model(name="hello world", age=123)
+    encoded_model = safe_json(pydantic_model)
+    assert encoded_model == '{"name": "hello world", "age": 123}'
+
+
+def test_json_serialize_pydantic_model_with_complex_field():
+    class Metadata(BaseModel):
+        key: str
+        value: str
+
+    class Model(BaseModel):
+        name: str
+        metadata: Metadata
+
+    pydantic_model = Model(name="hello world", metadata=Metadata(key="goodbye", value="cruel world"))
+    encoded_model = safe_json(pydantic_model)
+    assert encoded_model == '{"name": "hello world", "metadata": {"key": "goodbye", "value": "cruel world"}}'
+
+
+def test_json_serialize_class_with_repr():
+    class Class:
+        pass
+
+    encoded_obj = safe_json(Class())
+    assert '"<tests.llmobs.test_utils.test_json_serialize_class_with_repr.<locals>.Class object at 0x' in encoded_obj
+
+
+def test_json_serialize_class_with_str():
+    class Class:
+        def __str__(self):
+            return "Class"
+
+    class_with_str = Class()
+    encoded_obj = safe_json(class_with_str)
+    assert encoded_obj == '"Class"'
