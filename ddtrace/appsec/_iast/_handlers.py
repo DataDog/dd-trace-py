@@ -17,7 +17,6 @@ from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-from ._iast_request_context import is_iast_request_enabled
 from ._logs import iast_instrumentation_wrapt_debug_log
 from ._logs import iast_propagation_listener_log_log
 from ._taint_tracking._taint_objects import taint_pyobject
@@ -57,7 +56,7 @@ def _on_set_http_meta_iast(
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         try:
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -154,7 +153,7 @@ def _iast_on_wrapped_view(kwargs):
 
 
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
-    if asm_config._iast_enabled and args and is_iast_request_enabled():
+    if asm_config._iast_enabled and args and asm_config.is_iast_request_enabled:
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
 
     return wrapped(*args, **kwargs)
@@ -189,7 +188,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
     if asm_config._iast_enabled and fn_args and isinstance(fn_args[0], first_arg_expected_type):
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             return
 
         http_req = fn_args[0]
@@ -304,7 +303,7 @@ def _on_grpc_response(message):
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         try:
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
@@ -321,7 +320,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         try:
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -335,7 +334,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         try:
             res = []
             for element in value:
@@ -441,7 +440,7 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         request.cookies = taint_structure(
             request.cookies,
             OriginType.COOKIE_NAME,
