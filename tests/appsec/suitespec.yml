@@ -29,7 +29,6 @@ suites:
   appsec_iast_default:
     env:
       TEST_POSTGRES_HOST: postgres
-      TEST_MYSQL_HOST: mysql
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -43,7 +42,6 @@ suites:
     runner: hatch
     services:
       - postgres
-      - mysql
     snapshot: true
     timeout: 40m
   appsec_iast_memcheck:
