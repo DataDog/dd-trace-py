@@ -66,13 +66,10 @@ class SpanEvent:
         self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
     ):
         self.name: str = name
-        if attributes is None:
-            self.attributes = {}
-        else:
-            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
+        self.attributes: dict = attributes if attributes else {}
 
     def __dict__(self):
         d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
