@@ -1,10 +1,15 @@
+# this module must not load any other unsafe appsec module directly
+
 import logging
 import sys
+import typing
 from typing import Any
+from typing import Optional
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
@@ -16,12 +21,40 @@ from ddtrace.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+_TRUNC_STRING_LENGTH = 1
+_TRUNC_CONTAINER_DEPTH = 4
+_TRUNC_CONTAINER_SIZE = 2
+
+
+class _observator:
+    def __init__(self):
+        self.string_length: Optional[int] = None
+        self.container_size: Optional[int] = None
+        self.container_depth: Optional[int] = None
+
+    def set_string_length(self, length: int):
+        if self.string_length is None:
+            self.string_length = length
+        else:
+            self.string_length = max(self.string_length, length)
+
+    def set_container_size(self, size: int):
+        if self.container_size is None:
+            self.container_size = size
+        else:
+            self.container_size = max(self.container_size, size)
+
+    def set_container_depth(self, depth: int):
+        if self.container_depth is None:
+            self.container_depth = depth
+        else:
+            self.container_depth = max(self.container_depth, depth)
+
 
 def parse_response_body(raw_body):
     import xmltodict
 
     from ddtrace.appsec import _asm_request_context
-    from ddtrace.appsec._constants import SPAN_DATA_NAMES
     from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
@@ -101,17 +134,17 @@ class _UserInfoRetriever:
             "FIRST_NAME",
         ]
 
-    def find_in_user_model(self, possible_fields):
+    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[str]:
         for field in possible_fields:
             value = getattr(self.user, field, None)
-            if value:
+            if value is not None:
                 return value
 
         return None  # explicit to make clear it has a meaning
 
     def get_userid(self):
         user_login = getattr(self.user, asm_config._user_model_login_field, None)
-        if user_login:
+        if user_login is not None:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
@@ -119,7 +152,7 @@ class _UserInfoRetriever:
 
     def get_username(self):
         username = getattr(self.user, asm_config._user_model_name_field, None)
-        if username:
+        if username is not None:
             return username
 
         if hasattr(self.user, "get_username"):
@@ -132,14 +165,14 @@ class _UserInfoRetriever:
 
     def get_user_email(self):
         email = getattr(self.user, asm_config._user_model_email_field, None)
-        if email:
+        if email is not None:
             return email
 
         return self.find_in_user_model(self.possible_email_fields)
 
     def get_name(self):
         name = getattr(self.user, asm_config._user_model_name_field, None)
-        if name:
+        if name is not None:
             return name
 
         return self.find_in_user_model(self.possible_name_fields)
@@ -153,7 +186,7 @@ class _UserInfoRetriever:
         user_extra_info = {}
 
         user_id = self.get_userid()
-        if not user_id:
+        if user_id is None:
             return None, {}
 
         if login:

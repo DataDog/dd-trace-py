@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Avoids submitting spans to LLM Observability when a non-default base URL is detected in request for
+    the Anthropic, Bedrock, LangChain, Open AI, and Azure Open AI integrations.

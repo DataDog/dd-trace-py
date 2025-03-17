@@ -47,6 +47,11 @@ urlpatterns = [
         name="sqli_http_request_parameter_name_post",
     ),
     handler(
+        "appsec/sqli_query_no_redacted/$",
+        views.sqli_query_no_redacted,
+        name="sqli_query_no_redacted",
+    ),
+    handler(
         "appsec/sqli_http_request_header_name/$",
         views.sqli_http_request_header_name,
         name="sqli_http_request_header_name",
@@ -87,4 +92,5 @@ urlpatterns = [
     path("appsec/checkuser/<str:user_id>/", views.checkuser_view, name="checkuser"),
     path("appsec/stacktrace_leak/", views.stacktrace_leak_view),
     path("appsec/stacktrace_leak_500/", views.stacktrace_leak_500_view),
+    path("appsec/signup/", views.signup, name="signup"),
 ]

@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import dataclasses
 import datetime as dt
+import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+from urllib import parse
 import urllib.parse
 
 import pytest
@@ -23,8 +25,6 @@ from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
@@ -128,7 +128,6 @@ def override_global_config(values):
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_startup_logs_enabled",
-        "_propagate_service",
         "env",
         "version",
         "service",
@@ -138,14 +137,12 @@ def override_global_config(values):
         "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
-        "_subexec_sensitive_user_wildcards",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_rate_limit",
         "_trace_sampling_rules",
-        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -162,7 +159,9 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
+        "_llmobs_auto_span_linking_enabled",
         "_data_streams_enabled",
+        "_inferred_proxy_services_enabled",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -171,7 +170,7 @@ def override_global_config(values):
     ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
+    asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -180,9 +179,9 @@ def override_global_config(values):
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
-    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
+    asm_config._eval_asm_can_be_enabled()
     try:
         core.dispatch("test.config.override")
         yield
@@ -191,9 +190,9 @@ def override_global_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
 
-        ddtrace.settings.asm.config.reset()
+        asm_config.reset()
         for key, value in asm_originals.items():
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
 
         ddtrace.config._reset()
         ddtrace.config._subscriptions = subscriptions
@@ -848,6 +847,29 @@ class TestSpan(Span):
                     self, key, self._metrics[key], value
                 )
 
+    def assert_span_event_count(self, count):
+        """Assert this span has the expected number of span_events"""
+        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
+
+    def assert_span_event_attributes(self, event_idx, attrs):
+        """
+        Assertion method to ensure this span's span event match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_span_event(0, {"exception.type": "builtins.RuntimeError"})
+
+        :param event_idx: id of the span event
+        :type event_idx: integer
+        """
+        span_event_attrs = self._events[event_idx].attributes
+        for name, value in attrs.items():
+            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
+            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
+                span_event_attrs, name, span_event_attrs[name], value
+            )
+
 
 class TracerSpanContainer(TestSpanContainer):
     """
@@ -1208,6 +1230,11 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    if "env" in kwargs:
+        # Remove all keys with the value None from env, None is used to unset an environment variable
+        env = kwargs.pop("env")
+        cleaned_env = {env: val for env, val in env.items() if val is not None}
+        kwargs["env"] = cleaned_env
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
@@ -1334,25 +1361,20 @@ def _get_skipped_item(item, skip_reason):
     return item
 
 
-def _should_skip(condition=None, until: int = None):
-    if until is None:
-        until = dt.datetime(3000, 1, 1)
-    else:
-        until = dt.datetime.fromtimestamp(until)
+def _should_skip(until: int, condition=None):
+    until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
-def flaky(until: int = None, condition: bool = None, reason: str = None):
+def flaky(until: int, condition: bool = None, reason: str = None):
     return skip_if_until(until, condition=condition, reason=reason)
 
 
 def skip_if_until(until: int, condition=None, reason=None):
     """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(condition=condition, until=until)
+    skip = _should_skip(until=until, condition=condition)
 
     def decorator(function_or_class):
         if not skip:

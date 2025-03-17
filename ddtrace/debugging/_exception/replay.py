@@ -10,6 +10,7 @@ import uuid
 
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogLineProbe
+from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -194,6 +195,9 @@ def can_capture(span: Span) -> bool:
         return True
 
     if info_captured is None:
+        if Session.from_trace():
+            # If we are in a debug session we always capture
+            return True
         result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
         root.set_tag_str(CAPTURE_TRACE_TAG, str(result).lower())
         return result
@@ -207,14 +211,53 @@ class SpanExceptionHandler:
 
     _instance: t.Optional["SpanExceptionHandler"] = None
 
+    def _capture_tb_frame_for_span(self, span: Span, tb: TracebackType, exc_id: uuid.UUID, seq_nr: int = 1) -> bool:
+        frame = tb.tb_frame
+        code = frame.f_code
+        if not is_user_code(Path(code.co_filename)):
+            return False
+
+        snapshot = None
+        snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
+        if snapshot_id is None:
+            # We don't have a snapshot for the frame so we create one
+            snapshot = SpanExceptionSnapshot(
+                probe=SpanExceptionProbe.build(exc_id, frame),
+                frame=frame,
+                thread=current_thread(),
+                trace_context=span,
+                exc_id=exc_id,
+            )
+
+            # Capture
+            try:
+                snapshot.do_line()
+            except Exception:
+                log.exception("Error capturing exception replay snapshot %r", snapshot)
+                return False
+
+            # Collect
+            self.__uploader__.get_collector().push(snapshot)
+
+            # Memoize
+            frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
+
+        # Add correlation tags on the span
+        span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
+        span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
+        span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
+        span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(tb.tb_lineno))
+
+        return snapshot is not None
+
     def on_span_exception(
-        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, _tb: t.Optional[TracebackType]
+        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, tb: t.Optional[TracebackType]
     ) -> None:
         if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
             # Debug info for span already captured or no budget to capture
             return
 
-        chain, exc_id = unwind_exception_chain(exc, _tb)
+        chain, exc_id = unwind_exception_chain(exc, tb)
         if not chain or exc_id is None:
             # No exceptions to capture
             return
@@ -237,47 +280,17 @@ class SpanExceptionHandler:
 
             # DEV: We go from the handler up to the root exception
             while _tb and frames_captured <= config.max_frames:
-                frame = _tb.tb_frame
-                code = frame.f_code
-                seq_nr = next(seq)
+                frames_captured += self._capture_tb_frame_for_span(span, _tb, exc_id, next(seq))
 
-                if is_user_code(Path(frame.f_code.co_filename)):
-                    snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
-                    if snapshot_id is None:
-                        # We don't have a snapshot for the frame so we create one
-                        snapshot = SpanExceptionSnapshot(
-                            probe=SpanExceptionProbe.build(exc_id, frame),
-                            frame=frame,
-                            thread=current_thread(),
-                            trace_context=span,
-                            exc_id=exc_id,
-                        )
-
-                        # Capture
-                        try:
-                            snapshot.do_line()
-                        except Exception:
-                            log.exception("Error capturing exception replay snapshot %r", snapshot)
-                            continue
-
-                        # Collect
-                        self.__uploader__.get_collector().push(snapshot)
-
-                        # Memoize
-                        frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
-
-                        # Count
-                        frames_captured += 1
-
-                    # Add correlation tags on the span
-                    span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
-                    span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
-                    span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
-                    span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
-
-                # Move up the stack
+                # Move up the traceback
                 _tb = _tb.tb_next
 
+        if not frames_captured and tb is not None:
+            # Ensure we capture at least one frame if we have a traceback,
+            # the one potentially closer to user code.
+            frames_captured += self._capture_tb_frame_for_span(span, tb, exc_id)
+
+        if frames_captured:
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))

@@ -179,26 +179,31 @@ def trace_after_publish(*args, **kwargs):
     span = retrieve_span(task, task_id, is_publish=True)
     if span is None:
         return
+
+    broker_url = current_app.conf.broker_url
+
+    # If broker_url is a list (multiple brokers configured)
+    # Use the first broker URL from the list
+    if isinstance(broker_url, list):
+        broker_url = broker_url[0]
+
+    if broker_url == "memory://":
+        host = broker_url
     else:
-        broker_url = current_app.conf.broker_url
+        parsed_url = urlparse(broker_url)
 
-        if broker_url == "memory://":
-            host = broker_url
-        else:
-            parsed_url = urlparse(broker_url)
+        host = None
+        if parsed_url.hostname:
+            host = parsed_url.hostname
 
-            host = None
-            if parsed_url.hostname:
-                host = parsed_url.hostname
+        if parsed_url.port:
+            span.set_metric(net.TARGET_PORT, parsed_url.port)
 
-            if parsed_url.port:
-                span.set_metric(net.TARGET_PORT, parsed_url.port)
+    if host:
+        span.set_tag_str(net.TARGET_HOST, host)
 
-        if host:
-            span.set_tag_str(net.TARGET_HOST, host)
-
-        span.finish()
-        detach_span(task, task_id, is_publish=True)
+    span.finish()
+    detach_span(task, task_id, is_publish=True)
 
 
 def trace_failure(*args, **kwargs):

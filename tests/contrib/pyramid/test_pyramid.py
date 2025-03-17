@@ -1,5 +1,7 @@
 import os
+import shutil
 import subprocess
+from tempfile import gettempdir
 
 import pytest
 
@@ -7,8 +9,8 @@ from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
-from tests.utils import flaky
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -231,7 +233,26 @@ def pyramid_client(snapshot, pyramid_app):
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
 
+    # Create a temp folder as if run_function_from_file was used
+    temp_dir = gettempdir()
+    custom_temp_dir = os.path.join(temp_dir, "ddtrace_subprocess_dir")
+    os.makedirs(custom_temp_dir, exist_ok=True)
+    to_directory = custom_temp_dir + "/sample_app"
+
+    # Swap out the file with the tmp file
+    if "/app" in pyramid_app:
+        from_directory = "tests/contrib/pyramid/app"
+        pyramid_app = f"ddtrace-run python {to_directory}/app.py"
+    else:
+        from_directory = "tests/contrib/pyramid/pserve_app/"
+        pyramid_app = f"ddtrace-run pserve {to_directory}/development.ini"
+
+    # Copies the tests/contrib/pyramid/app or
+    # tests/contrib/pyramid/pserve_app into this directory
+    shutil.copytree(from_directory, to_directory, dirs_exist_ok=True)
+
     cmd = pyramid_app.split(" ")
+
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -252,8 +273,12 @@ def pyramid_client(snapshot, pyramid_app):
         assert resp.status_code == 200
         proc.terminate()
 
+        # Clean up the temp directory
+        if os.path.exists(custom_temp_dir):
+            shutil.rmtree(custom_temp_dir)
 
-@flaky(1740089353, reason="Sample app doesn't seem to spin up in subprocess")
+
+# @pytest.mark.subprocess()
 @pytest.mark.parametrize(
     "pyramid_app",
     [
@@ -265,3 +290,84 @@ def pyramid_client(snapshot, pyramid_app):
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200
+
+
+class TestAPIGatewayTracing(PyramidBase):
+    """
+    Ensure that Pyramid web applications are properly traced when API Gateway is involved
+    """
+
+    instrument = True
+
+    def test_inferred_spans_api_gateway_default(self):
+        # we do not inherit context if distributed tracing is disabled
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        for setting_enabled in [False, True]:
+            config._inferred_proxy_services_enabled = setting_enabled
+            for test_headers in [distributed_headers, headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/",
+                        "status": 200,
+                        "resource_name": "GET index",
+                    },
+                    {
+                        "endpoint": "/error",
+                        "status": 500,
+                        "resource_name": "GET error",
+                    },
+                    {
+                        "endpoint": "/exception",
+                        "status": 500,
+                        "resource_name": "GET exception",
+                    },
+                ]:
+                    try:
+                        self.app.get(test_endpoint["endpoint"], headers=test_headers, status=test_endpoint["status"])
+                    except ZeroDivisionError:
+                        # Passing because /exception raises a ZeroDivisionError but we still need to create spans
+                        pass
+
+                    spans = self.pop_spans()
+                    if setting_enabled:
+                        aws_gateway_span = spans[0]
+                        web_span = spans[1]
+
+                        assert_web_and_inferred_aws_api_gateway_span_data(
+                            aws_gateway_span,
+                            web_span,
+                            web_span_name="pyramid.request",
+                            web_span_component="pyramid",
+                            web_span_service_name="pyramid",
+                            web_span_resource=test_endpoint["resource_name"],
+                            api_gateway_service_name="local",
+                            api_gateway_resource="GET /",
+                            method="GET",
+                            status_code=test_endpoint["status"],
+                            url="local/",
+                            start=1736973768,
+                        )
+                    else:
+                        web_span = spans[0]
+                        assert web_span._parent is None

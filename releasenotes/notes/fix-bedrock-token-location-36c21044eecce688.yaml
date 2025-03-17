@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    botocore: This fix moves bedrock token usage metrics on APM spans from the meta field under ``bedrock.usage.{prompt/completion}_tokens``
+    to the metrics field under ``bedrock.response.usage.{prompt/completion}_tokens``.

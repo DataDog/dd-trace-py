@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4600000000",
+      "_dd.p.tid": "67ab7d0a00000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -25,20 +25,20 @@
       "langchain.request.type": "llm",
       "langchain.response.completions.0.finish_reason": "length",
       "langchain.response.completions.0.logprobs": "None",
-      "langchain.response.completions.0.text": "\\n\\nDescartes, a 17th-century French philosopher, is known for his famous statement \"Cogito, ergo sum\" which is often translated...",
+      "langchain.response.completions.0.text": "I am a helpful assistant.",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "9e11fc5ae0a944ec815293261b4fca7a"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 256,
-      "langchain.tokens.prompt_tokens": 17,
-      "langchain.tokens.total_tokens": 273,
-      "process_id": 82010
+      "langchain.tokens.completion_tokens": 5,
+      "langchain.tokens.prompt_tokens": 5,
+      "langchain.tokens.total_tokens": 10,
+      "process_id": 41847
     },
-    "duration": 3387000,
-    "start": 1738263110205796000
+    "duration": 2395000,
+    "start": 1739291914730175000
   }]]
