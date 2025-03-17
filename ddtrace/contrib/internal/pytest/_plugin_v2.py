@@ -34,6 +34,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
@@ -56,6 +57,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
@@ -261,6 +263,15 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     try:
         command = _get_session_command(session)
 
+        library_capabilities = LibraryCapabilities(
+            early_flake_detection="1" if _pytest_version_supports_efd() else None,
+            auto_test_retries="1" if _pytest_version_supports_atr() else None,
+            test_impact_analysis="1" if _pytest_version_supports_itr() else None,
+            test_management_quarantine="1",
+            test_management_disable="1",
+            test_management_attempt_to_fix="1" if _pytest_version_supports_attempt_to_fix() else None,
+        )
+
         InternalTestSession.discover(
             test_command=command,
             test_framework=FRAMEWORK,
@@ -271,6 +282,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
         )
+
+        InternalTestSession.set_library_capabilities(library_capabilities)
 
         InternalTestSession.start()
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
