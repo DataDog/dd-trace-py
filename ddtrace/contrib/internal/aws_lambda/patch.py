@@ -12,7 +12,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
-from ....settings._config import _get_config
+from ddtrace.settings._config import _get_config
 
 def get_version():
     # type: () -> str
