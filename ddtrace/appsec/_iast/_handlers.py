@@ -18,6 +18,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ._iast_request_context import is_iast_request_enabled
+from ._logs import iast_instrumentation_wrapt_debug_log
+from ._logs import iast_propagation_listener_log_log
 from ._taint_tracking._taint_objects import taint_pyobject
 
 
@@ -70,68 +72,73 @@ def _on_request_init(wrapped, instance, args, kwargs):
                 source_origin=OriginType.PATH,
             )
         except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 def _on_flask_patch(flask_version):
     if asm_config._iast_enabled:
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "Headers.items",
-            functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
-        )
-        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "ImmutableMultiDict.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
-
-        try_wrap_function_wrapper(
-            "werkzeug.datastructures",
-            "EnvironHeaders.__getitem__",
-            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-        )
-        _set_metric_iast_instrumented_source(OriginType.HEADER)
-
-        if flask_version >= (2, 0, 0):
-            # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
-            try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
-
-        _set_metric_iast_instrumented_source(OriginType.PATH)
-        _set_metric_iast_instrumented_source(OriginType.QUERY)
-
-        # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
-        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
-
-        try_wrap_function_wrapper(
-            "werkzeug.wrappers.request",
-            "Request.get_data",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
-        )
-        try_wrap_function_wrapper(
-            "werkzeug.wrappers.request",
-            "Request.get_json",
-            functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
-        )
-
-        _set_metric_iast_instrumented_source(OriginType.BODY)
-
-        if flask_version < (2, 0, 0):
-            _w(
-                "werkzeug._internal",
-                "_DictAccessorProperty.__get__",
-                functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+        try:
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "Headers.items",
+                functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
             )
+            _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "ImmutableMultiDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+
+            try_wrap_function_wrapper(
+                "werkzeug.datastructures",
+                "EnvironHeaders.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+            )
+            _set_metric_iast_instrumented_source(OriginType.HEADER)
+
+            if flask_version >= (2, 0, 0):
+                # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
+                try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+
+            _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
-        # Instrumented on _on_set_request_tags_iast
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+            # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
+            _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+
+            try_wrap_function_wrapper(
+                "werkzeug.wrappers.request",
+                "Request.get_data",
+                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            )
+            try_wrap_function_wrapper(
+                "werkzeug.wrappers.request",
+                "Request.get_json",
+                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+            )
+
+            _set_metric_iast_instrumented_source(OriginType.BODY)
+
+            if flask_version < (2, 0, 0):
+                _w(
+                    "werkzeug._internal",
+                    "_DictAccessorProperty.__get__",
+                    functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
+                )
+                _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            # Instrumented on _on_set_request_tags_iast
+            _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+            _set_metric_iast_instrumented_source(OriginType.COOKIE)
+            _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+
+            iast_instrumentation_wrapt_debug_log("Patching flask correctly")
+        except Exception:
+            iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Flask", exc_info=True)
 
 
 def _iast_on_wrapped_view(kwargs):
@@ -173,9 +180,9 @@ def _on_django_patch():
                     functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
                 )
             )
-            log.debug("[IAST] Patching Django correctly")
+            iast_instrumentation_wrapt_debug_log("Patching Django correctly")
         except Exception:
-            log.debug("[IAST] Unexpected exception while patch Django", exc_info=True)
+            iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Django", exc_info=True)
 
 
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
@@ -215,7 +222,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                     source_origin=OriginType.BODY,
                 )
             except AttributeError:
-                log.debug("IAST can't set attribute http_req.body", exc_info=True)
+                iast_propagation_listener_log_log("IAST can't set attribute http_req.body", exc_info=True)
 
         http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
         http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
@@ -243,7 +250,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                         v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                     )
             except Exception:
-                log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+                iast_propagation_listener_log_log(
+                    "IAST: Unexpected exception while tainting path parameters", exc_info=True
+                )
 
 
 def _custom_protobuf_getattribute(self, name):
@@ -304,7 +313,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
                 )
                 yield new_key, new_value
         except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     else:
         for key, value in wrapped(*args, **kwargs):
             yield key, value
@@ -320,7 +329,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
                     origin = OriginType.COOKIE
                 return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
         except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     return value
 
 
@@ -343,7 +352,7 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
                     res.append(element)
             return res
         except Exception:
-            log.debug("Unexpected exception while tainting pyobject", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     return value
 
 
