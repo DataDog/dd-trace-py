@@ -1,3 +1,5 @@
+#![cfg(all(unix, feature = "crashtracker"))]
+
 use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -209,15 +211,15 @@ static INIT: Once = Once::new();
 
 #[pyfunction(name = "crashtracker_init")]
 pub fn crashtracker_init<'py>(
-    config: &Bound<'py, CrashtrackerConfigurationPy>,
-    receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
-    metadata: &Bound<'py, MetadataPy>,
+    mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
+    mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
+    mut metadata: PyRefMut<'py, MetadataPy>,
 ) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
-            config.try_borrow_mut().ok().and_then(|mut c| (*c).take_inner()),
-            receiver_config.try_borrow_mut().ok().and_then(|mut rc| (*rc).take_inner()),
-            metadata.try_borrow_mut().ok().and_then(|mut m| (*m).take_inner()),
+            (*config).take_inner(),
+            (*receiver_config).take_inner(),
+            (*metadata).take_inner(),
         );
 
         if let (Some(config), Some(receiver_config), Some(metadata)) =
@@ -247,14 +249,14 @@ pub fn crashtracker_init<'py>(
 
 #[pyfunction(name = "crashtracker_on_fork")]
 pub fn crashtracker_on_fork<'py>(
-    config: &Bound<'py, CrashtrackerConfigurationPy>,
-    receiver_config: &Bound<'py, CrashtrackerReceiverConfigPy>,
-    metadata: &Bound<'py, MetadataPy>,
+    mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
+    mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
+    mut metadata: PyRefMut<'py, MetadataPy>,
 ) -> anyhow::Result<()> {
-    let inner_config: CrashtrackerConfiguration = (*config.borrow_mut()).take_inner_or_err()?;
-    let inner_receiver_config: CrashtrackerReceiverConfig =
-        (*receiver_config.borrow_mut()).take_inner_or_err()?;
-    let inner_metadata: Metadata = (*metadata.borrow_mut()).take_inner_or_err()?;
+    let inner_config = (*config).take_inner_or_err()?;
+    let inner_receiver_config = (*receiver_config).take_inner_or_err()?;
+    let inner_metadata = (*metadata).take_inner_or_err()?;
+
     // Note to self: is it possible to call crashtracker_on_fork before crashtracker_init?
     // dd-trace-py seems to start crashtracker early on.
     datadog_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)

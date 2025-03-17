@@ -1,4 +1,3 @@
-#[cfg(all(unix, feature = "crashtracker"))]
 #[allow(clippy::useless_conversion)]
 mod crashtracker;
 #[allow(clippy::useless_conversion)]
