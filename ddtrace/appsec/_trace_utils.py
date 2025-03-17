@@ -418,6 +418,7 @@ def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriev
     if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
+    res = None
     if result_user and result_user.is_authenticated:
         span = pin.tracer.current_root_span()
         if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
@@ -447,8 +448,10 @@ def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriev
             if session_key:
                 custom_data["REQUEST_SESSION_ID"] = session_key
             res = call_waf_callback(custom_data=custom_data, force_sent=True)
-            if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
-                raise BlockingException(get_blocked())
+    elif in_asm_context() and session_key:
+        res = call_waf_callback(custom_data={"REQUEST_SESSION_ID": session_key})
+    if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+        raise BlockingException(get_blocked())
 
 
 def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, user, info_retriever):
