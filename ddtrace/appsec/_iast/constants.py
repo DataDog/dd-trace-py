@@ -64,6 +64,7 @@ DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
 }
 
 DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
+    "_io": {"open"},
     "glob": {"glob"},
     "os": {
         "mkdir",
@@ -97,3 +98,7 @@ DBAPI_MYSQLDB = "mysqldb"
 DBAPI_PYMYSQL = "pymysql"
 DBAPI_MARIADB = "mariadb"
 DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MYSQLDB, DBAPI_MARIADB, DBAPI_PYMYSQL)
+
+DEFAULT_SOURCE_IO_FUNCTIONS = {
+    "_io": {"read"},
+}
