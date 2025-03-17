@@ -259,7 +259,6 @@ class SpanAggregator(SpanProcessor):
     ):
         self._partial_flush_enabled = partial_flush_enabled
         self._partial_flush_min_spans = partial_flush_min_spans
-        self._trace_processors = trace_processors
 
         if asm_config._apm_opt_out:
             # If ASM is enabled but tracing is disabled,
@@ -271,7 +270,8 @@ class SpanAggregator(SpanProcessor):
         self._sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, sampler, get_span_sampling_rules(), asm_config._apm_opt_out
         )
-
+        self._tags_processor = TraceTagsProcessor()
+        self._trace_processors = trace_processors
         if isinstance(writer, AgentWriter):
             writer._response_cb = self._agent_response_callback
         self._writer = writer
@@ -354,7 +354,7 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in chain(self._trace_processors, [self._sampling_processor]):
+                for tp in chain(self._trace_processors, [self._sampling_processor, self._tags_processor]):
                     try:
                         if spans is None:
                             return

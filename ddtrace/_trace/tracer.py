@@ -22,7 +22,6 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.sampler import DatadogSampler
@@ -107,7 +106,6 @@ def _default_span_processors_factory(
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
 
@@ -483,6 +481,7 @@ class Tracer(object):
             pass
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
+        self._shutdown = False
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
