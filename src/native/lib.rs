@@ -1,3 +1,4 @@
+mod data_pipeline;
 mod ddsketch;
 mod library_config;
 
@@ -11,5 +12,6 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
+    data_pipeline::register_data_pipeline(m)?;
     Ok(())
 }
