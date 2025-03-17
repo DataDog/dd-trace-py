@@ -130,7 +130,7 @@ def _start_span(
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
