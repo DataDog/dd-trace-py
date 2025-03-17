@@ -26,6 +26,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
     _traces_to_task_span_ids = {}  # maps trace_id to list of task span_ids
     _traces_to_tasks = {}  # maps trace_id to dictionary of task_id to span_id and span_links
+    _planning_crew_traces = []  # list of trace_ids that correspond to planning crew instances
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
@@ -39,6 +40,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         if kwargs.get("operation") == "crew":
             self._traces_to_task_span_ids[span.trace_id] = []
             self._traces_to_tasks[span.trace_id] = {}
+            if kwargs.get("planning", False):
+                self._planning_crew_traces.append(span.trace_id)
             return span
         if kwargs.get("operation") == "task":
             task_id = kwargs.get("instance_id")
@@ -68,6 +71,8 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_crew(span, args, kwargs, response)
             self._traces_to_task_span_ids.pop(span.trace_id, None)
             self._traces_to_tasks.pop(span.trace_id, None)
+            if span.trace_id in self._planning_crew_traces:
+                self._planning_crew_traces.remove(span.trace_id)
         elif operation == "task":
             self._llmobs_set_tags_task(span, args, kwargs, response)
         elif operation == "agent":
@@ -106,6 +111,14 @@ class CrewAIIntegration(BaseLLMIntegration):
         }
         if self.span_linking_enabled and task_id:
             span_links = self._traces_to_tasks[span.trace_id].get(task_id, {}).get("span_links", [])
+            if self._is_planning_task(span):
+                parent_span = _get_nearest_llmobs_ancestor(span)
+                span_link = {
+                    "span_id": str(parent_span.span_id),
+                    "trace_id": "{:x}".format(span.trace_id),
+                    "attributes": {"from": "input", "to": "input"},
+                }
+                span_links.append(span_link)
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
         span._set_ctx_items(
@@ -181,6 +194,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled or not self.span_linking_enabled:
             return
         queued_task_id = getattr(queued_task, "id", "")
+        is_planning_crew_instance = span.trace_id in self._planning_crew_traces
         queued_task_node = self._traces_to_tasks[span.trace_id].setdefault(queued_task_id, {})
         span_links = []
 
@@ -198,7 +212,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 )
             queued_task_node["span_links"] = span_links
             return
-        if not finished_task_outputs and not getattr(crew_instance, "planning", False):
+        if not finished_task_outputs and not is_planning_crew_instance:
             queued_task_node["span_links"] = [
                 {
                     "span_id": str(span.span_id) if span else ROOT_PARENT_ID,
@@ -207,13 +221,13 @@ class CrewAIIntegration(BaseLLMIntegration):
                 }
             ]
             return
-        if getattr(crew_instance, "planning", False) and self._traces_to_task_span_ids[span.trace_id]:
+        if is_planning_crew_instance and self._traces_to_task_span_ids[span.trace_id]:
             planning_task_span_id = self._traces_to_task_span_ids[span.trace_id][-1]
             queued_task_node["span_links"] = [
                 {
                     "span_id": planning_task_span_id if span else ROOT_PARENT_ID,
                     "trace_id": "{:x}".format(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
+                    "attributes": {"from": "output", "to": "input"},
                 }
             ]
             return
@@ -228,6 +242,14 @@ class CrewAIIntegration(BaseLLMIntegration):
             )
         queued_task_node["span_links"] = span_links
         return
+
+    def _is_planning_task(self, span):
+        """Check if the current task is a planning task, since we need to add span links manually for planning tasks.
+        This is done by checking if the task span is the first task in the crew execution and
+        planning is enabled on the crew instance."""
+        if not self._traces_to_task_span_ids or self._traces_to_task_span_ids[span.trace_id][0] != str(span.span_id):
+            return False
+        return span.trace_id in self._planning_crew_traces
 
 
 def _extract_tool_description_field(tool_description: str):

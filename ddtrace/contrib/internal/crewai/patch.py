@@ -22,8 +22,16 @@ config._add("crewai", {})
 def traced_kickoff(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     result = None
+    instance_id = getattr(instance, "id", "")
+    planning_enabled = getattr(instance, "planning", False)
     span = integration.trace(
-        pin, "Crew Kickoff", span_name="CrewAI Crew", submit_to_llmobs=True, operation="crew", instance_id=instance.id
+        pin,
+        "Crew Kickoff",
+        span_name="CrewAI Crew",
+        submit_to_llmobs=True,
+        operation="crew",
+        instance_id=instance_id,
+        planning=planning_enabled,
     )
     try:
         result = func(*args, **kwargs)
@@ -56,7 +64,7 @@ def traced_task_execute(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        if hasattr(instance, "_ddtrace_ctx"):
+        if getattr(instance, "_ddtrace_ctx", None):
             delattr(instance, "_ddtrace_ctx")
         kwargs["instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
@@ -143,11 +151,11 @@ def unpatch():
 
     crewai._datadog_patch = False
 
-    unwrap(crewai.Crew, "_execute_tasks")
+    unwrap(crewai.Crew, "kickoff")
     unwrap(crewai.Crew, "_get_context")
     unwrap(crewai.Task, "_execute_core")
-    unwrap(crewai.Agent, "execute_task")
     unwrap(crewai.Task, "execute_async")
+    unwrap(crewai.Agent, "execute_task")
     unwrap(crewai.tools.structured_tool.CrewStructuredTool, "invoke")
 
     delattr(crewai, "_datadog_integration")
