@@ -43,6 +43,7 @@ def _patch_env_for_testing():
             "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
             "git.commit.sha": "mytestcommitsha1234",
             "git.branch": "notmainbranch",
+            "git.commit.message": "message",
         },
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -117,7 +118,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
     ]
 
     git_data_parameters = [
-        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message"),
+        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "message"),
         GitData(None, "shalessbranch", None, None),
         GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None, None),
         None,
