@@ -134,6 +134,18 @@ def _on_flask_patch(flask_version):
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
 
+def _iast_on_wrapped_view(kwargs):
+    # If IAST is enabled, taint the Flask function kwargs (path parameters)
+    if kwargs and asm_config._iast_enabled:
+        _kwargs = {}
+        for k, v in kwargs.items():
+            _kwargs[k] = taint_pyobject(
+                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+            )
+        return _kwargs
+    return kwargs
+
+
 def _on_wsgi_environ(wrapped, _instance, args, kwargs):
     if asm_config._iast_enabled and args and is_iast_request_enabled():
         return wrapped(*((taint_structure(args[0], OriginType.HEADER_NAME, OriginType.HEADER),) + args[1:]), **kwargs)
@@ -161,8 +173,9 @@ def _on_django_patch():
                     functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
                 )
             )
+            log.debug("[IAST] Patching Django correctly")
         except Exception:
-            log.debug("Unexpected exception while patch IAST functions", exc_info=True)
+            log.debug("[IAST] Unexpected exception while patch Django", exc_info=True)
 
 
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
