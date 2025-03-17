@@ -846,7 +846,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
 
                 if has_span_events and not self.top_level_span_event_encoding:
-                    span_events = json_dumps([vars(event) for event in span._events])
+                    span_events = json_dumps([vars(event)() for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
                     return ret
@@ -972,7 +972,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         span_events = ""
         if span._events:
-            span_events = json_dumps([vars(event) for event in span._events])
+            span_events = json_dumps([vars(event)() for event in span._events])
 
         ret = msgpack_pack_map(
             &self.pk,
