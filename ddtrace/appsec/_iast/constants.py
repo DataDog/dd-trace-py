@@ -65,6 +65,7 @@ DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
 
 DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
     "_io": {"open"},
+    "io": {"open"},
     "glob": {"glob"},
     "os": {
         "mkdir",

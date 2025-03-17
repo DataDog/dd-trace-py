@@ -25,6 +25,14 @@ def pt_open(origin_string):
     return m.read()
 
 
+def path__io_open(origin_string):
+    pt_open(origin_string)
+
+
+def path_io_open(origin_string):
+    pt_open(origin_string)
+
+
 def path_os_remove(origin_string):
     try:
         # label path_os_remove
