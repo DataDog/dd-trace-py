@@ -115,6 +115,7 @@ def test_synchronous_writer():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
@@ -122,6 +123,9 @@ def test_tracer_trace_across_popen():
         the child span has does not have '_dd.p.dm' shows that sampling was run
         before fork automatically.
     """
+    import multiprocessing
+
+    from ddtrace import tracer
 
     def task(tracer):
         import ddtrace.auto  # noqa
@@ -139,6 +143,7 @@ def test_tracer_trace_across_popen():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess()
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
