@@ -19,7 +19,7 @@ def test_flask_instrumented_metrics(telemetry_writer):
     with override_global_config(dict(_iast_enabled=True)):
         _on_flask_patch((2, 0, 0))
 
-    metrics_result = telemetry_writer._namespace.metrics_data
+    metrics_result = telemetry_writer._namespace.flush()
     assert metrics_result["generate-metrics"]["iast"]
 
     metrics_source_tags_result = [
@@ -45,7 +45,7 @@ def test_flask_instrumented_metrics_iast_disabled(telemetry_writer):
     with override_global_config(dict(_iast_enabled=False)):
         _on_flask_patch((2, 0, 0))
 
-    metrics_result = telemetry_writer._namespace.metrics_data
+    metrics_result = telemetry_writer._namespace.flush()
     metrics_source_tags_result = [metric._tags for metric in metrics_result["generate-metrics"]["iast"].values()]
 
     assert len(metrics_source_tags_result) == 0
