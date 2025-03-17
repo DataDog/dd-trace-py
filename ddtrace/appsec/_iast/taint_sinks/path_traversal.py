@@ -3,6 +3,7 @@ from typing import Any
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
@@ -20,7 +21,15 @@ class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
 
 
+IS_REPORTED_INTRUMENTED_SINK = False
+
+
 def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
+    global IS_REPORTED_INTRUMENTED_SINK
+    if not IS_REPORTED_INTRUMENTED_SINK:
+        _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
+        IS_REPORTED_INTRUMENTED_SINK = True
+
     if asm_config.is_iast_request_enabled and PathTraversal.has_quota():
         filename_arg = args[0] if args else kwargs.get("file", None)
         if is_pyobject_tainted(filename_arg):
