@@ -10,8 +10,6 @@ from json import dumps as json_dumps
 from ._utils cimport PyBytesLike_Check
 from .utils.formats import asbool
 
-from ..settings._core import get_config
-
 
 # Do not use an absolute import here Cython<3.0.0 will
 #   import `ddtrace.internal.constants` instead when this
@@ -26,6 +24,7 @@ from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
+from .agent import AgentConfig
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -554,7 +553,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef bint top_level_span_event_encoding
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
-        self.top_level_span_event_encoding = get_config("DD_TRACE_NATIVE_SPAN_EVENTS", False, asbool)
+        self.top_level_span_event_encoding = AgentConfig.native_span_events_enabled
 
     cpdef flush(self):
         with self._lock:

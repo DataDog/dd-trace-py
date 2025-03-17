@@ -469,7 +469,7 @@ class AgentWriter(HTTPWriter):
 
         self._api_version = api_version or config._trace_api or default_api_version
 
-        if config._native_span_event_enabled:
+        if agent.config.native_span_events_enabled:
             self._api_version = "v0.4"
 
         if is_windows and self._api_version == "v0.5":
