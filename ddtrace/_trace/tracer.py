@@ -207,7 +207,6 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self._shutdown = False
         self.context_provider = context_provider or DefaultContextProvider()
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
@@ -411,7 +410,7 @@ class Tracer(object):
             asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
         if asm_config._apm_opt_out:
-            self.enabled = False
+            config._tracing_enabled = self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
@@ -481,7 +480,7 @@ class Tracer(object):
             pass
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._shutdown = False
+        self.enabled = config._tracing_enabled
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
@@ -665,7 +664,7 @@ class Tracer(object):
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if (self.enabled or asm_config._apm_opt_out) and not self._shutdown:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(
                 self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregagtor]
             ):
@@ -685,7 +684,7 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if (self.enabled or asm_config._apm_opt_out) and not self._shutdown:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(
                 self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregagtor]
             ):
@@ -931,7 +930,7 @@ class Tracer(object):
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
-            self._shutdown = True
+            self.enabled = False
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
