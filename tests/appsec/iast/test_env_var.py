@@ -30,7 +30,7 @@ def test_env_var_iast_enabled(capfd):
     env["DD_IAST_ENABLED"] = "true"
     _run_python_file(env=env)
     captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
+    assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
 
 
@@ -41,7 +41,7 @@ def test_env_var_iast_disabled(monkeypatch, capfd):
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "IAST enabled" not in captured.err
+    assert "iast::instrumentation::starting IAST" not in captured.err
 
 
 def test_env_var_iast_unset(monkeypatch, capfd):
@@ -49,7 +49,7 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     _run_python_file()
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "IAST enabled" not in captured.err
+    assert "iast::instrumentation::starting IAST" not in captured.err
 
 
 @pytest.mark.parametrize(
@@ -84,7 +84,7 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "IAST enabled" in captured.err
+    assert "iast::instrumentation::starting IAST" in captured.err
 
 
 @pytest.mark.parametrize(
@@ -124,7 +124,7 @@ def test_env_var_iast_disabled_parametrized(capfd, configuration_endpoint, env_v
     _run_python_file(env=env)
     captured = capfd.readouterr()
     assert "hi" in captured.out
-    assert "IAST enabled" not in captured.err
+    assert "iast::instrumentation::starting IAST" not in captured.err
 
 
 @pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="True"), err=None)
@@ -140,7 +140,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
+    assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
 
 
@@ -152,7 +152,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
+    assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
 
 
@@ -163,7 +163,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     env["DD_IAST_ENABLED"] = "true"
     _run_python_file(filename="main_gevent.py", env=env)
     captured = capfd.readouterr()
-    assert "IAST enabled" in captured.err
+    assert "iast::instrumentation::starting IAST" in captured.err
     assert "hi" in captured.out
 
 
