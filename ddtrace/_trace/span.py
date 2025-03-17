@@ -86,6 +86,12 @@ class SpanEvent:
         attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
 
+    def __iter__(self):
+        yield "name", self.name
+        yield "time_unix_nano", self.time_unix_nano
+        if self.attributes:
+            yield "attributes", self.attributes
+
 
 log = get_logger(__name__)
 
