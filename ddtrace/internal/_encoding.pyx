@@ -113,6 +113,30 @@ cdef inline int pack_bool(msgpack_packer *pk, object n) except? -1:
         else:
             return msgpack_pack_false(pk)
 
+cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
+    if n is None:
+        return msgpack_pack_nil(pk)
+
+    # check that it is a list
+    ret = msgpack_pack_array(pk, len(n))
+    if ret != 0:
+        return ret
+
+    for v in n:
+        if isinstance(v, str):
+            ret = pack_text(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, (int, float)):
+            ret = pack_number(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, bool):
+            ret = pack_bool(pk, v)
+            if ret != 0:
+                return ret
+    return ret
+
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
         return msgpack_pack_nil(pk)
@@ -655,7 +679,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     for attr_k, attr_v in attributes:
                         ret = pack_text(&self.pk, attr_k)
                         if isinstance(attr_v, str):
-                            ret = pack_text(&self.pk, attr_k)
+                            ret = pack_text(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
                         elif isinstance(attr_v, (int, float)):
@@ -666,13 +690,17 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                             ret = pack_bool(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
+                        # pack a list. TODO: might have to adjust the length passed into msgpack_pack_map
                         else:
-                            raise ValueError(f"Failed to encode attribute, contains unsupported type {type(attr_v)}")
+                            ret = pack_list(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
                 else:
                     raise ValueError(f"Failed to encode SpanEvent {k}={v} contains an unsupported type {type(v)}")
                 if ret != 0:
                     return ret
         return 0
+
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
         cdef Py_ssize_t L

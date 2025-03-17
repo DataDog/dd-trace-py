@@ -512,17 +512,17 @@ def test_span_link_v04_encoding():
 def test_span_event_encoding_msgpack(version):
     span = Span("s1")
     span._add_event("Something went so wrong", {"type": "error"}, 1)
-    span._add_event(
-        "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-        {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
-        17353464354546,
-    )
-    # TODO: add list support in packing span events for v0.4
     # span._add_event(
     #     "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-    #     {"emotion": "happy", "rating": 9.8, "idol": False},
+    #     {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
     #     17353464354546,
     # )
+    # TODO: add list support in packing span events for v0.4
+    span._add_event(
+        "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
+        {"emotion": "happy", "rating": 9.8, "idol": False},
+        17353464354546,
+    )
     with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
