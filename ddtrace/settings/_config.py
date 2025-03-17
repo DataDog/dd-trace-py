@@ -470,7 +470,6 @@ class Config(object):
         self._remote_config_poll_interval = _get_config(
             ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
         )
-
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             log.error(

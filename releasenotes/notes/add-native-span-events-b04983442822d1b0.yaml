@@ -2,4 +2,3 @@
 features:
   - |
     Enables encoding span events as a top-level field in v0.4 payloads and introduces environment variable `DD_TRACE_NATIVE_SPAN_EVENTS`.
-    
