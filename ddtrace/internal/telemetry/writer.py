@@ -490,7 +490,7 @@ class TelemetryWriter(PeriodicService):
         """Creates and queues the name, origin, value of a configuration"""
         if isinstance(configuration_value, dict):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
-        elif isinstance(configuration_value, (list, tuple)):
+        elif isinstance(configuration_value, (set, list, tuple)):
             configuration_value = ",".join(str(v) for v in configuration_value)
         elif not isinstance(configuration_value, (bool, str, int, float, type(None))):
             # convert unsupported types to strings
