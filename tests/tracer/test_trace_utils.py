@@ -284,6 +284,14 @@ class TestHeaders(object):
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
         assert span.get_tag("http.referrer_host") is None
 
+    def test_referer_host_no_netloc(self, span, integration_config):
+        """Test that no referer host tag is set when referer URL has no netloc"""
+        headers = {
+            "referer": "/relative/path",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
+        assert span.get_tag("http.referrer_host") is None
+
 
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",

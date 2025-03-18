@@ -172,17 +172,16 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     return ""
 
 
-def _get_request_header_referer_host(headers, headers_are_case_sensitive=False):
+def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False):
     # type: (Mapping[str, str], bool) -> str
     """Get referer host from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
-    :param headers_are_case_sensitive: Whether the headers are case sensitive
-    :type headers_are_case_sensitive: bool
-    :return: The referer host if found, empty string otherwise
-    :rtype: str
     """
-    referer = _get_header_value_case_insensitive(headers, "referer") if headers_are_case_sensitive else headers.get("referer")
+    if headers_are_case_sensitive:
+        referer = _get_header_value_case_insensitive(headers, "referer")
+    else:
+        referer = headers.get("referer")
     if referer:
         try:
             parsed_url = parse.urlparse(referer)
@@ -523,7 +522,7 @@ def set_http_meta(
             span.set_tag_str(http.USER_AGENT, user_agent)
 
         # Extract referrer host if referer header is present
-        referer_host = _get_request_header_referer_host(request_headers, headers_are_case_sensitive)
+        referer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referer_host:
             span.set_tag_str(http.REFERRER_HOST, referer_host)
 
