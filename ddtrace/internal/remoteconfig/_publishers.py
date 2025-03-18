@@ -77,6 +77,10 @@ class RemoteConfigPublisherMergeDicts(RemoteConfigPublisherBase):
         self._configs = {}  # type: Dict[str, Any]
 
     def append(self, config_content: Optional[Any], target: str, config_metadata: Optional[Any] = None) -> None:
+        print(
+            f"\n>>>>\nconfig_content: {config_content}\ntarget: {target}\nconfig_metadata: {config_metadata}",
+            flush=True,
+        )
         if target not in self._configs:
             self._configs[target] = {}
 
