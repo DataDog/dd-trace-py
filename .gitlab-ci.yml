@@ -48,12 +48,18 @@ microbenchmarks:
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
+  variables:
+    # Disable VPA for benchmarks
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
 
 macrobenchmarks:
   stage: benchmarks
   needs: [ ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
+  variables:
+    # Disable VPA for benchmarks
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
