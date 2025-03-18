@@ -1,8 +1,8 @@
 import logging
 import os
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
