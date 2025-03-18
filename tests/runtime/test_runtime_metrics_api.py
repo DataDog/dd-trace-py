@@ -196,3 +196,57 @@ def test_runtime_metrics_enable_environ(monkeypatch, environ):
         )
     finally:
         RuntimeMetrics.disable()
+
+
+@pytest.mark.subprocess(parametrize={"DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED": ["true", "false"]})
+def test_runtime_metrics_experimental_runtime_tag():
+    """
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+        Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
+    """
+    import os
+
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.internal.service import ServiceStatus
+
+    RuntimeWorker.enable()
+    assert RuntimeWorker._instance is not None
+
+    worker_instance = RuntimeWorker._instance
+    assert worker_instance.status == ServiceStatus.RUNNING
+
+    runtime_id_tag = f"runtime-id:{get_runtime_id()}"
+    if os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true":
+        assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
+    elif os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false":
+        assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
+    else:
+        raise pytest.fail("Invalid value for DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED")
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
+    err=None,
+)
+def test_runtime_metrics_experimental_metric_type():
+    """
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+        Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
+    """
+    import os
+
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.internal.service import ServiceStatus
+
+    RuntimeWorker.enable()
+    assert RuntimeWorker._instance is not None
+
+    worker_instance = RuntimeWorker._instance
+    assert worker_instance.status == ServiceStatus.RUNNING
+    if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
+        assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
+    else:
+        assert (
+            worker_instance.send_metric == worker_instance._dogstatsd_client.distribution
+        ), worker_instance.send_metric
