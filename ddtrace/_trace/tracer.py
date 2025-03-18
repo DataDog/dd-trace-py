@@ -90,6 +90,7 @@ def _start_appsec_processor() -> Optional[Any]:
 def _default_span_processors_factory(
     trace_filters: List[TraceProcessor],
     compute_stats_enabled: bool,
+    writer: Optional[Any],
     tracer_url: Optional[str],
     dogstatsd_url: Optional[str],
     partial_flush_enabled: bool,
@@ -149,6 +150,7 @@ def _default_span_processors_factory(
         partial_flush_enabled=partial_flush_enabled,
         partial_flush_min_spans=partial_flush_min_spans,
         trace_processors=trace_processors,
+        writer=writer,
         tracer_url=tracer_url,
         dogstatsd_url=dogstatsd_url,
     )
@@ -219,6 +221,7 @@ class Tracer(object):
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
+            None,
             self._tracer_url,
             self._statsd_url,
             config._partial_flush_enabled,
@@ -464,6 +467,7 @@ class Tracer(object):
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
+            self._span_aggregagtor._writer,
             self._tracer_url,
             self._statsd_url,
             self._span_aggregagtor._partial_flush_enabled,

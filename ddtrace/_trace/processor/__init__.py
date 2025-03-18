@@ -263,6 +263,7 @@ class SpanAggregator(SpanProcessor):
         partial_flush_enabled: bool,
         partial_flush_min_spans: int,
         trace_processors: Iterable[TraceProcessor],
+        writer: Optional[TraceWriter] = None,
         tracer_url: Optional[str] = None,
         dogstatsd_url: Optional[str] = None,
     ):
@@ -275,8 +276,10 @@ class SpanAggregator(SpanProcessor):
         self._tags_processor = TraceTagsProcessor()
         self._trace_processors = trace_processors
 
-        if SpanAggregator._use_log_writer() and not tracer_url:
-            self._writer: TraceWriter = LogWriter()
+        if writer is not None:
+            self._writer: TraceWriter = writer
+        elif SpanAggregator._use_log_writer() and not tracer_url:
+            self._writer = LogWriter()
         else:
             agent_url = agent.get_trace_url() if tracer_url is None else tracer_url
             dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
