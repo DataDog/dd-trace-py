@@ -43,7 +43,7 @@ CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
 
 # unique exception id
 EXCEPTION_HASH_TAG = "_dd.debug.error.exception_hash"
-EXCEPTION_ID_TAG = "_dd.debug.error.exception_capture_id"
+EXCEPTION_ID_TAG = "_dd.debug.error.exception_id"
 
 # link to matching snapshot for every frame in the traceback
 FRAME_SNAPSHOT_ID_TAG = "_dd.debug.error.%d.snapshot_id"
