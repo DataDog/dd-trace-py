@@ -333,7 +333,7 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
-        _do_request.assert_not_called()
+        _do_request.assert_called()
         CIVisibility.disable()
 
 
@@ -1166,23 +1166,23 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[
-        ddtrace.internal.test_visibility._internal_item_ids.InternalTestId
-    ] = _make_fqdn_test_ids(
-        [
-            ("module_1", "module_1_suite_1.py", "test_1"),
-            ("module_1", "module_1_suite_1.py", "test_2"),
-            ("module_1", "module_1_suite_1.py", "test_5[param2]", '{"arg1": "param_arg_1"}'),
-            ("module_2", "module_2_suite_1.py", "test_3"),
-            ("module_2", "module_2_suite_2.py", "test_2"),
-            ("module_2", "module_2_suite_2.py", "test_4[param1]"),
-            ("module_2", "module_2_suite_2.py", "test_6[param3]", '{"arg8": "param_arg_8"}'),
-            ("module_2", "module_2_suite_2.py", "test_6[param3]"),
-            ("", "no_module_suite_1.py", "test_5[param2]", '{"arg9": "param_arg_9"}'),
-            ("", "no_module_suite_2.py", "test_1"),
-            ("", "no_module_suite_2.py", "test_6[param3]", '{"arg12": "param_arg_12"}'),
-            ("", "no_module_suite_2.py", "test_6[param3]"),
-        ]
+    test_level_tests_to_skip: Set[ddtrace.internal.test_visibility._internal_item_ids.InternalTestId] = (
+        _make_fqdn_test_ids(
+            [
+                ("module_1", "module_1_suite_1.py", "test_1"),
+                ("module_1", "module_1_suite_1.py", "test_2"),
+                ("module_1", "module_1_suite_1.py", "test_5[param2]", '{"arg1": "param_arg_1"}'),
+                ("module_2", "module_2_suite_1.py", "test_3"),
+                ("module_2", "module_2_suite_2.py", "test_2"),
+                ("module_2", "module_2_suite_2.py", "test_4[param1]"),
+                ("module_2", "module_2_suite_2.py", "test_6[param3]", '{"arg8": "param_arg_8"}'),
+                ("module_2", "module_2_suite_2.py", "test_6[param3]"),
+                ("", "no_module_suite_1.py", "test_5[param2]", '{"arg9": "param_arg_9"}'),
+                ("", "no_module_suite_2.py", "test_1"),
+                ("", "no_module_suite_2.py", "test_6[param3]", '{"arg12": "param_arg_12"}'),
+                ("", "no_module_suite_2.py", "test_6[param3]"),
+            ]
+        )
     )
 
     suite_level_test_suites_to_skip: Set[ext_api.TestSuiteId] = _make_fqdn_suite_ids(
