@@ -1,6 +1,7 @@
 import os
 import re
 
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
@@ -8,7 +9,6 @@ from .. import oce
 from .._iast_request_context import set_iast_stacktrace_reported
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking._errors import iast_error
 from ..constants import HTML_TAGS_REMOVE
 from ..constants import STACKTRACE_EXCEPTION_REGEX
 from ..constants import STACKTRACE_FILE_LINE
@@ -129,4 +129,4 @@ def iast_check_stacktrace_leak(content: str) -> None:
         else:
             set_report_stacktrace_later(evidence)
     except Exception as e:
-        iast_error("Taint Sink error. Error in check stacktrace leak. {}".format(e))
+        iast_error(f"propagation::sink_point::Error in check stacktrace leak. {e}")
