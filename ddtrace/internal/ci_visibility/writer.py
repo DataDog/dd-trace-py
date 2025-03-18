@@ -76,7 +76,7 @@ class CIVisibilityCoverageClient(WriterClientBase):
         self._intake_url = intake_url
         if headers:
             self._headers = headers
-        super(CIVisibilityCoverageClient, self).__init__(encoder)
+        super().__init__(encoder)
 
 
 class CIVisibilityProxiedCoverageClient(CIVisibilityCoverageClient):
