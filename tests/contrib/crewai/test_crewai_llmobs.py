@@ -176,11 +176,9 @@ def test_basic_crew(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events)
 def test_basic_crew_for_each(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}])
-    traces = mock_tracer.pop_traces()
-    _assert_basic_crew_events(llmobs_events[:5], traces[0])
-    _assert_basic_crew_links(llmobs_events[:5])
-    _assert_basic_crew_events(llmobs_events[5:], traces[1])
-    _assert_basic_crew_links(llmobs_events[5:])
+    spans = mock_tracer.pop_traces()[0]
+    _assert_basic_crew_events(llmobs_events, spans)
+    _assert_basic_crew_links(llmobs_events)
 
 
 async def test_basic_crew_async(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
