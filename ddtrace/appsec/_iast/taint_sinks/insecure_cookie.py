@@ -4,12 +4,12 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -151,5 +151,5 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
                     cookie_key, kwargs.get("secure") is not True, kwargs.get("httponly") is not True, report_samesite
                 )
     except Exception as e:
-        iast_taint_log_error("[IAST] error in asm_check_cookies. {}".format(e))
+        iast_error(f"propagation::sink_point::Error in check stacktrace leak. {e}")
     return wrapped(*args, **kwargs)

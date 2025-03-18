@@ -132,10 +132,10 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
             } else {
-                result_error_msg = "[IAST] Invalid or empty source_value";
+                result_error_msg = "iast::propagation::native::Invalid or empty source_value";
             }
         } else {
-            result_error_msg = "[IAST] Invalid or empty source_name";
+            result_error_msg = "[iast::propagation::native::Invalid or empty source_name";
         }
     }
     if (not result) {
