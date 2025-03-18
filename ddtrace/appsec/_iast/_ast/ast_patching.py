@@ -509,7 +509,7 @@ def _should_iast_patch(module_name: Text) -> bool:
 
 
 def visit_ast(
-    source_text: bytes,
+    source_text: Text,
     module_path: Text,
     module_name: Text = "",
 ) -> Optional[ast.Module]:
@@ -554,7 +554,7 @@ def {_PREFIX}set_dir_filter():
 {_PREFIX}set_dir_filter()
 
     """
-).encode()
+)
 
 
 def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
@@ -585,7 +585,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
-    with open(module_path, "rb") as source_file:
+    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:

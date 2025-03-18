@@ -1,4 +1,4 @@
-import ctypes
+#!/usr/bin/env python3
 
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.internal.logger import get_logger
@@ -6,10 +6,6 @@ from ddtrace.settings.asm import config as asm_config
 
 from ._ast.ast_patching import astpatch_module
 
-
-PyEval_EvalCode = ctypes.pythonapi.PyEval_EvalCode
-PyEval_EvalCode.argtypes = [ctypes.py_object, ctypes.py_object, ctypes.py_object]
-PyEval_EvalCode.restype = ctypes.py_object
 
 log = get_logger(__name__)
 
@@ -37,10 +33,7 @@ def _exec_iast_patched_module(module_watchdog, module):
     if compiled_code:
         iast_compiling_debug_log(f"INSTRUMENTED CODE. executing {module_path}")
         # Patched source is executed instead of original module
-        # exec(compiled_code, module.__dict__)  # nosec B102
-        if "__builtins__" not in module.__dict__:
-            module.__dict__["__builtins__"] = __builtins__
-        PyEval_EvalCode(compiled_code, module.__dict__, module.__dict__)
+        exec(compiled_code, module.__dict__)  # nosec B102
     elif module_watchdog.loader is not None:
         try:
             iast_compiling_debug_log(f"DEFAULT CODE. executing {module}")
