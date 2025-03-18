@@ -351,11 +351,7 @@ class CIVisibility(Service):
 
     def _check_enabled_features(self):
         # type: () -> TestVisibilityAPISettings
-        # DEV: Remove this ``if`` once ITR is in GA
         _error_return_value = TestVisibilityAPISettings()
-
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            return _error_return_value
 
         if not self._api_client:
             log.warning("API client not initialized, disabling coverage collection and test skipping")
