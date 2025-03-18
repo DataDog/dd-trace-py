@@ -122,5 +122,6 @@ suites:
       - '@requests'
       - '@llmobs'
       - tests/contrib/crewai/*
+      - tests/snapshots/tests.contrib.crewai.*
     runner: riot
     snapshot: true

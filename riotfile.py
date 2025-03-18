@@ -2612,6 +2612,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "openai": latest,
                 "crewai": [latest],
+                "vcrpy": "==7.0.0",
             },
         ),
         Venv(

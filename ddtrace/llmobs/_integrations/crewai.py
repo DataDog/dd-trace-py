@@ -24,9 +24,9 @@ log = get_logger(__name__)
 
 class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
-    _traces_to_task_span_ids = {}  # maps trace_id to list of task span_ids
-    _traces_to_tasks = {}  # maps trace_id to dictionary of task_id to span_id and span_links
-    _planning_crew_traces = []  # list of trace_ids that correspond to planning crew instances
+    _traces_to_task_span_ids: Dict[int, List[str]] = {}  # maps trace_id to list of task span_ids
+    _traces_to_tasks: Dict[int, Dict[str, Any]] = {}  # maps trace_id to dictionary of task_id to span_id and span_links
+    _planning_crew_traces: List[int] = []  # list of trace_ids that correspond to planning crew instances
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
@@ -44,9 +44,9 @@ class CrewAIIntegration(BaseLLMIntegration):
                 self._planning_crew_traces.append(span.trace_id)
             return span
         if kwargs.get("operation") == "task":
-            task_id = kwargs.get("instance_id")
+            task_id = kwargs.get("instance_id", "")
             self._traces_to_task_span_ids[span.trace_id].append(str(span.span_id))
-            task_node = self._traces_to_tasks[span.trace_id].setdefault(task_id, {})
+            task_node = self._traces_to_tasks[span.trace_id].setdefault(str(task_id), {})
             task_node["span_id"] = str(span.span_id)
         return span
 
@@ -246,7 +246,8 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _is_planning_task(self, span):
         """Check if the current task is a planning task, since we need to add span links manually for planning tasks.
         This is done by checking if the task span is the first task in the crew execution and
-        planning is enabled on the crew instance."""
+        planning is enabled on the crew instance.
+        """
         if not self._traces_to_task_span_ids or self._traces_to_task_span_ids[span.trace_id][0] != str(span.span_id):
             return False
         return span.trace_id in self._planning_crew_traces
