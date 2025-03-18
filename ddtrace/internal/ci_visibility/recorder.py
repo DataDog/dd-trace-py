@@ -197,8 +197,8 @@ class CIVisibility(Service):
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer._partial_flush_enabled = True
-            self.tracer._partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            self.tracer._span_aggregagtor._partial_flush_enabled = True
+            self.tracer._span_aggregagtor._partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None

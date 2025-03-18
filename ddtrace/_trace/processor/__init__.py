@@ -411,6 +411,7 @@ class SpanAggregator(SpanProcessor):
             )
 
         try:
+            self._traces.clear()
             self._writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(

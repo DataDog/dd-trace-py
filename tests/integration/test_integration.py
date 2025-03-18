@@ -226,7 +226,7 @@ def test_metrics():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    assert t._partial_flush_min_spans == 300
+    assert t._span_aggregagtor._partial_flush_min_spans == 300
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
@@ -318,7 +318,7 @@ def test_single_trace_too_large():
     from tests.utils import AnyStr
 
     long_string = "a" * 250
-    assert t._partial_flush_enabled is True
+    assert t._span_aggregagtor._partial_flush_enabled is True
     with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
     ) as log:

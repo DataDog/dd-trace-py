@@ -98,6 +98,8 @@ def _default_span_processors_factory(
     compute_stats_enabled: bool,
     agent_url: str,
     writer: TraceWriter,
+    partial_flush_enabled: bool,
+    partial_flush_min_spans: int,
     profiling_span_processor: EndpointCallCounterProcessor,
 ) -> Tuple[List[SpanProcessor], Optional[Any], SpanAggregator]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
@@ -150,8 +152,8 @@ def _default_span_processors_factory(
 
     # These need to run after all the other processors
     span_aggregagtor = SpanAggregator(
-        partial_flush_enabled=config._partial_flush_enabled,
-        partial_flush_min_spans=config._partial_flush_min_spans,
+        partial_flush_enabled=partial_flush_enabled,
+        partial_flush_min_spans=partial_flush_min_spans,
         trace_processors=trace_processors,
         writer=writer,
     )
@@ -238,6 +240,8 @@ class Tracer(object):
             self._compute_stats,
             self._agent_url,
             writer,
+            config._partial_flush_enabled,
+            config._partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
@@ -278,12 +282,6 @@ class Tracer(object):
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
-    def sample(self, span):
-        if self._sampler is not None:
-            self._sampler.sample(span)
-        else:
-            log.error("No sampler available to sample span")
-
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
 
@@ -306,6 +304,9 @@ class Tracer(object):
         self._hooks.deregister(self.__class__.start_span, func)
         return func
 
+    def sample(self, span):
+        self._sampler.sample(span)
+
     def _sample_before_fork(self) -> None:
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
@@ -318,22 +319,6 @@ class Tracer(object):
     @_sampler.setter
     def _sampler(self, value):
         self._span_aggregagtor._sampling_processor.sampler = value
-
-    @property
-    def _partial_flush_enabled(self):
-        return self._span_aggregagtor._partial_flush_enabled
-
-    @_partial_flush_enabled.setter
-    def _partial_flush_enabled(self, value):
-        self._span_aggregagtor._partial_flush_enabled = value
-
-    @property
-    def _partial_flush_min_spans(self):
-        return self._span_aggregagtor._partial_flush_min_spans
-
-    @_partial_flush_min_spans.setter
-    def _partial_flush_min_spans(self, value):
-        self._span_aggregagtor._partial_flush_min_spans = value
 
     @property
     def debug_logging(self):
@@ -416,6 +401,8 @@ class Tracer(object):
             # Update the rate limiter to 1 trace per minute when tracing is disabled
             self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
+        elif asm_config._apm_tracing_enabled:
+            config._tracing_enabled = self.enabled = True
 
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled
@@ -486,6 +473,8 @@ class Tracer(object):
             self._compute_stats,
             self._agent_url,
             self._writer,
+            self._span_aggregagtor._partial_flush_enabled,
+            self._span_aggregagtor._partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
 
