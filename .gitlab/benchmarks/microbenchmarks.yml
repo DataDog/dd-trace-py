@@ -16,10 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 2h
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    CARGO_BUILD_JOBS: 12
+  timeout: 1h
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -57,6 +54,8 @@ variables:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
 
 baseline:detect:
   image: $GITHUB_CLI_IMAGE

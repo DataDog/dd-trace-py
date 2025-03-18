@@ -12,12 +12,3 @@ appsec:
 iast:
   <<: *tracer
   iast_enabled: true
-# TODO: too many logs and the test fails with a timeout
-#iast_debug_mode:
-#  <<: *tracer
-#  tracer_debug: true
-#  iast_enabled: true
-appsec_iast:
-  <<: *tracer
-  appsec_enabled: true
-  iast_enabled: true
