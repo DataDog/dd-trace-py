@@ -12,9 +12,13 @@ __all__ = ["DDWaf", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
 
 LOGGER = get_logger(__name__)
 
+_DDWAF_LOADED: bool = False
+
 if asm_config._asm_libddwaf_available:
     try:
         import ddtrace.appsec._ddwaf.waf as waf_module
+
+        _DDWAF_LOADED = True
     except Exception:
         import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
 

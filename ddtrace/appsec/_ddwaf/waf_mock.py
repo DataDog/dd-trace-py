@@ -7,6 +7,8 @@ from ddtrace.appsec._ddwaf.waf_stubs import WAF
 # from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 
 # from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 # from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
@@ -40,9 +42,9 @@ class DDWaf(WAF):
 
     def run(
         self,
-        ctx: Any,
-        data: Any,
-        ephemeral_data: Any = None,
+        ctx: ddwaf_context_capsule,
+        data: DDWafRulesType,
+        ephemeral_data: DDWafRulesType = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         LOGGER.debug("DDWaf features disabled. dry run")

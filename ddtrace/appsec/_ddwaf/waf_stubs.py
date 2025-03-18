@@ -12,6 +12,10 @@ from typing import Union
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._utils import _observator
+from ddtrace.internal.logger import get_logger
+
+
+LOGGER = get_logger(__name__)
 
 
 T = TypeVar("T")
@@ -80,7 +84,7 @@ class ddwaf_handle_capsule(Generic[T]):
             try:
                 self.free_fn(self.handle)
             except TypeError:
-                pass
+                LOGGER.debug("Failed to free handle", exc_info=True)
             self.handle = None
 
     def __bool__(self):
@@ -97,7 +101,7 @@ class ddwaf_context_capsule(Generic[T]):
             try:
                 self.free_fn(self.ctx)
             except TypeError:
-                pass
+                LOGGER.debug("Failed to free context", exc_info=True)
             self.ctx = None
 
     def __bool__(self):
@@ -114,7 +118,7 @@ class ddwaf_builder_capsule(Generic[T]):
             try:
                 self.free_fn(self.builder)
             except TypeError:
-                pass
+                LOGGER.debug("Failed to free builder", exc_info=True)
             self.builder = None
 
     def __bool__(self):

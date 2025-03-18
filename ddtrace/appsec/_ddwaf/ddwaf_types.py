@@ -297,7 +297,7 @@ class ddwaf_result(ctypes.Structure):
         try:
             ddwaf_result_free(self)
         except TypeError:
-            pass
+            log.debug("Failed to free result", exc_info=True)
 
 
 ddwaf_result_p = ctypes.POINTER(ddwaf_result)

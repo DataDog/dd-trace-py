@@ -35,14 +35,14 @@ from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 
 
+LOGGER = get_logger(__name__)
+
+
 DDWAF_ERR_INTERNAL = -3
 DDWAF_ERR_INVALID_OBJECT = -2
 DDWAF_ERR_INVALID_ARGUMENT = -1
 DDWAF_OK = 0
 DDWAF_MATCH = 1
-
-
-LOGGER = get_logger(__name__)
 
 
 class DDWaf(WAF):
