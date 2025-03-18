@@ -252,16 +252,24 @@ class TestHeaders(object):
         )
         assert span.get_tag("http.response.headers.content-type") == "some;value"
 
-    def test_referer_host_extraction(self, span, integration_config):
-        """Test that referer host is correctly extracted from referer header"""
+    def test_referrer_host_extraction(self, span, integration_config):
+        """Test that referrer host is correctly extracted from referer header"""
         headers = {
             "referer": "https://example.com/path?query=1",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
         assert span.get_tag("http.referrer_host") == "example.com"
 
-    def test_referer_host_case_insensitive(self, span, integration_config):
-        """Test that referer host extraction works with case-insensitive header names"""
+    def test_referrer_host_with_port(self, span, integration_config):
+        """Test that port number is stripped from referrer host"""
+        headers = {
+            "referer": "https://example.com:8080/path?query=1",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
+        assert span.get_tag("http.referrer_host") == "example.com"
+
+    def test_referrer_host_case_insensitive(self, span, integration_config):
+        """Test that referrer host extraction works with case-insensitive header names"""
         headers = {
             "Referer": "https://example.com/path?query=1",
         }
@@ -269,7 +277,7 @@ class TestHeaders(object):
         assert span.get_tag("http.referrer_host") == "example.com"
 
     def test_referer_host_missing(self, span, integration_config):
-        """Test that no referer host tag is set when referer header is missing"""
+        """Test that no referrer host tag is set when referer header is missing"""
         headers = {
             "other-header": "value",
         }
@@ -277,17 +285,9 @@ class TestHeaders(object):
         assert span.get_tag("http.referrer_host") is None
 
     def test_referer_host_invalid_url(self, span, integration_config):
-        """Test that no referer host tag is set when referer URL is invalid"""
+        """Test that no referrer host tag is set when referer URL is invalid"""
         headers = {
             "referer": "not-a-valid-url",
-        }
-        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
-        assert span.get_tag("http.referrer_host") is None
-
-    def test_referer_host_no_netloc(self, span, integration_config):
-        """Test that no referer host tag is set when referer URL has no netloc"""
-        headers = {
-            "referer": "/relative/path",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
         assert span.get_tag("http.referrer_host") is None

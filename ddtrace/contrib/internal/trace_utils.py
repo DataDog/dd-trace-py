@@ -177,6 +177,10 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     """Get referer host from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
+    :param headers_are_case_sensitive: Whether the headers are case sensitive
+    :type headers_are_case_sensitive: bool
+    :return: The referer host if found, empty string otherwise
+    :rtype: str
     """
     if headers_are_case_sensitive:
         referer = _get_header_value_case_insensitive(headers, "referer")
@@ -185,10 +189,10 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     if referer:
         try:
             parsed_url = parse.urlparse(referer)
-            if parsed_url.netloc:
-                return parsed_url.netloc
+            if parsed_url.hostname:
+                return parsed_url.hostname
         except Exception:
-            log.debug("failed to parse referer header value: %r", referer)
+            pass
     return ""
 
 
