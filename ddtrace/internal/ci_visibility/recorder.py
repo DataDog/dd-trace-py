@@ -5,6 +5,7 @@ import re
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
@@ -227,7 +228,7 @@ class CIVisibility(Service):
         self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
-        self._test_properties: dict[InternalTestId, TestProperties] = {}
+        self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -529,7 +530,7 @@ class CIVisibility(Service):
             log.debug("Error fetching unique tests", exc_info=True)
         return None
 
-    def _fetch_test_management_tests(self) -> Optional[dict[InternalTestId, TestProperties]]:
+    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_test_management_tests()
@@ -1144,7 +1145,7 @@ def _on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> N
 
 
 @_requires_civisibility_enabled
-def _on_session_get_path_codeowners(path: Path) -> Optional[list[str]]:
+def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
     if codeowners is None:
@@ -1405,7 +1406,7 @@ def _register_item_handlers() -> None:
 
 
 @_requires_civisibility_enabled
-def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[dict[Path, CoverageLines]]:
+def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
     log.debug("Handling get coverage data for item %s", item_id)
     return CIVisibility.get_item_by_id(item_id).get_coverage_data()
 
