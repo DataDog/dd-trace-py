@@ -1,0 +1,733 @@
+#include <Python.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* --- Global Vars --- */
+static char** global_not_patch_module_names = NULL;
+static size_t global_not_patch_module_count = 0;
+
+static char** user_allowlist = NULL;
+static size_t user_allowlist_count = 0;
+static char** user_denylist = NULL;
+static size_t user_denylist_count = 0;
+
+/* --- Global Cache for packages_distributions --- */
+static char **cached_packages = NULL;
+static size_t cached_packages_count = 0;
+
+/* Static Lists */
+static size_t static_allowlist_count = 19;
+static const char* static_allowlist[] = {
+    "attrs.",
+    "beautifulsoup4.",
+    "cachetools.",
+    "cryptography.",
+    "django.",
+    "docutils.",
+    "idna.",
+    "iniconfig.",
+    "jinja2.",
+    "lxml.",
+    "multidict.",
+    "platformdirs",
+    "pygments.",
+    "pynacl.",
+    "pyparsing.",
+    "multipart",
+    "sqlalchemy.",
+    "tomli",
+    "yarl."
+};
+
+static size_t static_denylist_count = 145;
+static const char* static_denylist[] = {
+    "django.apps.config.",
+    "django.apps.registry.",
+    "django.conf.",
+    "django.contrib.admin.actions.",
+    "django.contrib.admin.admin.",
+    "django.contrib.admin.apps.",
+    "django.contrib.admin.checks.",
+    "django.contrib.admin.decorators.",
+    "django.contrib.admin.exceptions.",
+    "django.contrib.admin.helpers.",
+    "django.contrib.admin.image_formats.",
+    "django.contrib.admin.options.",
+    "django.contrib.admin.sites.",
+    "django.contrib.admin.templatetags.",
+    "django.contrib.admin.views.autocomplete.",
+    "django.contrib.admin.views.decorators.",
+    "django.contrib.admin.views.main.",
+    "django.contrib.admin.wagtail_hooks.",
+    "django.contrib.admin.widgets.",
+    "django.contrib.admindocs.utils.",
+    "django.contrib.admindocs.views.",
+    "django.contrib.auth.admin.",
+    "django.contrib.auth.apps.",
+    "django.contrib.auth.backends.",
+    "django.contrib.auth.base_user.",
+    "django.contrib.auth.checks.",
+    "django.contrib.auth.context_processors.",
+    "django.contrib.auth.decorators.",
+    "django.contrib.auth.hashers.",
+    "django.contrib.auth.image_formats.",
+    "django.contrib.auth.management.",
+    "django.contrib.auth.middleware.",
+    "django.contrib.auth.password_validation.",
+    "django.contrib.auth.signals.",
+    "django.contrib.auth.templatetags.",
+    "django.contrib.auth.validators.",
+    "django.contrib.auth.wagtail_hooks.",
+    "django.contrib.contenttypes.admin.",
+    "django.contrib.contenttypes.apps.",
+    "django.contrib.contenttypes.checks.",
+    "django.contrib.contenttypes.fields.",
+    "django.contrib.contenttypes.forms.",
+    "django.contrib.contenttypes.image_formats.",
+    "django.contrib.contenttypes.management.",
+    "django.contrib.contenttypes.models.",
+    "django.contrib.contenttypes.templatetags.",
+    "django.contrib.contenttypes.views.",
+    "django.contrib.contenttypes.wagtail_hooks.",
+    "django.contrib.humanize.templatetags.",
+    "django.contrib.messages.admin.",
+    "django.contrib.messages.api.",
+    "django.contrib.messages.apps.",
+    "django.contrib.messages.constants.",
+    "django.contrib.messages.context_processors.",
+    "django.contrib.messages.image_formats.",
+    "django.contrib.messages.middleware.",
+    "django.contrib.messages.storage.",
+    "django.contrib.messages.templatetags.",
+    "django.contrib.messages.utils.",
+    "django.contrib.messages.wagtail_hooks.",
+    "django.contrib.sessions.admin.",
+    "django.contrib.sessions.apps.",
+    "django.contrib.sessions.backends.",
+    "django.contrib.sessions.base_session.",
+    "django.contrib.sessions.exceptions.",
+    "django.contrib.sessions.image_formats.",
+    "django.contrib.sessions.middleware.",
+    "django.contrib.sessions.templatetags.",
+    "django.contrib.sessions.wagtail_hooks.",
+    "django.contrib.sites.",
+    "django.contrib.staticfiles.admin.",
+    "django.contrib.staticfiles.apps.",
+    "django.contrib.staticfiles.checks.",
+    "django.contrib.staticfiles.finders.",
+    "django.contrib.staticfiles.image_formats.",
+    "django.contrib.staticfiles.models.",
+    "django.contrib.staticfiles.storage.",
+    "django.contrib.staticfiles.templatetags.",
+    "django.contrib.staticfiles.utils.",
+    "django.contrib.staticfiles.wagtail_hooks.",
+    "django.core.cache.backends.",
+    "django.core.cache.utils.",
+    "django.core.checks.async_checks.",
+    "django.core.checks.caches.",
+    "django.core.checks.compatibility.",
+    "django.core.checks.compatibility.django_4_0.",
+    "django.core.checks.database.",
+    "django.core.checks.files.",
+    "django.core.checks.messages.",
+    "django.core.checks.model_checks.",
+    "django.core.checks.registry.",
+    "django.core.checks.security.",
+    "django.core.checks.security.base.",
+    "django.core.checks.security.csrf.",
+    "django.core.checks.security.sessions.",
+    "django.core.checks.templates.",
+    "django.core.checks.translation.",
+    "django.core.checks.urls",
+    "django.core.exceptions.",
+    "django.core.mail.",
+    "django.core.management.base.",
+    "django.core.management.color.",
+    "django.core.management.sql.",
+    "django.core.paginator.",
+    "django.core.signing.",
+    "django.core.validators.",
+    "django.dispatch.dispatcher.",
+    "django.template.autoreload.",
+    "django.template.backends.",
+    "django.template.base.",
+    "django.template.context.",
+    "django.template.context_processors.",
+    "django.template.defaultfilters.",
+    "django.template.defaulttags.",
+    "django.template.engine.",
+    "django.template.exceptions.",
+    "django.template.library.",
+    "django.template.loader.",
+    "django.template.loader_tags.",
+    "django.template.loaders.",
+    "django.template.response.",
+    "django.template.smartif.",
+    "django.template.utils.",
+    "django.templatetags.",
+    "django.test.",
+    "django.urls.base.",
+    "django.urls.conf.",
+    "django.urls.converters.",
+    "django.urls.exceptions.",
+    "django.urls.resolvers.",
+    "django.urls.utils.",
+    "django.utils.",
+    "django_filters.compat.",
+    "django_filters.conf.",
+    "django_filters.constants.",
+    "django_filters.exceptions.",
+    "django_filters.fields.",
+    "django_filters.filters.",
+    "django_filters.filterset.",
+    "django_filters.rest_framework.",
+    "django_filters.rest_framework.backends.",
+    "django_filters.rest_framework.filters.",
+    "django_filters.rest_framework.filterset.",
+    "django_filters.utils.",
+    "django_filters.widgets."
+};
+
+static size_t static_stdlib_count = 215;
+static const char* stdlib_names[] = {
+        "__future__",
+        "_ast",
+        "_compression",
+        "_thread",
+        "abc",
+        "aifc",
+        "argparse",
+        "array",
+        "ast",
+        "asynchat",
+        "asyncio",
+        "asyncore",
+        "atexit",
+        "audioop",
+        "base64",
+        "bdb",
+        "binascii",
+        "bisect",
+        "builtins",
+        "bz2",
+        "cProfile",
+        "calendar",
+        "cgi",
+        "cgitb",
+        "chunk",
+        "cmath",
+        "cmd",
+        "code",
+        "codecs",
+        "codeop",
+        "collections",
+        "colorsys",
+        "compileall",
+        "concurrent",
+        "configparser",
+        "contextlib",
+        "contextvars",
+        "copy",
+        "copyreg",
+        "crypt",
+        "csv",
+        "ctypes",
+        "curses",
+        "dataclasses",
+        "datetime",
+        "dbm",
+        "decimal",
+        "difflib",
+        "dis",
+        "distutils",
+        "doctest",
+        "email",
+        "encodings",
+        "ensurepip",
+        "enum",
+        "errno",
+        "faulthandler",
+        "fcntl",
+        "filecmp",
+        "fileinput",
+        "fnmatch",
+        "fractions",
+        "ftplib",
+        "functools",
+        "gc",
+        "getopt",
+        "getpass",
+        "gettext",
+        "glob",
+        "graphlib",
+        "grp",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "hmac",
+        "html",
+        "http",
+        "idlelib",
+        "imaplib",
+        "imghdr",
+        "imp",
+        "importlib",
+        "inspect",
+        "io",
+        "ipaddress",
+        "itertools",
+        "json",
+        "keyword",
+        "lib2to3",
+        "linecache",
+        "locale",
+        "logging",
+        "lzma",
+        "mailbox",
+        "mailcap",
+        "marshal",
+        "math",
+        "mimetypes",
+        "mmap",
+        "modulefinder",
+        "msilib",
+        "msvcrt",
+        "multiprocessing",
+        "netrc",
+        "nis",
+        "nntplib",
+        "ntpath",
+        "numbers",
+        "opcode",
+        "operator",
+        "optparse",
+        "os",
+        "ossaudiodev",
+        "pathlib",
+        "pdb",
+        "pickle",
+        "pickletools",
+        "pipes",
+        "pkgutil",
+        "platform",
+        "plistlib",
+        "poplib",
+        "posix",
+        "posixpath",
+        "pprint",
+        "profile",
+        "pstats",
+        "pty",
+        "pwd",
+        "py_compile",
+        "pyclbr",
+        "pydoc",
+        "queue",
+        "quopri",
+        "random",
+        "re",
+        "readline",
+        "reprlib",
+        "resource",
+        "rlcompleter",
+        "runpy",
+        "sched",
+        "secrets",
+        "select",
+        "selectors",
+        "shelve",
+        "shlex",
+        "shutil",
+        "signal",
+        "site",
+        "smtpd",
+        "smtplib",
+        "sndhdr",
+        "socket",
+        "socketserver",
+        "spwd",
+        "sqlite3",
+        "sre",
+        "sre_compile",
+        "sre_constants",
+        "sre_parse",
+        "ssl",
+        "stat",
+        "statistics",
+        "string",
+        "stringprep",
+        "struct",
+        "subprocess",
+        "sunau",
+        "symtable",
+        "sys",
+        "sysconfig",
+        "syslog",
+        "tabnanny",
+        "tarfile",
+        "telnetlib",
+        "tempfile",
+        "termios",
+        "test",
+        "textwrap",
+        "threading",
+        "time",
+        "timeit",
+        "tkinter",
+        "token",
+        "tokenize",
+        "tomllib",
+        "trace",
+        "traceback",
+        "tracemalloc",
+        "tty",
+        "turtle",
+        "turtledemo",
+        "types",
+        "typing",
+        "unicodedata",
+        "unittest",
+        "uu",
+        "uuid",
+        "venv",
+        "warnings",
+        "wave",
+        "weakref",
+        "webbrowser",
+        "winreg",
+        "winsound",
+        "wsgiref",
+        "xdrlib",
+        "xml",
+        "xmlrpc",
+        "zipapp",
+        "zipfile",
+        "zipimport",
+        "zlib",
+        "zoneinfo",
+    };
+
+static int
+str_in_list(const char* needle, const char** list, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (strcmp(needle, list[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* --- is_first_party Function ---
+   Returns 1 (true) if the module is considered first-party, 0 otherwise.
+   It calls importlib.metadata.packages_distributions only once,
+   caches the resulting package names (as lowercase C strings),
+   and then compares the first component of the given module name against that list.
+*/
+static int is_first_party(const char *module_name) {
+    // If the module name contains "vendor." or "vendored.", return false.
+    if (strstr(module_name, "vendor.") || strstr(module_name, "vendored.")) {
+        return 0;
+    }
+
+    // If the packages list is not cached, call packages_distributions and cache its result.
+    if (cached_packages == NULL) {
+        PyObject *metadata = PyImport_ImportModule("importlib.metadata");
+        if (!metadata)
+            return 0;
+        PyObject *func = PyObject_GetAttrString(metadata, "packages_distributions");
+        Py_DECREF(metadata);
+        if (!func)
+            return 0;
+        PyObject *result = PyObject_CallObject(func, NULL);
+        Py_DECREF(func);
+        if (!result)
+            return 0;
+
+        // Convert the result to a fast sequence (e.g., list or tuple).
+        PyObject *fast = PySequence_Fast(result, "expected a sequence");
+        Py_DECREF(result);
+        if (!fast)
+            return 0;
+        Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+        cached_packages = malloc(n * sizeof(char *));
+        if (!cached_packages) {
+            Py_DECREF(fast);
+            return 0;
+        }
+        cached_packages_count = (size_t)n;
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject *item = PySequence_Fast_GET_ITEM(fast, i); // Borrowed reference.
+            if (!PyUnicode_Check(item)) {
+                cached_packages[i] = NULL;
+            } else {
+                const char *s = PyUnicode_AsUTF8(item);
+                if (s) {
+                    char *dup = strdup(s);
+                    if (dup) {
+                        // Convert to lowercase.
+                        for (char *p = dup; *p; p++) {
+                            *p = tolower(*p);
+                        }
+                        cached_packages[i] = dup;
+                    } else {
+                        cached_packages[i] = NULL;
+                    }
+                } else {
+                    cached_packages[i] = NULL;
+                }
+            }
+        }
+        Py_DECREF(fast);
+    }
+
+    // Extract the first component from module_name (up to the first dot) and convert it to lowercase.
+    char first_part[256];
+    const char *dot = strchr(module_name, '.');
+    size_t len = dot ? (size_t)(dot - module_name) : strlen(module_name);
+    if (len >= sizeof(first_part))
+        len = sizeof(first_part) - 1;
+    strncpy(first_part, module_name, len);
+    first_part[len] = '\0';
+    for (size_t i = 0; i < strlen(first_part); i++) {
+        first_part[i] = tolower(first_part[i]);
+    }
+
+    // If the first part is found in the cached packages, it's not a first-party module.
+    for (size_t i = 0; i < cached_packages_count; i++) {
+        if (cached_packages[i] && strcmp(first_part, cached_packages[i]) == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* --- Function init_globals ---
+   Initializes global lists:
+   1. global_not_patch_module_names is composed of static stdlib names and sys.builtin_module_names.
+   2. user_allowlist and user_denylist are extracted from the environment variables
+      _DD_IAST_PATCH_MODULES and _DD_IAST_DENY_MODULES, respectively, and converted to lowercase.
+   This implementation uses C char arrays and avoids excessive creation of PyTuples and PyObjects.
+*/
+static int
+init_globals(void)
+{
+    /* 1. Initialize global_not_patch_module_names */
+    /* Get sys.builtin_module_names (borrowed reference) */
+    PyObject* builtin_names = PySys_GetObject("builtin_module_names");
+    size_t builtin_count = 0;
+    if (builtin_names && PyTuple_Check(builtin_names)) {
+        builtin_count = (size_t)PyTuple_Size(builtin_names);
+    }
+    global_not_patch_module_count = static_stdlib_count + builtin_count;
+    global_not_patch_module_names = malloc(global_not_patch_module_count * sizeof(char*));
+    if (!global_not_patch_module_names) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for not_patch_module_names");
+        return -1;
+    }
+    /* Copy static stdlib names */
+    for (size_t i = 0; i < static_stdlib_count; i++) {
+        char* dup = strdup(stdlib_names[i]);
+        if (!dup)
+            return -1;
+        for (char* p = dup; *p; p++) {
+            *p = tolower(*p);
+        }
+        global_not_patch_module_names[i] = dup;
+    }
+    /* Copy built-in module names */
+    for (size_t i = 0; i < builtin_count; i++) {
+        PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
+        if (PyUnicode_Check(item)) {
+            const char* s = PyUnicode_AsUTF8(item);
+            if (s) {
+                char* dup = strdup(s);
+                if (!dup)
+                    return -1;
+                for (char* p = dup; *p; p++) {
+                    *p = tolower(*p);
+                }
+                global_not_patch_module_names[static_stdlib_count + i] = dup;
+            }
+        }
+    }
+
+    /* 2. Initialize user_allowlist from _DD_IAST_PATCH_MODULES */
+    {
+        const char* env_allow = getenv("_DD_IAST_PATCH_MODULES");
+        if (env_allow && env_allow[0] != '\0') {
+            char* env_copy = strdup(env_allow);
+            if (!env_copy)
+                return -1;
+            size_t count = 0;
+            char* token = strtok(env_copy, ",");
+            while (token) {
+                count++;
+                token = strtok(NULL, ",");
+            }
+            free(env_copy);
+
+            if (count > 0) {
+                user_allowlist = malloc(count * sizeof(char*));
+                if (!user_allowlist) {
+                    PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for user allowlist");
+                    return -1;
+                }
+                env_copy = strdup(env_allow);
+                if (!env_copy)
+                    return -1;
+                count = 0;
+                token = strtok(env_copy, ",");
+                while (token) {
+                    char* dup = strdup(token);
+                    if (!dup) {
+                        free(env_copy);
+                        return -1;
+                    }
+                    for (char* p = dup; *p; p++) {
+                        *p = tolower(*p);
+                    }
+                    user_allowlist[count++] = dup;
+                    token = strtok(NULL, ",");
+                }
+                free(env_copy);
+                user_allowlist_count = count;
+            }
+        }
+    }
+
+    /* 3. Initialize user_denylist from _DD_IAST_DENY_MODULES */
+    {
+        const char* env_deny = getenv("_DD_IAST_DENY_MODULES");
+        if (env_deny && env_deny[0] != '\0') {
+            char* env_copy = strdup(env_deny);
+            if (!env_copy)
+                return -1;
+            size_t count = 0;
+            char* token = strtok(env_copy, ",");
+            while (token) {
+                count++;
+                token = strtok(NULL, ",");
+            }
+            free(env_copy);
+
+            if (count > 0) {
+                user_denylist = malloc(count * sizeof(char*));
+                if (!user_denylist) {
+                    PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for user denylist");
+                    return -1;
+                }
+                env_copy = strdup(env_deny);
+                if (!env_copy)
+                    return -1;
+                count = 0;
+                token = strtok(env_copy, ",");
+                while (token) {
+                    char* dup = strdup(token);
+                    if (!dup) {
+                        free(env_copy);
+                        return -1;
+                    }
+                    for (char* p = dup; *p; p++) {
+                        *p = tolower(*p);
+                    }
+                    user_denylist[count++] = dup;
+                    token = strtok(NULL, ",");
+                }
+                free(env_copy);
+                user_denylist_count = count;
+            }
+        }
+    }
+    return 0;
+}
+
+/* --- Exported Function: py_should_iast_patch ---
+   Receives the module name (as a string) and determines, using char arrays,
+   whether it should be patched. The logic minimizes the creation of PyTuples
+   and uses mostly pure C comparisons.
+*/
+static PyObject*
+py_should_iast_patch(PyObject* self, PyObject* args)
+{
+    const char* module_name;
+    if (!PyArg_ParseTuple(args, "s", &module_name))
+        return NULL;
+
+    /* Extract the first component (before the dot) and convert it to lowercase */
+    char first_part[256];
+    const char* dot = strchr(module_name, '.');
+    size_t len = dot ? (size_t)(dot - module_name) : strlen(module_name);
+    if (len >= sizeof(first_part))
+        len = sizeof(first_part) - 1;
+    strncpy(first_part, module_name, len);
+    first_part[len] = '\0';
+    for (size_t i = 0; i < strlen(first_part); i++) {
+        first_part[i] = tolower(first_part[i]);
+    }
+
+    /* If the first component is in the not-patchable list, return False */
+    if (str_in_list(first_part, (const char**)global_not_patch_module_names, global_not_patch_module_count)) {
+        return PyBool_FromLong(0);
+    }
+
+    /* Allow if it's a first-party module */
+    if (is_first_party(module_name)) {
+        return PyBool_FromLong(1);
+    }
+
+    /* Create lower_module: lowercase version of module_name with a trailing '.' */
+    char lower_module[512];
+    strncpy(lower_module, module_name, sizeof(lower_module) - 1);
+    lower_module[sizeof(lower_module) - 1] = '\0';
+    for (size_t i = 0; i < strlen(lower_module); i++) {
+        lower_module[i] = tolower(lower_module[i]);
+    }
+    size_t l = strlen(lower_module);
+    if (l < sizeof(lower_module) - 1) {
+        lower_module[l] = '.';
+        lower_module[l + 1] = '\0';
+    }
+
+    /* Check in the user_allowlist */
+    if (user_allowlist_count > 0 && str_in_list(lower_module, (const char**)user_allowlist, user_allowlist_count)) {
+        return PyBool_FromLong(1);
+    }
+
+    /* Check in the user_denylist */
+    if (user_denylist_count > 0 && str_in_list(lower_module, (const char**)user_denylist, user_denylist_count)) {
+        return PyBool_FromLong(0);
+    }
+
+    /* Check in the static allow/deny lists */
+    if (str_in_list(lower_module, static_allowlist, static_allowlist_count)) {
+        if (str_in_list(lower_module, static_denylist, static_denylist_count)) {
+            return PyBool_FromLong(0);
+        }
+        return PyBool_FromLong(1);
+    }
+
+    return PyBool_FromLong(0);
+}
+
+static PyMethodDef IastPatchMethods[] = { { "should_iast_patch",
+                                            py_should_iast_patch,
+                                            METH_VARARGS,
+                                            "Determines if a module should be patched for IAST.\n\n"
+                                            "Receives the module name (str) and returns True or False." },
+                                          { NULL, NULL, 0, NULL } };
+
+static struct PyModuleDef iastpatchmodule = { PyModuleDef_HEAD_INIT,
+                                              "iastpatch", /* Module name */
+                                              "Module to decide if a module should be patched for IAST", /* Docstring */
+                                              -1,
+                                              IastPatchMethods };
+
+PyMODINIT_FUNC
+PyInit_iastpatch(void)
+{
+    if (init_globals() == -1)
+        return NULL;
+    return PyModule_Create(&iastpatchmodule);
+}

@@ -13,16 +13,18 @@ from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
 
-from .._logs import iast_ast_debug_log
 from .._logs import iast_compiling_debug_log
 from .visitor import AstVisitor
 
+
+_should_iast_patch = iastpatch.should_iast_patch
 
 _VISITOR = AstVisitor()
 
@@ -54,109 +56,6 @@ IAST_ALLOWLIST: Tuple[Text, ...] = (
 
 # NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
 IAST_DENYLIST: Tuple[Text, ...] = (
-    "_psycopg.",  # PostgreSQL adapter for Python (v3)
-    "_pytest.",
-    "aiohttp._helpers.",
-    "aiohttp._http_parser.",
-    "aiohttp._http_writer.",
-    "aiohttp._websocket.",
-    "aiohttp.log.",
-    "aiohttp.tcp_helpers.",
-    "aioquic.",
-    "altgraph.",
-    "anyio.",
-    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "asyncio.base_events.",
-    "asyncio.base_futures.",
-    "asyncio.base_subprocess.",
-    "asyncio.base_tasks.",
-    "asyncio.constants.",
-    "asyncio.coroutines.",
-    "asyncio.events.",
-    "asyncio.exceptions.",
-    "asyncio.futures.",
-    "asyncio.locks.",
-    "asyncio.log.",
-    "asyncio.protocols.",
-    "asyncio.queues.",
-    "asyncio.runners.",
-    "asyncio.selector_events.",
-    "asyncio.staggered.",
-    "asyncio.subprocess.",
-    "asyncio.tasks.",
-    "asyncio.threads.",
-    "asyncio.transports.",
-    "asyncio.trsock.",
-    "asyncio.unix_events.",
-    "asyncpg.pgproto.",
-    "attr._config.",
-    "attr._next_gen.",
-    "attr.filters.",
-    "attr.setters.",
-    "autopep8.",
-    "backports.",
-    "black.",
-    "blinker.",
-    "boto3.docs.docstring.",
-    "boto3.s3.",
-    "botocore.docs.bcdoc.",
-    "botocore.retries.",
-    "botocore.vendored.requests.",
-    "brotli.",
-    "brotlicffi.",
-    "bytecode.",
-    "cattrs.",
-    "cchardet.",
-    "certifi.",
-    "cffi.",
-    "chardet.big5freq.",
-    "chardet.big5prober.",
-    "chardet.charsetgroupprober.",
-    "chardet.cp949prober.",
-    "chardet.enums.",
-    "chardet.escsm.",
-    "chardet.eucjpprober.",
-    "chardet.euckrfreq.",
-    "chardet.euckrprober.",
-    "chardet.euctwfreq.",
-    "chardet.euctwprober.",
-    "chardet.gb2312freq.",
-    "chardet.gb2312prober.",
-    "chardet.hebrewprober.",
-    "chardet.jisfreq.",
-    "chardet.langbulgarianmodel.",
-    "chardet.langgreekmodel.",
-    "chardet.langhebrewmodel.",
-    "chardet.langrussianmodel.",
-    "chardet.langthaimodel.",
-    "chardet.langturkishmodel.",
-    "chardet.mbcsgroupprober.",
-    "chardet.mbcssm.",
-    "chardet.sbcharsetprober.",
-    "chardet.sbcsgroupprober.",
-    "charset_normalizer.",
-    "click.",
-    "cmath.",
-    "colorama.",
-    "concurrent.futures.",
-    "configparser.",
-    "contourpy.",
-    "coreschema.",
-    "crispy_forms.",
-    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
-    "cx_logging.",
-    "cycler.",
-    "cython.",
-    "dateutil.",
-    "ddsketch.",
-    "ddtrace.",
-    "defusedxml.",
-    "deprecated.",
-    "difflib.",
-    "dill.info.",
-    "dill.settings.",
-    "dipy.",
     "django.apps.config.",
     "django.apps.registry.",
     "django.conf.",
@@ -302,83 +201,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "django_filters.rest_framework.filterset.",
     "django_filters.utils.",
     "django_filters.widgets.",
-    "dnspython.",
-    "elasticdeform.",
-    "envier.",
-    "exceptiongroup.",
-    "flask.",
-    "fonttools.",
-    "freezegun.",  # Testing utilities for time manipulation
-    "google.auth.",
-    "googlecloudsdk.",
-    "gprof2dot.",
-    "h11.",
-    "h5py.",
-    "httpcore.",
-    "httptools.",
-    "httpx.",
-    "hypothesis.",  # Testing utilities
-    "imageio.",
-    "importlib_metadata.",
-    "inspect.",  # this package is used to get the stack frames, propagation is not needed
-    "itsdangerous.",
-    "kiwisolver.",
-    "matplotlib.",
-    "moto.",  # used for mocking AWS, propagation is not needed
-    "mypy.",
-    "mypy_extensions.",
-    "networkx.",
-    "nibabel.",
-    "nilearn.",
-    "numba.",
-    "numpy.",
-    "opentelemetry-api.",
-    "packaging.",
-    "pandas.",
-    "pdf2image.",
-    "pefile.",
-    "pil.",
-    "pip.",
-    "pkg_resources.",
-    "pluggy.",
-    "protobuf.",
-    "psycopg.",  # PostgreSQL adapter for Python (v3)
-    "psycopg2.",  # PostgreSQL adapter for Python (v2)
-    "pycodestyle.",
-    "pycparser.",  # this package is called when a module is imported, propagation is not needed
-    "pydicom.",
-    "pyinstaller.",
-    "pynndescent.",
-    "pystray.",
-    "pytest.",  # Testing framework
-    "pytz.",
-    "rich.",
-    "sanic.",
-    "scipy.",
-    "setuptools.",
-    "silk.",  # django-silk package
-    "skbase.",
-    "sklearn.",  # Machine learning library
-    "sniffio.",
-    "sqlalchemy.orm.interfaces.",  # Performance optimization
-    "threadpoolctl.",
-    "tifffile.",
-    "tqdm.",
-    "trx.",
-    "typing_extensions.",
-    "umap.",
-    "unittest.mock.",
-    "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
-    "uvicorn.",
-    "uvloop.",
-    "wcwidth.",
-    "websocket.",
-    "websockets.",
-    "werkzeug.",
-    "win32ctypes.",
-    "wrapt.",
-    "xlib.",
-    "zipp.",
 )
 
 USER_ALLOWLIST = tuple(os.environ.get(IAST.PATCH_MODULES, "").split(IAST.SEP_MODULES))
@@ -468,44 +290,44 @@ def _is_first_party(module_name: str):
     return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
 
 
-def _should_iast_patch(module_name: Text) -> bool:
-    """
-    select if module_name should be patched from the longest prefix that match in allow or deny list.
-    if a prefix is in both list, deny is selected.
-    """
-    # TODO: A better solution would be to migrate the original algorithm to C++:
-    # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
-    # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
-    # diff = max_allow - max_deny
-    # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    if _in_python_stdlib(module_name):
-        iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
-        return False
-
-    if _is_first_party(module_name):
-        iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
-        return True
-
-    # else: third party. Check that is in the allow list and not in the deny list
-    dotted_module_name = module_name.lower() + "."
-
-    # User allow or deny list set by env var have priority
-    if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
-        iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
-        return True
-
-    if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
-        iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
-        return False
-
-    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
-        if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
-            iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
-            return False
-        iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
-        return True
-    iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
-    return False
+# def _should_iast_patch(module_name: Text) -> bool:
+#     """
+#     select if module_name should be patched from the longest prefix that match in allow or deny list.
+#     if a prefix is in both list, deny is selected.
+#     """
+#     # TODO: A better solution would be to migrate the original algorithm to C++:
+#     # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
+#     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
+#     # diff = max_allow - max_deny
+#     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
+#     if _in_python_stdlib(module_name):
+#         iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
+#         return False
+#
+#     if _is_first_party(module_name):
+#         iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
+#         return True
+#
+#     # else: third party. Check that is in the allow list and not in the deny list
+#     dotted_module_name = module_name.lower() + "."
+#
+#     # User allow or deny list set by env var have priority
+#     if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
+#         iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
+#         return True
+#
+#     if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
+#         iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
+#         return False
+#
+#     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
+#         if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
+#             iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
+#             return False
+#         iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
+#         return True
+#     iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
+#     return False
 
 
 def visit_ast(
