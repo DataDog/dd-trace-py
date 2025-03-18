@@ -164,7 +164,7 @@ def _do_request(
 class CIVisibilityTracer(Tracer):
     def __init__(self, *args, **kwargs) -> None:
         # Allows for multiple instances of the civis tracer to be created without logging a warning
-        super(CIVisibilityTracer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class CIVisibility(Service):
@@ -174,7 +174,7 @@ class CIVisibility(Service):
     def __init__(
         self, tracer: Optional[Tracer] = None, config: Optional[IntegrationConfig] = None, service: Optional[str] = None
     ) -> None:
-        super(CIVisibility, self).__init__()
+        super().__init__()
 
         if tracer:
             self.tracer = tracer
