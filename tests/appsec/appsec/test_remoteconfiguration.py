@@ -35,7 +35,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-def _set_and_get_appsec_tags(tracer):
+def _set_and_get_appsec_tags(tracer, check_client_id=False):
     with asm_context(tracer) as span:
         set_http_meta(
             span,
@@ -44,6 +44,8 @@ def _set_and_get_appsec_tags(tracer):
             status_code="404",
             request_cookies={"cookie1": "im the cookie1"},
         )
+    if check_client_id:
+        assert span._local_root._meta.get(APPSEC.RC_CLIENT_ID)
     return get_triggers(span)
 
 
@@ -166,6 +168,14 @@ def test_rc_activation_validate_products(tracer, remote_config_worker):
         enable_appsec_rc()
 
         assert remoteconfig_poller._client._products["ASM_FEATURES"]
+    disable_appsec_rc()
+
+
+def test_rc_activation_validate_client_id(tracer, remote_config_worker):
+    with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
+        tracer._configure(appsec_enabled=True, api_version="v0.4")
+        enable_appsec_rc()
+        _set_and_get_appsec_tags(tracer, True)
     disable_appsec_rc()
 
 

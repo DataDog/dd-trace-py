@@ -19,8 +19,6 @@ from typing import Set
 from typing import Tuple
 import uuid
 
-from envier import En
-
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
@@ -31,6 +29,7 @@ from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
+from ddtrace.settings._core import DDConfig
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
@@ -53,13 +52,13 @@ def derive_skip_shutdown(c: "RemoteConfigClientConfig") -> bool:
     )
 
 
-class RemoteConfigClientConfig(En):
+class RemoteConfigClientConfig(DDConfig):
     __prefix__ = "_dd.remote_configuration"
 
-    log_payloads = En.v(bool, "log_payloads", default=False)
+    log_payloads = DDConfig.v(bool, "log_payloads", default=False)
 
-    _skip_shutdown = En.v(Optional[bool], "skip_shutdown", default=None)
-    skip_shutdown = En.d(bool, derive_skip_shutdown)
+    _skip_shutdown = DDConfig.v(Optional[bool], "skip_shutdown", default=None)
+    skip_shutdown = DDConfig.d(bool, derive_skip_shutdown)
 
 
 config = RemoteConfigClientConfig()
@@ -320,7 +319,7 @@ class RemoteConfigClient:
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
 
-            conn = agent.get_connection(self.agent_url, timeout=ddtrace.config._agent_timeout_seconds)
+            conn = agent.get_connection(self.agent_url, timeout=agent.config.trace_agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data_length = resp.headers.get("Content-Length")
