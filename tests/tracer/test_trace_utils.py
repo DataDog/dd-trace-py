@@ -252,6 +252,38 @@ class TestHeaders(object):
         )
         assert span.get_tag("http.response.headers.content-type") == "some;value"
 
+    def test_referer_host_extraction(self, span, integration_config):
+        """Test that referer host is correctly extracted from referer header"""
+        headers = {
+            "referer": "https://example.com/path?query=1",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
+        assert span.get_tag("http.referrer_host") == "example.com"
+
+    def test_referer_host_case_insensitive(self, span, integration_config):
+        """Test that referer host extraction works with case-insensitive header names"""
+        headers = {
+            "Referer": "https://example.com/path?query=1",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers, headers_are_case_sensitive=True)
+        assert span.get_tag("http.referrer_host") == "example.com"
+
+    def test_referer_host_missing(self, span, integration_config):
+        """Test that no referer host tag is set when referer header is missing"""
+        headers = {
+            "other-header": "value",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
+        assert span.get_tag("http.referrer_host") is None
+
+    def test_referer_host_invalid_url(self, span, integration_config):
+        """Test that no referer host tag is set when referer URL is invalid"""
+        headers = {
+            "referer": "not-a-valid-url",
+        }
+        trace_utils.set_http_meta(span, integration_config, request_headers=headers)
+        assert span.get_tag("http.referrer_host") is None
+
 
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
