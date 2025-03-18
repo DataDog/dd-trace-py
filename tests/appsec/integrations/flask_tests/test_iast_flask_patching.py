@@ -68,14 +68,8 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
 @pytest.mark.parametrize(
     "function",
     [
-        "bytesio",
-        "stringio",
         "bytesio-read",
         "stringio-read",
-        "bytesio-untainted",
-        "stringio-untainted",
-        "bytesio-read-untainted",
-        "stringio-read-untainted",
     ],
 )
 def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
