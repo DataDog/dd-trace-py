@@ -270,20 +270,20 @@ class SpanAggregator(SpanProcessor):
         self._partial_flush_enabled = partial_flush_enabled
         self._partial_flush_min_spans = partial_flush_min_spans
 
-        self._sampling_processor = TraceSamplingProcessor(
+        self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
         )
         self._tags_processor = TraceTagsProcessor()
         self._trace_processors = trace_processors
 
         if writer is not None:
-            self._writer: TraceWriter = writer
+            self.writer: TraceWriter = writer
         elif SpanAggregator._use_log_writer() and not tracer_url:
-            self._writer = LogWriter()
+            self.writer = LogWriter()
         else:
             agent_url = agent.get_trace_url() if tracer_url is None else tracer_url
             dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-            self._writer = AgentWriter(
+            self.writer = AgentWriter(
                 agent_url=agent_url,
                 dogstatsd=get_dogstatsd_client(dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
@@ -310,7 +310,7 @@ class SpanAggregator(SpanProcessor):
             f"{self._partial_flush_enabled}, "
             f"{self._partial_flush_min_spans}, "
             f"{self._trace_processors}, "
-            f"{self._writer})"
+            f"{self.writer})"
         )
 
     def on_span_start(self, span: Span) -> None:
@@ -371,7 +371,7 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in chain(self._trace_processors, [self._sampling_processor, self._tags_processor]):
+                for tp in chain(self._trace_processors, [self.sampling_processor, self._tags_processor]):
                     try:
                         if spans is None:
                             return
@@ -380,7 +380,7 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                self._writer.write(spans)
+                self.writer.write(spans)
                 return
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
@@ -392,7 +392,7 @@ class SpanAggregator(SpanProcessor):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            self._sampling_processor.sampler.update_rate_by_service_sample_rates(
+            self.sampling_processor.sampler.update_rate_by_service_sample_rates(
                 resp.rate_by_service,
             )
         except ValueError as e:
@@ -467,7 +467,7 @@ class SpanAggregator(SpanProcessor):
 
         try:
             self._traces.clear()
-            self._writer.stop(timeout)
+            self.writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass

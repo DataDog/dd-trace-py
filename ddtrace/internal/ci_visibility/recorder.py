@@ -422,7 +422,7 @@ class CIVisibility(Service):
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer._writer = writer
+            self.tracer._span_aggregagtor.writer = writer
             self.tracer._recreate()
 
     def _agent_evp_proxy_is_available(self):
@@ -943,7 +943,7 @@ class CIVisibility(Service):
         return instance._is_auto_injected
 
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
-        writer = self.tracer._writer
+        writer = self.tracer._span_aggregagtor.writer
         if isinstance(writer, CIVisibilityWriter):
             for client in writer._clients:
                 if isinstance(client, CIVisibilityEventClient):

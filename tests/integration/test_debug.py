@@ -283,7 +283,7 @@ def test_custom_writer():
         def flush_queue(self) -> None:
             pass
 
-    tracer._writer = CustomWriter()
+    tracer._span_aggregagtor.writer = CustomWriter()
     info = debug.collect(tracer)
 
     assert info.get("agent_url") == "CUSTOM"

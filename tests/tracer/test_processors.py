@@ -71,8 +71,8 @@ def test_aggregator_single_span():
             mock_proc1,
             mock_proc2,
         ],
+        writer=writer,
     )
-    aggr._writer = writer
 
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
@@ -104,8 +104,8 @@ def test_aggregator_bad_processor():
             mock_bad,
             mock_good_after,
         ],
+        writer=writer,
     )
-    aggr._writer = writer
 
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
@@ -119,8 +119,7 @@ def test_aggregator_bad_processor():
 
 def test_aggregator_multi_span():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[])
-    aggr._writer = writer
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -153,8 +152,7 @@ def test_aggregator_multi_span():
 
 def test_aggregator_partial_flush_0_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0, trace_processors=[])
-    aggr._writer = writer
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -189,8 +187,7 @@ def test_aggregator_partial_flush_0_spans():
 
 def test_aggregator_partial_flush_2_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2, trace_processors=[])
-    aggr._writer = writer
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2, trace_processors=[], writer=writer)
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -334,8 +331,7 @@ def test_trace_128bit_processor(trace_id):
 def test_span_creation_metrics():
     """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[])
-    aggr._writer = writer
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     with override_global_config(dict(_telemetry_enabled=True)):
         with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
@@ -386,7 +382,7 @@ def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
     tracer = DummyTracer()
     # get processor
-    sampling_processor = tracer._span_aggregagtor._sampling_processor
+    sampling_processor = tracer._span_aggregagtor.sampling_processor
     assert sampling_processor.sampler is tracer._sampler
 
     new_sampler = mock.Mock()
@@ -583,7 +579,7 @@ def assert_span_sampling_decision_tags(
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
-    tracer._span_aggregagtor._sampling_processor = sampling_processor
+    tracer._span_aggregagtor.sampling_processor = sampling_processor
 
 
 def test_endpoint_call_counter_processor():
