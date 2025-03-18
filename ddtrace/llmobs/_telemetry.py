@@ -7,6 +7,7 @@ from typing import Optional
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DECORATOR
+from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -113,8 +114,9 @@ def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int):
     )
 
 
-def record_span_event_size(event: LLMObsSpanEvent, event_size: int, truncated: bool):
+def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     tags = _get_tags_from_span_event(event)
+    truncated = DROPPED_IO_COLLECTION_ERROR in event.get("collection_errors", [])
     tags.append(("truncated", str(int(truncated))))
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_SIZE, value=event_size, tags=tuple(tags)
