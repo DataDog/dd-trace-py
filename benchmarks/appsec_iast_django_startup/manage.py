@@ -7,7 +7,7 @@ from django import *  # noqa: F401, F403
 from scipy import *  # noqa: F401, F403
 
 
-# TODO: we want to check django first
+# TODO: we want to check django and scipy first but at some point those packages are interesting to test too
 # from kombu import *  # noqa: F401, F403
 # from matplotlib import *  # noqa: F401, F403
 # from nibabel import *  # noqa: F401, F403
