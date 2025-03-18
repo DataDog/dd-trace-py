@@ -1,6 +1,7 @@
 from http.client import RemoteDisconnected
 import os
 import socket
+from typing import Dict
 from typing import Optional
 
 import ddtrace
@@ -13,7 +14,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
+from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import agent
 from .. import service
@@ -56,7 +57,7 @@ class CIVisibilityEventClient(WriterClientBase):
         )
         super().__init__(encoder)
 
-    def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
+    def set_metadata(self, event_type: str, metadata: Dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
             self.encoder.set_metadata(event_type, metadata)
 
@@ -67,7 +68,7 @@ class CIVisibilityEventClient(WriterClientBase):
 
 class CIVisibilityCoverageClient(WriterClientBase):
     def __init__(
-        self, intake_url: str, headers: Optional[dict[str, str]] = None, itr_suite_skipping_mode: bool = False
+        self, intake_url: str, headers: Optional[Dict[str, str]] = None, itr_suite_skipping_mode: bool = False
     ) -> None:
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
         if itr_suite_skipping_mode:
@@ -107,7 +108,7 @@ class CIVisibilityWriter(HTTPWriter):
         dogstatsd: Optional[DogStatsd] = None,
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
         use_evp: bool = False,
         coverage_enabled: bool = False,
         itr_suite_skipping_mode: bool = False,
@@ -174,7 +175,7 @@ class CIVisibilityWriter(HTTPWriter):
             sync_mode=self._sync_mode,
         )
 
-    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+    def _put(self, data: bytes, headers: Dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
         request_error: Optional[REQUEST_ERROR_TYPE] = None
 
         with StopWatch() as sw:
