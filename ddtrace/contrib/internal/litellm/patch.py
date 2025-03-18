@@ -10,6 +10,8 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.contrib.internal.litellm.utils import get_model
 from ddtrace.contrib.internal.litellm.utils import get_provider
 from ddtrace.contrib.internal.litellm.utils import tag_request
+from ddtrace.contrib.internal.litellm.utils import tag_response
+from ddtrace.contrib.internal.litellm.utils import TracedAsyncLiteLLMStreamResponse
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.trace import Pin
 
@@ -43,6 +45,9 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     try:
         tag_request(span, integration, kwargs)
         generations = await func(*args, **kwargs)
+        if stream:
+            return TracedAsyncLiteLLMStreamResponse(generations, integration, span, args, kwargs)
+        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
