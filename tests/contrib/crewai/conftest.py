@@ -108,19 +108,19 @@ conditional_task = ConditionalTask(
 
 
 @pytest.fixture
-def basic_crew():
+def basic_crew(crewai):
     yield Crew(
         agents=[researcher_agent, reporter_agent], tasks=[research_task, reporting_task], process=Process.sequential
     )
 
 
 @pytest.fixture
-def tool_crew():
+def tool_crew(crewai):
     yield Crew(agents=[analytics_agent], tasks=[data_analysis_task_1], process=Process.sequential)
 
 
 @pytest.fixture
-def async_exec_crew():
+def async_exec_crew(crewai):
     yield Crew(
         agents=[analytics_agent, recommender_agent],
         tasks=[data_analysis_task_1, recommend_task],
@@ -129,7 +129,7 @@ def async_exec_crew():
 
 
 @pytest.fixture
-def conditional_crew():
+def conditional_crew(crewai):
     yield Crew(
         agents=[analytics_agent, recommender_agent],
         tasks=[data_analysis_task_1, conditional_task, recommend_task],
@@ -138,7 +138,7 @@ def conditional_crew():
 
 
 @pytest.fixture
-def hierarchical_crew():
+def hierarchical_crew(crewai):
     data_analysis_task = Task(
         name="Calculate participants' average ages",
         description="Analyze the given dataset and calculate the average age of participants. Ages: {ages}",
@@ -162,6 +162,7 @@ def hierarchical_crew():
 @pytest.fixture
 def crewai(monkeypatch):
     monkeypatch.setenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     patch()
     import crewai
 
