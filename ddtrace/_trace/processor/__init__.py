@@ -2,13 +2,11 @@ import abc
 from collections import defaultdict
 from itertools import chain
 from os import environ
-from threading import Lock
 from threading import RLock
 from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
@@ -267,15 +265,16 @@ class SpanAggregator(SpanProcessor):
         tracer_url: Optional[str] = None,
         dogstatsd_url: Optional[str] = None,
     ):
-        self._partial_flush_enabled = partial_flush_enabled
-        self._partial_flush_min_spans = partial_flush_min_spans
-
+        # Set partial flushing
+        self.partial_flush_enabled = partial_flush_enabled
+        self.partial_flush_min_spans = partial_flush_min_spans
+        # Initialize trace processors
         self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
         )
-        self._tags_processor = TraceTagsProcessor()
-        self._trace_processors = trace_processors
-
+        self.tags_processor = TraceTagsProcessor()
+        self.trace_processors = trace_processors
+        # Initialize writer
         if writer is not None:
             self.writer: TraceWriter = writer
         elif SpanAggregator._use_log_writer() and not tracer_url:
@@ -293,10 +292,10 @@ class SpanAggregator(SpanProcessor):
                 report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
+        # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
-        self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
-
-        # Tracks the number of spans created and tags each count with the api that was used
+        self._lock: RLock = RLock()
+        # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
         self._span_metrics: Dict[str, DefaultDict] = {
             "spans_created": defaultdict(int),
@@ -307,9 +306,11 @@ class SpanAggregator(SpanProcessor):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"{self._partial_flush_enabled}, "
-            f"{self._partial_flush_min_spans}, "
-            f"{self._trace_processors}, "
+            f"{self.partial_flush_enabled}, "
+            f"{self.partial_flush_min_spans}, "
+            f"{self.sampling_processor},"
+            f"{self.tags_processor},"
+            f"{self.trace_processors}, "
             f"{self.writer})"
         )
 
@@ -335,7 +336,7 @@ class SpanAggregator(SpanProcessor):
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
-            should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
+            should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
             if trace.num_finished == len(trace.spans) or should_partial_flush:
                 trace_spans = trace.spans
                 trace.spans = []
@@ -371,7 +372,7 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in chain(self._trace_processors, [self.sampling_processor, self._tags_processor]):
+                for tp in chain(self.trace_processors, [self.sampling_processor, self.tags_processor]):
                     try:
                         if spans is None:
                             return

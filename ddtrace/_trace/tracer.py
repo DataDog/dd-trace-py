@@ -462,8 +462,8 @@ class Tracer(object):
             self._span_aggregagtor.writer,
             self._tracer_url,
             self._statsd_url,
-            self._span_aggregagtor._partial_flush_enabled,
-            self._span_aggregagtor._partial_flush_min_spans,
+            self._span_aggregagtor.partial_flush_enabled,
+            self._span_aggregagtor.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
 

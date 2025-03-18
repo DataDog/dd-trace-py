@@ -396,5 +396,5 @@ def test_partial_flush_log():
 def test_partial_flush_log_subprocess():
     from ddtrace.trace import tracer
 
-    assert tracer._span_aggregagtor._partial_flush_enabled is True
-    assert tracer._span_aggregagtor._partial_flush_min_spans == 2
+    assert tracer._span_aggregagtor.partial_flush_enabled is True
+    assert tracer._span_aggregagtor.partial_flush_min_spans == 2
