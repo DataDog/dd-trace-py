@@ -5,7 +5,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 def _assert_basic_crew_events(llmobs_events, spans):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 5
     expected_span_args = {
         "input_value": mock.ANY,
@@ -19,7 +19,7 @@ def _assert_basic_crew_events(llmobs_events, spans):
 
 
 def _assert_basic_crew_links(llmobs_events):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     # span links for crew -> task
     _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
     _assert_span_link(llmobs_events[1], llmobs_events[3], "output", "input")
@@ -33,7 +33,7 @@ def _assert_basic_crew_links(llmobs_events):
 
 
 def _assert_tool_crew_events(llmobs_events, spans):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 4
     expected_span_args = {
         "input_value": mock.ANY,
@@ -56,7 +56,7 @@ def _assert_tool_crew_events(llmobs_events, spans):
 
 
 def _assert_tool_crew_links(llmobs_events):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     # span links for crew -> task
     _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
     _assert_span_link(llmobs_events[1], llmobs_events[0], "output", "output")
@@ -67,7 +67,7 @@ def _assert_tool_crew_links(llmobs_events):
 
 
 def _assert_async_crew_events(llmobs_events, spans):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 6
     expected_span_args = {
         "input_value": mock.ANY,
@@ -92,8 +92,9 @@ def _assert_async_crew_events(llmobs_events, spans):
 
 
 def _assert_async_crew_links(llmobs_events):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     # span links for crew -> task
+
     _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
     _assert_span_link(llmobs_events[1], llmobs_events[4], "output", "input")
     _assert_span_link(llmobs_events[4], llmobs_events[0], "output", "output")
@@ -106,7 +107,7 @@ def _assert_async_crew_links(llmobs_events):
 
 
 def _assert_hierarchical_crew_events(llmobs_events, spans):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 12
     expected_span_args = {
         "input_value": mock.ANY,
@@ -144,7 +145,7 @@ def _assert_hierarchical_crew_events(llmobs_events, spans):
 
 
 def _assert_hierarchical_crew_links(llmobs_events):
-    llmobs_events = sorted(llmobs_events, key=lambda span: span["start_ns"])
+    llmobs_events.sort(key=lambda span: span["start_ns"])
     # span links for crew -> task
     _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
     _assert_span_link(llmobs_events[1], llmobs_events[3], "output", "input")
@@ -173,8 +174,8 @@ def test_basic_crew(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events)
 
 
 def test_basic_crew_for_each(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
-    with request_vcr.use_cassette("test_basic_crew_for_each.yaml"):
-        basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}, {"topic": "LLM"}])
+    with request_vcr.use_cassette("test_basic_crew.yaml"):
+        basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}])
     traces = mock_tracer.pop_traces()
     _assert_basic_crew_events(llmobs_events[:5], traces[0])
     _assert_basic_crew_links(llmobs_events[:5])

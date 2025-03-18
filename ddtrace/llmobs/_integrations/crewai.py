@@ -110,7 +110,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             "output_file": getattr(task_instance, "output_file", ""),
         }
         if self.span_linking_enabled and task_id:
-            span_links = self._traces_to_tasks[span.trace_id].get(task_id, {}).get("span_links", [])
+            span_links = self._traces_to_tasks[span.trace_id].get(str(task_id), {}).get("span_links", [])
             if self._is_planning_task(span):
                 parent_span = _get_nearest_llmobs_ancestor(span)
                 span_link = {
@@ -195,13 +195,13 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         queued_task_id = getattr(queued_task, "id", "")
         is_planning_crew_instance = span.trace_id in self._planning_crew_traces
-        queued_task_node = self._traces_to_tasks[span.trace_id].setdefault(queued_task_id, {})
+        queued_task_node = self._traces_to_tasks[span.trace_id].setdefault(str(queued_task_id), {})
         span_links = []
 
         if queued_task.context:
             for finished_task in queued_task.context:
                 finished_task_id = getattr(finished_task, "id", "")
-                finished_task_node = self._traces_to_tasks[span.trace_id].get(finished_task_id, {})
+                finished_task_node = self._traces_to_tasks[span.trace_id].get(str(finished_task_id), {})
                 finished_task_span_id = finished_task_node.get("span_id")
                 span_links.append(
                     {
