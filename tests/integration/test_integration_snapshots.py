@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import multiprocessing
 import os
 
 import mock
@@ -143,7 +142,7 @@ def test_tracer_trace_across_popen():
 
 
 @snapshot(async_mode=False)
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
@@ -151,6 +150,9 @@ def test_tracer_trace_across_multiple_popens():
         the child span has does not have '_dd.p.dm' shows that sampling was run
         before fork automatically.
     """
+    import multiprocessing
+
+    from ddtrace.trace import tracer
 
     def task(tracer):
         import ddtrace.auto  # noqa
