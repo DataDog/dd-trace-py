@@ -1,9 +1,7 @@
 from http.client import RemoteDisconnected
 import os
 import socket
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 import ddtrace
 from ddtrace import config
@@ -12,6 +10,8 @@ from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
@@ -38,14 +38,11 @@ from .telemetry.payload import record_endpoint_payload_request_error
 from .telemetry.payload import record_endpoint_payload_request_time
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import List  # noqa:F401
-
-    from ddtrace.internal.utils.http import Response  # noqa:F401
+log = get_logger(__name__)
 
 
 class CIVisibilityEventClient(WriterClientBase):
-    def __init__(self):
+    def __init__(self) -> None:
         encoder = CIVisibilityEncoderV01(0, 0)
         encoder.set_metadata(
             "*",
@@ -57,9 +54,9 @@ class CIVisibilityEventClient(WriterClientBase):
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",
             },
         )
-        super(CIVisibilityEventClient, self).__init__(encoder)
+        super().__init__(encoder)
 
-    def set_metadata(self, event_type: str, metadata: Dict[str, str]) -> None:
+    def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
             self.encoder.set_metadata(event_type, metadata)
 
@@ -69,7 +66,9 @@ class CIVisibilityEventClient(WriterClientBase):
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
-    def __init__(self, intake_url, headers=None, itr_suite_skipping_mode=False):
+    def __init__(
+        self, intake_url: str, headers: Optional[dict[str, str]] = None, itr_suite_skipping_mode: bool = False
+    ) -> None:
         encoder = CIVisibilityCoverageEncoderV02(0, 0)
         if itr_suite_skipping_mode:
             encoder._set_itr_suite_skipping_mode(itr_suite_skipping_mode)
@@ -102,18 +101,16 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url="",  # type: str
-        processing_interval=None,  # type: Optional[float]
-        timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=False,  # type: bool
-        report_metrics=False,  # type: bool
-        api_version=None,  # type: Optional[str]
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        use_evp=False,  # type: bool
-        coverage_enabled=False,  # type: bool
-        itr_suite_skipping_mode=False,  # type: bool
+        intake_url: str = "",
+        processing_interval: Optional[float] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional[DogStatsd] = None,
+        sync_mode: bool = False,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[dict[str, str]] = None,
+        use_evp: bool = False,
+        coverage_enabled: bool = False,
+        itr_suite_skipping_mode: bool = False,
     ):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -129,9 +126,15 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
-        clients = (
+        # Validate API key if headers are provided
+        if headers and "dd-api-key" in headers and not headers["dd-api-key"]:
+            log.warning("Empty API key provided to CIVisibilityWriter. This may cause authentication issues.")
+            # Remove empty API key to prevent sending empty credentials
+            headers = {k: v for k, v in headers.items() if k != "dd-api-key"}
+
+        clients: list[WriterClientBase] = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
-        )  # type: List[WriterClientBase]
+        )
         if coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
@@ -147,7 +150,7 @@ class CIVisibilityWriter(HTTPWriter):
                 )
             )
 
-        super(CIVisibilityWriter, self).__init__(
+        super().__init__(
             intake_url=intake_url,
             clients=clients,
             processing_interval=processing_interval,
@@ -158,12 +161,11 @@ class CIVisibilityWriter(HTTPWriter):
             headers=headers,
         )
 
-    def stop(self, timeout=None):
+    def stop(self, timeout: Optional[float] = None) -> None:
         if self.status != service.ServiceStatus.STOPPED:
-            super(CIVisibilityWriter, self).stop(timeout=timeout)
+            super().stop(timeout=timeout)
 
-    def recreate(self):
-        # type: () -> HTTPWriter
+    def recreate(self) -> "CIVisibilityWriter":
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
@@ -172,9 +174,8 @@ class CIVisibilityWriter(HTTPWriter):
             sync_mode=self._sync_mode,
         )
 
-    def _put(self, data, headers, client, no_trace):
-        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
-        request_error = None  # type: Optional[REQUEST_ERROR_TYPE]
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+        request_error: Optional[REQUEST_ERROR_TYPE] = None
 
         with StopWatch() as sw:
             try:
