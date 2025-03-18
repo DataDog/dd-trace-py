@@ -9,6 +9,7 @@ from typing import Tuple  # noqa:F401
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
+from .agent import AgentConfig  # noqa:F401
 from .compat import ensure_text
 from .logger import get_logger
 
@@ -86,6 +87,9 @@ class _EncoderBase(object):
 
         if span._links:
             d["span_links"] = [link.to_dict() for link in span._links]
+
+        if span._events and AgentConfig.trace_native_span_events_enabled:
+            d["span_events"] = [dict(event) for event in span._events]
 
         return d
 

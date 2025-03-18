@@ -154,9 +154,9 @@ class AgentConfig(DDConfig):
         help="Stores the port of the agent",
     )
 
-    native_span_events_enabled = DDConfig.v(
+    trace_native_span_events_enabled = DDConfig.v(
         bool,
-        "native_span_events_enabled",
+        "trace_native_span_events_enabled",
         default=False,
         help_type="Boolean",
         help="Stores whether native span events are enabled",

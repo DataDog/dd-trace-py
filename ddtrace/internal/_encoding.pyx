@@ -117,7 +117,6 @@ cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
     if n is None:
         return msgpack_pack_nil(pk)
 
-    # check that it is a list
     ret = msgpack_pack_array(pk, len(n))
     if ret != 0:
         return ret
@@ -135,6 +134,8 @@ cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
             ret = pack_bool(pk, v)
             if ret != 0:
                 return ret
+        else:
+            raise ValueError("Unsupported type {type(v)}")
     return ret
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
@@ -586,7 +587,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef bint top_level_span_event_encoding
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
-        self.top_level_span_event_encoding = AgentConfig.native_span_events_enabled
+        self.top_level_span_event_encoding = AgentConfig.trace_native_span_events_enabled
 
     cpdef flush(self):
         with self._lock:
@@ -652,6 +653,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         return 0
 
     cdef inline int _pack_span_events(self, list span_events):
+        print(span_events)
         ret = msgpack_pack_array(&self.pk, len(span_events))
         if ret != 0:
             return ret
@@ -665,6 +667,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
             for k, v in d.items():
                 # pack the name of a span event
+                print(k)
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
                     return ret
@@ -674,33 +677,44 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, v)
                 elif k == "attributes":
                     # span events can contain attributes, this is analougous to span tags
+                    print("Packing attributes")
                     attributes = v.items()
                     ret = msgpack_pack_map(&self.pk, len(attributes))
                     for attr_k, attr_v in attributes:
+                        print("key:", attr_k)
+                        print("value:", attr_v)
                         ret = pack_text(&self.pk, attr_k)
                         if isinstance(attr_v, str):
+                            print("Packing text")
                             ret = pack_text(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
-                        elif isinstance(attr_v, (int, float)):
-                            ret = pack_number(&self.pk, attr_v)
-                            if ret != 0:
-                                return ret
                         elif isinstance(attr_v, bool):
+                            print("Packing bool")
                             ret = pack_bool(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
-                        # pack a list. TODO: might have to adjust the length passed into msgpack_pack_map
-                        else:
+                        elif isinstance(attr_v, (int, float)):
+                            print("Packing number")
+                            ret = pack_number(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
+                        # pack a list.
+                        elif isinstance(attr_v, (list, tuple)):
+                            print("Packing list")
                             ret = pack_list(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
+                        else:
+                            ret = msgpack_pack_nil(&self.pk)
+                            if ret != 0:
+                                return ret
+
                 else:
                     raise ValueError(f"Failed to encode SpanEvent {k}={v} contains an unsupported type {type(v)}")
                 if ret != 0:
                     return ret
         return 0
-
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
         cdef Py_ssize_t L
@@ -863,18 +877,22 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     return ret
 
             if has_span_events and self.top_level_span_event_encoding:
+                ret = pack_bytes(&self.pk, <char *> b"span_events", 11)
+                if ret != 0:
+                    return ret
                 ret = self._pack_span_events(span._events)
-            if ret != 0:
-                return ret
+                if ret != 0:
+                    return ret
 
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
-                span_events = ""
 
+                span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
-                    span_events = json_dumps([vars(event)() for event in span._events])
+                    print("Packing normal span events")
+                    span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
                     return ret
