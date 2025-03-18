@@ -277,6 +277,64 @@ flask = ["~=2.3"]
 python = ["3.8", "3.11", "3.13"]
 flask = ["~=3.0"]
 
+## ASM IAST module
+
+[envs.appsec_iast_default]
+template = "appsec_iast_default"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "astunparse",
+    "simplejson",
+    "SQLAlchemy",
+    "psycopg2-binary~=2.9.9",
+    "pymysql",
+    "mysqlclient==2.1.1",
+    "grpcio",
+    "mysqlclient==2.1.1",
+]
+
+[envs.appsec_iast_default.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest {args:tests/appsec/iast/}",
+]
+
+[[envs.appsec_iast_default.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+## ASM IAST memcheck
+
+[envs.appsec_iast_memcheck]
+template = "appsec_iast_memcheck"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "psycopg2-binary~=2.9.9",
+    "pytest-memray"
+]
+
+[envs.appsec_iast_memcheck.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
+]
+
+[[envs.appsec_iast_memcheck.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
