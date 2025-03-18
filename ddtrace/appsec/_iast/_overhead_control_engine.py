@@ -100,7 +100,7 @@ class OverheadControl(object):
 
         if span and not self._sampler.sample(span):
             if _is_iast_debug_enabled():
-                log.debug("[IAST] Skip request by sampling rate")
+                log.debug("iast::propagation::context::Skip request by sampling rate")
             return False
 
         with self._lock:
