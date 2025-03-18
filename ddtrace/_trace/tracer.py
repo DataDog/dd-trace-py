@@ -251,7 +251,6 @@ class Tracer(object):
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
-
     @property
     def _agent_url(self):
         return getattr(self._span_aggregagtor.writer, "intake_url", None)
