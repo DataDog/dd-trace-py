@@ -587,7 +587,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef bint top_level_span_event_encoding
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
-        self.top_level_span_event_encoding = AgentConfig.trace_native_span_events_enabled
+        self.top_level_span_event_encoding = AgentConfig.trace_native_span_events
 
     cpdef flush(self):
         with self._lock:
