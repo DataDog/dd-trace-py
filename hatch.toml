@@ -614,10 +614,10 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-## ASM Appsec Aggregated Leak Testing
+## ASM IAST Aggregated Leak Testing
 
-[envs.appsec_aggregated_leak_testing]
-template = "appsec_aggregated_leak_testing"
+[envs.iast_aggregated_leak_testing]
+template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -633,14 +633,14 @@ dependencies = [
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
 
-[envs.appsec_aggregated_leak_testing.scripts]
+[envs.iast_aggregated_leak_testing.scripts]
 test = [
     "uname -a",
     "pip freeze",
     "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
-[[envs.appsec_aggregated_leak_testing.matrix]]
+[[envs.iast_aggregated_leak_testing.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]
 
 ## pytorch profiling test
