@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Optional
 from typing import Set
 from typing import Union
@@ -133,7 +134,7 @@ def _get_git_repo() -> Optional[str]:
     return None
 
 
-def _get_custom_configurations() -> dict[str, str]:
+def _get_custom_configurations() -> Dict[str, str]:
     custom_configurations = {}
     for tag, value in ddconfig.tags.items():
         if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
@@ -143,7 +144,7 @@ def _get_custom_configurations() -> dict[str, str]:
 
 
 def _do_request(
-    method: str, url: str, payload: str, headers: dict[str, str], timeout: int = DEFAULT_TIMEOUT
+    method: str, url: str, payload: str, headers: Dict[str, str], timeout: int = DEFAULT_TIMEOUT
 ) -> Response:
     try:
         parsed_url = verify_url(url)
@@ -166,7 +167,7 @@ class CIVisibilityTracer(Tracer):
 
 
 class CIVisibility(Service):
-    _instance = None  # type: Optional[CIVisibility]
+    _instance: Optional["CIVisibility"] = None
     enabled = False
 
     def __init__(
@@ -217,13 +218,13 @@ class CIVisibility(Service):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags = ci.tags(cwd=_get_git_repo())  # type: dict[str, str]
+        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
         self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
-        self._itr_meta = {}  # type: dict[str, Any]
+        self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
         self._test_properties: dict[InternalTestId, TestProperties] = {}
