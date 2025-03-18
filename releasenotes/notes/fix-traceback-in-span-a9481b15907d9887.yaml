@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where trimming a traceback to attach it to the span could result in the loss of the most recent frames.
