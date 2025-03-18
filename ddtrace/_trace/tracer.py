@@ -3,7 +3,6 @@ from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
-from os import environ
 from os import getpid
 from threading import RLock
 from typing import Any
@@ -47,17 +46,12 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.serverless import has_aws_lambda_agent_extension
-from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import TraceWriter
+from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -96,8 +90,8 @@ def _start_appsec_processor() -> Optional[Any]:
 def _default_span_processors_factory(
     trace_filters: List[TraceProcessor],
     compute_stats_enabled: bool,
-    agent_url: str,
-    writer: TraceWriter,
+    tracer_url: Optional[str],
+    dogstatsd_url: Optional[str],
     partial_flush_enabled: bool,
     partial_flush_min_spans: int,
     profiling_span_processor: EndpointCallCounterProcessor,
@@ -144,7 +138,7 @@ def _default_span_processors_factory(
 
         span_processors.append(
             SpanStatsProcessorV06(
-                agent_url,
+                agent.get_trace_url() if tracer_url is None else tracer_url,
             ),
         )
 
@@ -155,7 +149,8 @@ def _default_span_processors_factory(
         partial_flush_enabled=partial_flush_enabled,
         partial_flush_min_spans=partial_flush_min_spans,
         trace_processors=trace_processors,
-        writer=writer,
+        tracer_url=tracer_url,
+        dogstatsd_url=dogstatsd_url,
     )
     return span_processors, appsec_processor, span_aggregagtor
 
@@ -210,46 +205,34 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._statsd_url = dogstatsd_url
+        self._tracer_url = url
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
-        verify_url(self._agent_url)
 
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
 
-        if self._use_log_writer() and not url:
-            writer: TraceWriter = LogWriter()
-        else:
-            writer = AgentWriter(
-                agent_url=self._agent_url,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (config._trace_compute_stats or asm_config._apm_opt_out)
-                else {},
-                report_metrics=not asm_config._apm_opt_out,
-            )
-
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
-            self._agent_url,
-            writer,
+            self._tracer_url,
+            self._statsd_url,
             config._partial_flush_enabled,
             config._partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
+        agent_url = agent.get_trace_url() if url is None else url
+        verify_url(agent_url)
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
-            self.data_streams_processor = DataStreamsProcessor(self._agent_url)
+            self.data_streams_processor = DataStreamsProcessor(agent_url)
             register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
@@ -272,6 +255,15 @@ class Tracer(object):
     @_writer.setter
     def _writer(self, value):
         self._span_aggregagtor._writer = value
+
+    @property
+    def _agent_url(self):
+        return getattr(self._span_aggregagtor._writer, "intake_url", None)
+
+    @_agent_url.setter
+    def _agent_url(self, value):
+        if isinstance(self._span_aggregagtor._writer, HTTPWriter):
+            self._span_aggregagtor._writer.intake_url = value
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -410,7 +402,8 @@ class Tracer(object):
         if isinstance(self._writer, AgentWriter):
             if appsec_enabled:
                 self._writer._api_version = "v0.4"
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+            dogstatsd_url = agent.get_stats_url() if self._statsd_url is None else self._statsd_url
+            self._writer.dogstatsd = get_dogstatsd_client(dogstatsd_url)
 
         if trace_processors:
             self._user_trace_processors = trace_processors
@@ -471,8 +464,8 @@ class Tracer(object):
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
             self._compute_stats,
-            self._agent_url,
-            self._writer,
+            self._tracer_url,
+            self._statsd_url,
             self._span_aggregagtor._partial_flush_enabled,
             self._span_aggregagtor._partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
@@ -922,44 +915,6 @@ class Tracer(object):
             self.enabled = False
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
-
-    @staticmethod
-    def _use_log_writer() -> bool:
-        """Returns whether the LogWriter should be used in the environment by
-        default.
-
-        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
-        is not available in the Lambda.
-        """
-        if (
-            environ.get("DD_AGENT_HOST")
-            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-            or environ.get("DD_TRACE_AGENT_URL")
-        ):
-            # If one of these variables are set, we definitely have an agent
-            return False
-        elif in_aws_lambda() and has_aws_lambda_agent_extension():
-            # If the Agent Lambda extension is available then an AgentWriter is used.
-            return False
-        elif in_gcp_function() or in_azure_function():
-            return False
-        else:
-            return in_aws_lambda()
-
-    @staticmethod
-    def _use_sync_mode() -> bool:
-        """Returns, if an `AgentWriter` is to be used, whether it should be run
-         in synchronous mode by default.
-
-        There are only two cases in which this is desirable:
-
-        - AWS Lambdas can have the Datadog agent installed via an extension.
-          When it's available traces must be sent synchronously to ensure all
-          are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
-          Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
-        """
-        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     @staticmethod
     def _is_span_internal(span):
