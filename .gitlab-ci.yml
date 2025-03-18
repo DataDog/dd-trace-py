@@ -49,7 +49,6 @@ microbenchmarks:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
   variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
 
