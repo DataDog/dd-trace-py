@@ -122,18 +122,18 @@ class TraceSamplingProcessor(TraceProcessor):
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    def __init__(
-        self,
-        compute_stats_enabled: bool,
-        sampler: DatadogSampler,
-        single_span_rules: List[SpanSamplingRule],
-        apm_opt_out: bool,
-    ):
+    def __init__(self, compute_stats_enabled: bool, single_span_rules: List[SpanSamplingRule], apm_opt_out: bool):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
-        self.sampler = sampler
         self.single_span_rules = single_span_rules
         self.apm_opt_out = apm_opt_out
+        if self.apm_opt_out:
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            self.sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+        else:
+            self.sampler = DatadogSampler()
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -260,15 +260,8 @@ class SpanAggregator(SpanProcessor):
         self._partial_flush_enabled = partial_flush_enabled
         self._partial_flush_min_spans = partial_flush_min_spans
 
-        if asm_config._apm_opt_out:
-            # If ASM is enabled but tracing is disabled,
-            # we need to set the rate limiting to 1 trace per minute
-            # for the backend to consider the service as alive.
-            sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
-        else:
-            sampler = DatadogSampler()
         self._sampling_processor = TraceSamplingProcessor(
-            config._trace_compute_stats, sampler, get_span_sampling_rules(), asm_config._apm_opt_out
+            config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
         )
         self._tags_processor = TraceTagsProcessor()
         self._trace_processors = trace_processors
