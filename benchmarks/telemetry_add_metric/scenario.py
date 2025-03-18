@@ -115,11 +115,16 @@ class TelemetryAddMetric(Scenario):
         end = len(metrics)
         step = end // self.num_metrics
         total = 0.0
+
+        # Pre-fill the dummy namespace with metrics
+        dummy_namespace = MetricNamespace()
+        for i in range(start, end, step):
+            metrics[i][1](dummy_namespace, metrics[i][0])
+
         for _ in range(loops):
             metricnamespace = MetricNamespace()
-            for i in range(start, end, step):
-                metrics[i][1](metricnamespace, metrics[i][0])
-
+            # Copy the dummy metrics to the new namespace, this saves time on adding metrics
+            metricnamespace._metrics_data = dummy_namespace._metrics_data.copy()
             st = time.perf_counter()
             metricnamespace.flush()
             total += time.perf_counter() - st

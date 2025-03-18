@@ -22,7 +22,7 @@ class MetricType(str, enum.Enum):
 
 cdef class MetricNamespace:
     cdef object _metrics_data_lock
-    cdef dict _metrics_data
+    cdef public dict _metrics_data
 
     def __cinit__(self):
         self._metrics_data_lock = forksafe.Lock()
