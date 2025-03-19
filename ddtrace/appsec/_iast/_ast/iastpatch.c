@@ -403,6 +403,23 @@ str_in_list(const char* needle, const char** list, size_t count)
     return 0;
 }
 
+/* --- Helper function to extract and lowercase the first part of the module name --- */
+void
+get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
+{
+    const char* dot = strchr(module_name, '.');
+    size_t len = dot ? (size_t)(dot - module_name) : strlen(module_name);
+    if (len >= max_len)
+        len = max_len - 1;
+    strncpy(first_part, module_name, len);
+    first_part[len] = '\0';
+
+    // Convert the first part to lowercase
+    for (size_t i = 0; i < strlen(first_part); i++) {
+        first_part[i] = (char)tolower((unsigned char)first_part[i]);
+    }
+}
+
 /* --- Helper function: is_first_party ---
    Returns 1 (true) if the module is considered first-party, 0 otherwise.
    It calls importlib.metadata.packages_distributions only once,
@@ -551,23 +568,6 @@ free_list(char** list, Py_ssize_t count)
             free(list[i]);
         }
         free(list);
-    }
-}
-
-/* --- Helper function to extract and lowercase the first part of the module name --- */
-void
-get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
-{
-    const char* dot = strchr(module_name, '.');
-    size_t len = dot ? (size_t)(dot - module_name) : strlen(module_name);
-    if (len >= max_len)
-        len = max_len - 1;
-    strncpy(first_part, module_name, len);
-    first_part[len] = '\0';
-
-    // Convert the first part to lowercase
-    for (size_t i = 0; i < strlen(first_part); i++) {
-        first_part[i] = (char)tolower((unsigned char)first_part[i]);
     }
 }
 
