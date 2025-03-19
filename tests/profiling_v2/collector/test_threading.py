@@ -811,10 +811,9 @@ class TestThreadingLockCollector:
     def test_lock_acquire_fail(self):
         collector = collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True)
         with collector:
-            lock = threading.Lock()
-        # Call acquire outisde the collector, so we don't record the event
-        lock.acquire()
-        with collector:
+            lock = threading.Lock()  # !CREATE! test_lock_acquire_fail
+            lock.acquire()  # !ACQUIRE! test_lock_acquire_fail
+
             # Try to acquire the lock again, this should fail. To test this
             # behavior, we set blocking=False so that the lock doesn't block
             ret = lock.acquire(blocking=False)
@@ -823,8 +822,21 @@ class TestThreadingLockCollector:
         ddup.upload()
 
         # parse_profile raises an AssertionError if it doesn't have any sample
-        with pytest.raises(AssertionError):
-            pprof_utils.parse_profile(self.output_filename)
+
+        profile = pprof_utils.parse_profile(self.output_filename)
+
+        linenos = get_lock_linenos("test_lock_acquire_fail")
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+        )
 
     def test_lock_release_fail(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
