@@ -860,10 +860,15 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                     request_user = request.user._wrapped
                 else:
                     request_user = request.user
+                if hasattr(request, "session") and hasattr(request.session, "session_key"):
+                    session_key = request.session.session_key
+                else:
+                    session_key = None
                 core.dispatch(
                     "django.process_request",
                     (
                         request_user,
+                        session_key,
                         mode,
                         kwargs,
                         pin,
