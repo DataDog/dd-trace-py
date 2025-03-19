@@ -120,6 +120,7 @@ class APPSEC(metaclass=Constant_Class):
     OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -193,6 +194,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
     REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
+    REQUEST_SESSION_ID: Literal["usr.session_id"] = "usr.session_id"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -208,6 +210,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
             REQUEST_USERNAME,
+            REQUEST_SESSION_ID,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,

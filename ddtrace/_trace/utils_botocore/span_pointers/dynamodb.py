@@ -233,7 +233,7 @@ def _extract_primary_key_names_from_configuration(
     try:
         return dynamodb_primary_key_names_for_tables[table_name]
     except KeyError as e:
-        log.warning(
+        log.debug(
             "span pointers: failed to extract %s span pointer: table %s not found in primary key names; "
             "Please set them through ddtrace.config.botocore['dynamodb_primary_key_names_for_tables'] or "
             "DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS",
