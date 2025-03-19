@@ -3,21 +3,17 @@ from ddtrace.llmobs._utils import _get_attr
 from typing import List, Any, Dict
 
 # TODO: temporary since we may want to intercept get_llm_provider response
-def get_model(kwargs):
-    return kwargs.get("model", "")
-
-# TODO: temporary since we may want to intercept get_llm_provider response
-def get_provider(kwargs):
-    request_model = kwargs.get("model", "")
-    parsed_request_model = request_model.split("/")
-    if len(parsed_request_model) == 2:
-        return parsed_request_model[0]
+def get_provider(model):
+    parsed_model = model.split("/")
+    if len(parsed_model) == 2:
+        return parsed_model[0]
     else:
         return ""
     
 def tag_request(span, integration, kwargs):
     """Tag the completion span with request details.
     """
+    span.set_tag_str("litellm.request.api_base", kwargs.get("api_base", ""))
     messages = kwargs.get("messages", None)
     if messages:
         for i, message in enumerate(messages):

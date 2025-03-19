@@ -7,13 +7,13 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.contrib.internal.litellm.utils import get_model
 from ddtrace.contrib.internal.litellm.utils import get_provider
 from ddtrace.contrib.internal.litellm.utils import tag_request
 from ddtrace.contrib.internal.litellm.utils import tag_response
 from ddtrace.contrib.internal.litellm.utils import TracedAsyncLiteLLMStreamResponse
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.trace import Pin
+from ddtrace.internal.utils import get_argument_value
 
 
 config._add(
@@ -32,17 +32,15 @@ def get_version():
 
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
-    # do not trace if api_base is specified
-    if kwargs.get("api_base"):
-        return await func(*args, **kwargs)
     integration = litellm._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
+    model = get_argument_value(args, kwargs, 0, "model", None)
     span = integration.trace(
         pin,
         "litellm.%s" % func.__name__,
-        model=get_model(kwargs),
-        provider=get_provider(kwargs),
+        model=model,
+        provider=get_provider(model),
         submit_to_llmobs=False,
     )
     try:
