@@ -1,14 +1,58 @@
-use ddcommon::tag::Tag;
+use ddcommon::{tag::Tag, config::parse_env};
 use ddtelemetry::{data, metrics, worker};
 use futures::executor::block_on;
 use pyo3::Bound;
 use pyo3::PyTypeInfo;
 use pyo3::prelude::*;
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::{Duration, Instant},
+    env
+};
+
+// Python-friendly Config wrapper with all fields as Option
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct PyConfig {
+    #[pyo3(get, set)]
+    pub endpoint: Option<String>,              // Maps to DD_TRACE_AGENT_URL
+    #[pyo3(get, set)]
+    pub telemetry_debug_logging_enabled: Option<bool>, // Maps to _DD_SHARED_LIB_DEBUG
+    #[pyo3(get, set)]
+    pub telemetry_heartbeat_interval: Option<f64>, // Maps to DD_TELEMETRY_HEARTBEAT_INTERVAL
+    #[pyo3(get, set)]
+    pub direct_submission_enabled: Option<bool>, // Maps to _DD_DIRECT_SUBMISSION_ENABLED
+    // restartable omitted as it's always false in Config::from_settings
+}
+
+#[pymethods]
+impl PyConfig {
+    #[new]
+    #[pyo3(signature = (
+        endpoint = "".to_string(),
+        telemetry_debug_logging_enabled = false,
+        telemetry_heartbeat_interval = 60.0,
+        direct_submission_enabled = false
+    ))]
+    fn new(
+        endpoint: Option<String>,
+        telemetry_debug_logging_enabled: Option<bool>,
+        telemetry_heartbeat_interval: Option<f64>,
+        direct_submission_enabled: Option<bool>,
+    ) -> Self {
+        PyConfig {
+            endpoint,
+            telemetry_debug_logging_enabled,
+            telemetry_heartbeat_interval,
+            direct_submission_enabled,
+        }
+    }
+}
 
 #[pyclass]
 struct NativeTelemetryWorker {
     handle: worker::TelemetryWorkerHandle,
+    started: AtomicBool,
 }
 
 #[pyclass]
@@ -194,21 +238,64 @@ fn pytags2tags(tags: Option<Vec<(String, String)>>) -> PyResult<Vec<Tag>> {
 #[pymethods]
 impl NativeTelemetryWorker {
     #[new]
-    fn new(host: String, service: String, endpoint: String) -> PyResult<Self> {
-        let mut builder = worker::TelemetryWorkerBuilder::new(
+    #[pyo3(signature = (
+        host,
+        service,
+        config,
+        language_version = "3.12".to_string(),
+        tracer_version = "3.1".to_string()
+    ))]
+    fn new(
+        host: String,
+        service: String,
+        config: PyConfig,
+        language_version: String,
+        tracer_version: String,
+    ) -> PyResult<Self> {
+
+        // If the PyConfig fields are not None, override the environment variables.
+        // If None, use the env vars with some translations.
+        if let Some(interval) = config.telemetry_heartbeat_interval {
+            if interval < 0.0 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Telemetry heartbeat interval must be non-negative",
+                ));
+            }
+            unsafe {
+                env::set_var("DD_TELEMETRY_HEARTBEAT_INTERVAL", interval.to_string());
+            }
+        }
+
+        if let Some(endpoint) = config.endpoint {
+            if !endpoint.is_empty() {
+                unsafe {
+                    env::set_var("DD_TRACE_AGENT_URL", endpoint);
+                }
+            }
+        }
+        if let Some(debug_enabled) = config.telemetry_debug_logging_enabled {
+            unsafe {
+                env::set_var("_DD_SHARED_LIB_DEBUG", if debug_enabled { "1" } else { "0" });
+            }
+        } else if parse_env::bool("DD_TRACE_DEBUG") == Some(true) {
+            unsafe {
+                env::set_var("_DD_SHARED_LIB_DEBUG", "1");
+            }
+        }
+
+        if let Some(direct_submission) = config.direct_submission_enabled {
+            unsafe {
+                env::set_var("_DD_DIRECT_SUBMISSION_ENABLED", if direct_submission { "1" } else { "0" });
+            }
+        }
+
+        let builder = worker::TelemetryWorkerBuilder::new(
             host,
             service,
             "python".into(),
-            "3.12".into(),
-            "3.1".into(),
+            language_version,
+            tracer_version,
         );
-        // JJJ: argument
-        builder.config.telemetry_debug_logging_enabled = Some(true);
-        builder.config.endpoint = Some(ddcommon::Endpoint {
-            url: ddcommon::parse_uri(&endpoint).unwrap(),
-            ..Default::default()
-        });
-        builder.config.telemetry_hearbeat_interval = Some(Duration::from_secs(10));
 
         let handle = builder.run().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -217,7 +304,10 @@ impl NativeTelemetryWorker {
             ))
         })?;
 
-        Ok(NativeTelemetryWorker { handle })
+        Ok(NativeTelemetryWorker {
+            handle,
+            started: AtomicBool::new(false),
+        })
     }
 
     fn send_start(&self) -> PyResult<()> {
@@ -227,6 +317,7 @@ impl NativeTelemetryWorker {
                 e
             ))
         })?;
+        self.started.store(true, Ordering::SeqCst);
         Ok(())
     }
 
@@ -243,7 +334,21 @@ impl NativeTelemetryWorker {
         self.handle.send_stop().map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Failed to send stop: {}", e))
         })?;
+        self.started.store(false, Ordering::SeqCst);
         Ok(())
+    }
+
+    fn reset(&self) -> PyResult<()> {
+        // We don't have a direct way to reset the queues but restarting the worker has the sa
+        if self.started() {
+            self.send_stop()?;
+        }
+        self.send_start()?;
+        Ok(())
+    }
+
+    fn started(&self) -> bool {
+        self.started.load(Ordering::SeqCst)
     }
 
     fn add_log(
@@ -341,6 +446,34 @@ impl NativeTelemetryWorker {
         Ok(())
     }
 
+    fn add_config(&self, name: String, value: String, origin: String) -> PyResult<()> {
+        // Convert origin to ConfigurationOrigin
+        let configuration_origin = match origin.to_lowercase().replace('_', "").as_str() {
+            "envvar" => data::ConfigurationOrigin::EnvVar,
+            "code" => data::ConfigurationOrigin::Code,
+            "ddconfig" => data::ConfigurationOrigin::DdConfig,
+            "remoteconfig" => data::ConfigurationOrigin::RemoteConfig,
+            "default" => data::ConfigurationOrigin::Default,
+            "datadog" => data::ConfigurationOrigin::DdConfig, // Additional rule
+            "env" => data::ConfigurationOrigin::EnvVar,       // Additional rule
+            _ => data::ConfigurationOrigin::Default,          // Catch-all
+        };
+
+        self.handle
+            .try_send_msg(worker::TelemetryActions::AddConfig(data::Configuration {
+                name,
+                value,
+                origin: configuration_origin,
+            }))
+            .map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to send config: {}",
+                    e
+                ))
+            })?;
+        Ok(())
+    }
+
     // TODO(maybe): async version like the original libdatadog is.
     fn stats(&self) -> PyResult<PyTelemetryWorkerStats> {
         let receiver = self.handle.stats().map_err(|e| {
@@ -371,6 +504,7 @@ fn _native_telemetry(_py: Python<'_>, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add("PyMetricNamespace", PyMetricNamespace::type_object(_py))?;
     m.add("PyContextKey", PyContextKey::type_object(_py))?;
     m.add("PyMetricBucketStats", PyMetricBucketStats::type_object(_py))?;
+    m.add("PyConfig", PyConfig::type_object(_py))?;
     m.add(
         "PyTelemetryWorkerStats",
         PyTelemetryWorkerStats::type_object(_py),
