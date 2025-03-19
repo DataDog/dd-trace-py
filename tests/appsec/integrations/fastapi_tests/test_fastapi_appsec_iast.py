@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-import re
 import sys
 import typing
 
@@ -32,6 +31,7 @@ from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_hea
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
 from tests.utils import override_env
@@ -57,10 +57,6 @@ def _aux_appsec_prepare_tracer(tracer):
 
 def get_response_body(response):
     return response.text
-
-
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
 
 
 @pytest.fixture(autouse=True)
