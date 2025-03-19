@@ -32,6 +32,9 @@ def get_version():
 
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
+    # do not trace if api_base is specified
+    if kwargs.get("api_base"):
+        return await func(*args, **kwargs)
     integration = litellm._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None

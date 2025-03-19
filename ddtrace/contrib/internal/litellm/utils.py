@@ -44,27 +44,39 @@ def tag_request_metadata(span, kwargs):
         span.set_tag_str("litellm.request.metadata.max_tokens", str(max_tokens))
 
 def tag_response(span, generations, integration):
-    # TODO: logic is very similar to _tag_streamed_response, can this be consolidated?
-    for idx, choice in enumerate(_get_attr(generations, "choices", [])):
+    # convert non-streamed response to the same format as streamed responses for consistent tagging
+    choices = _get_attr(generations, "choices", [])
+    formatted_choices = []
+    for choice in choices:
+        formatted_choice = {}
         text = _get_attr(choice, "text", "")
         if text:
-            span.set_tag_str("litellm.response.choices.%d.text" % idx, integration.trunc(str(text)))
+            formatted_choice["text"] = text
         message = _get_attr(choice, "message", None)
         if message:
             message_role = _get_attr(message, "role", "")
             if message_role:
-                span.set_tag_str("litellm.response.choices.%d.message.role" % idx, str(message_role))
+                formatted_choice["role"] = message_role
             message_content = _get_attr(message, "content", "")
             if message_content:
-                span.set_tag_str(
-                    "litellm.response.choices.%d.message.content" % idx, integration.trunc(str(message_content))
-                )
-        tool_calls = _get_attr(choice, "tool_calls", "")
-        if tool_calls:
-            _tag_tool_calls(integration, span, tool_calls, idx)
+                formatted_choice["content"] = message_content
+            tool_calls = _get_attr(message, "tool_calls", [])
+            if tool_calls:
+                formatted_choice["tool_calls"] = tool_calls
         finish_reason = _get_attr(choice, "finish_reason", "")
         if finish_reason:
-            span.set_tag_str("litellm.response.choices.%d.finish_reason" % idx, str(finish_reason))
+            formatted_choice["finish_reason"] = finish_reason
+        formatted_choices.append(formatted_choice)
+
+    if integration.is_pc_sampled_span(span):
+        _tag_response(integration, span, formatted_choices)
+    
+    # set token metrics and model tag
+    usage = _get_attr(generations, "usage", {})
+    _set_token_metrics(span, usage)
+    model = _get_attr(generations, "model", None)
+    if model:
+        span.set_tag_str("litellm.response.model", str(model))
 
 
 class BaseTracedLiteLLMStreamResponse:
@@ -122,8 +134,12 @@ def _process_finished_stream(integration, span, streamed_chunks, is_completion=F
                 role = _get_attr(delta, "role", None) or role
             formatted_completions = [_construct_message_from_streamed_chunks(choice, role) for choice in streamed_chunks]
         if integration.is_pc_sampled_span(span):
-            _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, formatted_completions)
+            _tag_response(integration, span, formatted_completions)
+        _set_token_metrics(span, formatted_completions[0].get("usage", {}))
+        if streamed_chunks and streamed_chunks[0]:
+            model = getattr(streamed_chunks[0][0], "model", None)
+            if model:
+                span.set_tag_str("litellm.response.model", str(model))
     except Exception:
         pass
 
@@ -202,7 +218,7 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any], role: st
     return message
 
 
-def _tag_streamed_response(integration, span, completions_or_messages=None):
+def _tag_response(integration, span, completions_or_messages=None):
     """Tagging logic for streamed completions and chat completions."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
@@ -224,11 +240,9 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("litellm.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, response):
-    """Set token span metrics on streamed chat/completion responses.
-    If token usage is not available in the response, compute/estimate the token counts.
+def _set_token_metrics(span, usage):
+    """Set token span metrics.
     """
-    usage = response[0].get("usage", {})
     span.set_metric("litellm.response.usage.prompt_tokens", _get_attr(usage, "prompt_tokens", 0))
     span.set_metric(
         "litellm.response.usage.completion_tokens", _get_attr(usage, "completion_tokens", 0)
