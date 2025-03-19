@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    profiling: This fix resolves an issue where the Lock profiler would result
-    in an ``AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'``.
+    profiling: This fix resolves an issue where the Lock profiler would throw
+    an ``AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'``.
 
