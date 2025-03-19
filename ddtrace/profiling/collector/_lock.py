@@ -182,12 +182,18 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
         # _self_acquired_at is only set when the acquire was captured, if it's
         # not set, we're not capturing the release
-        start = self.__dict__.pop("_self_acquired_at", None)
+        start = getattr(self, "_self_acquired_at", None)
 
         try:
             return inner_func(*args, **kwargs)
+        except Exception as e:
+            raise e
         finally:
             if start is not None:
+                try:
+                    del self._self_acquired_at
+                except AttributeError:
+                    pass
                 end = time.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 task_id, task_name, task_frame = _task.get_task(thread_id)
