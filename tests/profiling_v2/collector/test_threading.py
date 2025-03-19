@@ -821,11 +821,11 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
-        # parse_profile raises an AssertionError if it doesn't have any sample
-
         profile = pprof_utils.parse_profile(self.output_filename)
 
         linenos = get_lock_linenos("test_lock_acquire_fail")
+        lock_acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        assert len(lock_acquire_samples) == 1, "Expected 1 lock-acquire sample"
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
