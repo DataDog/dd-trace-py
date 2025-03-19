@@ -132,7 +132,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     thread_id, thread_name = _current_thread()
                     task_id, task_name, task_frame = _task.get_task(thread_id)
                     self._maybe_update_self_name()
-                    lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                    lock_name = (
+                        "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+                    )
 
                     if task_frame is None:
                         # If we can't get the task frame, we use the caller frame. We expect acquire/release or
@@ -173,7 +175,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         )
 
                         if self._self_tracer is not None:
-                            event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                            event.set_trace_info(
+                                self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                            )
 
                         self._self_recorder.push_event(event)
                 except Exception as e:
@@ -199,7 +203,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # in that case we simply propagate the exception. This is also to
             # not run the code that comes after this try/except block.
             raise e
-
         # We wrap the following code in a try/except block, as sys._getframe()
         # can raise an exception if the frame depth is too low, though it should
         # not happen in normal circumstances.
@@ -261,7 +264,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
         except Exception as e:
             # TODO(taegyunkim): consider exporting this to telemetry
             LOG.debug("Failed to record a lock release event: %s", e)
-
 
     def release(self, *args, **kwargs):
         return self._release(self.__wrapped__.release, *args, **kwargs)
