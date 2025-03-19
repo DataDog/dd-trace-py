@@ -6,7 +6,6 @@ from wrapt.importer import when_imported
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -19,6 +18,7 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from .._logs import iast_instrumentation_wrapt_debug_log
 from ._base import VulnerabilityBase
 
 
@@ -82,6 +82,7 @@ def patch():
         try_wrap_function_wrapper(m, "Response.init_headers", _iast_h)
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
+    iast_instrumentation_wrapt_debug_log("Patching header injection correctly")
 
 
 def unpatch():
@@ -130,7 +131,7 @@ def _process_header(headers_args):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
     _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
 
-    if is_iast_request_enabled() and HeaderInjection.has_quota():
+    if asm_config.is_iast_request_enabled and HeaderInjection.has_quota():
         if is_pyobject_tainted(header_name) or is_pyobject_tainted(header_value):
             header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
             HeaderInjection.report(evidence_value=header_evidence)

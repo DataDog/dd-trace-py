@@ -11,6 +11,7 @@ from weakref import WeakKeyDictionary
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -29,6 +30,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -104,9 +106,6 @@ def _is_chain_instance(instance):
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
-    _spans: Dict[int, Span] = {}
-    """Maps instance ids to spans."""
-
     _instances: WeakKeyDictionary = WeakKeyDictionary()
     """Maps span to instances."""
 
@@ -117,7 +116,16 @@ class LangChainIntegration(BaseLLMIntegration):
         instance = _extract_instance(instance)
 
         self._instances[span] = instance
-        self._spans[id(instance)] = span
+
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        parent_instance = self._instances.get(parent_span) if parent_span else None
+
+        if parent_instance is None or not _is_chain_instance(parent_instance):
+            return
+
+        spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
+        spans[id(instance)] = span
+        setattr(parent_instance, "_datadog_spans", spans)
 
     def _llmobs_set_tags(
         self,
@@ -187,7 +195,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         parent_span = _get_nearest_llmobs_ancestor(span)
         if parent_span is None:
-            self._clear_instance_recordings(instance, parent_span)
             return
 
         invoker_spans, from_output = self._get_invoker_spans(instance, parent_span)
@@ -195,7 +202,7 @@ class LangChainIntegration(BaseLLMIntegration):
         self._set_input_links(span, invoker_spans, from_output)
         self._set_output_links(span, parent_span, invoker_spans, from_output)
 
-        self._clear_instance_recordings(instance, parent_span)
+        self._clear_instance_recordings(instance)
 
     def _get_invoker_spans(self, instance, parent_span: Span) -> Tuple[List[Span], bool]:
         """
@@ -218,11 +225,13 @@ class LangChainIntegration(BaseLLMIntegration):
         curr_step = flatmap_chain_steps[0]
         prev_traced_step_idx = -1
 
+        chain_spans = getattr(parent_langchain_instance, "_datadog_spans", {})
+
         while id(curr_step) != id(instance) and not (
             isinstance(curr_step, list) and any(id(sub_step) == id(instance) for sub_step in curr_step)
         ):
-            if id(curr_step) in self._spans or (
-                isinstance(curr_step, list) and any(id(sub_step) in self._spans for sub_step in curr_step)
+            if id(curr_step) in chain_spans or (
+                isinstance(curr_step, list) and any(id(sub_step) in chain_spans for sub_step in curr_step)
             ):
                 prev_traced_step_idx = curr_idx
             curr_idx += 1
@@ -238,12 +247,12 @@ class LangChainIntegration(BaseLLMIntegration):
         if isinstance(invoker_steps, list):
             invoker_spans = []
             for step in invoker_steps:
-                span = self._spans.get(id(step))
+                span = chain_spans.get(id(step))
                 if span:
                     invoker_spans.append(span)
             return invoker_spans, True
 
-        return [self._spans[id(invoker_steps)]], True
+        return [chain_spans[id(invoker_steps)]], True
 
     def _set_input_links(self, span: Span, invoker_spans: List[Span], from_output: bool):
         """Sets the input links for the given span (to: input)"""
@@ -309,7 +318,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         links = [
             {
-                "trace_id": "{:x}".format(from_span.trace_id),
+                "trace_id": format_trace_id(from_span.trace_id),
                 "span_id": str(from_span.span_id),
                 "attributes": {"from": link_from, "to": link_to},
             }
@@ -320,7 +329,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if links:
             span._set_ctx_item(SPAN_LINKS, existing_links + links)
 
-    def _clear_instance_recordings(self, instance: Any, parent_span: Optional[Span]) -> None:
+    def _clear_instance_recordings(self, instance: Any) -> None:
         """
         Deletes the references of steps in a chain from the instance id to span mapping.
 
@@ -330,29 +339,10 @@ class LangChainIntegration(BaseLLMIntegration):
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
         """
         if not _is_chain_instance(instance):
-            self._safe_delete_instance_recording(instance)
             return
 
-        steps = getattr(instance, "steps", [])
-        flatmap_chain_steps = _flattened_chain_steps(steps, nested=False)
-
-        for step in flatmap_chain_steps:
-            self._safe_delete_instance_recording(step)
-
-        if parent_span is None:
-            self._safe_delete_instance_recording(instance)
-            return
-
-        parent_instance = self._instances.get(parent_span)
-        if parent_instance is None or not _is_chain_instance(parent_instance):
-            self._safe_delete_instance_recording(instance)
-
-    def _safe_delete_instance_recording(self, instance):
-        instance_id = id(instance)
-        if instance_id in self._spans:
-            del self._spans[instance_id]
-        else:
-            log.debug("Unable to delete langchain instance from internal mapping")
+        if hasattr(instance, "_datadog_spans"):
+            delattr(instance, "_datadog_spans")
 
     def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
         if not model_provider:
@@ -732,3 +722,7 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
+
+    def has_default_base_url(self, instance) -> bool:
+        openai_api_base = getattr(instance, "openai_api_base", None)
+        return not openai_api_base or is_openai_default_base_url(openai_api_base)

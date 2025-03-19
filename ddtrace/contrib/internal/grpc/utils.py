@@ -1,10 +1,10 @@
 import ipaddress
 import logging
 import re
+from urllib import parse
 
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.ext import net
-from ddtrace.internal.compat import parse
 
 
 log = logging.getLogger(__name__)

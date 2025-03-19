@@ -120,7 +120,7 @@ class ProductManager:
             try:
                 product.start()
                 log.debug("Started product '%s'", name)
-                telemetry_writer.product_activated(name, True)
+                telemetry_writer.product_activated(name.replace("-", "_"), True)
             except Exception:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
@@ -150,7 +150,7 @@ class ProductManager:
             try:
                 product.stop(join=join)
                 log.debug("Stopped product '%s'", name)
-                telemetry_writer.product_activated(name, False)
+                telemetry_writer.product_activated(name.replace("-", "_"), False)
             except Exception:
                 log.exception("Failed to stop product '%s'", name)
 

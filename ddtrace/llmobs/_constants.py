@@ -20,7 +20,9 @@ OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
-    "Span started while LLMObs is disabled." " Spans will not be sent to LLM Observability."
+    "Span started with LLMObs disabled."
+    " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."
+    " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
@@ -65,3 +67,5 @@ EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 
 SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
+DECORATOR = "_ml_obs.decorator"
+INTEGRATION = "_ml_obs.integration"

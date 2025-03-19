@@ -13,7 +13,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
@@ -559,7 +558,6 @@ def test_dont_trace_websocket_by_default(client, test_spans):
         assert len(spans) <= initial_event_count
 
 
-@flaky(1735812000)
 # Ignoring span link attributes until values are
 # normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
@@ -661,10 +659,9 @@ if __name__ == "__main__":
         {
             "endpoint": "/items/foo",
             "status_code": "200",
-            "http.route": "/items/{item_id}",
             "resource_suffix": "/items/{item_id}",
         },
-        {"endpoint": "/500", "status_code": "500", "http.route": "/500", "resource_suffix": "/500"},
+        {"endpoint": "/500", "status_code": "500", "resource_suffix": "/500"},
     ],
 )
 @pytest.mark.parametrize(
@@ -724,7 +721,6 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
                 api_gateway_service_name="local",
                 api_gateway_resource="GET /",
                 method="GET",
-                route="/",
                 status_code=test["status_code"],
                 url="local/",
                 start=1736973768,

@@ -6,6 +6,7 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import os
 import typing as t
 
 
@@ -44,13 +45,13 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for: t.Set[str] = services.copy()
+        wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
         if wait_for:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
-            if self.runner == "riot":
+            if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
@@ -118,6 +119,28 @@ def gen_required_suites() -> None:
             print(str(jobspec), file=f)
 
 
+def gen_build_docs() -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns(
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+    ):
+        with TESTS_GEN.open("a") as f:
+            print("build_docs:", file=f)
+            print("  extends: .testrunner", file=f)
+            print("  stage: hatch", file=f)
+            print("  needs: []", file=f)
+            print("  script:", file=f)
+            print("    - |", file=f)
+            print("      hatch run docs:build", file=f)
+            print("      mkdir -p /tmp/docs", file=f)
+            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  artifacts:", file=f)
+            print("    paths:", file=f)
+            print("      - '/tmp/docs'", file=f)
+
+
 def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
@@ -169,13 +192,117 @@ def gen_pre_checks() -> None:
     )
 
 
+def gen_appsec_iast_packages() -> None:
+    """Generate the list of jobs for the appsec_iast_packages tests."""
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            """
+appsec_iast_packages:
+  extends: .test_base_hatch
+  timeout: 50m
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '0'
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    PYTEST_ADDOPTS: '-s'
+  cache:
+    # Share pip between jobs of the same Python version
+      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
+      paths:
+        - .cache
+  before_script:
+    - !reference [.test_base_hatch, before_script]
+    - pyenv global "${PYTHON_VERSION}"
+  script:
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
+    - export DD_FAST_BUILD="1"
+    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+        """
+        )
+
+
+def gen_build_base_venvs() -> None:
+    """Generate the list of base jobs for building virtual environments."""
+
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            f"""
+build_base_venvs:
+  extends: .testrunner
+  stage: riot
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '1'
+    DD_PROFILING_NATIVE_TESTS: '1'
+    DD_USE_SCCACHE: '1'
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_FAST_BUILD: '1'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+      variables:
+        DD_FAST_BUILD: '0'
+    - when: always
+  script: |
+    set -e -o pipefail
+    if [ ! -f cache_used.txt ];
+    then
+      echo "No cache found, building native extensions and base venv"
+      apt update && apt install -y sccache
+      pip install riot==0.20.1
+      riot -P -v generate --python=$PYTHON_VERSION
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
+      touch cache_used.txt
+    else
+      echo "Skipping build, using compiled files/venv from cache"
+      echo "Fixing ddtrace versions"
+      pip install "setuptools_scm[toml]>=4"
+      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
+      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
+        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
+      echo "Using version: ${{ddtrace_version}}"
+    fi
+  cache:
+    # Share pip/sccache between jobs of the same Python version
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
+      paths:
+        - .cache
+    # Re-use job artifacts between runs if no native source files have been changed
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
+      paths:
+        - .riot/venv_*
+        - ddtrace/**/*.so*
+        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+        - ddtrace/internal/datadog/profiling/test/test_*
+        - cache_used.txt
+  artifacts:
+    name: venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
+      - ddtrace/_version.py
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+      - ddtrace/internal/datadog/profiling/test/test_*
+        """
+        )
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
 # generally no reason to modify it.
 
 import logging  # noqa
-import os  # noqa
 import sys  # noqa
 from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa

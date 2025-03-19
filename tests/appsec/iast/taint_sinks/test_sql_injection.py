@@ -74,6 +74,8 @@ def test_sql_injection(fixture_path, fixture_module, iast_context_defaults):
     line, hash_value = get_line_and_hash("test_sql_injection", VULN_SQL_INJECTION, filename=fixture_path)
     assert vulnerability["location"]["path"] == fixture_path
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == "sqli_simple"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 

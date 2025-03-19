@@ -6,6 +6,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib import parse
 
 import wrapt
 
@@ -32,7 +33,6 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -680,7 +680,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
@@ -688,8 +688,10 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
-    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
-    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+    if input_token_count:
+        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
+    if output_token_count:
+        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
 
 
 def _propagate_context(ctx, headers):
@@ -717,6 +719,19 @@ def _on_end_of_traced_method_in_fork(ctx):
     ctx["pin"].tracer.flush()
 
 
+def _on_botocore_bedrock_process_response_converse(
+    ctx: core.ExecutionContext,
+    result: List[Dict[str, Any]],
+):
+    ctx["bedrock_integration"].llmobs_set_tags(
+        ctx.span,
+        args=[ctx],
+        kwargs={},
+        response=result,
+    )
+    ctx.span.finish()
+
+
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
@@ -733,7 +748,10 @@ def _on_botocore_bedrock_process_response(
     integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
-            span.set_tag_str("bedrock.{}".format(k), str(v))
+            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
+                span.set_metric("bedrock.response.{}".format(k), int(v))
+            else:
+                span.set_tag_str("bedrock.{}".format(k), str(v))
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
@@ -747,7 +765,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
 
@@ -891,6 +909,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)

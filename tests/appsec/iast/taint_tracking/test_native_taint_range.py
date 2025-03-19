@@ -31,7 +31,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
-from tests.appsec.iast.conftest import IAST_VALID_LOG
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -317,10 +317,16 @@ def test_set_get_ranges_other():
     s2 = None
     set_ranges(s1, [_RANGE1, _RANGE2])
     set_ranges(s2, [_RANGE1, _RANGE2])
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s1)
 
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s2)
 
 

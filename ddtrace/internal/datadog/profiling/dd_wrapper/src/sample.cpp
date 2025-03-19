@@ -61,7 +61,7 @@ Datadog::Sample::profile_clear_state()
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
     name = string_storage.insert(name);
     filename = string_storage.insert(filename);
 
@@ -71,8 +71,11 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
           .name = to_slice(name),
+          .name_id = { 0 },
           .system_name = {}, // No support for system_name in Python
+          .system_name_id = { 0 },
           .filename = to_slice(filename),
+          .filename_id = { 0 },
           .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,

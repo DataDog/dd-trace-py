@@ -17,6 +17,7 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
+from urllib import parse
 
 import wrapt
 
@@ -27,7 +28,6 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.compat import parse
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -644,6 +644,7 @@ def set_user(
     propagate=False,  # type bool
     span=None,  # type: Optional[Span]
     may_block=True,  # type: bool
+    mode="sdk",  # type: str
 ):
     # type: (...) -> None
     """Set user tags.
@@ -671,8 +672,8 @@ def set_user(
         if session_id:
             span.set_tag_str(user.SESSION_ID, session_id)
 
-        if may_block and asm_config._asm_enabled:
-            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id]).block_user.exception
+        if (may_block or mode == "auto") and asm_config._asm_enabled:
+            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id, mode]).block_user.exception
             if exc:
                 raise exc
 

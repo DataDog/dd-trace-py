@@ -51,51 +51,22 @@ def test_manually_start_runtime_metrics_telemetry(test_agent_session, run_python
     """
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.start()
 
 from ddtrace.runtime import RuntimeMetrics
 
 assert not RuntimeMetrics._enabled
 RuntimeMetrics.enable()
 assert RuntimeMetrics._enabled
-
-telemetry_writer.stop()
-telemetry_writer.join(3)
+telemetry_writer.periodic(force_flush=True)
     """
-
-    def find_telemetry_event(events, request_type):
-        e = [e for e in events if e["request_type"] == request_type]
-        assert len(e) == 1
-        return e[0]
 
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events(subprocess=True)
-    # app-started, app-closing, app-client-configuration-change, app-dependencies-loaded
-    assert len(events) == 4
-
-    # Note: the initial app-started event is going to say that it is not enabled, because
-    #       we only look at the env variable DD_RUNTIME_METRICS_ENABLED to set the initial
-    #       value.
-    #
-    #       This test helps validate that manually enabling runtime metrics via code will
-    #       will report the correct config status.
-    app_started_event = find_telemetry_event(events, "app-started")
-    config_changed_event = find_telemetry_event(events, "app-client-configuration-change")
-
-    runtimemetrics_enabled = [
-        c for c in app_started_event["payload"]["configuration"] if c["name"] == "runtimemetrics_enabled"
-    ]
+    runtimemetrics_enabled = test_agent_session.get_configurations("DD_RUNTIME_METRICS_ENABLED")
     assert len(runtimemetrics_enabled) == 1
-    assert runtimemetrics_enabled[0]["value"] is False
-    assert runtimemetrics_enabled[0]["origin"] == "unknown"
-
-    config = config_changed_event["payload"]["configuration"]
-    assert len(config) == 1
-    assert config[0]["name"] == "runtimemetrics_enabled"
-    assert config[0]["value"] is True
-    assert config[0]["origin"] == "unknown"
+    assert runtimemetrics_enabled[0]["value"]
+    assert runtimemetrics_enabled[0]["origin"] == "code"
 
 
 def test_manually_stop_runtime_metrics_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
@@ -105,53 +76,24 @@ def test_manually_stop_runtime_metrics_telemetry(test_agent_session, ddtrace_run
     """
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer.start()
 
 from ddtrace.runtime import RuntimeMetrics
 
 assert RuntimeMetrics._enabled
 RuntimeMetrics.disable()
 assert not RuntimeMetrics._enabled
-
-telemetry_writer.stop()
-telemetry_writer.join(3)
+telemetry_writer.periodic(force_flush=True)
     """
-
-    def find_telemetry_event(events, request_type):
-        e = [e for e in events if e["request_type"] == request_type]
-        assert len(e) == 1
-        return e[0]
 
     env = os.environ.copy()
     env["DD_RUNTIME_METRICS_ENABLED"] = "true"
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    events = test_agent_session.get_events(subprocess=True)
-    # app-started, app-closing, app-client-configuration-change, app-integrations-change, app-dependencies-loaded
-    assert len(events) == 5
-
-    # Note: the initial app-started event is going to say that it is enabled, because we
-    #       set DD_RUNTIME_METRICS_ENABLED=true and are using ddtrace-run which will enable
-    #       runtime metrics for us.
-    #
-    #       This test helps validate that manually disabling runtime metrics via code will
-    #       will report the correct config status.
-    app_started_event = find_telemetry_event(events, "app-started")
-    config_changed_event = find_telemetry_event(events, "app-client-configuration-change")
-
-    runtimemetrics_enabled = [
-        c for c in app_started_event["payload"]["configuration"] if c["name"] == "runtimemetrics_enabled"
-    ]
+    runtimemetrics_enabled = test_agent_session.get_configurations("DD_RUNTIME_METRICS_ENABLED")
     assert len(runtimemetrics_enabled) == 1
-    assert runtimemetrics_enabled[0]["value"] is True
-    assert runtimemetrics_enabled[0]["origin"] == "unknown"
-
-    config = config_changed_event["payload"]["configuration"]
-    assert len(config) == 1
-    assert config[0]["name"] == "runtimemetrics_enabled"
-    assert config[0]["value"] is False
-    assert config[0]["origin"] == "unknown"
+    assert runtimemetrics_enabled[0]["value"] is False
+    assert runtimemetrics_enabled[0]["origin"] == "code"
 
 
 def test_start_runtime_metrics_via_env_var(monkeypatch, ddtrace_run_python_code_in_subprocess):
@@ -254,3 +196,57 @@ def test_runtime_metrics_enable_environ(monkeypatch, environ):
         )
     finally:
         RuntimeMetrics.disable()
+
+
+@pytest.mark.subprocess(parametrize={"DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED": ["true", "false"]})
+def test_runtime_metrics_experimental_runtime_tag():
+    """
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+        Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
+    """
+    import os
+
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.internal.service import ServiceStatus
+
+    RuntimeWorker.enable()
+    assert RuntimeWorker._instance is not None
+
+    worker_instance = RuntimeWorker._instance
+    assert worker_instance.status == ServiceStatus.RUNNING
+
+    runtime_id_tag = f"runtime-id:{get_runtime_id()}"
+    if os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true":
+        assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
+    elif os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false":
+        assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
+    else:
+        raise pytest.fail("Invalid value for DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED")
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
+    err=None,
+)
+def test_runtime_metrics_experimental_metric_type():
+    """
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+        Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
+    """
+    import os
+
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.internal.service import ServiceStatus
+
+    RuntimeWorker.enable()
+    assert RuntimeWorker._instance is not None
+
+    worker_instance = RuntimeWorker._instance
+    assert worker_instance.status == ServiceStatus.RUNNING
+    if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
+        assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
+    else:
+        assert (
+            worker_instance.send_metric == worker_instance._dogstatsd_client.distribution
+        ), worker_instance.send_metric

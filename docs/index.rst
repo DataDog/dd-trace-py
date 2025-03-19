@@ -182,6 +182,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`wsgi`                                      | \*            | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`yaaredis`                                  | >= 2.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
 
 
 .. [1] Libraries that are automatically instrumented when the
@@ -230,6 +232,7 @@ Indices and tables
     integrations
     basic_usage
     advanced_usage
+    build_system
     benchmarks
     contributing
     troubleshooting

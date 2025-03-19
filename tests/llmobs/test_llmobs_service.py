@@ -9,6 +9,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -128,7 +129,7 @@ def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
         mock_tracer_patch.assert_called_once()
         kwargs = mock_tracer_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -143,7 +144,7 @@ def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch
             if module == "openai":
                 assert kwargs[module] is False
                 continue
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -158,7 +159,7 @@ def test_service_enable_does_not_override_integration_enabled_env_vars(mock_trac
             if module == "openai":
                 assert kwargs[module] is False
                 continue
-            assert kwargs[module] is True
+            assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
@@ -167,13 +168,14 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
     """Test that _patch_integrations() ensures `DD_PATCH_MODULES` overrides `DD_TRACE_<MODULE>_ENABLED`."""
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "true")
     monkeypatch.setenv("DD_TRACE_ANTHROPIC_ENABLED", "false")
+    monkeypatch.setenv("DD_TRACE_BOTOCORE_ENABLED", "false")
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
         mock_tracer_patch.assert_called_once()
         kwargs = mock_tracer_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
-            if module in ("openai", "anthropic"):
+            if module in ("openai", "anthropic", "botocore"):
                 assert kwargs[module] is False
                 continue
             assert kwargs[module] is True
@@ -434,13 +436,13 @@ def test_annotate_numeric_io(llmobs):
 def test_annotate_input_serializable_value(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span._get_ctx_item(INPUT_VALUE) == str(["test_input"])
+        assert task_span._get_ctx_item(INPUT_VALUE) == '["test_input"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span._get_ctx_item(INPUT_VALUE) == str({"test_input": "hello world"})
+        assert tool_span._get_ctx_item(INPUT_VALUE) == '{"test_input": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(INPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
         assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
@@ -608,16 +610,16 @@ def test_annotate_output_string(llmobs):
 def test_annotate_output_serializable_value(llmobs):
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == str([[0, 1, 2, 3], [4, 5, 6, 7]])
+        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == str(["test_output"])
+        assert task_span._get_ctx_item(OUTPUT_VALUE) == '["test_output"]'
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == str({"test_output": "hello world"})
+        assert tool_span._get_ctx_item(OUTPUT_VALUE) == '{"test_output": "hello world"}'
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == str(("asd", 123))
+        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == '["asd", 123]'
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
         assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
@@ -819,7 +821,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == "{:x}".format(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span.trace_id)
 
 
 def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, mock_llmobs_logs):
@@ -838,7 +840,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == "{:x}".format(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span.trace_id)
 
 
 def test_submit_evaluation_no_api_key_raises_warning(llmobs, mock_llmobs_logs):
@@ -1116,7 +1118,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -1145,7 +1147,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -1182,7 +1184,7 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="token_count",
             metric_type="score",
             score_value=35,
@@ -1203,6 +1205,7 @@ def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
     mock_llmobs_logs.warning.assert_has_calls(
         [mock.call("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")]
     )
+    llmobs.enabled = True
 
 
 def test_inject_distributed_headers_llmobs_disabled_does_nothing(llmobs, mock_llmobs_logs):
@@ -1791,6 +1794,17 @@ def test_submit_evaluation_llmobs_disabled_raises_debug(llmobs, mock_llmobs_logs
     )
 
 
+def test_submit_evaluation_for_invalid_metadata_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        metadata=1,
+    )
+    mock_llmobs_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
+
+
 def test_submit_evaluation_for_no_ml_app_raises_warning(llmobs, mock_llmobs_logs):
     with override_global_config(dict(_llmobs_ml_app="")):
         llmobs.submit_evaluation_for(
@@ -2032,7 +2046,7 @@ def test_submit_evaluation_for_enqueues_writer_with_categorical_metric(llmobs, m
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -2061,10 +2075,55 @@ def test_submit_evaluation_for_enqueues_writer_with_score_metric(llmobs, mock_ll
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id="{:x}".format(span.trace_id),
+            trace_id=format_trace_id(span.trace_id),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
             ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata={"foo": ["bar", "baz"]},
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            metadata={"foo": ["bar", "baz"]},
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset()
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="toxicity",
+        metric_type="categorical",
+        value="high",
+        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+        ml_app="ml_app_override",
+        metadata="invalid",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            ml_app="ml_app_override",
+            span_id="123",
+            trace_id="456",
+            label="toxicity",
+            metric_type="categorical",
+            categorical_value="high",
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )

@@ -7,6 +7,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.appsec._constants import DEFAULT
+from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -16,7 +17,6 @@ LOGGER = get_logger(__name__)
 if asm_config._asm_libddwaf_available:
     try:
         from .ddwaf_types import DDWafRulesType
-        from .ddwaf_types import _observator
         from .ddwaf_types import ddwaf_config
         from .ddwaf_types import ddwaf_context_capsule
         from .ddwaf_types import ddwaf_get_version
@@ -54,7 +54,7 @@ class DDWaf_result(object):
         runtime: float,
         total_runtime: float,
         timeout: bool,
-        truncation: int,
+        truncation: _observator,
         derivatives: Dict[str, Any],
     ):
         self.return_code = return_code
@@ -96,6 +96,8 @@ class DDWaf_info(object):
 if _DDWAF_LOADED:
 
     class DDWaf(object):
+        empty_observator = _observator()
+
         def __init__(
             self,
             ruleset_map: Dict[str, Any],
@@ -157,7 +159,7 @@ if _DDWAF_LOADED:
             return self._info
 
         def update_rules(self, new_rules: Dict[str, DDWafRulesType]) -> bool:
-            """update the rules of the WAF instance. return True if an error occurs."""
+            """update the rules of the WAF instance. return False if an error occurs."""
             rules = ddwaf_object.create_without_limits(new_rules)
             diagnostics = ddwaf_object()
             result = py_ddwaf_update(self._handle, rules, diagnostics)
@@ -192,7 +194,7 @@ if _DDWAF_LOADED:
             start = time.time()
             if not ctx:
                 LOGGER.debug("DDWaf.run: dry run. no context created.")
-                return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, 0, {})
+                return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
 
             result = ddwaf_result()
             observator = _observator()
@@ -204,7 +206,7 @@ if _DDWAF_LOADED:
                 self.report_error(f"appsec.waf.request::error::{error}", self._cached_version)
             if error == DDWAF_ERR_INTERNAL:
                 # result is not valid
-                return DDWaf_result(error, [], {}, 0, 0, False, 0, {})
+                return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
             return DDWaf_result(
                 error,
                 result.events.struct,
@@ -212,7 +214,7 @@ if _DDWAF_LOADED:
                 result.total_runtime / 1e3,
                 (time.time() - start) * 1e6,
                 result.timeout,
-                observator.truncation,
+                observator,
                 result.derivatives.struct,
             )
 
@@ -224,6 +226,7 @@ else:
     class DDWaf(object):  # type: ignore
         required_data: List[str] = []
         info: DDWaf_info = DDWaf_info(0, 0, "", "")
+        empty_observator = _observator()
 
         def __init__(
             self,
@@ -241,7 +244,7 @@ else:
             timeout_ms: float = DEFAULT.WAF_TIMEOUT,
         ) -> DDWaf_result:
             LOGGER.debug("DDWaf features disabled. dry run")
-            return DDWaf_result(0, [], {}, 0.0, 0.0, False, 0, {})
+            return DDWaf_result(0, [], {}, 0.0, 0.0, False, self.empty_observator, {})
 
         def update_rules(self, _: Dict[str, Any]) -> bool:
             LOGGER.debug("DDWaf features disabled. dry update")

@@ -15,7 +15,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
-from ddtrace.internal.ci_visibility.constants import TEST_SESSION_QUARANTINE_ENABLED
+from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_ENABLED
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
@@ -72,8 +72,8 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         elif self.efd_is_faulty_session():
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
 
-    def _set_quarantine_tags(self):
-        self.set_tag(TEST_SESSION_QUARANTINE_ENABLED, True)
+    def _set_test_management_tags(self):
+        self.set_tag(TEST_MANAGEMENT_ENABLED, True)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set session-level tags based in ITR enablement status"""
