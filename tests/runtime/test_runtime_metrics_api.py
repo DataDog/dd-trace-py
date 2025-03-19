@@ -201,7 +201,7 @@ def test_runtime_metrics_enable_environ(monkeypatch, environ):
 @pytest.mark.subprocess(parametrize={"DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED": ["true", "false"]})
 def test_runtime_metrics_experimental_runtime_tag():
     """
-    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_BEHAVIOR_ENABLED=DD_RUNTIME_METRICS_ENABLED
         Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
     """
     import os
@@ -226,12 +226,12 @@ def test_runtime_metrics_experimental_runtime_tag():
 
 
 @pytest.mark.subprocess(
-    parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
+    parametrize={"DD_TRACE_EXPERIMENTAL_BEHAVIOR_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
     err=None,
 )
 def test_runtime_metrics_experimental_metric_type():
     """
-    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
+    When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_BEHAVIOR_ENABLED=DD_RUNTIME_METRICS_ENABLED
         Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
     """
     import os
@@ -244,7 +244,7 @@ def test_runtime_metrics_experimental_metric_type():
 
     worker_instance = RuntimeWorker._instance
     assert worker_instance.status == ServiceStatus.RUNNING
-    if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED"]:
+    if "DD_RUNTIME_METRICS_ENABLED" in os.environ["DD_TRACE_EXPERIMENTAL_BEHAVIOR_ENABLED"]:
         assert worker_instance.send_metric == worker_instance._dogstatsd_client.gauge, worker_instance.send_metric
     else:
         assert (

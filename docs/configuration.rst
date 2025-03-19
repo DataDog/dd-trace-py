@@ -865,7 +865,7 @@ Other
          Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
-   DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
+   DD_TRACE_EXPERIMENTAL_BEHAVIOR_ENABLED:
      type: string
      version_added:
        v3.2.0: Adds initial support and support for enabling experimental runtime metrics. 
