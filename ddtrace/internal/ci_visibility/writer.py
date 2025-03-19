@@ -108,6 +108,7 @@ class CIVisibilityWriter(HTTPWriter):
         dogstatsd: Optional[DogStatsd] = None,
         sync_mode: bool = False,
         report_metrics: bool = False,  # unused, but required for inheritance
+        api_version: Optional[str] = None,  # unused, but required for inheritance
         reuse_connections: Optional[bool] = None,
         headers: Optional[Dict[str, str]] = None,
         use_evp: bool = False,
