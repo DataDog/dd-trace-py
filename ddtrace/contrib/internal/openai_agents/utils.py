@@ -13,7 +13,6 @@ from agents.tracing.spans import Span as OaiSpan
 from ddtrace._trace.span import Span as DdSpan
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import SPAN_LINKS
 
 
 logger = get_logger(__name__)
@@ -99,6 +98,11 @@ def _determine_span_kind(span_type: str) -> str:
     }
     kind = kind_mapping.get(span_type, "task")
     return kind
+
+
+def get_span_kind_from_span(span: OaiSpan) -> str:
+    span_type = span.export().get("span_data", {}).get("type")
+    return _determine_span_kind(span_type)
 
 
 def start_span_fn(span_kind: str) -> callable:
@@ -265,17 +269,3 @@ def trace_input_from_response_span(response_span: OaiSpan[Any]) -> Optional[str]
     except (AttributeError, IndexError):
         logger.warning("Failed to process input messages from `response` span", exc_info=True)
     return None
-
-
-def add_span_link(llmobs_span: DdSpan, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = llmobs_span._get_ctx_item(SPAN_LINKS)
-    if current_span_links is None:
-        current_span_links = []
-    current_span_links.append(
-        {
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
-        }
-    )
-    llmobs_span._set_ctx_item(SPAN_LINKS, current_span_links)
