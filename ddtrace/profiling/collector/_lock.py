@@ -180,12 +180,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
 
-        start = None
-        if hasattr(self, "_self_acquired_at"):
-            # _self_acquired_at is only set when the acquire was captured
-            # if it's not set, we're not capturing the release
-            start = self._self_acquired_at
-            del self._self_acquired_at
+        # _self_acquired_at is only set when the acquire was captured, if it's
+        # not set, we're not capturing the release
+        start = self.__dict__.pop("_self_acquired_at", None)
 
         try:
             return inner_func(*args, **kwargs)
