@@ -125,6 +125,13 @@ Consul
 .. automodule:: ddtrace.contrib._consul
 
 
+.. _crewai:
+
+CrewAI
+^^^^^^
+.. automodule:: ddtrace.contrib._crewai
+
+
 .. _datadog_lambda:
 
 Datadog Lambda
