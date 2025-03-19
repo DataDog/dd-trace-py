@@ -784,7 +784,8 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         # do not include in meta
         if self.top_level_span_event_encoding:
             has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
-            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events + has_meta_struct
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events \
+                + has_meta_struct
         else:
             L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
