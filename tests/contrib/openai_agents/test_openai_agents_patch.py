@@ -1,11 +1,11 @@
-from ddtrace.contrib.internal.crewai.patch import get_version
-from ddtrace.contrib.internal.crewai.patch import patch
-from ddtrace.contrib.internal.crewai.patch import unpatch
+from ddtrace.contrib.internal.openai_agents.patch import get_version
+from ddtrace.contrib.internal.openai_agents.patch import patch
+from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
 class TestAgentsPatch(PatchTestCase.Base):
-    __integration_name__ = "agents"
+    __integration_name__ = "openai_agents"
     __module_name__ = "agents"
     __patch_func__ = patch
     __unpatch_func__ = unpatch

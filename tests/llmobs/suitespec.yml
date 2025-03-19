@@ -20,6 +20,9 @@ components:
   langgraph:
     - ddtrace/contrib/_langgraph.py
     - ddtrace/contrib/internal/langgraph/*
+  openai_agents:
+    - ddtrace/contrib/_openai_agents.py
+    - ddtrace/contrib/internal/openai_agents/*
 suites:
   anthropic:
     parallelism: 3
@@ -106,5 +109,16 @@ suites:
       - '@requests'
       - '@llmobs'
       - tests/contrib/langgraph/*
+    runner: riot
+    snapshot: true
+  openai_agents:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@openai_agents'
+      - '@llmobs'
+      - tests/contrib/openai_agents/*
     runner: riot
     snapshot: true

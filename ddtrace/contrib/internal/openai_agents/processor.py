@@ -6,16 +6,17 @@ from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace._trace.span import Span as DdSpan
-from ddtrace.contrib.internal.agents.utils import LLMObsTraceInfo
-from ddtrace.contrib.internal.agents.utils import ToolCallTracker
-from ddtrace.contrib.internal.agents.utils import _load_value
-from ddtrace.contrib.internal.agents.utils import _process_input_messages
-from ddtrace.contrib.internal.agents.utils import _process_output_messages
-from ddtrace.contrib.internal.agents.utils import add_span_link
-from ddtrace.contrib.internal.agents.utils import get_span_kind_from_span
-from ddtrace.contrib.internal.agents.utils import set_error_on_span
-from ddtrace.contrib.internal.agents.utils import start_span_fn
-from ddtrace.contrib.internal.agents.utils import trace_input_from_response_span
+from ddtrace.contrib.internal.openai_agents.utils import LLMObsTraceInfo
+from ddtrace.contrib.internal.openai_agents.utils import ToolCallTracker
+from ddtrace.contrib.internal.openai_agents.utils import _determine_span_kind
+from ddtrace.contrib.internal.openai_agents.utils import _process_input_messages
+from ddtrace.contrib.internal.openai_agents.utils import _process_output_messages
+from ddtrace.contrib.internal.openai_agents.utils import add_span_link
+from ddtrace.contrib.internal.openai_agents.utils import get_span_kind_from_span
+from ddtrace.contrib.internal.openai_agents.utils import load_span_data_value
+from ddtrace.contrib.internal.openai_agents.utils import set_error_on_span
+from ddtrace.contrib.internal.openai_agents.utils import start_span_fn
+from ddtrace.contrib.internal.openai_agents.utils import trace_input_from_response_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -31,16 +32,19 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.trace import Pin
 
 
 logger = get_logger(__name__)
 
 
 class LLMObsTraceProcessor(TracingProcessor):
-    def __init__(self):
+    def __init__(self, integration, pin):
         super().__init__()
-        self.oai_to_llmobs_span = {}  # type: Dict[str, DdSpan]
-        self.llmobs_traces = {}  # type: Dict[str, LLMObsTraceInfo]
+        self.integration = integration
+        self.pin = pin
+        self.oai_to_llmobs_span = {}  # type: dict[str, DdSpan]
+        self.llmobs_traces = {}  # type: dict[str, LLMObsTraceInfo]
         self.tool_tracker = ToolCallTracker()
 
     def get_trace_info(self, span: OaiSpan[Any]) -> Optional[LLMObsTraceInfo]:
@@ -65,19 +69,20 @@ class LLMObsTraceProcessor(TracingProcessor):
             span: The span that started.
         """
         span_name = span.export().get("span_data", {}).get("name")
-        span_kind = get_span_kind_from_span(span)
+        span_type = (
+            span.export().get("span_data", {}).get("type")
+            if span.export().get("span_data", {}).get("type")
+            else "unknown"
+        )
+        span_kind = _determine_span_kind(span_type)
 
-        if span_kind == "llm":
-            cur_span = LLMObs.llm(
-                name=span_name if span_name else "openai.response",
-                model_name="default",
-                model_provider="openai",
-            )
-            parent = _get_nearest_llmobs_ancestor(cur_span)
-            if parent and parent._get_ctx_item(SPAN_KIND) == "agent" and _get_span_name(parent):
-                cur_span._set_ctx_item(NAME, _get_span_name(parent) + " (LLM)")
-        else:
-            cur_span = start_span_fn(span_kind)(name=span_name)
+        cur_span = self.integration.trace(
+            pin=self.pin,
+            operation_id=span_name if span_name else "openai.{}".format(span_type.lower()),
+            submit_to_llmobs=True,
+            span_name=span_name if span_name else "openai_agents.request",
+            llmobs_span_kind=span_kind,
+        )
 
         self.oai_to_llmobs_span[span.span_id] = cur_span
         trace_info = self.get_trace_info(span)
@@ -107,7 +112,14 @@ class LLMObsTraceProcessor(TracingProcessor):
         if group_id:
             args["session_id"] = group_id
 
-        root_llmobs_workflow = LLMObs.workflow(**args)
+        root_llmobs_workflow = self.integration.trace(
+            pin=self.pin,
+            operation_id=workflow_name if workflow_name else "openai_agents.request",
+            submit_to_llmobs=True,
+            span_name=workflow_name if workflow_name else "openai_agents.request",
+            llmobs_span_kind="workflow",
+        )
+
         self.oai_to_llmobs_span[trace.trace_id] = root_llmobs_workflow
 
         if trace.export().get("metadata"):
@@ -245,11 +257,11 @@ class LLMObsTraceProcessor(TracingProcessor):
             if hasattr(span_data.response, field):
                 value = getattr(span_data.response, field)
                 if value is not None:
-                    metadata[field] = _load_value(value)
+                    metadata[field] = load_span_data_value(value)
 
         # Add text metadata if present
         if hasattr(span_data.response, "text") and span_data.response.text:
-            metadata["text"] = _load_value(span_data.response.text)
+            metadata["text"] = load_span_data_value(span_data.response.text)
 
         # Build usage metrics
         metrics = {}
@@ -330,9 +342,9 @@ class LLMObsTraceProcessor(TracingProcessor):
         """Sets attributes for agent type spans."""
         metadata = {}
         if hasattr(span_data, "handoffs"):
-            metadata["handoffs"] = _load_value(span_data.handoffs)
+            metadata["handoffs"] = load_span_data_value(span_data.handoffs)
         if hasattr(span_data, "tools"):
-            metadata["tools"] = _load_value(span_data.tools)
+            metadata["tools"] = load_span_data_value(span_data.tools)
 
         if metadata:
             llmobs_span._set_ctx_item(METADATA, metadata)
@@ -353,7 +365,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         # Set metadata from model_config
         metadata = {}
         if hasattr(span_data, "model_config") and span_data.model_config:
-            metadata.update(_load_value(span_data.model_config))
+            metadata.update(load_span_data_value(span_data.model_config))
 
         # Set usage metrics
         metrics = {}

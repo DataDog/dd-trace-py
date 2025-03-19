@@ -2482,6 +2482,17 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="openai_agents",
+            command="pytest {cmdargs} tests/contrib/openai_agents",
+            pys=select_pys(min_version="3.10", max_version="3.12"),
+            pkgs={
+                "vcrpy": "==7.0.0",
+                "pytest-asyncio": "==0.23.7",
+                "openai": latest,
+                "openai-agents": latest,
+            },
+        ),
+        Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={

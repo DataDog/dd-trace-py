@@ -101,11 +101,6 @@ def _determine_span_kind(span_type: str) -> str:
     return kind
 
 
-def get_span_kind_from_span(span: OaiSpan) -> str:
-    span_type = span.export().get("span_data", {}).get("type")
-    return _determine_span_kind(span_type)
-
-
 def start_span_fn(span_kind: str) -> callable:
     if span_kind == "llm":
         return LLMObs.llm
@@ -128,10 +123,10 @@ def set_error_on_span(llmobs_span: DdSpan, oai_span: OaiSpan) -> None:
         llmobs_span.set_tag("error.message", error_msg + "\n" + json.dumps(data))
 
 
-def _load_value(value):
-    """Helper function to load values in a consistent way"""
+def load_span_data_value(value):
+    """Helper function to load values stored in span data in a consistent way"""
     if isinstance(value, list):
-        return [_load_value(item) for item in value]
+        return [load_span_data_value(item) for item in value]
     elif hasattr(value, "model_dump"):
         return value.model_dump()
     elif is_dataclass(value):
