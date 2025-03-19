@@ -88,7 +88,7 @@ class _EncoderBase(object):
         if span._links:
             d["span_links"] = [link.to_dict() for link in span._links]
 
-        if span._events and AgentConfig.trace_native_span_events_enabled:
+        if span._events and AgentConfig.trace_native_span_events:
             d["span_events"] = [dict(event) for event in span._events]
 
         return d

@@ -653,7 +653,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         return 0
 
     cdef inline int _pack_span_events(self, list span_events):
-        print(span_events)
         ret = msgpack_pack_array(&self.pk, len(span_events))
         if ret != 0:
             return ret
@@ -667,7 +666,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
             for k, v in d.items():
                 # pack the name of a span event
-                print(k)
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
                     return ret
@@ -677,31 +675,24 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, v)
                 elif k == "attributes":
                     # span events can contain attributes, this is analougous to span tags
-                    print("Packing attributes")
                     attributes = v.items()
                     ret = msgpack_pack_map(&self.pk, len(attributes))
                     for attr_k, attr_v in attributes:
-                        print("key:", attr_k)
-                        print("value:", attr_v)
                         ret = pack_text(&self.pk, attr_k)
                         if isinstance(attr_v, str):
-                            print("Packing text")
                             ret = pack_text(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
                         elif isinstance(attr_v, bool):
-                            print("Packing bool")
                             ret = pack_bool(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
                         elif isinstance(attr_v, (int, float)):
-                            print("Packing number")
                             ret = pack_number(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
                         # pack a list.
                         elif isinstance(attr_v, (list, tuple)):
-                            print("Packing list")
                             ret = pack_list(&self.pk, attr_v)
                             if ret != 0:
                                 return ret
@@ -790,7 +781,12 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+        # do not include in meta
+        if self.top_level_span_event_encoding:
+            has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events + has_meta_struct
+        else:
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -891,7 +887,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
-                    print("Packing normal span events")
                     span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:

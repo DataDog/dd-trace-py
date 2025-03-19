@@ -517,18 +517,13 @@ def test_span_event_encoding_msgpack(version):
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    # TODO: add list support in packing span events for v0.4
-    span._add_event(
-        "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-        {"emotion": "happy", "rating": 9.8, "idol": False},
-        17353464354546,
-    )
     with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0])
+    data = encoder.encode()
+    decoded_trace = decode(data[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -536,17 +531,26 @@ def test_span_event_encoding_msgpack(version):
 
     if version == "v0.5":
         encoded_span_meta = decoded_trace[0][0][9]
+        assert b"events" in encoded_span_meta
+        assert (
+            encoded_span_meta[b"events"]
+            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
+            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
+            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
+            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
+        )
     else:
-        encoded_span_meta = decoded_trace[0][0][b"meta"]
-
-    assert b"events" in encoded_span_meta
-    assert (
-        encoded_span_meta[b"events"]
-        == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-        b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-        b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-        b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-    )
+        encoded_span_meta = decoded_trace[0][0]
+        assert b"span_events" in encoded_span_meta
+        assert encoded_span_meta[b"span_events"] == [
+            {b"name": b"Something went so wrong", b"time_unix_nano": 1, b"attributes": {b"type": b"error"}},
+            {
+                b"name": b"I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
+                b"time_unix_nano": 17353464354546,
+                b"attributes": {b"emotion": b"happy", b"rating": 9.8, b"other": [1, 9.5, 1], b"idol": False},
+            },
+            {b"name": b"We are going to the moon", b"time_unix_nano": 2234567890123456},
+        ]
 
 
 def test_span_link_v05_encoding():
