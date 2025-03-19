@@ -195,6 +195,18 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # calling the inner function, as once the lock is released, another
         # thread can acquire it and we can get a wrong start time.
         start = getattr(self, "_self_acquired_at", None)
+        # When inner_func raises an exception, we don't want to record any sample
+        # event, so use this flag to check if an exception was raised. Though
+        # we check if start is not None, that is not enough. Consider the
+        # following scenario:
+        # 1. Thread A acquires the lock and sets _self_acquired_at
+        # 2. Thread A and B both calls release() on the lock
+        # 3. Both threads set start to some value, and one of the threads
+        #   successfully releases the lock, and the other thread raises an
+        #   exception.
+        # In this case, we don't want to record any event from the thread that
+        # raised the exception. This should generally not happen but we're being
+        # cautious.
         exception_raised = False
         try:
             return inner_func(*args, **kwargs)
@@ -206,12 +218,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # can raise an exception if the frame depth is too low, though it should
             # not happen in normal circumstances.
             try:
-                # Though it should not generally happen, while a thread called
-                # release() on a lock, another thread can also call release()
-                # on the same lock, which can cause _self_acquired_at to be
-                # set in both threads, and the following code could be executed
-                # in both threads. In that case, we don't want to record the
-                # event from the thread that raised the exception.
                 if not exception_raised and start is not None:
                     # Wrap the call to del, as it can raise an AttributeError. Even
                     # if it does, we still want to continue with the rest of the
