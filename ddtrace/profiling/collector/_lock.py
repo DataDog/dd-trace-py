@@ -118,62 +118,67 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
 
         start = time.monotonic_ns()
+        result = False
         try:
-            return inner_func(*args, **kwargs)
+            # acquire() returns True if the lock was acquired, False if not
+            # we only want to record the event if the lock was acquired
+            # so we store the result to check it in the finally block
+            result = inner_func(*args, **kwargs)
+            return result
         finally:
-            try:
-                end = self._self_acquired_at = time.monotonic_ns()
-                thread_id, thread_name = _current_thread()
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-                self._maybe_update_self_name()
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
+            if result:
+                try:
+                    end = self._self_acquired_at = time.monotonic_ns()
+                    thread_id, thread_name = _current_thread()
+                    task_id, task_name, task_frame = _task.get_task(thread_id)
+                    self._maybe_update_self_name()
+                    lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
-                if task_frame is None:
-                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
-                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
+                    if task_frame is None:
+                        # If we can't get the task frame, we use the caller frame. We expect acquire/release or
+                        # __enter__/__exit__ to be on the stack, so we go back 2 frames.
+                        frame = sys._getframe(2)
+                    else:
+                        frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                    frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                if self._self_export_libdd_enabled:
-                    thread_native_id = _threading.get_thread_native_id(thread_id)
+                    if self._self_export_libdd_enabled:
+                        thread_native_id = _threading.get_thread_native_id(thread_id)
 
-                    handle = ddup.SampleHandle()
-                    handle.push_monotonic_ns(end)
-                    handle.push_lock_name(lock_name)
-                    handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                    handle.push_task_id(task_id)
-                    handle.push_task_name(task_name)
+                        handle = ddup.SampleHandle()
+                        handle.push_monotonic_ns(end)
+                        handle.push_lock_name(lock_name)
+                        handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
+                        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                        handle.push_task_id(task_id)
+                        handle.push_task_name(task_name)
 
-                    if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span())
-                    for frame in frames:
-                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.flush_sample()
-                else:
-                    event = self.ACQUIRE_EVENT_CLASS(
-                        lock_name=lock_name,
-                        frames=frames,
-                        nframes=nframes,
-                        thread_id=thread_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        wait_time_ns=end - start,
-                        sampling_pct=self._self_capture_sampler.capture_pct,
-                    )
+                        if self._self_tracer is not None:
+                            handle.push_span(self._self_tracer.current_span())
+                        for frame in frames:
+                            handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                        handle.flush_sample()
+                    else:
+                        event = self.ACQUIRE_EVENT_CLASS(
+                            lock_name=lock_name,
+                            frames=frames,
+                            nframes=nframes,
+                            thread_id=thread_id,
+                            thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
+                            wait_time_ns=end - start,
+                            sampling_pct=self._self_capture_sampler.capture_pct,
+                        )
 
-                    if self._self_tracer is not None:
-                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                        if self._self_tracer is not None:
+                            event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
-                    self._self_recorder.push_event(event)
-            except Exception as e:
-                # TODO(taegyunkim): consider exporting this to telemetry
-                LOG.debug("Failed to record a lock acquire event: %s", e)
-                pass  # nosec
+                        self._self_recorder.push_event(event)
+                except Exception as e:
+                    # TODO(taegyunkim): consider exporting this to telemetry
+                    LOG.debug("Failed to record a lock acquire event: %s", e)
 
     def acquire(self, *args, **kwargs):
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -254,6 +259,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
 
                     self._self_recorder.push_event(event)
         except Exception as e:
+            # TODO(taegyunkim): consider exporting this to telemetry
             LOG.debug("Failed to record a lock release event: %s", e)
 
 
