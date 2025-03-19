@@ -7,11 +7,8 @@ import astunparse
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._ast.ast_patching import _in_python_stdlib
 from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-from ddtrace.appsec._iast._ast.ast_patching import _trie_has_prefix_for
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
-from ddtrace.appsec._iast._ast.ast_patching import build_trie
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 from ddtrace.internal.utils.formats import asbool
 from tests.utils import override_env
@@ -191,24 +188,6 @@ def test_should_not_iast_patch_if_stdlib():
     assert not _should_iast_patch("sys.platform")
 
 
-@pytest.mark.parametrize(
-    "module_name, result",
-    [
-        ("Envier", False),
-        ("iterTools", True),
-        ("functooLs", True),
-        ("astunparse", False),
-        ("pytest.warns", False),
-        ("datetime", True),
-        ("posiX", True),
-        ("app", False),
-        ("my_app", False),
-    ],
-)
-def test_module_in_python_stdlib(module_name, result):
-    assert _in_python_stdlib(module_name) == result
-
-
 def test_module_path_none(caplog):
     with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
         assert ("", None) == astpatch_module(
@@ -346,87 +325,3 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
         # Check that all the symbols in the expected set are in the patched dir() result
         for name in expected_names:
             assert name in patched_dir
-
-
-def test_build_trie():
-    from ddtrace.appsec._iast._ast.ast_patching import build_trie
-
-    trie = build_trie(["abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz"])
-    assert dict(trie) == {
-        "a": {
-            "b": {
-                "c": {"": None},
-            },
-        },
-        "d": {
-            "e": {
-                "f": {"": None},
-            },
-        },
-        "g": {
-            "h": {
-                "i": {"": None},
-            },
-        },
-        "j": {
-            "k": {
-                "l": {"": None},
-            },
-        },
-        "m": {
-            "n": {
-                "o": {"": None},
-            },
-        },
-        "p": {
-            "q": {
-                "r": {"": None},
-            },
-        },
-        "s": {
-            "t": {
-                "u": {"": None},
-            },
-        },
-        "v": {
-            "w": {
-                "x": {"": None},
-            },
-        },
-        "y": {
-            "z": {"": None},
-        },
-    }
-
-
-def test_trie_has_string_match():
-    trie = build_trie(["abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz"])
-    assert _trie_has_prefix_for(trie, "abc")
-    assert not _trie_has_prefix_for(trie, "ab")
-    assert _trie_has_prefix_for(trie, "abcd")
-    assert _trie_has_prefix_for(trie, "def")
-    assert not _trie_has_prefix_for(trie, "de")
-    assert _trie_has_prefix_for(trie, "defg")
-    assert _trie_has_prefix_for(trie, "ghi")
-    assert not _trie_has_prefix_for(trie, "gh")
-    assert _trie_has_prefix_for(trie, "ghij")
-    assert _trie_has_prefix_for(trie, "jkl")
-    assert not _trie_has_prefix_for(trie, "jk")
-    assert _trie_has_prefix_for(trie, "jklm")
-    assert _trie_has_prefix_for(trie, "mno")
-    assert not _trie_has_prefix_for(trie, "mn")
-    assert _trie_has_prefix_for(trie, "mnop")
-    assert _trie_has_prefix_for(trie, "pqr")
-    assert not _trie_has_prefix_for(trie, "pq")
-    assert _trie_has_prefix_for(trie, "pqrs")
-    assert _trie_has_prefix_for(trie, "stu")
-    assert not _trie_has_prefix_for(trie, "st")
-    assert _trie_has_prefix_for(trie, "stuv")
-    assert _trie_has_prefix_for(trie, "vwx")
-    assert not _trie_has_prefix_for(trie, "vw")
-    assert _trie_has_prefix_for(trie, "vwxy")
-    assert _trie_has_prefix_for(trie, "yz")
-    assert not _trie_has_prefix_for(trie, "y")
-    assert _trie_has_prefix_for(trie, "yza")
-    assert not _trie_has_prefix_for(trie, "z")
-    assert not _trie_has_prefix_for(trie, "zzz")

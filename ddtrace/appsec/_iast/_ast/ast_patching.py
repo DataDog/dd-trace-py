@@ -1,333 +1,50 @@
-#!/usr/bin/env python3
-
 import ast
-import codecs
 import os
-from sys import builtin_module_names
 import textwrap
 from types import ModuleType
-from typing import Iterable
 from typing import Optional
-from typing import Set
 from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
-from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
-from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
+from .._logs import iast_ast_debug_log
 from .._logs import iast_compiling_debug_log
 from .visitor import AstVisitor
 
-
-_should_iast_patch = iastpatch.should_iast_patch
 
 _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
-# Prefixes for modules where IAST patching is allowed
-# Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
-IAST_ALLOWLIST: Tuple[Text, ...] = (
-    "attrs.",
-    "beautifulsoup4.",
-    "cachetools.",
-    "cryptography.",
-    "django.",
-    "docutils.",
-    "idna.",
-    "iniconfig.",
-    "jinja2.",
-    "lxml.",
-    "multidict.",
-    "platformdirs",
-    "pygments.",
-    "pynacl.",
-    "pyparsing.",
-    "multipart",
-    "sqlalchemy.",
-    "tomli",
-    "yarl.",
-)
-
-# NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
-IAST_DENYLIST: Tuple[Text, ...] = (
-    "django.apps.config.",
-    "django.apps.registry.",
-    "django.conf.",
-    "django.contrib.admin.actions.",
-    "django.contrib.admin.admin.",
-    "django.contrib.admin.apps.",
-    "django.contrib.admin.checks.",
-    "django.contrib.admin.decorators.",
-    "django.contrib.admin.exceptions.",
-    "django.contrib.admin.helpers.",
-    "django.contrib.admin.image_formats.",
-    "django.contrib.admin.options.",
-    "django.contrib.admin.sites.",
-    "django.contrib.admin.templatetags.",
-    "django.contrib.admin.views.autocomplete.",
-    "django.contrib.admin.views.decorators.",
-    "django.contrib.admin.views.main.",
-    "django.contrib.admin.wagtail_hooks.",
-    "django.contrib.admin.widgets.",
-    "django.contrib.admindocs.utils.",
-    "django.contrib.admindocs.views.",
-    "django.contrib.auth.admin.",
-    "django.contrib.auth.apps.",
-    "django.contrib.auth.backends.",
-    "django.contrib.auth.base_user.",
-    "django.contrib.auth.checks.",
-    "django.contrib.auth.context_processors.",
-    "django.contrib.auth.decorators.",
-    "django.contrib.auth.hashers.",
-    "django.contrib.auth.image_formats.",
-    "django.contrib.auth.management.",
-    "django.contrib.auth.middleware.",
-    "django.contrib.auth.password_validation.",
-    "django.contrib.auth.signals.",
-    "django.contrib.auth.templatetags.",
-    "django.contrib.auth.validators.",
-    "django.contrib.auth.wagtail_hooks.",
-    "django.contrib.contenttypes.admin.",
-    "django.contrib.contenttypes.apps.",
-    "django.contrib.contenttypes.checks.",
-    "django.contrib.contenttypes.fields.",
-    "django.contrib.contenttypes.forms.",
-    "django.contrib.contenttypes.image_formats.",
-    "django.contrib.contenttypes.management.",
-    "django.contrib.contenttypes.models.",
-    "django.contrib.contenttypes.templatetags.",
-    "django.contrib.contenttypes.views.",
-    "django.contrib.contenttypes.wagtail_hooks.",
-    "django.contrib.humanize.templatetags.",
-    "django.contrib.messages.admin.",
-    "django.contrib.messages.api.",
-    "django.contrib.messages.apps.",
-    "django.contrib.messages.constants.",
-    "django.contrib.messages.context_processors.",
-    "django.contrib.messages.image_formats.",
-    "django.contrib.messages.middleware.",
-    "django.contrib.messages.storage.",
-    "django.contrib.messages.templatetags.",
-    "django.contrib.messages.utils.",
-    "django.contrib.messages.wagtail_hooks.",
-    "django.contrib.sessions.admin.",
-    "django.contrib.sessions.apps.",
-    "django.contrib.sessions.backends.",
-    "django.contrib.sessions.base_session.",
-    "django.contrib.sessions.exceptions.",
-    "django.contrib.sessions.image_formats.",
-    "django.contrib.sessions.middleware.",
-    "django.contrib.sessions.templatetags.",
-    "django.contrib.sessions.wagtail_hooks.",
-    "django.contrib.sites.",
-    "django.contrib.staticfiles.admin.",
-    "django.contrib.staticfiles.apps.",
-    "django.contrib.staticfiles.checks.",
-    "django.contrib.staticfiles.finders.",
-    "django.contrib.staticfiles.image_formats.",
-    "django.contrib.staticfiles.models.",
-    "django.contrib.staticfiles.storage.",
-    "django.contrib.staticfiles.templatetags.",
-    "django.contrib.staticfiles.utils.",
-    "django.contrib.staticfiles.wagtail_hooks.",
-    "django.core.cache.backends.",
-    "django.core.cache.utils.",
-    "django.core.checks.async_checks.",
-    "django.core.checks.caches.",
-    "django.core.checks.compatibility.",
-    "django.core.checks.compatibility.django_4_0.",
-    "django.core.checks.database.",
-    "django.core.checks.files.",
-    "django.core.checks.messages.",
-    "django.core.checks.model_checks.",
-    "django.core.checks.registry.",
-    "django.core.checks.security.",
-    "django.core.checks.security.base.",
-    "django.core.checks.security.csrf.",
-    "django.core.checks.security.sessions.",
-    "django.core.checks.templates.",
-    "django.core.checks.translation.",
-    "django.core.checks.urls",
-    "django.core.exceptions.",
-    "django.core.mail.",
-    "django.core.management.base.",
-    "django.core.management.color.",
-    "django.core.management.sql.",
-    "django.core.paginator.",
-    "django.core.signing.",
-    "django.core.validators.",
-    "django.dispatch.dispatcher.",
-    "django.template.autoreload.",
-    "django.template.backends.",
-    "django.template.base.",
-    "django.template.context.",
-    "django.template.context_processors.",
-    "django.template.defaultfilters.",
-    "django.template.defaulttags.",
-    "django.template.engine.",
-    "django.template.exceptions.",
-    "django.template.library.",
-    "django.template.loader.",
-    "django.template.loader_tags.",
-    "django.template.loaders.",
-    "django.template.response.",
-    "django.template.smartif.",
-    "django.template.utils.",
-    "django.templatetags.",
-    "django.test.",
-    "django.urls.base.",
-    "django.urls.conf.",
-    "django.urls.converters.",
-    "django.urls.exceptions.",
-    "django.urls.resolvers.",
-    "django.urls.utils.",
-    "django.utils.",
-    "django_filters.compat.",
-    "django_filters.conf.",
-    "django_filters.constants.",
-    "django_filters.exceptions.",
-    "django_filters.fields.",
-    "django_filters.filters.",
-    "django_filters.filterset.",
-    "django_filters.rest_framework.",
-    "django_filters.rest_framework.backends.",
-    "django_filters.rest_framework.filters.",
-    "django_filters.rest_framework.filterset.",
-    "django_filters.utils.",
-    "django_filters.widgets.",
-)
-
-USER_ALLOWLIST = tuple(os.environ.get(IAST.PATCH_MODULES, "").split(IAST.SEP_MODULES))
-USER_DENYLIST = tuple(os.environ.get(IAST.DENY_MODULES, "").split(IAST.SEP_MODULES))
-
-ENCODING = ""
 
 log = get_logger(__name__)
 
 
-class _TrieNode:
-    __slots__ = ("children", "is_end")
+def _should_iast_patch(module_name: str) -> bool:
+    result = iastpatch.should_iast_patch(module_name)
+    if asm_config._iast_debug:
+        if result == iastpatch.DENIED_BUILTINS_DENYLIST:
+            iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
+        elif result == iastpatch.ALLOWED_USER_ALLOWLIST:
+            iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
+        elif result == iastpatch.ALLOWED_STATIC_ALLOWLIST:
+            iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
+        elif result == iastpatch.DENIED_USER_DENYLIST:
+            iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
+        elif result == iastpatch.DENIED_STATIC_DENYLIST:
+            iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
+        elif result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+            iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
+        elif result == iastpatch.DENIED_NOT_FOUND:
+            iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
 
-    def __init__(self):
-        self.children = {}
-        self.is_end = False
-
-    def __iter__(self):
-        if self.is_end:
-            yield ("", None)
-        else:
-            for k, v in self.children.items():
-                yield (k, dict(v))
-
-
-def build_trie(words: Iterable[str]) -> _TrieNode:
-    root = _TrieNode()
-    for word in words:
-        node = root
-        for char in word:
-            if char not in node.children:
-                node.children[char] = _TrieNode()
-            node = node.children[char]
-        node.is_end = True
-    return root
-
-
-_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
-_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
-_TRIE_USER_ALLOWLIST = build_trie(USER_ALLOWLIST)
-_TRIE_USER_DENYLIST = build_trie(USER_DENYLIST)
-
-
-def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
-    node = trie
-    for char in string:
-        node = node.children.get(char)
-        if not node:
-            return False
-
-        if node.is_end:
-            return True
-    return node.is_end
-
-
-def get_encoding(module_path: Text) -> Text:
-    """
-    First tries to detect the encoding for the file,
-    otherwise, returns global encoding default
-    """
-    global ENCODING
-    if not ENCODING:
-        try:
-            ENCODING = codecs.lookup("utf-8-sig").name
-        except LookupError:
-            ENCODING = codecs.lookup("utf-8").name
-    return ENCODING
-
-
-_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
-
-_IMPORTLIB_PACKAGES: Set[str] = set()
-
-
-def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
-
-
-def _is_first_party(module_name: str):
-    global _IMPORTLIB_PACKAGES
-    if "vendor." in module_name or "vendored." in module_name:
-        return False
-
-    if not _IMPORTLIB_PACKAGES:
-        _IMPORTLIB_PACKAGES = set(get_package_distributions())
-
-    return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
-
-
-# def _should_iast_patch(module_name: Text) -> bool:
-#     """
-#     select if module_name should be patched from the longest prefix that match in allow or deny list.
-#     if a prefix is in both list, deny is selected.
-#     """
-#     # TODO: A better solution would be to migrate the original algorithm to C++:
-#     # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
-#     # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
-#     # diff = max_allow - max_deny
-#     # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-#     if _in_python_stdlib(module_name):
-#         iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
-#         return False
-#
-#     if _is_first_party(module_name):
-#         iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
-#         return True
-#
-#     # else: third party. Check that is in the allow list and not in the deny list
-#     dotted_module_name = module_name.lower() + "."
-#
-#     # User allow or deny list set by env var have priority
-#     if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
-#         iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
-#         return True
-#
-#     if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
-#         iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
-#         return False
-#
-#     if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
-#         if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
-#             iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
-#             return False
-#         iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
-#         return True
-#     iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
-#     return False
+    return result >= iastpatch.ALLOWED_USER_ALLOWLIST
 
 
 def visit_ast(
