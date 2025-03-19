@@ -205,8 +205,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
         #   successfully releases the lock, and the other thread raises an
         #   exception.
         # In this case, we don't want to record any event from the thread that
-        # raised the exception. This should generally not happen but we're being
-        # cautious.
+        # raised the exception. Step 2 should generally not happen but we're
+        # being cautious.
         # This is a bit of a hack, and using thread local storage might be an
         # alternative, but that would require us importing threading module
         # which this module tries to patch. So we're using this approach.
