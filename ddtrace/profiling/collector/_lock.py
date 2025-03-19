@@ -185,61 +185,61 @@ class _ProfiledLock(wrapt.ObjectProxy):
         start = getattr(self, "_self_acquired_at", None)
 
         try:
-            return inner_func(*args, **kwargs)
+            inner_func(*args, **kwargs)
         except Exception as e:
             raise e
-        finally:
-            if start is not None:
-                try:
-                    del self._self_acquired_at
-                except AttributeError:
-                    pass
-                end = time.monotonic_ns()
-                thread_id, thread_name = _current_thread()
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
-                if task_frame is None:
-                    # See the comments in _acquire
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
+        if start is not None:
+            try:
+                del self._self_acquired_at
+            except AttributeError:
+                pass
+            end = time.monotonic_ns()
+            thread_id, thread_name = _current_thread()
+            task_id, task_name, task_frame = _task.get_task(thread_id)
+            lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+            if task_frame is None:
+                # See the comments in _acquire
+                frame = sys._getframe(2)
+            else:
+                frame = task_frame
 
-                if self._self_export_libdd_enabled:
-                    thread_native_id = _threading.get_thread_native_id(thread_id)
+            frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
-                    handle = ddup.SampleHandle()
-                    handle.push_monotonic_ns(end)
-                    handle.push_lock_name(lock_name)
-                    handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                    handle.push_task_id(task_id)
-                    handle.push_task_name(task_name)
+            if self._self_export_libdd_enabled:
+                thread_native_id = _threading.get_thread_native_id(thread_id)
 
-                    if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span())
-                    for frame in frames:
-                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.flush_sample()
-                else:
-                    event = self.RELEASE_EVENT_CLASS(
-                        lock_name=lock_name,
-                        frames=frames,
-                        nframes=nframes,
-                        thread_id=thread_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        locked_for_ns=end - start,
-                        sampling_pct=self._self_capture_sampler.capture_pct,
-                    )
+                handle = ddup.SampleHandle()
+                handle.push_monotonic_ns(end)
+                handle.push_lock_name(lock_name)
+                handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
+                handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                handle.push_task_id(task_id)
+                handle.push_task_name(task_name)
 
-                    if self._self_tracer is not None:
-                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                if self._self_tracer is not None:
+                    handle.push_span(self._self_tracer.current_span())
+                for frame in frames:
+                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                handle.flush_sample()
+            else:
+                event = self.RELEASE_EVENT_CLASS(
+                    lock_name=lock_name,
+                    frames=frames,
+                    nframes=nframes,
+                    thread_id=thread_id,
+                    thread_name=thread_name,
+                    task_id=task_id,
+                    task_name=task_name,
+                    locked_for_ns=end - start,
+                    sampling_pct=self._self_capture_sampler.capture_pct,
+                )
 
-                    self._self_recorder.push_event(event)
+                if self._self_tracer is not None:
+                    event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+
+                self._self_recorder.push_event(event)
 
     def release(self, *args, **kwargs):
         return self._release(self.__wrapped__.release, *args, **kwargs)
