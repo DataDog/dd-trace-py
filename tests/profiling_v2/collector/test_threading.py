@@ -843,6 +843,9 @@ class TestThreadingLockCollector:
             lock = threading.Lock()  # !CREATE! test_lock_release_fail
             lock.acquire()  # !ACQUIRE! test_lock_release_fail
 
+            sema = threading.Semaphore()
+            sema.acquire()
+
             def thread_1():
                 lock.release()  # !RELEASE! test_lock_release_fail
                 # to mimic a situation where the lock release() is called by
@@ -851,10 +854,12 @@ class TestThreadingLockCollector:
                 # explicitly here to some value
                 lock._self_acquired_at = 123
 
-            def thread_2():
-                import time
+                # thread_2 can now see our simulated "race" on releasing the lock
+                sema.release()
 
-                time.sleep(2)
+            def thread_2():
+                # wait for thread_1 to "race" on releasing the lock
+                sema.acquire()
 
                 with pytest.raises(RuntimeError):
                     lock.release()
