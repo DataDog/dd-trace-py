@@ -1,7 +1,7 @@
-from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest.plugin import is_enabled as is_ddtrace_enabled
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 

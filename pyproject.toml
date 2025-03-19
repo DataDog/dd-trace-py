@@ -213,7 +213,7 @@ exclude = [
     ".eggs",
     "*.egg",
     "build",
-    "ddtrace/__init__.py",
+    "ddtrace/bootstrap/sitecustomize.py",
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "ddtrace/profiling/exporter/pprof_*pb2.py",

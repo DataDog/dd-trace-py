@@ -1,11 +1,11 @@
 from pathlib import Path
 import typing as t
 
-import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+import ddtrace.trace
 from tests.debugging.mocking import MockLogsIntakeUploaderV1
 from tests.utils import TracerTestCase
 
@@ -21,13 +21,13 @@ class MockSpanCodeOriginProcessor(SpanCodeOriginProcessor):
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
         super(SpanProbeTestCase, self).setUp()
-        self.backup_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
+        self.backup_tracer = ddtrace.trace.tracer
+        ddtrace.trace.tracer = self.tracer
 
         MockSpanCodeOriginProcessor.enable()
 
     def tearDown(self):
-        ddtrace.tracer = self.backup_tracer
+        ddtrace.trace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
         MockSpanCodeOriginProcessor.disable()
