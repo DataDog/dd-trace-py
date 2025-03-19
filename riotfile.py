@@ -2577,6 +2577,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="litellm",
+            command="pytest {cmdargs} tests/contrib/litellm",
+            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pkgs={
+                "litellm": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pys=select_pys(min_version="3.8", max_version="3.12"),

@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib.metadata import version
 
 import litellm
 
@@ -24,7 +25,10 @@ config._add(
 
 def get_version():
     # type: () -> str
-    return getattr(litellm, "__version__", "")
+    try:
+        return version("litellm")
+    except Exception:
+        return ""
 
 
 def _create_span(litellm, pin, func, instance, args, kwargs):
@@ -87,9 +91,9 @@ def unpatch():
 
     litellm._datadog_patch = False
 
-    unwrap("litellm", "completion", traced_completion(litellm))
-    unwrap("litellm", "acompletion", traced_acompletion(litellm))
-    unwrap("litellm", "text_completion", traced_completion(litellm))
-    unwrap("litellm", "atext_completion", traced_acompletion(litellm))
+    unwrap(litellm, "completion")
+    unwrap(litellm, "acompletion")
+    unwrap(litellm, "text_completion")
+    unwrap(litellm, "atext_completion")
 
     delattr(litellm, "_datadog_integration")

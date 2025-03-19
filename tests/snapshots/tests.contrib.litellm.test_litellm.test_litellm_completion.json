@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "litellm.request",
+    "service": "tests.contrib.litellm",
+    "resource": "litellm.completion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67db283e00000000",
+      "language": "python",
+      "litellm.request.model": "gpt-3.5-turbo",
+      "litellm.request.provider": "",
+      "runtime-id": "f4fa019846d24cc9a50c88d550a339dd"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 18466
+    },
+    "duration": 737978000,
+    "start": 1742415934103250000
+  }]]
