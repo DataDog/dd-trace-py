@@ -2,10 +2,13 @@
 Patch module for the OpenAI Agents SDK.
 """
 import agents
+from agents.tracing import add_trace_processor
 
-from ddtrace import config
-from ddtrace.contrib.trace_utils import unwrap, wrap
+from ddtrace.contrib.internal.agents.processor import LLMObsTraceProcessor
+from ddtrace.contrib.internal.agents.processor import NoOpTraceProcessor
 
+
+_span_processor = None
 
 
 def patch():
@@ -16,12 +19,10 @@ def patch():
         return
 
     setattr(agents, "_datadog_patch", True)
+    global _span_processor
+    _span_processor = LLMObsTraceProcessor()
 
-    # TODO: Add wrapping for specific methods
-    # Example methods to consider wrapping:
-    # - Agent.__init__
-    # - AgentRunner.run
-    # - Any other relevant methods for tracing
+    add_trace_processor(_span_processor)
 
 
 def unpatch():
@@ -30,10 +31,9 @@ def unpatch():
     """
     if not getattr(agents, "_datadog_patch", False):
         return
+    # since there's no public api to remove a trace processor, we set the instance
+    # we added to a no-op instance
+    global _span_processor
+    _span_processor = NoOpTraceProcessor()
 
     setattr(agents, "_datadog_patch", False)
-
-    # TODO: Add unwrapping for all patched methods
-    # Example:
-    # unwrap(agents.Agent, "__init__")
-    # unwrap(agents.AgentRunner, "run") 

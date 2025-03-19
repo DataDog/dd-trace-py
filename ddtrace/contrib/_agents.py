@@ -3,7 +3,6 @@ Datadog APM integration for OpenAI Agents SDK.
 """
 from typing import TYPE_CHECKING
 
-from ddtrace import config
 from ddtrace.internal.utils.importlib import require_modules
 
 
@@ -40,4 +39,4 @@ def unpatch():
     """
     from ddtrace.contrib.internal.agents.patch import unpatch as _unpatch
 
-    _unpatch() 
+    _unpatch()
