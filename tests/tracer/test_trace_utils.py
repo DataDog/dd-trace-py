@@ -276,7 +276,7 @@ class TestHeaders(object):
         trace_utils.set_http_meta(span, integration_config, request_headers=headers, headers_are_case_sensitive=True)
         assert span.get_tag("http.referrer_host") == "example.com"
 
-    def test_referer_host_missing(self, span, integration_config):
+    def test_referrer_host_missing(self, span, integration_config):
         """Test that no referrer host tag is set when referer header is missing"""
         headers = {
             "other-header": "value",
@@ -284,7 +284,7 @@ class TestHeaders(object):
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
         assert span.get_tag("http.referrer_host") is None
 
-    def test_referer_host_invalid_url(self, span, integration_config):
+    def test_referrer_host_invalid_url(self, span, integration_config):
         """Test that no referrer host tag is set when referer URL is invalid"""
         headers = {
             "referer": "not-a-valid-url",

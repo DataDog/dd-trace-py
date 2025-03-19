@@ -174,25 +174,25 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 
 def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False):
     # type: (Mapping[str, str], bool) -> str
-    """Get referer host from request headers
+    """Get referrer host from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     :param headers_are_case_sensitive: Whether the headers are case sensitive
     :type headers_are_case_sensitive: bool
-    :return: The referer host if found, empty string otherwise
+    :return: The referrer host if found, empty string otherwise
     :rtype: str
     """
     if headers_are_case_sensitive:
-        referer = _get_header_value_case_insensitive(headers, "referer")
+        referrer = _get_header_value_case_insensitive(headers, "referer")
     else:
-        referer = headers.get("referer")
-    if referer:
+        referrer = headers.get("referer")
+    if referrer:
         try:
-            parsed_url = parse.urlparse(referer)
+            parsed_url = parse.urlparse(referrer)
             if parsed_url.hostname:
                 return parsed_url.hostname
-        except Exception:
-            pass
+        except (ValueError, AttributeError) as e:
+            log.debug("Failed to parse referer header value: %r", referrer, exc_info=e)
     return ""
 
 
@@ -526,9 +526,9 @@ def set_http_meta(
             span.set_tag_str(http.USER_AGENT, user_agent)
 
         # Extract referrer host if referer header is present
-        referer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
-        if referer_host:
-            span.set_tag_str(http.REFERRER_HOST, referer_host)
+        referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
+        if referrer_host:
+            span.set_tag_str(http.REFERRER_HOST, referrer_host)
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
