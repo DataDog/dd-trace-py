@@ -7,6 +7,8 @@ benchmark-serverless:
     project: DataDog/serverless-tools
     strategy: depend
   needs: []
+  # TODO: Revert this once the build issue has been resolved
+  allow_failure: true
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
