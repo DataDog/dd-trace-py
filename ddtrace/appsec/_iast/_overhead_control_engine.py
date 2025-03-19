@@ -3,11 +3,12 @@ The Overhead control engine (OCE) is an element that by design ensures that the 
 limit. It will measure operations being executed in a request and it will deactivate detection
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
+
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace.internal._unpatched import _threading as threading
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -24,7 +25,7 @@ class OverheadControl(object):
     The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
     """
 
-    _lock = threading.Lock()
+    _lock = Lock()
     _request_quota = asm_config._iast_max_concurrent_requests
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 

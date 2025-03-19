@@ -1,4 +1,3 @@
-import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -14,6 +13,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.compat import NumericType  # noqa:F401
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
+from ddtrace.internal.threads import Lock
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
 
@@ -41,7 +41,7 @@ class Span(OpenTracingSpan):
         super(Span, self).__init__(tracer, context)
 
         self.finished = False
-        self._lock = threading.Lock()
+        self._lock = Lock()
         # use a datadog span
         self._dd_span = DatadogSpan(operation_name, context=context._dd_context, span_api=SPAN_API_OPENTRACING)
 

@@ -1,7 +1,6 @@
 import abc
 from collections import defaultdict
 from itertools import chain
-from threading import RLock
 from typing import Any
 from typing import Dict
 from typing import List
@@ -28,6 +27,7 @@ from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
 from ddtrace.settings._config import config
@@ -284,7 +284,7 @@ class SpanAggregator(SpanProcessor):
         self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
-        self._lock: RLock = RLock()
+        self._lock = RLock()
         # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
         self._span_metrics: Dict[str, DefaultDict] = {

@@ -86,6 +86,10 @@ class PyRef
 };
 
 // ----------------------------------------------------------------------------
+
+#include "_threads/lock.hpp"
+
+// ----------------------------------------------------------------------------
 class Event
 {
   public:
@@ -533,6 +537,9 @@ PyInit__threads(void)
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return NULL;
 
+    if (PyType_Ready(&LockType) < 0)
+        return NULL;
+
     _periodic_threads = PyDict_New();
     if (_periodic_threads == NULL)
         return NULL;
@@ -541,6 +548,7 @@ PyInit__threads(void)
     if (m == NULL)
         goto error;
 
+    // Periodic thread
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
@@ -549,6 +557,13 @@ PyInit__threads(void)
 
     if (PyModule_AddObject(m, "periodic_threads", _periodic_threads) < 0)
         goto error;
+
+    // Lock
+    Py_INCREF(&LockType);
+    if (PyModule_AddObject(m, "Lock", (PyObject*)&LockType) < 0) {
+        Py_DECREF(&LockType);
+        goto error;
+    }
 
     return m;
 

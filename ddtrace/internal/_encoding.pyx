@@ -26,6 +26,8 @@ from .constants import MAX_UINT_64BITS
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ..settings._agent import config as agent_config
+from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -252,7 +254,7 @@ cdef class MsgpackStringTable(StringTable):
         self.max_size = max_size
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
-        self._lock = threading.RLock()
+        self._lock = RLock()
         super(MsgpackStringTable, self).__init__()
 
         self.index(ORIGIN_KEY)
@@ -367,7 +369,7 @@ cdef class BufferedEncoder(object):
     def __cinit__(self, size_t max_size, size_t max_item_size):
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     # ---- Abstract methods ----
 
@@ -439,7 +441,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.max_size = max_size
         self.pk.buf_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
-        self._lock = threading.RLock()
+        self._lock = RLock()
         self._reset_buffer()
 
     def __dealloc__(self):

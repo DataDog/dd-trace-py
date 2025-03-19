@@ -6,7 +6,6 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import RLock
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
@@ -54,6 +53,7 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface

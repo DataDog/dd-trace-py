@@ -8,6 +8,7 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.threads import Lock
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -84,7 +85,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
-    _lock = forksafe.Lock()
+    _lock = Lock()
 
     def __init__(self, interval=_get_interval_or_default(), tracer=None, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)

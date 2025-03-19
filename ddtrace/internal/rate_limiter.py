@@ -9,6 +9,8 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
+from ddtrace.internal.threads import Lock
+
 
 class RateLimiter(object):
     """
@@ -52,7 +54,7 @@ class RateLimiter(object):
         self.tokens_total = 0
         self.prev_window_rate = None  # type: Optional[float]
 
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     def is_allowed(self) -> bool:
         """
