@@ -1,3 +1,8 @@
+from abc import ABC
+from abc import abstractmethod
+from dataclasses import dataclass
+from enum import Enum
+from enum import auto
 import json
 import os
 from pathlib import Path
@@ -11,9 +16,7 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
-import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -46,31 +49,30 @@ from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._session import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
+from ddtrace.internal.ci_visibility.api_client import ApiClientFactory
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import CUSTOM_CONFIGURATIONS_PREFIX
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
-from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
-from ddtrace.internal.ci_visibility.context import CIContextProvider
-from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
-from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
+from ddtrace.internal.ci_visibility.git import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
+from ddtrace.internal.ci_visibility.telemetry import enable_telemetry
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
+from ddtrace.internal.ci_visibility.utils import is_pytest_xdist_worker
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import RuntimeWorker
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
@@ -86,7 +88,9 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer.writer import Response
+from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings import _config as ddconfig
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -115,21 +119,6 @@ TELEMETRY_BY_PROVIDER_NAME = {
 }
 
 
-def _extract_repository_name_from_url(repository_url: str) -> str:
-    _REPO_NAME_REGEX = r".*/(?P<repo_name>.*?)(\.git)?$"
-
-    try:
-        url_path = parse.urlparse(repository_url).path
-        matches = re.match(_REPO_NAME_REGEX, url_path, flags=re.IGNORECASE)
-        if matches:
-            return matches.group("repo_name")
-        log.warning("Cannot extract repository name from unexpected URL path: %s", url_path)
-        return repository_url
-    except ValueError:
-        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
-        return repository_url
-
-
 def _get_git_repo() -> Optional[str]:
     # this exists only for the purpose of patching in tests
     return None
@@ -144,27 +133,213 @@ def _get_custom_configurations() -> Dict[str, str]:
     return custom_configurations
 
 
-def _do_request(
-    method: str, url: str, payload: str, headers: Dict[str, str], timeout: int = DEFAULT_TIMEOUT
-) -> Response:
-    try:
-        parsed_url = verify_url(url)
-        url_path = parsed_url.path
-        conn = get_connection(url, timeout=timeout)
-        log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
-        conn.request("POST", url_path, payload, headers)
-        resp = conn.getresponse()
-        log.debug("Response status: %s", resp.status)
-        result = Response.from_http_response(resp)
-    finally:
-        conn.close()
-    return result
-
-
 class CIVisibilityTracer(Tracer):
     def __init__(self, *args, **kwargs) -> None:
         # Allows for multiple instances of the civis tracer to be created without logging a warning
         super().__init__(*args, **kwargs)
+
+
+class RequestMode(Enum):
+    """Enum representing the different request modes for CI Visibility"""
+    AGENTLESS = auto()
+    EVP_PROXY = auto()
+    TRACES = auto()
+
+
+@dataclass
+class EnvConfig:
+    """Configuration extracted from environment variables"""
+    api_key: Optional[str]
+    dd_site: str
+    dd_env: Optional[str]
+    agentless_url: Optional[str]
+    env_message: str = ""
+    
+    @classmethod
+    def from_environment(cls) -> 'EnvConfig':
+        """Extract configuration from environment variables"""
+        api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+        dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
+        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        agentless_url = ddconfig._ci_visibility_agentless_url
+        
+        return cls(
+            api_key=api_key,
+            dd_site=dd_site,
+            dd_env=dd_env,
+            agentless_url=agentless_url
+        )
+
+
+class ClientStrategy(ABC):
+    """Abstract strategy for configuring API clients"""
+    @abstractmethod
+    def create_api_client(
+        self, 
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
+        git_data: GitData,
+        configurations: Dict[str, Any],
+        service: Optional[str],
+        tracer: Tracer,
+        env_config: EnvConfig
+    ) -> _TestVisibilityAPIClientBase:
+        """Create an API client for this strategy"""
+        pass
+
+    @abstractmethod
+    def get_request_mode(self) -> REQUESTS_MODE:
+        """Get the request mode for this strategy"""
+        pass
+    
+    @abstractmethod
+    def should_upload_git_metadata(self) -> bool:
+        """Whether this strategy requires git metadata uploads"""
+        pass
+    
+    @abstractmethod
+    def get_mode_name(self) -> str:
+        """Get a human-readable name for this mode"""
+        pass
+
+
+class AgentlessClientStrategy(ClientStrategy):
+    """Strategy for agentless mode"""
+    def create_api_client(
+        self, 
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
+        git_data: GitData,
+        configurations: Dict[str, Any],
+        service: Optional[str],
+        tracer: Tracer,
+        env_config: EnvConfig
+    ) -> _TestVisibilityAPIClientBase:
+        # Normalize environment to 'none' if not set
+        dd_env = env_config.dd_env
+        if dd_env is None:
+            dd_env = "none"
+            env_config.env_message = " (not set in environment)"
+            
+        return AgentlessTestVisibilityAPIClient(
+            itr_skipping_level,
+            git_data,
+            configurations,
+            env_config.api_key,
+            env_config.dd_site,
+            env_config.agentless_url,
+            service,
+            dd_env,
+        )
+    
+    def get_request_mode(self) -> REQUESTS_MODE:
+        return REQUESTS_MODE.AGENTLESS_EVENTS
+    
+    def should_upload_git_metadata(self) -> bool:
+        return True
+        
+    def get_mode_name(self) -> str:
+        return "agentless"
+
+
+class EVPProxyClientStrategy(ClientStrategy):
+    """Strategy for EVP proxy mode"""
+    def create_api_client(
+        self, 
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
+        git_data: GitData,
+        configurations: Dict[str, Any],
+        service: Optional[str],
+        tracer: Tracer,
+        env_config: EnvConfig
+    ) -> _TestVisibilityAPIClientBase:
+        # Get default env from agent if not provided
+        dd_env = env_config.dd_env
+        if dd_env is None:
+            dd_env = self._get_agent_default_env(tracer)
+            env_config.env_message = " (default environment provided by agent)"
+            
+        return EVPProxyTestVisibilityAPIClient(
+            itr_skipping_level,
+            git_data,
+            configurations,
+            tracer._agent_url,
+            service,
+            dd_env,
+        )
+
+    def get_request_mode(self) -> REQUESTS_MODE:
+        return REQUESTS_MODE.EVP_PROXY_EVENTS
+    
+    def should_upload_git_metadata(self) -> bool:
+        return True
+        
+    def get_mode_name(self) -> str:
+        return "EVP Proxy"
+        
+    def _get_agent_default_env(self, tracer: Tracer) -> str:
+        """Get the default environment from the agent"""
+        try:
+            info = agent.info(tracer._agent_url)
+        except Exception:
+            return "none"
+
+        if info:
+            return info.get("config", {}).get("default_env", "none")
+        return "none"
+
+
+class TracesClientStrategy(ClientStrategy):
+    """Strategy for traces mode (fallback)"""
+    def create_api_client(
+        self, 
+        itr_skipping_level: ITR_SKIPPING_LEVEL,
+        git_data: GitData,
+        configurations: Dict[str, Any],
+        service: Optional[str],
+        tracer: Tracer,
+        env_config: EnvConfig
+    ) -> _TestVisibilityAPIClientBase:
+        # No client creation needed for traces mode
+        return None
+    
+    def get_request_mode(self) -> REQUESTS_MODE:
+        return REQUESTS_MODE.TRACES
+    
+    def should_upload_git_metadata(self) -> bool:
+        return False
+        
+    def get_mode_name(self) -> str:
+        return "APM (some features will be disabled)"
+
+
+class ClientStrategyFactory:
+    """Factory for creating the appropriate client strategy"""
+    @staticmethod
+    def create_strategy(tracer: Tracer) -> ClientStrategy:
+        """Create the appropriate client strategy based on configuration"""
+        # Check for agentless mode first (highest priority)
+        if ddconfig._ci_visibility_agentless_enabled:
+            return AgentlessClientStrategy()
+            
+        # Check for EVP proxy availability next
+        if ClientStrategyFactory._is_evp_proxy_available(tracer):
+            return EVPProxyClientStrategy()
+            
+        # Fall back to traces mode
+        return TracesClientStrategy()
+    
+    @staticmethod
+    def _is_evp_proxy_available(tracer: Tracer) -> bool:
+        """Check if EVP proxy is available"""
+        try:
+            info = agent.info(tracer._agent_url)
+        except Exception:
+            info = None
+
+        if info:
+            endpoints = info.get("endpoints", [])
+            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
+                return True
+        return False
 
 
 class CIVisibility(Service):
@@ -176,435 +351,247 @@ class CIVisibility(Service):
     ) -> None:
         super().__init__()
 
-        if tracer:
-            self.tracer = tracer
-        else:
-            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
-                log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
-                # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
-                url = ddconfig._trace_agent_url
-
-                env_agent_url = os.getenv("_CI_DD_AGENT_URL")
-                if env_agent_url is not None:
-                    log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    url = env_agent_url
-
-                self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
-            else:
-                self.tracer = ddtrace.tracer
-
-            # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
-            # assume that a tracer is already configured if it's been passed in.
-            self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
-
-        self._api_client: Optional[_TestVisibilityAPIClientBase] = None
-
+        # Initialize tracer
+        self.tracer = self._init_tracer(tracer)
+        
+        # Initialize basic configuration
+        self._service = service
+        self.config = config or ddconfig.test_visibility
+        self._initialize_itr_settings()
+        
+        # Extract git data and tags
+        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
+        self._git_data: GitData = get_git_data_from_tags(self._tags)
+        
+        # Extract custom configurations
         self._configurations = ci._get_runtime_and_os_metadata()
         custom_configurations = _get_custom_configurations()
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
-
-        self._api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
-
-        self._dd_site = os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE)
-        self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
-        self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
-        self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
-        if not isinstance(ddconfig.test_visibility.itr_skipping_level, ITR_SKIPPING_LEVEL):
-            log.warning(
-                "itr_skipping_level should be of type %s but is of type %s, defaulting to %s",
-                ITR_SKIPPING_LEVEL,
-                type(ddconfig.test_visibility.itr_skipping_level),
-                ITR_SKIPPING_LEVEL.TEST.name,
-            )
-            self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
-        self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
+            
+        # Initialize instance variables
         self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
-        self._service = service
         self._codeowners = None
         self._root_dir = None
-        self._should_upload_git_metadata = True
         self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
         self._unique_test_ids: Set[InternalTestId] = set()
         self._test_properties: Dict[InternalTestId, TestProperties] = {}
-
         self._session: Optional[TestVisibilitySession] = None
+        
+        # Resolve service name if not provided
+        self._resolve_service_name()
 
-        if service is None:
-            # Use service if provided to enable() or __init__()
-            int_service = None
-            if self.config is not None:
-                int_service = trace_utils.int_service(None, self.config)
-            # check if repository URL detected from environment or .git, and service name unchanged
-            if (
-                self._tags.get(ci.git.REPOSITORY_URL, None)
-                and self.config
-                and int_service == self.config._default_service
-            ):
-                self._service = _extract_repository_name_from_url(self._tags[ci.git.REPOSITORY_URL])
-            elif self._service is None and int_service is not None:
-                self._service = int_service
-
-        self._git_data: GitData = get_git_data_from_tags(self._tags)
-
-        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
-        dd_env_msg = ""
-
-        if ddconfig._ci_visibility_agentless_enabled:
-            # In agentless mode, normalize an unset env to none (this is already done by the backend in most cases, so
-            # it does not override default behavior)
-            if dd_env is None:
-                dd_env = "none"
-                dd_env_msg = " (not set in environment)"
-            if not self._api_key:
-                raise EnvironmentError(
-                    "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
-                    "cannot be initialized."
-                )
-            requests_mode_str = "agentless"
-            self._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
-            self._api_client = AgentlessTestVisibilityAPIClient(
-                self._itr_skipping_level,
-                self._git_data,
-                self._configurations,
-                self._api_key,
-                self._dd_site,
-                ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
-                self._service,
-                dd_env,
+        # Create environment configuration
+        env_config = EnvConfig.from_environment()
+        
+        # Validate API key for agentless mode
+        if ddconfig._ci_visibility_agentless_enabled and not env_config.api_key:
+            raise EnvironmentError(
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED is set, but DD_API_KEY is not set, so ddtrace "
+                "cannot be initialized."
             )
-        elif self._agent_evp_proxy_is_available():
-            # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
-            # the correct decision:
-            if dd_env is None:
-                dd_env = self._agent_get_default_env()
-                dd_env_msg = " (default environment provided by agent)"
-            self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
-            requests_mode_str = "EVP Proxy"
-            self._api_client = EVPProxyTestVisibilityAPIClient(
-                self._itr_skipping_level,
-                self._git_data,
-                self._configurations,
-                self.tracer._agent_url,
-                self._service,
-                dd_env,
-            )
-        else:
-            requests_mode_str = "APM (some features will be disabled)"
-            self._requests_mode = REQUESTS_MODE.TRACES
-            self._should_upload_git_metadata = False
-
+        
+        # Create client strategy
+        client_strategy = ClientStrategyFactory.create_strategy(self.tracer)
+        
+        # Get request mode and determine if we need to upload git metadata
+        self._requests_mode = client_strategy.get_request_mode()
+        self._should_upload_git_metadata = client_strategy.should_upload_git_metadata()
+        requests_mode_str = client_strategy.get_mode_name()
+        
+        # Create API client using strategy
+        self._api_client = client_strategy.create_api_client(
+            self._itr_skipping_level,
+            self._git_data,
+            self._configurations,
+            self._service,
+            self.tracer,
+            env_config
+        )
+        
+        # Initialize git client if needed
         if self._should_upload_git_metadata:
             self._git_client = CIVisibilityGitClient(
-                api_key=self._api_key or "", requests_mode=self._requests_mode, tracer=self.tracer
+                api_key=env_config.api_key or "", 
+                requests_mode=self._requests_mode, 
+                tracer=self.tracer
             )
             self._git_client.upload_git_metadata(cwd=_get_git_repo())
 
+        # Initialize settings and coverage
         self._api_settings = self._check_enabled_features()
-
+        self._feature_manager = FeatureManager(self._api_settings)
         self._collect_coverage_enabled = self._should_collect_coverage(self._api_settings.coverage_enabled)
-
+        
+        # Configure writer
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s%s)", self._service, dd_env, dd_env_msg)
-        log.info("Requests mode: %s", requests_mode_str)
-        log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
-        log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
-        log.info(
-            "API-provided settings: Intelligent Test Runner: %s, test skipping: %s",
-            self._api_settings.itr_enabled,
-            self._api_settings.skipping_enabled,
-        )
-        log.info(
-            "API-provided settings: Early Flake Detection enabled: %s",
-            self._api_settings.early_flake_detection.enabled,
-        )
-        log.info("API-provided settings: Auto Test Retries enabled: %s", self._api_settings.flaky_test_retries_enabled)
-        log.info("Detected configurations: %s", str(self._configurations))
-
-        try:
-            self._codeowners = Codeowners()
-        except ValueError:
-            log.warning("CODEOWNERS file is not available")
-        except Exception:
-            log.warning("Failed to load CODEOWNERS", exc_info=True)
-
-    @staticmethod
-    def _should_collect_coverage(coverage_enabled_by_api):
-        if not coverage_enabled_by_api and not asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
-        ):
-            return False
-        if not is_coverage_available():
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
-        return True
-
-    def _check_enabled_features(self) -> TestVisibilityAPISettings:
-        # DEV: Remove this ``if`` once ITR is in GA
-        _error_return_value = TestVisibilityAPISettings()
-
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            return _error_return_value
-
-        if not self._api_client:
-            log.warning("API client not initialized, disabling coverage collection and test skipping")
-            return _error_return_value
-
-        try:
-            settings = self._api_client.fetch_settings()
-        except CIVisibilityAuthenticationException:
-            # Authentication exception is handled during enable() to prevent the service from being used
-            raise
-        except Exception:
-            log.warning(
-                "Error checking Intelligent Test Runner API, disabling coverage collection and test skipping",
-                exc_info=True,
-            )
-            return _error_return_value
-
-        if settings.require_git:
-            log.info("Settings API requires git metadata, waiting for git metadata upload to complete")
-            try:
-                try:
-                    if self._git_client.wait_for_metadata_upload_status() == METADATA_UPLOAD_STATUS.FAILED:
-                        log.warning("Metadata upload failed, test skipping will be best effort")
-                except ValueError:
-                    log.warning(
-                        "Error waiting for git metadata upload, test skipping will be best effort", exc_info=True
-                    )
-            except TimeoutError:
-                log.warning("Timeout waiting for metadata upload, test skipping will be best effort")
-
-            # The most recent API response overrides the first one
-            try:
-                settings = self._api_client.fetch_settings()
-            except Exception:
-                log.warning(
-                    "Error checking Intelligent Test Runner API after git metadata upload,"
-                    " disabling coverage and test skipping",
-                    exc_info=True,
-                )
-                return _error_return_value
-            if settings.require_git:
-                log.warning("git metadata upload did not complete in time, test skipping will be best effort")
-
-        return settings
-
-    def _configure_writer(
-        self, coverage_enabled: bool = False, requests_mode: Optional[REQUESTS_MODE] = None, url: Optional[str] = None
-    ) -> None:
-        writer = None
-        if requests_mode is None:
-            requests_mode = self._requests_mode
-
-        if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
-            headers = {"dd-api-key": self._api_key or ""}
-            writer = CIVisibilityWriter(
-                headers=headers,
-                coverage_enabled=coverage_enabled,
-                itr_suite_skipping_mode=self._suite_skipping_mode,
-            )
-        elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url() if url is None else url,
-                headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
-                use_evp=True,
-                coverage_enabled=coverage_enabled,
-                itr_suite_skipping_mode=self._suite_skipping_mode,
-            )
-        if writer is not None:
-            self.tracer._configure(writer=writer)
-
-    def _agent_evp_proxy_is_available(self) -> bool:
-        try:
-            info = agent.info(self.tracer._agent_url)
-        except Exception:
-            info = None
-
-        if info:
-            endpoints = info.get("endpoints", [])
-            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
-                return True
-        return False
-
-    def _agent_get_default_env(self) -> Optional[str]:
-        try:
-            info = agent.info(self.tracer._agent_url)
-        except Exception:
-            return "none"
-
-        if info:
-            return info.get("config", {}).get("default_env", "none")
-        return "none"
+        # Log configuration
+        self._log_configuration(requests_mode_str, env_config)
+        
+        # Initialize codeowners
+        self._initialize_codeowners()
 
     @classmethod
     def is_itr_enabled(cls) -> bool:
-        # cls.enabled guarantees _instance is not None
-        if not cls.enabled or cls._instance is None:
+        """
+        Check whether Intelligent Test Runner is enabled
+        :return: True if ITR is enabled, False otherwise
+        """
+        instance = cls._instance
+        if instance is None or instance.feature_manager is None:
             return False
-        return cls._instance._api_settings.itr_enabled
+        return instance.feature_manager.is_itr_enabled()
 
     @classmethod
     def test_skipping_enabled(cls) -> bool:
-        if (
-            not cls.enabled
-            or cls._instance is None
-            or asbool(os.getenv("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False))
-        ):
+        """
+        Check whether test skipping is enabled
+        :return: True if test skipping is enabled, False otherwise
+        """
+        instance = cls._instance
+        if instance is None or instance.feature_manager is None:
             return False
-        return cls._instance._api_settings.skipping_enabled
+        return instance.feature_manager.is_test_skipping_enabled()
 
     @classmethod
     def is_efd_enabled(cls) -> bool:
-        if cls._instance is None:
+        """
+        Check whether Early Flake Detection is enabled
+        :return: True if EFD is enabled, False otherwise
+        """
+        instance = cls._instance
+        if instance is None or instance.feature_manager is None:
             return False
-        return (
-            cls._instance._api_settings.early_flake_detection.enabled
-            and ddconfig._test_visibility_early_flake_detection_enabled
-        )
+        return instance.feature_manager.is_efd_enabled()
 
     @classmethod
     def is_atr_enabled(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
-        )
+        return cls._instance._feature_manager.atr_enabled
 
     @classmethod
     def is_test_management_enabled(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.test_management.enabled and asbool(
-            os.getenv("DD_TEST_MANAGEMENT_ENABLED", default=True)
-        )
+        return cls._instance._feature_manager.test_management_enabled
 
     @classmethod
     def should_collect_coverage(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.coverage_enabled or asbool(
-            os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
-        )
-
-    def _fetch_tests_to_skip(self) -> None:
-        # Make sure git uploading has finished
-        # this will block the thread until that happens
-        try:
-            try:
-                metadata_upload_status = self._git_client.wait_for_metadata_upload_status()
-                if metadata_upload_status not in [METADATA_UPLOAD_STATUS.SUCCESS, METADATA_UPLOAD_STATUS.UNNECESSARY]:
-                    log.warning("git metadata upload was not successful, some tests may not be skipped")
-            except ValueError:
-                log.warning(
-                    "Error waiting for metadata upload to complete while fetching tests to skip"
-                    ", some tests may not be skipped",
-                    exc_info=True,
-                )
-        except TimeoutError:
-            log.debug("Timed out waiting for git metadata upload, some tests may not be skipped")
-
-        try:
-            if self._api_client is None:
-                return
-            self._itr_data = self._api_client.fetch_skippable_items(
-                ignore_test_parameters=self._itr_skipping_ignore_parameters
-            )
-            if self._itr_data is not None and self._itr_data.correlation_id is not None:
-                self._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = self._itr_data.correlation_id
-        except Exception:  # noqa: E722
-            log.debug("Error fetching skippable items", exc_info=True)
-
-    def _fetch_unique_tests(self) -> Optional[Set[InternalTestId]]:
-        try:
-            if self._api_client is not None:
-                return self._api_client.fetch_unique_tests()
-            log.warning("API client not initialized, cannot fetch unique tests")
-        except Exception:
-            log.debug("Error fetching unique tests", exc_info=True)
-        return None
-
-    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
-        try:
-            if self._api_client is not None:
-                return self._api_client.fetch_test_management_tests()
-            log.warning("API client not initialized, cannot fetch tests from Test Management")
-        except Exception:
-            log.debug("Error fetching unique tests", exc_info=True)
-        return None
-
-    def _should_skip_path(self, path: str, name: str, test_skipping_mode: Optional[str] = None) -> bool:
-        """This method supports legacy usage of the CIVisibility service and should be removed
-
-        The conversion of path to InternalTestId or SuiteId is redundant and absent from the new way of getting item
-        skipping status. This method has been updated to look for item_ids in a way that matches the previous behavior,
-        including questionable use of os.path.relpath.
-
-        Note that in this legacy mode, test parameters are ignored.
-        """
-        if self._itr_data is None:
-            return False
-        if test_skipping_mode is None:
-            _test_skipping_mode = SUITE if self._suite_skipping_mode else TEST
-        else:
-            _test_skipping_mode = test_skipping_mode
-
-        module_path, _, suite_name = os.path.relpath(path).rpartition("/")
-        module_name = module_path.replace("/", ".")
-        suite_id = TestSuiteId(TestModuleId(module_name), suite_name)
-
-        item_id = suite_id if _test_skipping_mode == SUITE else InternalTestId(suite_id, name)
-
-        return item_id in self._itr_data.skippable_items
+        return cls._instance._feature_manager.should_collect_coverage
 
     @classmethod
-    def enable(cls, tracer=None, config=None, service=None) -> None:
+    def get_efd_api_settings(cls) -> Optional[EarlyFlakeDetectionSettings]:
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_efd_settings()
+
+    @classmethod
+    def get_atr_api_settings(cls) -> Optional[AutoTestRetriesSettings]:
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_atr_settings()
+
+    @classmethod
+    def get_test_management_api_settings(cls) -> Optional[TestManagementSettings]:
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_test_management_settings()
+
+    @classmethod
+    def enable(
+        cls,
+        service: Optional[str] = None,
+        config: Optional[Config] = None,
+        tracer: Optional[Tracer] = None,
+        api_client_factory: Optional[ApiClientFactory] = None,
+        **tags,
+    ) -> Optional["CIVisibility"]:
+        if cls.has_instance():
+            # CI Visibility has already been enabled
+            # noinspection PyProtectedMember
+            if service is not None and service != cls._instance._service:
+                log.warning(
+                    "%s was already enabled with the service name %s, cannot change to service %s",
+                    cls.__name__,
+                    cls._instance._service,
+                    service,
+                )
+            return cls._instance
+
         log.debug("Enabling %s", cls.__name__)
         if ddconfig._ci_visibility_agentless_enabled:
-            if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
+            api_key = os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY"))
+            if not api_key:
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
                     " DD_API_KEY is not set",
                     cls.__name__,
                 )
-                cls.enabled = False
-                return
-
-        if cls._instance is not None:
-            log.debug("%s already enabled", cls.__name__)
-            return
+                return None
 
         try:
-            cls._instance = cls(tracer=tracer, config=config, service=service)
-        except CIVisibilityAuthenticationException:
-            log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
-            cls.enabled = False
-            return
+            # prevent swallowing of exceptions during _init
+            instance = CIVisibility(
+                service=service,
+                tracer=tracer,
+                config=config,
+                api_client_factory=api_client_factory,
+                **tags,
+            )
+            cls._instance = instance
+            
+            # Initialize feature flags
+            try:
+                api_settings = instance._check_enabled_features()
+                instance.feature_manager = FeatureManager(api_settings)
+            except CIVisibilityAuthenticationException:
+                log.warning("CI Visibility authentication failed")
+                return None
+            except Exception:
+                log.warning("Error checking API settings", exc_info=True)
+                instance.feature_manager = FeatureManager(TestVisibilityAPISettings())
+            
+            # Configure coverage collection
+            coverage_enabled = instance.feature_manager.is_coverage_collection_enabled()
+            instance._configure_writer(coverage_enabled=coverage_enabled)
 
-        cls.enabled = True
+            # Log configuration information
+            requests_mode_str = "AGENT_HTTP_API"
+            if instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
+                requests_mode_str = "AGENTLESS_EVENTS"
+            elif instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
+                requests_mode_str = "EVP_PROXY_EVENTS"
+            
+            env_config = EnvConfig.from_environment()
+            instance._log_configuration(requests_mode_str, env_config)
 
-        cls._instance.start()
-        atexit.register(cls.disable)
-
-        log.debug("%s enabled", cls.__name__)
-        log.info(
-            "Final settings: coverage collection: %s, "
-            "test skipping: %s, "
-            "Early Flake Detection: %s, "
-            "Auto Test Retries: %s, "
-            "Flaky Test Management: %s",
-            cls._instance._collect_coverage_enabled,
-            CIVisibility.test_skipping_enabled(),
-            CIVisibility.is_efd_enabled(),
-            CIVisibility.is_atr_enabled(),
-            CIVisibility.is_test_management_enabled(),
-        )
+            # Initialize CODEOWNERS if available
+            instance._initialize_codeowners()
+            
+            # Get tests to skip if ITR skipping is enabled
+            if instance.feature_manager.is_test_skipping_enabled():
+                instance._fetch_tests_to_skip()
+                
+            # Start the service
+            instance.start()
+            atexit.register(cls.disable)
+            
+            log.debug("%s enabled", cls.__name__)
+            instance.feature_manager.log_settings()
+            
+            return instance
+        except Exception:
+            cls._instance = None
+            log.warning("Failed to initialize CI Visibility", exc_info=True)
+            return None
 
     @classmethod
     def disable(cls) -> None:
@@ -621,6 +608,36 @@ class CIVisibility(Service):
         telemetry.telemetry_writer.periodic(force_flush=True)
 
         log.debug("%s disabled", cls.__name__)
+
+    def start(self) -> None:
+        """Start the CI Visibility service"""
+        import threading
+        
+        if self._is_session_started:
+            log.debug("CIVisibility service already started")
+            return
+            
+        log.debug("Starting CIVisibility service")
+        try:
+            # Start runtime worker for sending metrics
+            self._runtime_worker = RuntimeWorker(
+                self.tracer, interval=ddconfig.ci_visibility.service_runtime_metrics_interval
+            )
+            threading.Thread(target=self._runtime_worker.periodic, name="ddtrace.ci-runtime-metrics").start()
+            
+            # Enable telemetry
+            try:
+                enable_telemetry()
+            except Exception:
+                log.warning("Failed to enable telemetry", exc_info=True)
+            
+            # Enable git metadata collection if needed
+            if self._should_upload_git_metadata and self._git_client is not None and not is_pytest_xdist_worker():
+                self._git_client.start()
+                
+            self._is_session_started = True
+        except Exception:
+            log.warning("Failed to start CI Visibility service", exc_info=True)
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._user_trace_processors
@@ -826,68 +843,24 @@ class CIVisibility(Service):
 
     @classmethod
     def get_efd_api_settings(cls) -> Optional[EarlyFlakeDetectionSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
-            return None
-        return instance._api_settings.early_flake_detection
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_efd_settings()
 
     @classmethod
     def get_atr_api_settings(cls) -> Optional[AutoTestRetriesSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
-            return None
-
-        if instance._api_settings.flaky_test_retries_enabled:
-            # NOTE: this is meant to come from integration settings but current plans to rewrite how integration
-            # settings are defined make it better for this logic to be temporarily defined here.
-
-            # defaults
-            max_retries = 5
-            max_session_total_retries = 1000
-
-            env_max_retries = os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT")
-            if env_max_retries is not None:
-                try:
-                    max_retries = int(env_max_retries)
-                except ValueError:
-                    log.warning(
-                        "Failed to parse DD_CIVISIBILITY_FLAKY_RETRY_COUNT, using default value: %s", max_retries
-                    )
-
-            env_max_session_total_retries = os.environ.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT")
-            if env_max_session_total_retries is not None:
-                try:
-                    max_session_total_retries = int(env_max_session_total_retries)
-                except ValueError:
-                    log.warning(
-                        "Failed to parse DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT, using default value: %s",
-                        max_session_total_retries,
-                    )
-
-            return AutoTestRetriesSettings(
-                enabled=True, max_retries=max_retries, max_session_total_retries=max_session_total_retries
-            )
-
-        return None
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_atr_settings()
 
     @classmethod
     def get_test_management_api_settings(cls) -> Optional[TestManagementSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
-            return None
-        return instance._api_settings.test_management
+        if not cls.enabled or cls._instance is None:
+            log.warning("CI Visibility is not enabled")
+            raise CIVisibilityError("CI Visibility is not enabled")
+        return cls._instance._feature_manager.get_test_management_settings()
 
     @classmethod
     def get_workspace_path(cls) -> Optional[str]:
@@ -997,6 +970,19 @@ class CIVisibility(Service):
             return None
 
         return instance._test_properties.get(test_id)
+
+    @property
+    def test_skipping_mode(self) -> Optional[str]:
+        if self.feature_manager is None:
+            return None
+            
+        return SUITE if self._suite_skipping_mode else TEST
+    
+    @property
+    def module_skipping_mode(self) -> Optional[str]:
+        # This isn't actually implemented yet, but might be in the future
+        # In this case, we'd skip entire modules
+        return "module" if self._suite_skipping_mode else None
 
 
 def _requires_civisibility_enabled(func: Callable) -> Callable:
@@ -1700,6 +1686,47 @@ def _register_attempt_to_fix_handlers() -> None:
         _on_attempt_to_fix_get_final_status,
         "attempt_to_fix_final_status",
     )
+
+
+class FeatureManager:
+    """Manages CI Visibility feature flags"""
+    
+    def __init__(self, api_settings: TestVisibilityAPISettings):
+        self._api_settings = api_settings
+        
+    def is_coverage_collection_enabled(self) -> bool:
+        """Check if coverage collection is enabled"""
+        return CIVisibility._should_collect_coverage(self._api_settings.coverage_enabled)
+        
+    def is_test_skipping_enabled(self) -> bool:
+        """Check if test skipping is enabled"""
+        return self._api_settings.skipping_enabled and self._api_settings.itr_enabled
+        
+    def is_itr_enabled(self) -> bool:
+        """Check if Intelligent Test Runner is enabled"""
+        return self._api_settings.itr_enabled
+        
+    def is_efd_enabled(self) -> bool:
+        """Check if Early Flake Detection is enabled"""
+        return self._api_settings.early_flake_detection.enabled
+
+    def is_flaky_test_retries_enabled(self) -> bool:
+        """Check if Auto Test Retries is enabled"""
+        return self._api_settings.flaky_test_retries_enabled
+        
+    def log_settings(self) -> None:
+        """Log the current feature settings"""
+        log.debug("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
+        log.debug(
+            "API-provided settings: Intelligent Test Runner: %s, test skipping: %s",
+            self._api_settings.itr_enabled,
+            self._api_settings.skipping_enabled,
+        )
+        log.debug(
+            "API-provided settings: Early Flake Detection enabled: %s",
+            self._api_settings.early_flake_detection.enabled,
+        )
+        log.debug("API-provided settings: Auto Test Retries enabled: %s", self._api_settings.flaky_test_retries_enabled)
 
 
 _register_session_handlers()
