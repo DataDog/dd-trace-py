@@ -3,6 +3,7 @@ from .base import BaseLLMIntegration
 from .bedrock import BedrockIntegration
 from .gemini import GeminiIntegration
 from .langchain import LangChainIntegration
+from .litellm import LiteLLMIntegration
 from .openai import OpenAIIntegration
 from .vertexai import VertexAIIntegration
 
@@ -13,6 +14,7 @@ __all__ = [
     "BedrockIntegration",
     "GeminiIntegration",
     "LangChainIntegration",
+    "LiteLLMIntegration",
     "OpenAIIntegration",
     "VertexAIIntegration",
 ]
