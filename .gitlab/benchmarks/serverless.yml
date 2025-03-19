@@ -5,10 +5,9 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: brettlangdon/use.parent.wheels
     strategy: depend
-  needs: []
-  # TODO: Revert this once the build issue has been resolved
-  allow_failure: true
+  needs: [ "download_ddtrace_artifacts" ]
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
