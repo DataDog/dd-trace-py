@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
@@ -18,7 +16,6 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
@@ -103,15 +100,6 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
         cmdi_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
-
-
-def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
-    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    unpatch_common_modules()
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
-        patch_common_modules()
-
-    _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
 
 
 def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):

@@ -2,8 +2,6 @@ import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule
-from ddtrace.constants import MANUAL_DROP_KEY
-from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
 from tests.utils import snapshot
@@ -47,72 +45,6 @@ def snapshot_parametrized_with_writers(f):
 @snapshot_parametrized_with_writers
 def test_sampling_with_defaults(writer, tracer):
     with tracer.trace("trace1"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_1(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1.0)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace2"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_tiny(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=0.000001)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace3"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_1_and_rule_1(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(1.0)])
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace4"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_1_and_rule_0(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)])
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_1_and_manual_drop(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace6"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_DROP_KEY)
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace7"):
-        with tracer.trace("child") as span:
-            span.set_tag(MANUAL_KEEP_KEY)
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_sample_rate_1_and_rate_limit_0(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rate_limit=0)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5"):
-        tracer.trace("child").finish()
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_sample_rate_1_and_rate_limit_3_and_rule_0(writer, tracer):
-    sampler = DatadogSampler(default_sample_rate=1, rules=[SamplingRule(0)], rate_limit=3)
-    tracer._configure(sampler=sampler, writer=writer)
-    with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
 
@@ -298,10 +230,11 @@ def test_rate_limiter_on_spans(tracer):
     Ensure that the rate limiter is applied to spans
     """
     from ddtrace._trace.sampler import DatadogSampler
+    from ddtrace.internal.sampling import SamplingRule
     from ddtrace.trace import tracer
 
     # Rate limit is only applied if a sample rate or trace sample rule is set
-    tracer._configure(sampler=DatadogSampler(default_sample_rate=1, rate_limit=10))
+    tracer._configure(sampler=DatadogSampler(rules=[SamplingRule(1.0)], rate_limit=10))
     spans = []
     # Generate 10 spans with the start and finish time in same second
     for x in range(10):

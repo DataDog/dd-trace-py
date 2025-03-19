@@ -57,6 +57,10 @@ ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_bdd                            @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_benchmark                      @DataDog/ci-app-libraries
 ddtrace/contrib/unittest                              @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/pytest                                  @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
