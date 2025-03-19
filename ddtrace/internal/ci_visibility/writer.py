@@ -128,11 +128,11 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
-        # Validate API key if headers are provided
-        if headers and "dd-api-key" in headers and not headers["dd-api-key"]:
-            log.warning("Empty API key provided to CIVisibilityWriter. This may cause authentication issues.")
-            # Remove empty API key to prevent sending empty credentials
-            headers = {k: v for k, v in headers.items() if k != "dd-api-key"}
+        ## Validate API key if headers are provided
+        # if headers and "dd-api-key" in headers and not headers["dd-api-key"]:
+        #     log.warning("Empty API key provided to CIVisibilityWriter. This may cause authentication issues.")
+        #     # Remove empty API key to prevent sending empty credentials
+        #     headers = {k: v for k, v in headers.items() if k != "dd-api-key"}
 
         clients: list[WriterClientBase] = (
             [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
