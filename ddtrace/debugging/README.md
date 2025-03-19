@@ -21,22 +21,15 @@ Datadog agent. Products needing to upload snapshots must register with the
 `LogsIntakeUploaderV1`. This will ensure that the uploader is started/stopped as
 required.
 
-```plantuml
-[Product] as P
+```mermaid
+graph LR
+    P[Product]
+    A[Datadog Agent]
+    U[LogsIntakeUploaderV1]
 
-component LogsIntakeUploaderV1 {
-    portin register as r
-    portin enqueue as e
-    portout HTTP as o
-}
-
-[Datadog Agent] as A
-
-P --> r
-P ..> e
-
-o --> A
-
+    P -->|register| U
+    P -.->|enqueue| U
+    U -->|HTTP| A
 ```
 
 ## Dynamic Instrumentation
@@ -61,45 +54,43 @@ status need to be uploaded. These are messages that are enqueued to the
 The following diagram shows the general flow of probe configuration payloads
 from the Remote Configuration client to the Dynamic Instrumentation component.
 
-```plantuml
-[Remote Configuration Client] as RCC
+```mermaid
+graph TD
+    RCC[Remote Configuration Client]
 
-component "Datadog Agent" as A {
-    portin "Remote Configuration" as RC
-    portin "Debugger Diagnostic" as DD
+    subgraph A[Datadog Agent]
+        RC[Remote Configuration]
+        DD[Debugger Diagnostic]
+    end
 
-}
+    subgraph DI[Dynamic Instrumentation]
+        RCA[Remote Configuration Adapter]
+        PR[Probe Registry]
+        FD[Function Discovery]
+        D[Debugger]
+    end
 
-component "Dynamic Instrumentation" as DI {
-    portin PC
+    subgraph TA[Target Application]
+        IC[Instrumented Code]
+    end
 
-    [Remote Configuration Adapter] as RCA
-    [Probe Registry] as PR
-    [Function Discovery] as FD
-    [Debugger] as D
-}
+    U[LogsIntakeUploaderV1]
 
-component "Target Application" as TA {
-    [Instrumented Code] as IC
-}
+    RCC -->|poll for probes| RC
+    RCC -->|push probes| RCA
 
-[LogsIntakeUploaderV1] as U
+    RCA -->|pass parsed probes| D
+    RCA -->|send probe status update event| D
 
-RCC --> RC : poll for probes
-RCC --> PC : push probes
+    D -->|resolve function from probe details| FD
+    D -->|instruments code| IC
 
-PC --> RCA : parse probes
-RCA --> D : pass parsed probes to the debugger
-RCA --> D : send probe status update event
-D <-> FD : resolve function from probe details
-D --> IC : instruments code
+    D -->|register probes| PR
+    D -->|request probe status update| PR
 
-D --> PR : register probes
-D --> PR : request probe status update
+    IC -->|enqueue signals| U
 
-IC --> U : enqueue signals
-
-PR --> DD : emit probe status
+    PR -->|emit probe status| DD
 ```
 
 An important aspect of Dynamic Instrumentation is function discovery. We make
@@ -121,21 +112,21 @@ information whenever a span is marked with an error, and a traceback object is
 available. For this to work we simply listen for `span.exception` core events
 and react accordingly.
 
-```plantuml
-component Tracer {
-    [Span] as S
-}
+```mermaid
+graph LR
+    subgraph Tracer
+        S[Span]
+    end
 
-component "Exception Replay" {
-    [SpanExceptionHandler] as EH
-}
+    subgraph "Exception Replay"
+        EH[SpanExceptionHandler]
+    end
 
-[LogsIntakeUploaderV1] as U
+    U[LogsIntakeUploaderV1]
 
-S -right-> EH : span.exception event
-EH -down-> U : enqueue snapshots
+    S -->|span.exception event| EH
+    EH -->|enqueue snapshots| U
 ```
-
 
 ## Code Origin for Spans
 
@@ -154,31 +145,32 @@ For **exit** spans, we register a span processor that performs the required work
 when a span is created, provided the span kind is one that can be considered an
 exit span (e.g. HTTP, DB etc...).
 
-```plantuml
-component Tracer {
-    [Entry span] as EN
-    [Exit span] as EX
-    [Integration] as I
-}
+```mermaid
+graph TD
+    subgraph "Code Origin for Spans"
+        SP[SpanCodeOriginProcessor]
+        WC[EntrySpanWrappingContext]
+    end
 
-component "Code Origin for Spans" {
-    [SpanCodeOriginProcessor] as SP
-    [EntrySpanWrappingContext] as WC
-}
+    subgraph Tracer
+        EN[Entry span]
+        EX[Exit span]
+        I[Integration]
+    end
 
-component "Target Application" as TA {
-    [Instrumented Code] as IC
-}
+    U[LogsIntakeUploaderV1]
 
-[LogsIntakeUploaderV1] as U
+    subgraph "Target Application"
+        IC[Instrumented Code]
+    end
 
-I --> WC : service_entrypoint.patch event
-WC --> IC : instrument code
-IC --> EN : attach/capture entry information
+    I -->|service_entrypoint.patch event| WC
+    WC -->|instrument code| IC
+    IC -->|attach/capture entry information| EN
 
-EX --> SP : on span creation
-SP --> EX : attach/capture exit information
+    EX -->|on span creation| SP
+    SP -->|attach/capture exit information| EX
 
-WC --> U : enqueue snapshots
-SP --> U : enqueue snapshots
+    WC -->|enqueue snapshots| U
+    SP -->|enqueue snapshots| U
 ```
