@@ -194,6 +194,7 @@ class Span(object):
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
         self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+
         self.duration_ns: Optional[int] = None
 
         if trace_id is not None:
