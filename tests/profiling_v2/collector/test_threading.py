@@ -828,11 +828,52 @@ class TestThreadingLockCollector:
 
     def test_lock_release_fail(self):
         with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
-            lock = threading.Lock()
-            # Try to release the lock without acquiring it first. This should fail.
-            with pytest.raises(RuntimeError):
-                lock.release()
+            lock = threading.Lock()  # !CREATE! test_lock_release_fail
+            lock.acquire()  # !ACQUIRE! test_lock_release_fail
+
+            def thread_1():
+                lock.release()  # !RELEASE! test_lock_release_fail
+                # to mimic a situation where the lock release() is called by
+                # two threads at the same time, though this should generally
+                # not happen, but we can be cautious, set `_self_acquired_at`
+                # explicitly here to some value
+                lock._self_acquired_at = 123
+
+            def thread_2():
+                import time
+
+                time.sleep(2)
+
+                with pytest.raises(RuntimeError):
+                    lock.release()
+
+            t1 = threading.Thread(target=thread_1)
+            t2 = threading.Thread(target=thread_2)
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
 
         ddup.upload()
-        with pytest.raises(AssertionError):
-            pprof_utils.parse_profile(self.output_filename)
+
+        linenos = get_lock_linenos("test_lock_release_fail")
+        profile = pprof_utils.parse_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="thread_1",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+        )
