@@ -183,7 +183,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
+            log.error("[DDAS-0005-00] WAF initialization failed")
+
         self._update_required()
 
     def _update_required(self):
@@ -195,7 +196,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
+    def _update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
         result = False

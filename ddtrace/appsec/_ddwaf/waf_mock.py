@@ -1,5 +1,7 @@
 from typing import Any
 from typing import Dict
+from typing import List
+from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
@@ -50,7 +52,7 @@ class DDWaf(WAF):
         LOGGER.debug("DDWaf features disabled. dry run")
         return DDWaf_result(0, [], {}, 0.0, 0.0, False, self.empty_observator, {})
 
-    def update_rules(self, new_rules: Dict[str, Any]) -> bool:
+    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
         LOGGER.debug("DDWaf features disabled. dry update")
         return False
 

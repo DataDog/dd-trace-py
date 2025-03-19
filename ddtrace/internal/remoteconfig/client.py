@@ -26,6 +26,7 @@ from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
+from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import parse_isoformat
@@ -69,21 +70,6 @@ class RemoteConfigError(Exception):
     An error occurred during the configuration update procedure.
     The error is reported to the agent.
     """
-
-
-@dataclasses.dataclass
-class ConfigMetadata:
-    """
-    Configuration TUF target metadata
-    """
-
-    id: str
-    product_name: str
-    sha256_hash: Optional[str]
-    length: Optional[int]
-    tuf_version: Optional[int]
-    apply_state: Optional[int] = dataclasses.field(default=1, compare=False)
-    apply_error: Optional[str] = dataclasses.field(default=None, compare=False)
 
 
 @dataclasses.dataclass

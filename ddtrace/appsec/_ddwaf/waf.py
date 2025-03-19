@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
@@ -13,16 +14,13 @@ from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
-
-# from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
-# from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
-# from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
+from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
-from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
+from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
-
-# from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
@@ -44,6 +42,8 @@ DDWAF_ERR_INVALID_ARGUMENT = -1
 DDWAF_OK = 0
 DDWAF_MATCH = 1
 
+ASM_DD_DEFAULT = "ASM_DD/default"
+
 
 class DDWaf(WAF):
     empty_observator = _observator()
@@ -63,8 +63,11 @@ class DDWaf(WAF):
         )
         diagnostics = ddwaf_object()
         ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
-        self._handle = py_ddwaf_init(ruleset_map_object, ctypes.byref(config), ctypes.byref(diagnostics))
+        self._builder = py_ddwaf_builder_init(config)
+        py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
+        self._handle = py_ddwaf_builder_build_instance(self._builder)
         self._cached_version = ""
+        self._asm_dd_cache = {ASM_DD_DEFAULT}
         self._set_info(diagnostics, "init")
         info = self.info
         if not self._handle or info.failed:
@@ -76,7 +79,7 @@ class DDWaf(WAF):
                 info.failed,
                 info.errors,
             )
-        ddwaf_object_free(ctypes.byref(ruleset_map_object))
+        self._default_ruleset = ruleset_map_object
 
     @property
     def required_data(self) -> List[str]:
@@ -108,21 +111,20 @@ class DDWaf(WAF):
     def info(self) -> DDWaf_info:
         return self._info
 
-    def update_rules(self, new_rules: Dict[str, DDWafRulesType]) -> bool:
+    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
         """update the rules of the WAF instance. return False if an error occurs."""
-        return False
-        # rules = ddwaf_object.create_without_limits(new_rules)
-        # diagnostics = ddwaf_object()
-        # result = py_ddwaf_update(self._handle, rules, diagnostics)
-        # self._set_info(diagnostics, "update")
-        # ddwaf_object_free(rules)
-        # if result:
-        #     LOGGER.debug("DDWAF.update_rules success.\ninfo %s", self.info)
-        #     self._handle = result
-        #     return True
-        # else:
-        #     LOGGER.debug("DDWAF.update_rules: keeping the previous handle.")
-        #     return False
+        ok = True
+        for product, path, rules in new_rules:
+            if rules is False:
+                ok &= py_remove_config(self._builder, path)
+            else:
+                diagnostics = ddwaf_object()
+                ruleset_object = ddwaf_object.create_without_limits(rules)
+                ok &= py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
+                self._set_info(diagnostics, "update")
+                ddwaf_object_free(ruleset_object)
+                ddwaf_object_free(diagnostics)
+        return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
         ctx = None
@@ -172,6 +174,10 @@ class DDWaf(WAF):
     @property
     def initialized(self) -> bool:
         return bool(self._handle)
+
+    def __del__(self):
+        if hasattr(self, "_default_ruleset"):
+            ddwaf_object_free(ctypes.byref(self._default_ruleset))
 
 
 def version() -> str:

@@ -392,7 +392,7 @@ def py_ddwaf_builder_init(config: ddwaf_config) -> ddwaf_builder_capsule:
 
 
 ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
-    ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32, ddwaf_config_p, ddwaf_object_p
+    ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32, ddwaf_object_p, ddwaf_object_p
 )(
     ("ddwaf_builder_add_or_update_config", ddwaf),
     (
@@ -406,9 +406,10 @@ ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
 
 
 def py_add_or_update_config(
-    builder: ddwaf_builder_capsule, path: str, config: ddwaf_config, diagnostics: ddwaf_object
+    builder: ddwaf_builder_capsule, path: str, config: ddwaf_object, diagnostics: ddwaf_object
 ) -> bool:
-    return ddwaf_builder_add_or_update_config(builder.builder, path, len(path), config, diagnostics)
+    bin_path = path.encode()
+    return ddwaf_builder_add_or_update_config(builder.builder, bin_path, len(bin_path), config, diagnostics)
 
 
 ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32)(
@@ -422,7 +423,8 @@ ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, cty
 
 
 def py_remove_config(builder: ddwaf_builder_capsule, path: str) -> bool:
-    return ddwaf_builder_remove_config(builder.builder, path, len(path))
+    bin_path = path.encode()
+    return ddwaf_builder_remove_config(builder.builder, bin_path, len(bin_path))
 
 
 ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(

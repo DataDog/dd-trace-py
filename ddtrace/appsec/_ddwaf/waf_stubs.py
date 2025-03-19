@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Type
 from typing import TypeVar
 from typing import Union
@@ -137,7 +138,7 @@ class WAF(ABC):
         pass
 
     @abstractmethod
-    def update_rules(self, new_rules: Dict[str, Any]) -> bool:
+    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
         pass
 
     @abstractmethod
