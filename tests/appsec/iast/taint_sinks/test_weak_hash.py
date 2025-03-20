@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import sys
+from unittest import mock
 
-from mock import mock
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE

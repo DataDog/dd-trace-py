@@ -1,6 +1,6 @@
 import os
+from unittest.mock import ANY
 
-from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
