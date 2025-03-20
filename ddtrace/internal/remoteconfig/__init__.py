@@ -3,7 +3,7 @@ from typing import Any
 from typing import Optional
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(unsafe_hash=True)
 class ConfigMetadata:
     """
     Configuration TUF target metadata
