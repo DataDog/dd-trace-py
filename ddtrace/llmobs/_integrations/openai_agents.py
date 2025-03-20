@@ -53,8 +53,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     ) -> Span:
         raw_oai_trace = kwargs.get("raw_oai_trace")
         span_name = raw_oai_trace.name if raw_oai_trace.name else "Agent workflow"
-        print("STARTING TRACE")
-        print(pin.tracer)
         llmobs_span = super().trace(
             pin,
             operation_id=span_name,
@@ -150,6 +148,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self._set_agent_attributes(span, span_data)
         elif span_type == "generation":
             self._set_generation_attributes(span, span_data)
+        elif span_type == "custom":
+            custom_data = getattr(span_data, "data", None)
+            if custom_data:
+                span._set_ctx_item(METADATA, custom_data)
 
     def _set_trace_attributes(self, span: Span, raw_oai_trace: Any) -> None:
         trace_info = self.get_trace_info(raw_oai_trace)
@@ -253,9 +255,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
     def _set_tool_attributes(self, span: Span, span_data) -> None:
         """Sets attributes for function/tool type spans."""
-        span._set_ctx_item("input_value", getattr(span_data, "input", ""))
+        span._set_ctx_item(INPUT_VALUE, getattr(span_data, "input", ""))
         output = getattr(span_data, "output", "")
-        span._set_ctx_item("output_value", output)
+        span._set_ctx_item(OUTPUT_VALUE, output)
 
         tool_call = self.tool_tracker.find_by_input(span_data.name, span_data.input)
         if tool_call and tool_call.llm_span_id:

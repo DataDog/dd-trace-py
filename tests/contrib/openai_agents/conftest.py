@@ -1,10 +1,9 @@
 import os
 
 from agents import Agent
-from agents import Runner
-from agents import Tool
-import mock
 from agents import function_tool
+from agents import input_guardrail
+from agents import GuardrailFunctionOutput
 import pytest
 import vcr
 
@@ -15,7 +14,6 @@ from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -32,77 +30,91 @@ def request_vcr():
 
 
 @function_tool
-def calculate_average(numbers: list[int]) -> float:
-    """Calculate the average of a list of numbers"""
-    return sum(numbers) / len(numbers)
+def research(query: str) -> str:
+    """Research the internet on a topic.
+
+    Args:
+        query: The query to search the internet for
+
+    Returns:
+        A comprehensive research report responding to the query
+    """
+    return (
+        "united beat liverpool 2-1 yesterday. "
+        "also a lot of other stuff happened. "
+        "like super important stuff. "
+        "blah blah blah."
+    )
 
 
 @function_tool
-def concatenate_strings(strings: list[str]) -> str:
-    """Concatenate a list of strings with spaces in between"""
-    return " ".join(strings)
+def add(a: int, b: int) -> int:
+    """Add two numbers together"""
+    return a + b
 
 
-@function_tool
-def search_web(query: str) -> str:
-    """Simulated web search function"""
-    return f"Simulated web search results for: {query}"
+@pytest.fixture
+def research_workflow():
+    summarizer = Agent(
+        name="Summarizer",
+        instructions="""You are a helpful assistant that can summarize a research results.""",
+    )
+    yield Agent(
+        name="Researcher",
+        instructions="""You are a helpful assistant that can research a topic using your research tool. Always research the topic before summarizing.""",
+        tools=[research],
+        handoffs=[summarizer],
+    )
 
+@pytest.fixture
+def addition_agent():
+    """An agent with addition tools"""
+    yield Agent(
+        name="Addition Agent",
+        instructions="You are a helpful assistant specialized in addition calculations.",
+        tools=[add],
+    )
+
+
+@input_guardrail
+async def simple_gaurdrail(
+    context,
+    agent,
+    input,
+):
+    return GuardrailFunctionOutput(
+        output_info="dummy",
+        tripwire_triggered="safe" not in input,
+    )
+
+@pytest.fixture
+def simple_agent_with_gaurdrail():
+    """An agent with addition tools and a gaurdrail"""
+    yield Agent(    
+        name="Simple Agent",
+        instructions="You are a helpful assistant specialized in addition calculations.",
+        input_guardrails=[simple_gaurdrail],
+    )
 
 @pytest.fixture
 def simple_agent():
     """A simple agent with no tools or handoffs"""
     yield Agent(
-        name="Assistant",
+        name="simple_agent",
         instructions="You are a helpful assistant who answers questions concisely and accurately.",
     )
 
 
 @pytest.fixture
-def calculator_agent():
-    """An agent with calculation tools"""
-    yield Agent(
-        name="Calculator",
-        instructions="You are a helpful assistant specialized in mathematical calculations.",
-        tools=[calculate_average],
-    )
-
-
-@pytest.fixture
-def research_assistant_agent():
-    """An agent specialized in research with tools"""
-    yield Agent(
-        name="Researcher",
-        instructions="You are a research assistant who can search the web and summarize information.",
-        tools=[search_web],
-    )
-
-
-@pytest.fixture
-def summarizer_agent():
-    """An agent specialized in summarizing information"""
-    yield Agent(
-        name="Summarizer",
-        instructions="You are an assistant that specializes in summarizing complex information into concise summaries.",
-    )
-
-
-@pytest.fixture
-def handoffs_agent(summarizer_agent):
-    """An agent that can hand off to other agents"""
-    yield Agent(
-        name="Query Router",
-        instructions="You route queries to the appropriate specialized agent. If a query requires summarization, hand off to the Summarizer agent.",
-        handoffs=[summarizer_agent],
-    )
-
-
-@pytest.fixture
-def agents_integration():
+def agents():
     """The OpenAI Agents integration with patching and cleanup"""
-    patch()
     import agents
 
+    # remove default trace processor to avoid errors sending to OpenAI backend
+    from agents.tracing import set_trace_processors
+
+    set_trace_processors([])
+    patch()
     yield agents
     unpatch()
 
@@ -115,39 +127,33 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def enqueue(self, event):
         self.events.append(event)
 
-
+    
 @pytest.fixture
-def mock_tracer(agents_integration):
+def mock_tracer(agents):
     mock_tracer = DummyTracer()
-    pin = Pin.get_from(agents_integration)
-    pin._override(agents_integration, tracer=mock_tracer)
+    pin = Pin.get_from(agents)
+    pin._override(agents, tracer=mock_tracer)
     yield mock_tracer
 
 
 @pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+def llmobs_span_writer():
+    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
+    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
 
 
 @pytest.fixture
-def agents_llmobs(mock_tracer, mock_llmobs_span_writer):
+def agents_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
     ):
         llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = mock_llmobs_span_writer
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
 
 
 @pytest.fixture
-def llmobs_events(agents_llmobs, mock_llmobs_span_writer):
-    return mock_llmobs_span_writer.events
+def llmobs_events(agents_llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events

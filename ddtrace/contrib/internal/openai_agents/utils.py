@@ -170,6 +170,10 @@ def _process_input_messages(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[s
 
             processed_item["role"] = item["role"]
         elif "call_id" in item and "arguments" in item:
+            print("FUNCTION CALL INPUT: ", item)
+            """
+            Process `ResponseFunctionToolCallParam` type from input messages
+            """
             try:
                 arguments = json.loads(item["arguments"])
             except json.JSONDecodeError:
@@ -183,7 +187,9 @@ def _process_input_messages(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[s
                 }
             ]
         elif "call_id" in item and "output" in item:
-            # FunctionCallOutput
+            """
+            Process `FunctionCallOutput` type from input messages
+            """
             output = item["output"]
 
             # a tool call id was used as input
@@ -196,7 +202,6 @@ def _process_input_messages(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[s
             processed_item["tool_calls"] = [
                 {
                     "tool_id": item["call_id"],
-                    "arguments": output,
                     "type": item.get("type", "function_call_output"),
                 }
             ]

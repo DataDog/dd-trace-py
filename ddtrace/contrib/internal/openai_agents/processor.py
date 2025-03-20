@@ -1,12 +1,12 @@
 from typing import Any
 
 import agents
-from ddtrace.trace import Pin
 from agents.tracing.processor_interface import TracingProcessor
 from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.trace import Pin
 
 
 logger = get_logger(__name__)
@@ -48,7 +48,6 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"raw_oai_trace": trace},
         )
-        print("FINISHING TRACE")
         cur_trace.finish()
 
     def on_span_end(self, span: OaiSpan[Any]) -> None:
