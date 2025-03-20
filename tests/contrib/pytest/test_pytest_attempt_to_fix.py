@@ -32,6 +32,14 @@ def test_fail():
     assert False
 """
 
+_TEST_SKIP = """
+import pytest
+
+def test_skip():
+    pytest.skip()
+"""
+
+
 _TEST_FLAKY = """
 count = 0
 
@@ -66,6 +74,9 @@ _TEST_PROPERTIES = {
         attempt_to_fix=True,
     ),
     _make_fqdn_internal_test_id("", "test_active.py", "test_fail"): TestProperties(
+        attempt_to_fix=True,
+    ),
+    _make_fqdn_internal_test_id("", "test_active.py", "test_skip"): TestProperties(
         attempt_to_fix=True,
     ),
 }
@@ -211,6 +222,28 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
         assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
+
+    def test_attempt_to_fix_active_test_skip(self):
+        self.testdir.makepyfile(test_active=_TEST_SKIP)
+        rec = self.inline_run("--ddtrace", "-v", "-s")
+        assert rec.ret == 0
+        assert_stats(rec, quarantined=0, passed=0, failed=0, skipped=1)
+
+        spans = self.pop_spans()
+        [session_span] = _get_spans_from_list(spans, "session")
+        [module_span] = _get_spans_from_list(spans, "module")
+        [suite_span] = _get_spans_from_list(spans, "suite", "test_active.py")
+        test_spans = _get_spans_from_list(spans, "test")
+
+        assert len(test_spans) == 11
+        for i, span in enumerate(test_spans):
+            assert span.get_tag("test.test_management.is_quarantined") is None
+            assert span.get_tag("test.test_management.is_test_disabled") is None
+            assert span.get_tag("test.status") == "skip"
+
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
+
 
 
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
