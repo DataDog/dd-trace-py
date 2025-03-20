@@ -40,6 +40,7 @@ DEBUG_INFO_TAG = "error.debug_info_captured"
 
 # used to rate limit decision on the entire local trace (stored at the root span)
 CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
+SNAPSHOT_COUNT_TAG = "_dd.debug.error.snapshot_count"
 
 # unique exception id
 EXCEPTION_HASH_TAG = "_dd.debug.error.exception_hash"
@@ -206,6 +207,18 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
+def get_snapshot_count(span: Span) -> int:
+    root = span._local_root
+    if root is None:
+        return 0
+
+    count = root.get_metric(SNAPSHOT_COUNT_TAG)
+    if count is None:
+        return 0
+
+    return int(count)
+
+
 class SpanExceptionHandler:
     __uploader__ = LogsIntakeUploaderV1
 
@@ -269,9 +282,9 @@ class SpanExceptionHandler:
 
         seq = count(1)  # 1-based sequence number
 
-        frames_captured = 0
+        frames_captured = get_snapshot_count(span)
 
-        while chain and frames_captured <= config.max_frames:
+        while chain and frames_captured < config.max_frames:
             exc, _tb = chain.pop()  # LIFO: reverse the chain
 
             if _tb is None or _tb.tb_frame is None:
@@ -279,7 +292,7 @@ class SpanExceptionHandler:
                 continue
 
             # DEV: We go from the handler up to the root exception
-            while _tb and frames_captured <= config.max_frames:
+            while _tb and frames_captured < config.max_frames:
                 frames_captured += self._capture_tb_frame_for_span(span, _tb, exc_id, next(seq))
 
                 # Move up the traceback
@@ -294,6 +307,11 @@ class SpanExceptionHandler:
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
+
+            # Update the snapshot count
+            root = span._local_root
+            if root is not None:
+                root.set_metric(SNAPSHOT_COUNT_TAG, frames_captured)
 
     @classmethod
     def enable(cls) -> None:

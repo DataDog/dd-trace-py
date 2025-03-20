@@ -1,8 +1,23 @@
+import sys
+
 import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.internal.module import ModuleWatchdog
 import tests.submod.stuff as stuff
+
+
+@pytest.fixture
+def no_pytest_loader():
+    from _pytest.assertion.rewrite import AssertionRewritingHook
+
+    i = next(i for i, hook in enumerate(sys.meta_path) if isinstance(hook, AssertionRewritingHook))
+    pytest_loader = sys.meta_path.pop(i)
+
+    try:
+        yield
+    finally:
+        sys.meta_path.insert(i, pytest_loader)
 
 
 @pytest.fixture
@@ -124,18 +139,20 @@ def test_property_non_function_getter(stuff_discovery):
         stuff_discovery.by_name("PropertyStuff.foo")
 
 
-def test_custom_decorated_stuff():
+def test_custom_decorated_stuff(no_pytest_loader):
     class DiscoveryModuleWatchdog(ModuleWatchdog):
         def transform(self, code, module):
             return FunctionDiscovery.transformer(code, module)
 
     DiscoveryModuleWatchdog.install()
 
-    import tests.submod.custom_decorated_stuff as custom_decorated_stuff
+    try:
+        import tests.submod.custom_decorated_stuff as custom_decorated_stuff
 
-    fd = FunctionDiscovery.from_module(custom_decorated_stuff)
+        fd = FunctionDiscovery.from_module(custom_decorated_stuff)
 
-    (home,) = fd.at_line(17)
-    assert home.__qualname__ == "home"
+        (home,) = fd.at_line(17)
+        assert home.__qualname__ == "home"
 
-    DiscoveryModuleWatchdog.uninstall()
+    finally:
+        DiscoveryModuleWatchdog.uninstall()

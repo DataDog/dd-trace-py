@@ -149,7 +149,6 @@ IAST_DENYLIST: Tuple[Text, ...] = (
     "cycler.",
     "cython.",
     "dateutil.",
-    "dateutil.",
     "ddsketch.",
     "ddtrace.",
     "defusedxml.",
@@ -471,7 +470,7 @@ def _is_first_party(module_name: str):
 
 def _should_iast_patch(module_name: Text) -> bool:
     """
-    select if module_name should be patch from the longest prefix that match in allow or deny list.
+    select if module_name should be patched from the longest prefix that match in allow or deny list.
     if a prefix is in both list, deny is selected.
     """
     # TODO: A better solution would be to migrate the original algorithm to C++:
