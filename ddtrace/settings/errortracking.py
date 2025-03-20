@@ -1,8 +1,8 @@
 import sys
 import typing as t
 
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def parse_modules(value: t.Union[str, None]) -> t.List[str]:
@@ -60,4 +60,4 @@ if (not config._modules_to_report) is False or config._report_handled_errors in 
     elif config._report_handled_errors == "all":
         config._instrument_all = True
     config.enabled = True
-    _report_telemetry(config)
+    report_configuration(config)

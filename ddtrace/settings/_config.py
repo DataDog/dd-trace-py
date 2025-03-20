@@ -32,9 +32,9 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
+from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
@@ -441,7 +441,7 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
-        from ._telemetry import validate_otel_envs
+        from ddtrace.internal.telemetry import validate_otel_envs
 
         validate_otel_envs()
         # Must come before _integration_configs due to __setattr__
@@ -493,9 +493,10 @@ class Config(object):
         # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
         from ddtrace.internal.agent import config as agent_config
 
-        from ._telemetry import report_telemetry
+        # TODO: remove this import from here
+        from ddtrace.internal.telemetry import report_configuration
 
-        report_telemetry(agent_config)
+        report_configuration(agent_config)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
