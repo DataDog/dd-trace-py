@@ -3,6 +3,7 @@ import os
 from agents import Agent
 from agents import Runner
 from agents import Tool
+import mock
 from agents import function_tool
 import pytest
 import vcr
@@ -97,14 +98,6 @@ def handoffs_agent(summarizer_agent):
 
 
 @pytest.fixture
-def agents_module():
-    """The agents module itself"""
-    import agents
-
-    yield agents
-
-
-@pytest.fixture
 def agents_integration():
     """The OpenAI Agents integration with patching and cleanup"""
     patch()
@@ -125,30 +118,36 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 
 @pytest.fixture
 def mock_tracer(agents_integration):
+    mock_tracer = DummyTracer()
     pin = Pin.get_from(agents_integration)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(agents_integration, tracer=mock_tracer)
     yield mock_tracer
 
 
 @pytest.fixture
-def agents_llmobs(mock_tracer, llmobs_span_writer):
+def mock_llmobs_span_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    try:
+        LLMObsSpanWriterMock = patcher.start()
+        m = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
+
+
+@pytest.fixture
+def agents_llmobs(mock_tracer, mock_llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
     ):
         llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._llmobs_span_writer = mock_llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
-
-
-@pytest.fixture
-def llmobs_events(agents_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+def llmobs_events(agents_llmobs, mock_llmobs_span_writer):
+    return mock_llmobs_span_writer.events

@@ -1,5 +1,7 @@
 from typing import Any
 
+import agents
+from ddtrace.trace import Pin
 from agents.tracing.processor_interface import TracingProcessor
 from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
@@ -11,10 +13,9 @@ logger = get_logger(__name__)
 
 
 class LLMObsTraceProcessor(TracingProcessor):
-    def __init__(self, integration, pin):
+    def __init__(self, integration):
         super().__init__()
         self.integration = integration
-        self.pin = pin
 
     def on_span_start(self, span: OaiSpan[Any]) -> None:
         """Called when a span starts.
@@ -22,7 +23,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that started.
         """
-        self.integration.start_span_from_oai_span(self.pin, raw_oai_span=span)
+        self.integration.start_span_from_oai_span(Pin.get_from(agents), raw_oai_span=span)
 
     def on_trace_start(self, trace: OaiTrace) -> None:
         """Called when a trace starts.
@@ -30,7 +31,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        self.integration.start_span_from_oai_trace(self.pin, raw_oai_trace=trace)
+        self.integration.start_span_from_oai_trace(Pin.get_from(agents), raw_oai_trace=trace)
 
     def on_trace_end(self, trace: OaiTrace) -> None:
         """Called when a trace is finished.
@@ -47,6 +48,7 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"raw_oai_trace": trace},
         )
+        print("FINISHING TRACE")
         cur_trace.finish()
 
     def on_span_end(self, span: OaiSpan[Any]) -> None:

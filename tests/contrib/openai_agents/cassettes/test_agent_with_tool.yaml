@@ -1,0 +1,188 @@
+interactions:
+- request:
+    body: '{"input":[{"content":"What is the average of 10, 20, and 30?","role":"user"}],"model":"gpt-4o","include":[],"instructions":"You
+      are a helpful assistant specialized in mathematical calculations.","stream":false,"tools":[{"name":"calculate_average","parameters":{"properties":{"numbers":{"items":{"type":"integer"},"title":"Numbers","type":"array"}},"required":["numbers"],"title":"calculate_average_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":"Calculate
+      the average of a list of numbers"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '543'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=.IsfYqn9d6ZtuXcE.b3.JR6r9UVn8tQvn5l1VfBEO5g-1742428971-1.0.1.1-ercCV1Yr_6BmCYKWFrN6FGd9cBX2JcGXNpRAokET5Y7n879iuh2c6jJi0LaEDiIJgKBEkYScU4z4brVpJSMEFGeIk2z4ESkMjhskpTioNxQ;
+        _cfuvid=hcm0gDBq9BPAHEyrY9rOCwvMszCY0FK8sj..sYA52P0-1742428971868-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.5
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '1'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5RVTY/bNhC9+1cQPHsDSf6Ub0V7KRKkKdpLkCyEETmymVCkSg4Xu1n4vxekZEn2
+        Oih6Mex5M28+3nD8umCMK8kPjDv0XbXdyXpTF6Lclut9XuZ7yOSqFLta7jYbzHYZ5huU60zUe4mb
+        GvkyEtj6Gwq6kFjjB7twCISygojlu3WxLvblrkiYJ6DgY4ywbaeRUPZB6Jx1/MBM0DoZlLl4VBIJ
+        lPbXqCcXBClrEttnGxg4ZMBOqLsmaAbeK09giPkOhQKtfqBkyrAW6IQtkBKgmQAtgobE866vpIXn
+        ygbqAlVkv6O5yttaiTomPHb0sLYPRVasH7L9Q7YdZpIC+YF9WTDG2Gv6ZIzTS4cxrAkmFV0J0DqF
+        JLjXohEXJWS9LbOkBK5rKPflLl8LXO2zu0okikhY9Tzp64/fPv/RfPo9vP/r7w+/vDypP5G67fN7
+        M0UYaHFwTzPACp7QwXFGCu4YWjSUZvz6lZvQ1uj8V374kmfLIluussfz5H5P3YSdF4w9pgF14EBr
+        1BVZq9MUoj+5gD3s8EnZ4KvLSvUtjfN3CN4aZY78MAyXY9NYRzMnxvgRDbrYkQ9tC+5lQBeMnYc1
+        tC723oD2fWLCtoshIdnzd9lgfaYpU2NdC9PvmazJb+y0z9E3eLJKJBcIZPkI+P9ekWmsEr1wqkvG
+        A+O/XvRidEI2aMZsw4Bp5Sl+G3T6X1pHZVqkGDZ1mCSxHTpSeG2PpEOWa3NcZ8L2rXnWozKER3T8
+        Cj8vr1lIkU7eH2+6uSED5+BlTnVe3KHkDv8JyqEcJ3/TxWh7nAWNNbwZXAXuOC9pLGc4izMEpFRR
+        PNCf5rNMy7e4KZR7cipd1fgmbh4P2a7q5uvpghFw2QupPNT6clCDj+qOu6vM1UErytXyLTC7tK/T
+        XREnlFNktpjVy28PZV7eA+7xji/5Z9RkCfQErvJifFrB49V/RYsEEggi/3lx/hcAAP//AwBxrStA
+        3wYAAA==
+    headers:
+      CF-RAY:
+      - 9230f176598c7539-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 20 Mar 2025 00:02:53 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1377'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_4e8ca1c36f43ae8e4f60f2f03870be50
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"input":[{"content":"What is the average of 10, 20, and 30?","role":"user"},{"arguments":"{\"numbers\":[10,20,30]}","call_id":"call_zDYOfPIuKSTLAyviQetp6xKn","name":"calculate_average","type":"function_call","id":"fc_67db5b2db69081918e4ba989714ce3800e15ed40cb8de5be","status":"completed"},{"call_id":"call_zDYOfPIuKSTLAyviQetp6xKn","output":"20.0","type":"function_call_output"}],"model":"gpt-4o","include":[],"instructions":"You
+      are a helpful assistant specialized in mathematical calculations.","stream":false,"tools":[{"name":"calculate_average","parameters":{"properties":{"numbers":{"items":{"type":"integer"},"title":"Numbers","type":"array"}},"required":["numbers"],"title":"calculate_average_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":"Calculate
+      the average of a list of numbers"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '846'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=.IsfYqn9d6ZtuXcE.b3.JR6r9UVn8tQvn5l1VfBEO5g-1742428971-1.0.1.1-ercCV1Yr_6BmCYKWFrN6FGd9cBX2JcGXNpRAokET5Y7n879iuh2c6jJi0LaEDiIJgKBEkYScU4z4brVpJSMEFGeIk2z4ESkMjhskpTioNxQ;
+        _cfuvid=hcm0gDBq9BPAHEyrY9rOCwvMszCY0FK8sj..sYA52P0-1742428971868-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.5
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RVTW/jOAy951cQOqeF4rptkuveF3PYy2JQGIxEJ9qVJY9EDaY7yH9fSHb8kbYX
+        w+YTHynykf69ARBGiyOIQLFvXl716flUkTwd1H532KGil6e9lk97PKi2fZW0eyZdS3Xaa3o+kdhm
+        An/6hxTfSLyLo10FQibdYMZ2r3VVV/vDa12wyMgpZh/lu94Skx6cKAQfxBFcsrYYjLudaDQxGhvX
+        aOSQFBvvCtvfPgEGAoQL2b5NFjBGExkdQ+xJGbTmP9JgHHTIF+qQjUILCq1KFgvP45BJh78an7hP
+        3LD/l9wqbuc12Rzw3PND7R8qWdUPcv8gX8aaFEdxhO8bAIDf5Qkg+L2n7NZRjHgeClWAoQtdPE9N
+        qNsXmZtwOOBB1oj1od1RpZ8/bULh+KqoBQzelshTPWZIecfk5myXGa+yvpWDfs3ew4FsOYL460KA
+        PyngmcC3sJNbqOQW0Gl4kmAiVPJRPq590TnPeOvg97cJu45vgyV/vZXa9hjQWrINe28bhbZIgkOi
+        AQ700/gUm5sam1LbqXWBMHpn3Fkcx1sKalsfeHEIQJzJUUCmJqauw/A+ohuA66hgH3JRWrRxCMzU
+        9dklFfvuUY7WUpoxUutDh/P3orbl3HTTIcZwwYs3amhdYi8mIH6trja5MhJzizVFFUxfjEcQf4xy
+        J+B1xxCsiZzfXOpOFOJM4bAr5LdRoWb0m4/kznTE2e24UJDog+8psKG1PZOOUdbmPA9M3Ufz4o7G
+        MZ0piBV+3a5Z2PCg+j/vbnNHhiHg+5LquvmEUgT6kUwgvZqUxS0m29vCacrhQ+EaDOdlSvOcDRt1
+        gaDWJjcP7bdlLYv4NneJisjBlIWcZ+JueNj3Tb+UZ0hO4U0X2kQ82dsuTmVFTdo1brULnyq5/Qgs
+        lvQkS4XqQnr2lJtFvuJ+x060K+Az3mmSv6Jmz2gXGddyGq0UafWb6YhRI2Pmv26u/wMAAP//AwCF
+        eEuOGgcAAA==
+    headers:
+      CF-RAY:
+      - 9230f17f8b067539-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 20 Mar 2025 00:02:54 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '378'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_ca64b3d030220658de3e3e90a7f6b176
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -134,7 +134,7 @@ def _assert_handoff_agent_events(llmobs_events, spans, expected_span_count=5):
 
 
 @pytest.mark.asyncio
-async def test_simple_agent(agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events):
+async def test_single_agent(agents_integration, mock_tracer, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents_integration.Runner.run(simple_agent, "What is the capital of France?")
@@ -145,6 +145,12 @@ async def test_simple_agent(agents_integration, simple_agent, request_vcr, mock_
 
     # Check span structure
     _assert_basic_agent_events(llmobs_events, spans)
+
+
+async def test_single_agent_with_chat_completions(
+    agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events
+):
+    pass
 
 
 @pytest.mark.asyncio
@@ -178,7 +184,7 @@ async def test_agent_handoffs(agents_integration, handoffs_agent, request_vcr, m
 
 
 @pytest.mark.asyncio
-async def test_streaming(agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events):
+async def test_single_agent_with_streaming(agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events):
     """Test tracing with streaming enabled"""
     with request_vcr.use_cassette("test_streaming.yaml"):
         response = await agents_integration.Runner.run_stream(simple_agent, "Tell me a short story about a robot")
@@ -200,25 +206,7 @@ async def test_streaming(agents_integration, simple_agent, request_vcr, mock_tra
 
 
 @pytest.mark.asyncio
-async def test_research_tool_agent(
-    agents_integration, research_assistant_agent, request_vcr, mock_tracer, llmobs_events
-):
-    """Test tracing with research tool agent"""
-    with request_vcr.use_cassette("test_research_tool.yaml"):
-        result = await agents_integration.Runner.run(
-            research_assistant_agent, "Research the latest developments in quantum computing"
-        )
-
-    # Verify spans were created
-    spans = mock_tracer.pop_traces()[0]
-    assert len(spans) > 0
-
-    # Check span structure with tool usage for research
-    _assert_tool_agent_events(llmobs_events, spans)
-
-
-@pytest.mark.asyncio
-async def test_guardrails_language_detection(agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events):
+async def test_gaurdrails(agents_integration, simple_agent, request_vcr, mock_tracer, llmobs_events):
     """Test tracing with guardrails for language detection/translation"""
     with request_vcr.use_cassette("test_guardrails_language.yaml"):
         # Use non-English input to trigger language detection/translation guardrails

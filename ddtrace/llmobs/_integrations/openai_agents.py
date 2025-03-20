@@ -53,7 +53,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     ) -> Span:
         raw_oai_trace = kwargs.get("raw_oai_trace")
         span_name = raw_oai_trace.name if raw_oai_trace.name else "Agent workflow"
-
+        print("STARTING TRACE")
+        print(pin.tracer)
         llmobs_span = super().trace(
             pin,
             operation_id=span_name,

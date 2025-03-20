@@ -42,7 +42,6 @@ def patch():
 
     _span_processor = LLMObsTraceProcessor(
         integration=OpenAIAgentsIntegration(integration_config=config.openai_agents),
-        pin=Pin.get_from(agents),
     )
     add_trace_processor(_span_processor)
 

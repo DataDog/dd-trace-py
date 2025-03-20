@@ -1,0 +1,259 @@
+interactions:
+- request:
+    body: '{"input":[{"content":"Research the latest developments in quantum computing","role":"user"}],"model":"gpt-4o","include":[],"instructions":"You
+      are a research assistant who can search the web and summarize information.","stream":false,"tools":[{"name":"search_web","parameters":{"properties":{"query":{"title":"Query","type":"string"}},"required":["query"],"title":"search_web_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":"Simulated
+      web search function"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '508'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=.IsfYqn9d6ZtuXcE.b3.JR6r9UVn8tQvn5l1VfBEO5g-1742428971-1.0.1.1-ercCV1Yr_6BmCYKWFrN6FGd9cBX2JcGXNpRAokET5Y7n879iuh2c6jJi0LaEDiIJgKBEkYScU4z4brVpJSMEFGeIk2z4ESkMjhskpTioNxQ;
+        _cfuvid=hcm0gDBq9BPAHEyrY9rOCwvMszCY0FK8sj..sYA52P0-1742428971868-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.5
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '1'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4RUTY+jRhC9+1eU+jyzAgbb4FuUQ6Q9JbvSSlFmhQq6jDvbdDPd1TszGfm/RzQY
+        sHc2uSCoV9/vUW8bAKGkOIBw5Ptqt5f1tn5Iy4emKNIyrdOScknbvCx3u7opE0rrpihkjvtyK9NM
+        3A0JbP03NXxJYo2n0d44QiZZ4YCl+zzLs6Lc7yPmGTn4IaaxXa+JSY5B5Jx14gAmaB0Nylw8KkmM
+        Svtr1LMLDStrYrY/bQB0BAiOPKFrToDeK89oGJ5PFho0MAF8InimGtBI8KHr0Kl/CJQ5WtfhkPHD
+        2FKHL5UN3Aeu2H4jc9VAZyXpoXLb831u77Mky++T4j7ZTcuJgeIAf20AAN7iE0Dwa09D2DGY2H3V
+        oNYxJMIjKcdmpuS4xUhJsS2LNMuxPibbbZ7IdymJKYaE1Zgnvu4+ffxUbrOu3ae/7O3rl5cWi990
+        +usSYbCLPY37qZ6pXjB0bejIcNzy26N4CuReH8XhUWhk8gySvpO2ffQBZeApoOHQwcBeYGVayJLs
+        4VGcl5zviSBi5w3A17i+Hh1qTbpia3Xc0eDPLtAIO/qubPDVRXnjwDM7jtBbo0wrDtPqBR2P1vHK
+        CUC0ZMghUzXK4HVCNwDnSa3WDZs5ovZjYaauH0JCtKcfksn6wkulUUfz94r06DdPOtYYBzxZ1UQX
+        DGzFDPj/F9CyVkm+caqPxgOIz6oLA0cyin3S/o9R/0X+wEJHTM6vponrtz05VnRtBxjlcWMcmlas
+        Y5U/In53g04jeXYDZSvwPL+flxjh6CkoR3JezlXx2fJ1FTI3sIxZoWu9WPtMbUx3bYWglGrYGurf
+        15NHWWxu+otTxLM4qPVG1mz7ql8LxwXT4IUxqTzW+nIRg8eWFlUpc3WIsmJ39yOwOpVvyz1oTiSX
+        yGSz6lfcHrgsew94L+/8j/0sNVtGvYAPSTGLPni6OvYdMUpkHPKfN+d/AQAA//8DADWG7A6gBgAA
+    headers:
+      CF-RAY:
+      - 9230f1959e4f9867-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 20 Mar 2025 00:02:58 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '561'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_bb8a1a1074a7779f73bf9015d0f8eb91
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data":[{"object":"trace.span","id":"span_7b15ad09188e40b8a92477aa","trace_id":"trace_22f3667f511e4dc989811295551cf7f1","parent_id":"span_d222c064bbd341d8a9a66468","started_at":"2025-03-20T00:02:55.584597+00:00","ended_at":"2025-03-20T00:02:57.022741+00:00","span_data":{"type":"response","response_id":"resp_67db5b2fa448819187cab746eb58eec50a4ae796ab6a1f5b"},"error":null},{"object":"trace.span","id":"span_d222c064bbd341d8a9a66468","trace_id":"trace_22f3667f511e4dc989811295551cf7f1","parent_id":null,"started_at":"2025-03-20T00:02:55.584154+00:00","ended_at":"2025-03-20T00:02:57.025351+00:00","span_data":{"type":"agent","name":"Summarizer","handoffs":[],"tools":[],"output_type":"str"},"error":null},{"object":"trace","id":"trace_c6776ffeb3f749109190150faa8c77f8","workflow_name":"Agent
+      workflow","group_id":null,"metadata":null},{"object":"trace.span","id":"span_0c6548dbc98a48a68a2cb6e7","trace_id":"trace_c6776ffeb3f749109190150faa8c77f8","parent_id":"span_cf3c519e4b314649b83962b6","started_at":"2025-03-20T00:02:57.070291+00:00","ended_at":"2025-03-20T00:02:58.131384+00:00","span_data":{"type":"response","response_id":"resp_67db5b3193c88191b19e4de549966bc90e1bc88d4a795d12"},"error":null},{"object":"trace.span","id":"span_28bc4cccd30540dcbb75f976","trace_id":"trace_c6776ffeb3f749109190150faa8c77f8","parent_id":"span_cf3c519e4b314649b83962b6","started_at":"2025-03-20T00:02:58.132535+00:00","ended_at":"2025-03-20T00:02:58.133058+00:00","span_data":{"type":"function","name":"search_web","input":"{\"query\":\"latest
+      developments in quantum computing 2023\"}","output":"Simulated web search results
+      for: latest developments in quantum computing 2023"},"error":null}]}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1682'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=J.Rn6tClnnNKi7uEr1Fs.T4i5m84q286dBLKdU.iBuI-1742428976-1.0.1.1-aKqULMZGwRc9vdlK9pNkY5iBCPjqmhJjid5tPmQH3U588s6xJEP7XX3Nxzi_18RUeF3mLNOQuZ3OtL1XQFHqB07Ay1vKsHtKTBJaJ2PvOnI;
+        _cfuvid=SkHHjpBzC6fAYvkaV4rogpmgqRJFi6AwSsfZlBkdpPA-1742428976304-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      openai-beta:
+      - traces=v1
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://api.openai.com/v1/traces/ingest
+  response:
+    body:
+      string: ''
+    headers:
+      CF-RAY:
+      - 9230f1afdd0c4303-EWR
+      Connection:
+      - keep-alive
+      Date:
+      - Thu, 20 Mar 2025 00:03:02 GMT
+      Server:
+      - cloudflare
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '283'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_16043ab8d14ebb7ea7c915f0f7cdb7df
+    status:
+      code: 204
+      message: No Content
+- request:
+    body: '{"input":[{"content":"Research the latest developments in quantum computing","role":"user"},{"arguments":"{\"query\":\"latest
+      developments in quantum computing 2023\"}","call_id":"call_6RJR952mg71A7oyVxga8Gl1C","name":"search_web","type":"function_call","id":"fc_67db5b31f5a881918598124abf05540d0e1bc88d4a795d12","status":"completed"},{"call_id":"call_6RJR952mg71A7oyVxga8Gl1C","output":"Simulated
+      web search results for: latest developments in quantum computing 2023","type":"function_call_output"}],"model":"gpt-4o","include":[],"instructions":"You
+      are a research assistant who can search the web and summarize information.","stream":false,"tools":[{"name":"search_web","parameters":{"properties":{"query":{"title":"Query","type":"string"}},"required":["query"],"title":"search_web_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":"Simulated
+      web search function"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '916'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=.IsfYqn9d6ZtuXcE.b3.JR6r9UVn8tQvn5l1VfBEO5g-1742428971-1.0.1.1-ercCV1Yr_6BmCYKWFrN6FGd9cBX2JcGXNpRAokET5Y7n879iuh2c6jJi0LaEDiIJgKBEkYScU4z4brVpJSMEFGeIk2z4ESkMjhskpTioNxQ;
+        _cfuvid=hcm0gDBq9BPAHEyrY9rOCwvMszCY0FK8sj..sYA52P0-1742428971868-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.5
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        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
+        AAA=
+    headers:
+      CF-RAY:
+      - 9230f199797b9867-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 20 Mar 2025 00:03:02 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '4307'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_073301dcd0ccd85e483e88b7627ba384
+    status:
+      code: 200
+      message: OK
+version: 1
