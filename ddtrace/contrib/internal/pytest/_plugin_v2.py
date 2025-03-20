@@ -141,7 +141,7 @@ def _handle_test_management(item, test_id):
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
         # It should still have both disabled and quarantined event tags, though.
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-    elif is_quarantined or is_attempt_to_fix:
+    elif is_quarantined or (is_disabled and is_attempt_to_fix):
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
 
@@ -498,7 +498,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
+    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None: #ꙮ
         return
 
     original_result = outcome.get_result()
@@ -506,6 +506,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_id = _get_test_id_from_item(item)
 
     is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     test_outcome = _process_result(item, call, original_result)
@@ -523,7 +524,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    if original_result.failed and (is_quarantined or is_attempt_to_fix):
+    if original_result.failed and is_quarantined:
         # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
         original_result.outcome = OUTCOME_QUARANTINED
@@ -557,9 +558,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
 
 
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
-    # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
-    # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
-    # terminalreporter.stats["failed"] to its original size after the yield.
+    # Before yield gives us a chance to show failure reports (with the stack trace of the failing test), but they have
+    # to be in terminalreporter.stats["failed"] to be shown. That, however, would make them count towards the final
+    # summary, so we add them temporarily, then restore terminalreporter.stats["failed"] to its original size after the
+    # yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
     if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():

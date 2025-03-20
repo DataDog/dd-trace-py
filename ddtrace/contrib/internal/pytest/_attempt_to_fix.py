@@ -26,11 +26,13 @@ class _RETRY_OUTCOMES:
     ATTEMPT_SKIPPED = "dd_fix_attempt_skipped"
     FINAL_PASSED = "dd_fix_final_passed"
     FINAL_FAILED = "dd_fix_final_failed"
+    FINAL_SKIPPED = "dd_fix_final_skipped"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
     TestStatus.PASS: _RETRY_OUTCOMES.FINAL_PASSED,
     TestStatus.FAIL: _RETRY_OUTCOMES.FINAL_FAILED,
+    TestStatus.SKIP: _RETRY_OUTCOMES.FINAL_SKIPPED,
 }
 
 
@@ -52,12 +54,6 @@ def attempt_to_fix_handle_retries(
         XPASS=retry_outcomes.ATTEMPT_FAILED,
     )
 
-    # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
-        if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = outcomes.FAILED
-        return
-
     retries_outcome = _do_retries(item, outcomes)
 
     final_report = pytest_TestReport(
@@ -67,8 +63,8 @@ def attempt_to_fix_handle_retries(
         when="call",
         longrepr=None,
         outcome=final_outcomes[retries_outcome],
+        user_properties=item.user_properties,
     )
-
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
@@ -111,14 +107,32 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
         return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
     if report.outcome == _RETRY_OUTCOMES.FINAL_FAILED:
         return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
+    if report.outcome == _RETRY_OUTCOMES.FINAL_SKIPPED:
+        return (_RETRY_OUTCOMES.FINAL_SKIPPED, "s", ("ATTEMPT TO FIX FINAL STATUS: SKIPPED", {"yellow": True}))
     return None
 
 
 def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
+    # Flaky tests could have passed their initial attempt, so they need to be removed from the passed stats to avoid
+    # overcounting:
+    flaky_node_ids = {report.nodeid for report in terminalreporter.stats.get(_RETRY_OUTCOMES.FINAL_FAILED, [])}
+    passed_reports = terminalreporter.stats.get("passed")
+    if passed_reports:
+        terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
+
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_SKIPPED, None)
-    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, [])
-    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, None)
+
+    failed_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
+    for report in failed_tests:
+        if ("dd_quarantined", True) not in report.user_properties:
+            terminalreporter.stats.setdefault("failed", []).append(report)
+
+    skipped_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_SKIPPED, [])
+    for report in skipped_tests:
+        if ("dd_quarantined", True) not in report.user_properties:
+            terminalreporter.stats.setdefault("skipped", []).append(report)
 
     # TODO: report list of attempt-to-fix results.
