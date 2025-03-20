@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where mixed APM and LLM Observability tracing caused incorrect parent IDs for LLM Observability spans.
+    LLM Observability: This fix resolves an issue where traces containing intermixed APM and LLM Observability spans caused incorrect parent IDs for LLM Observability spans.

@@ -2145,18 +2145,18 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
     assert llmobs_events[0]["trace_id"] == llmobs_events[1]["trace_id"]
 
 
-def test_llmobs_parenting_with_intermediate_apm_spans(llmobs, tracer, llmobs_events):
+def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_events):
     with llmobs.task("level_1_llm"):
-        with tracer.trace("intermediate_apm"):
-            with tracer.trace("intermediate_apm_2"):
+        with tracer.trace("intermediate_apm"):  # APM span
+            with tracer.trace("intermediate_apm_2"):  # APM span
                 with llmobs.task("level_2_llm_a"):
-                    with tracer.trace("intermediate_apm_3"):
+                    with tracer.trace("intermediate_apm_3"):  # APM span
                         with llmobs.task("level_3_llm"):
                             pass
                 with llmobs.task("level_2_llm_b"):
                     pass
     """
-    Correct LLM Obs trace structure;
+    Expected LLM Obs trace structure;
         level_1_llm
             level_2_llm_a
                 level_3_llm
