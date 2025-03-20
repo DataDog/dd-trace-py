@@ -16,11 +16,12 @@ from ddtrace.internal.utils.formats import asbool  # noqa:F401
 from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.trace import tracer
-
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 import typing as t
 
-# Register operations to be performned after the preload is complete. In
+# Register operations to be performed after the preload is complete. In
 # general, we might need to perform some cleanup operations after the
 # initialisation of the library, while also execute some more code after that.
 #  _____ ___  _________  _____ ______  _____   ___   _   _  _____
@@ -104,6 +105,13 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
 
 if "DD_TRACE_GLOBAL_TAGS" in os.environ:
     env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
+    if env_tags is not None:
+        deprecate(
+            "DD_TRACE_GLOBAL_TAGS is deprecated",
+            message="Please migrate to using DD_TAGS instead",
+            category=DDTraceDeprecationWarning,
+        )
+
     tracer.set_tags(parse_tags_str(env_tags))
 
 
