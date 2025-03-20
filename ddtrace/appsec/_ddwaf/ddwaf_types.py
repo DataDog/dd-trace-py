@@ -396,11 +396,11 @@ ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
 )(
     ("ddwaf_builder_add_or_update_config", ddwaf),
     (
-        (3, "builder"),
+        (1, "builder"),
         (1, "path"),
         (1, "path_len"),
         (1, "config"),
-        (3, "diagnostics"),
+        (1, "diagnostics"),
     ),
 )
 
@@ -415,7 +415,7 @@ def py_add_or_update_config(
 ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32)(
     ("ddwaf_builder_remove_config", ddwaf),
     (
-        (3, "builder"),
+        (1, "builder"),
         (1, "path"),
         (1, "path_len"),
     ),
