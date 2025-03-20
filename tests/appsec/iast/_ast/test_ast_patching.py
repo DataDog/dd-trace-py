@@ -7,7 +7,7 @@ import astunparse
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 from ddtrace.internal.utils.formats import asbool
@@ -159,33 +159,39 @@ def test_astpatch_source_unchanged(module_name):
 
 
 def test_should_iast_patch_allow_first_party():
-    assert _should_iast_patch("tests.appsec.iast.integration.main")
-    assert _should_iast_patch("tests.appsec.iast.integration.print_str")
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert (
+        iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str")
+        == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    )
 
 
 def test_should_not_iast_patch_if_vendored():
-    assert not _should_iast_patch("foobar.vendor.requests")
-    assert not _should_iast_patch(("vendored.foobar.requests"))
+    assert iastpatch.should_iast_patch("foobar.vendor.requests") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("vendored.foobar.requests") == iastpatch.DENIED_NOT_FOUND
 
 
 def test_should_iast_patch_deny_by_default_if_third_party():
     # note that modules here must be in the ones returned by get_package_distributions()
     # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
-    assert not _should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list")
+    assert iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list") == iastpatch.DENIED_NOT_FOUND
 
 
-def test_should_not_iast_patch_if_in_denylist():
-    assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec._iast")
-    assert not _should_iast_patch("pip.foo.bar")
+def test_should_not_iast_patch_if_not_in_static_allowlist():
+    assert iastpatch.should_iast_patch("ddtrace.internal.module") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("ddtrace.appsec._iast") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("pip.foo.bar") == iastpatch.DENIED_NOT_FOUND
 
 
 def test_should_not_iast_patch_if_stdlib():
-    assert not _should_iast_patch("base64")
-    assert not _should_iast_patch("itertools")
-    assert not _should_iast_patch("http")
-    assert not _should_iast_patch("os.path")
-    assert not _should_iast_patch("sys.platform")
+    assert iastpatch.should_iast_patch("base64") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("itertools") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("http") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("os.path") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("os") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("sys.platform") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("sys") == iastpatch.DENIED_BUILTINS_DENYLIST
+    assert iastpatch.should_iast_patch("sys.my.sub.module") == iastpatch.DENIED_BUILTINS_DENYLIST
 
 
 def test_module_path_none(caplog):

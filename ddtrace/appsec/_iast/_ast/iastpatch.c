@@ -437,7 +437,7 @@ is_first_party(const char* module_name)
     // If the packages list is not cached, call packages_distributions and cache its result.
     if (cached_packages == NULL) {
         PyObject* metadata;
-        if (PY_VERSION_HEX < 0x030A0000) {  // Python < 3.10
+        if (PY_VERSION_HEX < 0x030A0000) { // Python < 3.10
             metadata = PyImport_ImportModule("importlib_metadata");
         } else {
             metadata = PyImport_ImportModule("importlib.metadata");
@@ -632,21 +632,15 @@ init_globals(void)
 
     /* 2. Initialize user_allowlist from _DD_IAST_PATCH_MODULES */
     char** new_allowlist = build_list_from_env("_DD_IAST_PATCH_MODULES", &user_allowlist_count);
-    if (new_allowlist == NULL && user_allowlist_count > 0) {
-        return -1; // Error occurred
+    if (new_allowlist != NULL) {
+        free_list(user_allowlist, user_allowlist_count);
+        user_allowlist = new_allowlist;
     }
     char** new_denylist = build_list_from_env("_DD_IAST_DENY_MODULES", &user_denylist_count);
-    if (new_denylist == NULL && user_denylist_count > 0) {
-        free_list(new_allowlist, user_allowlist_count);
-        return -1;
+    if (new_denylist != NULL) {
+        free_list(user_denylist, user_denylist_count);
+        user_denylist = new_denylist;
     }
-
-    free_list(user_allowlist, user_allowlist_count);
-    free_list(user_denylist, user_denylist_count);
-
-    user_allowlist = new_allowlist;
-    user_denylist = new_denylist;
-
     return 0; // Success
 }
 
@@ -717,12 +711,20 @@ py_build_list_from_env(PyObject* self, PyObject* args)
         return NULL;
     }
 
-    Py_ssize_t count = 0;
+    ssize_t count = 0;
     char** result_list = build_list_from_env(env_var_name, &count);
     if (result_list == NULL && count > 0) {
-        return NULL;
+        Py_RETURN_FALSE;
     }
+    //    printf("Result List:\n");
+    //    for (ssize_t i = 0; i < count; i++) {
+    //        if (result_list[i]) {
+    //            printf("  %s\n", result_list[i]);
+    //        }
+    //    }
+    //    printf("Count: %zd\n", count);
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
+
         free_list(user_allowlist, user_allowlist_count);
         user_allowlist = result_list;
         user_allowlist_count = count;
@@ -730,27 +732,10 @@ py_build_list_from_env(PyObject* self, PyObject* args)
         free_list(user_denylist, user_denylist_count);
         user_denylist = result_list;
         user_denylist_count = count;
+    } else {
+        Py_RETURN_FALSE;
     }
-
-    /* Convert C list to Python list */
-    PyObject* py_list = PyList_New(count);
-    if (py_list == NULL || result_list == NULL) {
-        Py_XDECREF(py_list);
-        free_list(result_list, count);
-        return NULL;
-    }
-
-    for (Py_ssize_t i = 0; i < count; i++) {
-        PyObject* py_str = PyUnicode_FromString(result_list[i]);
-        if (py_str == NULL) {
-            Py_XDECREF(py_list);
-            free_list(result_list, count);
-            return NULL;
-        }
-        PyList_SetItem(py_list, i, py_str);
-    }
-
-    return py_list;
+    Py_RETURN_TRUE;
 }
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */
