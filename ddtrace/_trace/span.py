@@ -72,7 +72,6 @@ _AttributeValueType = Union[
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
-    # TODO: change _JSONType to match the spec. Should only contain a list of homogeneous primitive types
     def __init__(
         self,
         name: str,

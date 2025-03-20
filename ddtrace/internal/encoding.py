@@ -52,7 +52,6 @@ class _EncoderBase(object):
     @staticmethod
     def _span_to_dict(span):
         # type: (Span) -> Dict[str, Any]
-        # breakpoint()
         d = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
