@@ -2146,20 +2146,33 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
 
 
 def test_llmobs_parenting_with_intermediate_apm_spans(llmobs, tracer, llmobs_events):
-    with llmobs.task("root_llm"):
+    with llmobs.task("level_1_llm"):
         with tracer.trace("intermediate_apm"):
             with tracer.trace("intermediate_apm_2"):
-                with llmobs.task("child_llm"):
+                with llmobs.task("level_2_llm_a"):
                     with tracer.trace("intermediate_apm_3"):
-                        with llmobs.task("child_llm_2"):
+                        with llmobs.task("level_3_llm"):
                             pass
+                with llmobs.task("level_2_llm_b"):
+                    pass
 
-    assert len(llmobs_events) == 3
-    assert llmobs_events[0]["name"] == "child_llm_2"
+    """
+    Correct trace structure;
+        level_1_llm
+            level_2_llm_a
+                level_3_llm
+            level_2_llm_b
+    """
+
+    assert len(llmobs_events) == 4
+    assert llmobs_events[0]["name"] == "level_3_llm"
     assert llmobs_events[0]["parent_id"] == llmobs_events[1]["span_id"]
 
-    assert llmobs_events[1]["name"] == "child_llm"
-    assert llmobs_events[1]["parent_id"] == llmobs_events[2]["span_id"]
+    assert llmobs_events[1]["name"] == "level_2_llm_a"
+    assert llmobs_events[1]["parent_id"] == llmobs_events[3]["span_id"]
 
-    assert llmobs_events[2]["name"] == "root_llm"
-    assert llmobs_events[2]["parent_id"] == "undefined"
+    assert llmobs_events[2]["name"] == "level_2_llm_b"
+    assert llmobs_events[2]["parent_id"] == llmobs_events[3]["span_id"]
+
+    assert llmobs_events[3]["name"] == "level_1_llm"
+    assert llmobs_events[3]["parent_id"] == "undefined"
