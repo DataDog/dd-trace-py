@@ -119,11 +119,11 @@ def start_span_fn(span_kind: str) -> callable:
 
 
 def set_error_on_span(llmobs_span: DdSpan, oai_span: OaiSpan) -> None:
-    err = oai_span.error
-    if err:
+    if oai_span.error:
         llmobs_span.error = 1
-        error_msg = err.get("message")
-        data = err.get("data")
+        error_msg = oai_span.error.get("message")
+        data = oai_span.error.get("data")
+        llmobs_span.set_tag("error.type", error_msg)
         llmobs_span.set_tag("error.message", error_msg + "\n" + json.dumps(data))
 
 
@@ -170,7 +170,6 @@ def _process_input_messages(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[s
 
             processed_item["role"] = item["role"]
         elif "call_id" in item and "arguments" in item:
-            print("FUNCTION CALL INPUT: ", item)
             """
             Process `ResponseFunctionToolCallParam` type from input messages
             """
