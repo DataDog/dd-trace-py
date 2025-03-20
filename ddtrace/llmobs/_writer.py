@@ -204,7 +204,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(safe_json(events))
+            self.buffer_size += len(events[0])
 
     def encode(self):
         with self._lock:
@@ -212,9 +212,8 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
         try:
-            enc_llm_events = safe_json(data)
+            enc_llm_events = f'{{"_dd.stage": "raw", "_dd.tracer_version": "{ddtrace.__version__}", "event_type": "span", "spans": [{",".join(events)}]}}'
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
@@ -288,15 +287,16 @@ class LLMObsSpanWriter(HTTPWriter):
             super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
-        raw_event_size = len(safe_json(event))
-        should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
+        encoded_event = safe_json(event)
+        raw_event_size = len(event)
 
-        if should_truncate:
+        if raw_event_size >= EVP_EVENT_SIZE_LIMIT:
             logger.warning(
                 "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
                 raw_event_size,
             )
             event = _truncate_span_event(event)
+            encoded_event = safe_json(event)
 
         for client in self._clients:
             if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
@@ -306,8 +306,8 @@ class LLMObsSpanWriter(HTTPWriter):
                         self._flush_queue_with_client(client)
 
         telemetry.record_span_event_raw_size(event, raw_event_size)
-        telemetry.record_span_event_size(event, len(event), should_truncate)
-        self.write([event])
+        telemetry.record_span_event_size(event, len(encoded_event))
+        self.write([encoded_event])
 
     # Noop to make it compatible with HTTPWriter interface
     def _set_keep_rate(self, events: List[LLMObsSpanEvent]):
