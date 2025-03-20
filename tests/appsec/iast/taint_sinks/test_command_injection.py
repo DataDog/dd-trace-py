@@ -12,6 +12,8 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
@@ -23,7 +25,8 @@ _PARAMS = ["/bin/ls", "-l"]
 _BAD_DIR_DEFAULT = "forbidden_dir/"
 
 
-def _assert_vulnerability(vulnerability_hash, value_parts=None, source_name="", check_value=False):
+def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function="", class_name=""):
+    function_name = label if not function else function
     if value_parts is None:
         value_parts = [
             {"value": "dir "},
@@ -46,9 +49,11 @@ def _assert_vulnerability(vulnerability_hash, value_parts=None, source_name="", 
     else:
         assert "value" not in source.keys()
 
-    line, hash_value = get_line_and_hash(vulnerability_hash, VULN_CMDI, filename=FIXTURES_PATH)
+    line, hash_value = get_line_and_hash(label, VULN_CMDI, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == function_name
+    assert vulnerability["location"]["class_name"] == class_name
     assert vulnerability["hash"] == hash_value
 
 
@@ -168,6 +173,7 @@ def test_osspawn_variants(iast_context_defaults, function, mode, arguments, tag)
         value_parts=[{"value": "/bin/ls -l "}, {"source": 0, "value": _BAD_DIR}],
         source_name=source_name,
         check_value=True,
+        function="test_osspawn_variants",
     )
 
 
@@ -208,26 +214,29 @@ def test_string_cmdi(iast_context_defaults):
     assert len(list(data["vulnerabilities"])) == 1
 
 
-@pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_cmdi_deduplication(num_vuln_expected, iast_context_deduplication_enabled):
+def test_cmdi_deduplication(iast_context_deduplication_enabled):
     patch()
-    _BAD_DIR = "forbidden_dir/"
-    _BAD_DIR = taint_pyobject(
-        pyobject=_BAD_DIR,
-        source_name="test_ossystem",
-        source_value=_BAD_DIR,
-        source_origin=OriginType.PARAMETER,
-    )
-    assert is_pyobject_tainted(_BAD_DIR)
-    for _ in range(0, 5):
-        # label test_ossystem
-        os.system(add_aspect("dir -l ", _BAD_DIR))
+    _end_iast_context_and_oce()
+    for num_vuln_expected in [1, 0, 0]:
+        _start_iast_context_and_oce()
+        _BAD_DIR = "forbidden_dir/"
+        _BAD_DIR = taint_pyobject(
+            pyobject=_BAD_DIR,
+            source_name="test_ossystem",
+            source_value=_BAD_DIR,
+            source_origin=OriginType.PARAMETER,
+        )
+        assert is_pyobject_tainted(_BAD_DIR)
+        for _ in range(0, 5):
+            # label test_ossystem
+            os.system(add_aspect("dir -l ", _BAD_DIR))
 
-    span_report = get_iast_reporter()
+        span_report = get_iast_reporter()
 
-    if num_vuln_expected == 0:
-        assert span_report is None
-    else:
-        assert span_report
-        data = span_report.build_and_scrub_value_parts()
-        assert len(data["vulnerabilities"]) == num_vuln_expected
+        if num_vuln_expected == 0:
+            assert span_report is None
+        else:
+            assert span_report
+            data = span_report.build_and_scrub_value_parts()
+            assert len(data["vulnerabilities"]) == num_vuln_expected
+        _end_iast_context_and_oce()

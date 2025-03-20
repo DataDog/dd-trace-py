@@ -16,8 +16,11 @@ OUT_FILENAME = "min_compatible_versions.csv"
 OUT_DIRECTORIES = (".", "lib-injection/sources")
 IGNORED_PACKAGES = {
     "attrs",
+    "bcrypt",
+    "boto3",
     "botocore",
     "click",
+    "git+https://github.com/DataDog/dd-trace-api-py",
     "pillow",
     "pytest-asyncio",
     "pytest-randomly",
@@ -55,7 +58,7 @@ def _tree_pkgs_from_riot(node: riotfile.Venv) -> Dict[str, Set]:
 def min_version_spec(version_specs: List[str]) -> str:
     min_numeric = ""
     min_spec = ""
-    for spec in version_specs:
+    for spec in sorted(version_specs):
         numeric = parse_version(spec.strip("~==<>"))
         if not min_numeric or numeric < min_numeric:
             min_numeric = numeric

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import http.client as httplib  # noqa: E402
 import itertools
-from logging import getLogger
 import os
 import sys
 import time
@@ -15,12 +14,14 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 import urllib.parse as parse
 
+from ddtrace.internal.logger import get_logger
+
 from ...internal import atexit
 from ...internal import forksafe
+from ...settings._config import _get_config
 from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
-from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
@@ -39,6 +40,7 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
+from .logging import DDTelemetryLogHandler
 from .metrics import CountMetric
 from .metrics import DistributionMetric
 from .metrics import GaugeMetric
@@ -51,23 +53,31 @@ from .metrics_namespaces import NamespaceMetricType  # noqa:F401
 _inferred_service = detect_service(sys.argv)
 
 
-log = getLogger(__name__)
+log = get_logger(__name__)
 
 
 class _TelemetryConfig:
-    API_KEY = os.environ.get("DD_API_KEY", None)
-    SITE = os.environ.get("DD_SITE", "datadoghq.com")
-    ENV = os.environ.get("DD_ENV", "")
-    SERVICE = os.environ.get("DD_SERVICE", _inferred_service or "unnamed-python-service")
-    VERSION = os.environ.get("DD_VERSION", "")
-    AGENTLESS_MODE = asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
-    HEARTBEAT_INTERVAL = float(os.environ.get("DD_TELEMETRY_HEARTBEAT_INTERVAL", "60"))
-    TELEMETRY_ENABLED = asbool(os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower())
-    DEPENDENCY_COLLECTION = asbool(os.environ.get("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "true"))
-    INSTALL_ID = os.environ.get("DD_INSTRUMENTATION_INSTALL_ID", None)
-    INSTALL_TYPE = os.environ.get("DD_INSTRUMENTATION_INSTALL_TYPE", None)
-    INSTALL_TIME = os.environ.get("DD_INSTRUMENTATION_INSTALL_TIME", None)
-    FORCE_START = asbool(os.environ.get("_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", "false"))
+    API_KEY: str = _get_config("DD_API_KEY", None, report_telemetry=False)
+    SITE: str = _get_config("DD_SITE", "datadoghq.com", report_telemetry=False)
+    ENV: str = _get_config("DD_ENV", "", report_telemetry=False)
+    SERVICE: str = _get_config("DD_SERVICE", _inferred_service or "unnamed-python-service", report_telemetry=False)
+    VERSION: str = _get_config("DD_VERSION", "", report_telemetry=False)
+    AGENTLESS_MODE: bool = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool, report_telemetry=False)
+    DEBUG: bool = _get_config("DD_TRACE_DEBUG", False, asbool, report_telemetry=False)
+    HEARTBEAT_INTERVAL: float = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float, report_telemetry=False)
+    TELEMETRY_ENABLED: bool = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
+    DEPENDENCY_COLLECTION: bool = _get_config(
+        "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool, report_telemetry=False
+    )
+    INSTALL_ID: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_ID", None, report_telemetry=False)
+    INSTALL_TYPE: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE", None, report_telemetry=False)
+    INSTALL_TIME: Optional[str] = _get_config("DD_INSTRUMENTATION_INSTALL_TIME", None, report_telemetry=False)
+    FORCE_START: bool = _get_config(
+        "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED", False, asbool, report_telemetry=False
+    )
+    LOG_COLLECTION_ENABLED: bool = TELEMETRY_ENABLED and _get_config(
+        "DD_TELEMETRY_LOG_COLLECTION_ENABLED", True, asbool, report_telemetry=False
+    )
 
 
 class LogData(dict):
@@ -117,7 +127,7 @@ class _TelemetryClient:
             with StopWatch() as sw:
                 conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
-                resp = get_connection_response(conn)
+                resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
                     "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
@@ -189,13 +199,17 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._configuration_queue = {}  # type: Dict[str, Dict]
         self._imported_dependencies: Dict[str, str] = dict()
+        self._modules_already_imported: Set[str] = set()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._send_product_change_updates = False
+        self._extended_time = time.monotonic()
+        # The extended heartbeat interval is set to 24 hours
+        self._extended_heartbeat_interval = 3600 * 24
 
         self.started = False
 
         # Debug flag that enables payload debug mode.
-        self._debug = os.environ.get("DD_TELEMETRY_DEBUG", "false").lower() in ("true", "1")
+        self._debug = _TelemetryConfig.DEBUG
 
         self._enabled = _TelemetryConfig.TELEMETRY_ENABLED
 
@@ -222,6 +236,8 @@ class TelemetryWriter(PeriodicService):
             # Force app started for unit tests
             if _TelemetryConfig.FORCE_START:
                 self._app_started()
+            if _TelemetryConfig.LOG_COLLECTION_ENABLED:
+                get_logger("ddtrace").addHandler(DDTelemetryLogHandler(self))
 
     def enable(self):
         # type: () -> bool
@@ -362,7 +378,20 @@ class TelemetryWriter(PeriodicService):
 
     def _app_heartbeat_event(self):
         # type: () -> None
-        self.add_event({}, "app-heartbeat")
+        if (
+            _TelemetryConfig.DEPENDENCY_COLLECTION
+            and time.monotonic() - self._extended_time > self._extended_heartbeat_interval
+        ):
+            self._extended_time += self._extended_heartbeat_interval
+            self._app_dependencies_loaded_event()
+            payload = {
+                "dependencies": [
+                    {"name": name, "version": version} for name, version in self._imported_dependencies.items()
+                ]
+            }
+            self.add_event(payload, "app-extended-heartbeat")
+        else:
+            self.add_event({}, "app-heartbeat")
 
     def _app_closing_event(self):
         # type: () -> None
@@ -389,11 +418,6 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = dict()
         return integrations
 
-    def _flush_new_imported_dependencies(self) -> Set[str]:
-        with self._service_lock:
-            new_deps = modules.get_newly_imported_modules()
-        return new_deps
-
     def _flush_configuration_queue(self):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
@@ -410,10 +434,15 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-client-configuration-change")
 
-    def _app_dependencies_loaded_event(self, newly_imported_deps: List[str]):
+    def _app_dependencies_loaded_event(self):
         """Adds events to report imports done since the last periodic run"""
 
         if not _TelemetryConfig.DEPENDENCY_COLLECTION or not self._enabled:
+            return
+        with self._service_lock:
+            newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
+
+        if not newly_imported_deps:
             return
 
         with self._service_lock:
@@ -504,6 +533,7 @@ class TelemetryWriter(PeriodicService):
                 data["tags"] = ",".join(["%s:%s" % (k, str(v).lower()) for k, v in tags.items()])
             if stack_trace:
                 data["stack_trace"] = stack_trace
+            # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
@@ -616,10 +646,7 @@ class TelemetryWriter(PeriodicService):
         if configurations:
             self._app_client_configuration_changed_event(configurations)
 
-        if _TelemetryConfig.DEPENDENCY_COLLECTION:
-            newly_imported_deps = self._flush_new_imported_dependencies()
-            if newly_imported_deps:
-                self._app_dependencies_loaded_event(newly_imported_deps)
+        self._app_dependencies_loaded_event()
 
         if shutting_down:
             self._app_closing_event()
