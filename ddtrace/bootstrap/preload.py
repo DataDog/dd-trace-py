@@ -79,7 +79,7 @@ if config._otel_enabled:
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
 
-    LLMObs.enable()
+    LLMObs.enable(_auto=True)
 
 
 @register_post_preload

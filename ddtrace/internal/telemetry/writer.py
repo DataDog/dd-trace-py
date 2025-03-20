@@ -22,7 +22,6 @@ from ...settings._config import _get_config
 from ...settings._inferred_base_service import detect_service
 from ..agent import get_connection
 from ..agent import get_trace_url
-from ..compat import get_connection_response
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
@@ -128,7 +127,7 @@ class _TelemetryClient:
             with StopWatch() as sw:
                 conn = get_connection(self._telemetry_url)
                 conn.request("POST", self._endpoint, rb_json, headers)
-                resp = get_connection_response(conn)
+                resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
                     "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",

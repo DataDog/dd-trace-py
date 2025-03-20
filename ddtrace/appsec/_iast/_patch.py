@@ -5,6 +5,8 @@ from typing import Text
 from wrapt import FunctionWrapper
 
 from ddtrace.appsec._common_module_patches import wrap_object
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -40,7 +42,7 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)
+        iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
 
 def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
@@ -93,4 +95,4 @@ def _iast_instrument_starlette_scope(scope):
                     v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                 )
         except Exception:
-            log.debug("IAST: Unexpected exception while tainting path parameters", exc_info=True)
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

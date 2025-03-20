@@ -588,8 +588,8 @@ class TracerTestCases(TracerTestCase):
             assert user_id == "44Om44O844K244O8SUQ="
 
 
-@pytest.mark.subprocess(env=dict(DD_AGENT_PORT="", DD_AGENT_HOST="", DD_TRACE_AGENT_URL=""))
-def test_tracer_url():
+@pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
+def test_tracer_url_default():
     import ddtrace
 
     assert ddtrace.trace.tracer._writer.agent_url == "http://localhost:8126"
@@ -1700,12 +1700,16 @@ def test_fork_manual_span_same_context():
     from ddtrace.trace import tracer
 
     span = tracer.trace("test")
+    span.context.set_baggage_item("key", "value")
+    span.context._meta["_dd.p.dm"] = "-1"
     pid = os.fork()
 
     if pid == 0:
         child = tracer.start_span("child", child_of=span)
         assert child.parent_id == span.span_id
         assert child._parent is None
+        # Ensure the child context is the same as the parent context
+        assert child.context == span.context
         # No more current span strong reference to avoid memory leaks.
         assert tracer.current_span() is None
         child.finish()

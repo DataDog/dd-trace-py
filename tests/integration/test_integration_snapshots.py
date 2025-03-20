@@ -118,9 +118,7 @@ def test_synchronous_writer():
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child process.
     """
     import multiprocessing
 
@@ -146,9 +144,7 @@ def test_tracer_trace_across_popen():
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
-        The trace should be continued in the child processes. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child processes.
     """
     import multiprocessing
 
