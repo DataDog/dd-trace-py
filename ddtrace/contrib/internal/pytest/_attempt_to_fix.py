@@ -54,6 +54,12 @@ def attempt_to_fix_handle_retries(
         XPASS=retry_outcomes.ATTEMPT_FAILED,
     )
 
+    # Overwrite the original result to avoid double-counting when displaying totals in final summary
+    if when == "call":
+        if test_outcome.status == TestStatus.FAIL:
+            original_result.outcome = outcomes.FAILED
+        return
+
     retries_outcome = _do_retries(item, outcomes)
 
     final_report = pytest_TestReport(

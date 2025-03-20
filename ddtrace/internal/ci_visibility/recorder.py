@@ -1684,6 +1684,11 @@ def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
     return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
 
 
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
+
+
 def _register_attempt_to_fix_handlers():
     log.debug("Registering AttemptToFix handlers")
     core.on(
@@ -1692,6 +1697,11 @@ def _register_attempt_to_fix_handlers():
     core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
     core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
     core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
+    core.on(
+        "test_visibility.attempt_to_fix.session_has_failed_tests",
+        _on_attempt_to_fix_session_has_failed_tests,
+        "has_failed_tests",
+    )
     core.on(
         "test_visibility.attempt_to_fix.get_final_status",
         _on_attempt_to_fix_get_final_status,
