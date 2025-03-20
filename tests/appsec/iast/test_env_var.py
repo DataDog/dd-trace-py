@@ -209,7 +209,7 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
         ("pytest", iastpatch.DENIED_NOT_FOUND),
     ),
 )
-def test_A_env_var_iast_modules_to_patch(module_name, expected_result):
+def test_env_var_iast_modules_to_patch(module_name, expected_result):
     # type: (...) -> None
     os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
         ["ddtrace.allowed.", "please_patch.", "also.that.", "please_patch.do_not.but_yes."]

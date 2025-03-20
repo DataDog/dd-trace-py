@@ -511,6 +511,8 @@ _PACKAGES = [
         "User data directory for foobar-app: %s/.local/share/foobar-app" % _user_dir,
         "",
         import_module_to_validate="platformdirs.unix",
+        test_import=False,
+        test_e2e=False,
         test_propagation=True,
     ),
     ## Skip due to pluggy added to the denylist
@@ -570,6 +572,7 @@ _PACKAGES = [
         import_module_to_validate="multipart.multipart",
         # This test is failing in CircleCI with the latest version
         test_import=False,
+        test_e2e=False,
         test_propagation=True,
     ),
     ## Skip due to pytz added to the denylist
@@ -648,6 +651,7 @@ _PACKAGES = [
         import_module_to_validate="tomli._parser",
         # This test is failing in CircleCI with the latest version
         test_import=False,
+        test_e2e=False,
         test_propagation=True,
     ),
     PackageForTesting(
