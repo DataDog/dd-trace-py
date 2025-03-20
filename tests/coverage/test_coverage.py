@@ -59,6 +59,7 @@ def test_coverage_import_time_lib():
     assert (
         covered_with_imports == expected_covered_with_imports
     ), f"Covered lines with imports mismatch: expected={expected_covered_with_imports} vs actual={covered_with_imports}"
+    assert 1 == 2
 
 
 @pytest.mark.subprocess
