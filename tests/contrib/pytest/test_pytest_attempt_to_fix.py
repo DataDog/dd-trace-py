@@ -245,7 +245,6 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
 
-
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_test_management(self):
