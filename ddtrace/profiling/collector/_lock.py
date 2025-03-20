@@ -195,6 +195,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         # calling the inner function, as once the lock is released, another
         # thread can acquire it and we can get a wrong start time.
         start = getattr(self, "_self_acquired_at", None)
+        try:
+            del self._self_acquired_at
+        except AttributeError:
+            # TODO(taegyunkim): consider exporting this to telemetry
+            LOG.debug("Failed to delete _self_acquired_at")
+
         # When inner_func raises an exception, we don't want to record any sample
         # event, so use this flag to check if an exception was raised. Though
         # we check if start is not None, that is not enough. Consider the
@@ -222,13 +228,6 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # not happen in normal circumstances.
             try:
                 if not exception_raised and start is not None:
-                    # Wrap the call to del, as it can raise an AttributeError. Even
-                    # if it does, we still want to continue with the rest of the
-                    # code to record the event.
-                    try:
-                        del self._self_acquired_at
-                    except AttributeError:
-                        pass
                     end = time.monotonic_ns()
                     thread_id, thread_name = _current_thread()
                     task_id, task_name, task_frame = _task.get_task(thread_id)
