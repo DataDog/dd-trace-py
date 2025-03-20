@@ -15,6 +15,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
+import opentelemetry  # noqa F401
 from opentelemetry.util.types import AttributeValue
 
 from ddtrace import config
