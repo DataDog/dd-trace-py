@@ -242,7 +242,7 @@ class IastSpanReporter(NotNoneDictable):
     def add_ranges_to_evidence_and_extract_sources(self, vuln):
         if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] add_ranges_to_evidence_and_extract_sources. "
+                "iast::propagation::context::add_ranges_to_evidence_and_extract_sources. "
                 "No request quota or this vulnerability is outside the context"
             )
             return
@@ -261,7 +261,8 @@ class IastSpanReporter(NotNoneDictable):
         """
         if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] build_and_scrub_value_parts. No request quota or this vulnerability is outside the context"
+                "iast::propagation::context::build_and_scrub_value_parts. "
+                "No request quota or this vulnerability is outside the context"
             )
             return {}
         for vuln in self.vulnerabilities:
