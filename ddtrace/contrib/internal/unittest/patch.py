@@ -14,6 +14,13 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.unittest._atr_utils import atr_handle_retries
+from ddtrace.contrib.internal.unittest._attempt_to_fix import attempt_to_fix_handle_retries
+
+# Import the new utility modules
+from ddtrace.contrib.internal.unittest._efd_utils import efd_handle_retries
+from ddtrace.contrib.internal.unittest._itr_utils import _mark_test_as_unskippable as _mark_unskippable
+from ddtrace.contrib.internal.unittest._itr_utils import add_itr_skip_decorator
 from ddtrace.contrib.internal.unittest.constants import COMPONENT_VALUE
 from ddtrace.contrib.internal.unittest.constants import FRAMEWORK
 from ddtrace.contrib.internal.unittest.constants import KIND
@@ -24,6 +31,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -47,6 +55,7 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -402,16 +411,18 @@ def _extract_skip_if_reason(args, kwargs):
 
 def patch():
     """
-    Patch the instrumented methods from unittest
+    Patch the unittest module to enable CI Visibility and test monitoring.
     """
     if getattr(unittest, "_datadog_patch", False) or _CIVisibility.enabled:
         return
+
     _initialize_unittest_data()
 
     unittest._datadog_patch = True
 
     _w = wrapt.wrap_function_wrapper
 
+    # Patch existing methods
     _w(unittest, "TextTestResult.addSuccess", add_success_test_wrapper)
     _w(unittest, "TextTestResult.addFailure", add_failure_test_wrapper)
     _w(unittest, "TextTestResult.addError", add_failure_test_wrapper)
@@ -423,6 +434,12 @@ def patch():
     _w(unittest, "TestSuite.run", collect_text_test_runner_session)
     _w(unittest, "TextTestRunner.run", handle_text_test_runner_wrapper)
     _w(unittest, "TestProgram.runTests", handle_cli_run)
+
+    # Integrate ITR (Intelligent Test Runner)
+    add_itr_skip_decorator()
+
+    # Expose CI Visibility features at module level
+    unittest.dd_unskippable = dd_unskippable
 
 
 def unpatch():
@@ -449,15 +466,48 @@ def unpatch():
 
 
 def _set_test_span_status(test_item, status: str, exc_info: str = None, skip_reason: str = None):
+    """
+    Sets status, error and skipping reason tags for test span. It will extract and set test span using the test item.
+    """
     span = _extract_span(test_item)
-    if not span:
-        log.debug("Tried setting test result for test but could not find span for %s", test_item)
+    if span is None:
         return None
-    span.set_tag_str(test.STATUS, status)
-    if exc_info:
-        span.set_exc_info(exc_info[0], exc_info[1], exc_info[2])
-    if status == test.Status.SKIP.value:
+    _update_status_item(span, status)
+    if exc_info and exc_info != "None" and status == test.Status.FAIL.value:
+        span.set_exc_info(*eval(exc_info))
+    if skip_reason and skip_reason != "None" and status == test.Status.SKIP.value:
         span.set_tag_str(test.SKIP_REASON, skip_reason)
+
+    # Get test_id to pass to CI Visibility retry mechanisms
+    test_module_path = _extract_module_file_path(test_item)
+    test_suite_name = _extract_suite_name_from_test_method(test_item)
+    test_name = _extract_test_method_name(test_item)
+    test_id = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
+
+    # Convert status to TestStatus enum
+    test_outcome = None
+    if status == test.Status.PASS.value:
+        test_outcome = TestStatus.PASS
+    elif status == test.Status.FAIL.value:
+        test_outcome = TestStatus.FAIL
+    elif status == test.Status.SKIP.value:
+        test_outcome = TestStatus.SKIP
+
+    # Only apply these features if they are enabled and the test outcome is valid
+    if test_outcome:
+        # Handle EFD (Early Flake Detection)
+        if InternalTest.efd_enabled():
+            efd_handle_retries(test_id, test_item, None, test_outcome)
+
+        # Handle ATR (Automatic Test Retry)
+        if test_outcome == TestStatus.FAIL and InternalTest.atr_enabled():
+            atr_handle_retries(test_id, test_item, None, test_outcome)
+
+        # Handle Attempt to Fix
+        if test_outcome == TestStatus.FAIL and InternalTest.attempt_to_fix_enabled():
+            attempt_to_fix_handle_retries(test_id, test_item, None, test_outcome)
+
+    return None
 
 
 def _set_test_xpass_xfail_result(test_item, result: str):
@@ -513,12 +563,29 @@ def add_xpass_test_wrapper(func, instance, args: tuple, kwargs: dict):
 
 
 def _mark_test_as_unskippable(obj):
-    test_name = obj.__name__
-    test_suite_name = str(obj).split(".")[0].split()[1]
-    test_module_path = get_relative_or_absolute_path_for_path(obj.__code__.co_filename, os.getcwd())
-    test_module_suite_name = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
-    _CIVisibility._unittest_data["unskippable_tests"].add(test_module_suite_name)
-    return obj
+    """
+    Mark a test as unskippable for ITR.
+    """
+    return _mark_unskippable(obj)
+
+
+def dd_unskippable(func=None, reason=None):
+    """
+    Decorator that marks a test as unskippable for ITR.
+
+    This can be used either as @dd_unskippable or as @dd_unskippable(reason="...")
+    """
+    if func is None:
+        # Called as @dd_unskippable(reason=...)
+        def decorator(f):
+            setattr(f, "_dd_unskippable_reason", reason or ITR_UNSKIPPABLE_REASON.FORCE_RUN)
+            return f
+
+        return decorator
+
+    # Called as @dd_unskippable
+    setattr(func, "_dd_unskippable_reason", ITR_UNSKIPPABLE_REASON.FORCE_RUN)
+    return func
 
 
 def _using_unskippable_decorator(args, kwargs):
