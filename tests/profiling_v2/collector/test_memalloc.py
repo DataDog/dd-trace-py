@@ -170,31 +170,19 @@ def test_heap_profiler_large_heap_overhead():
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
 def one(size):
-    if PY_313_OR_ABOVE:
-        return (None,) * size
-    else:
-        return bytearray(size)
+    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def two(size):
-    if PY_313_OR_ABOVE:
-        return (None,) * size
-    else:
-        return bytearray(size)
+    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def three(size):
-    if PY_313_OR_ABOVE:
-        return (None,) * size
-    else:
-        return bytearray(size)
+    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def four(size):
-    if PY_313_OR_ABOVE:
-        return (None,) * size
-    else:
-        return bytearray(size)
+    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 class HeapInfo:
@@ -220,10 +208,7 @@ def get_tracemalloc_stats_per_func(stats, funcs):
 
     for f in funcs:
         file = inspect.getsourcefile(f)
-        if PY_313_OR_ABOVE:
-            line = inspect.getsourcelines(f)[1] + 2
-        else:
-            line = inspect.getsourcelines(f)[1] + 4
+        line = inspect.getsourcelines(f)[1] + 1
         source_to_func[str(file) + str(line)] = f.__name__
 
     actual_sizes = {}
