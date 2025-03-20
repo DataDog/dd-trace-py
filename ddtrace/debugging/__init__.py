@@ -38,7 +38,7 @@ See the :ref:`Configuration` page for more details on how to configure
 Dynamic Instrumentation.
 """
 
-from ddtrace.internal.module import lazy
+from ddtrace.internal.utils.lazy import lazy
 
 
 @lazy
