@@ -35,7 +35,7 @@ cdef class MetricNamespace:
         cdef tuple _tags
         cdef list tags
         cdef str name
-        cdef object namespace
+        cdef str namespace
         cdef object metric_type
         cdef tuple metric_id
         cdef object value
@@ -53,7 +53,7 @@ cdef class MetricNamespace:
             name, namespace, _tags, metric_type = metric_id
             tags = ["{}:{}".format(k, v).lower() for k, v in _tags] if _tags else []
             if metric_type is MetricType.DISTRIBUTION:
-                data[TELEMETRY_TYPE_DISTRIBUTION].setdefault(namespace.value, []).append({
+                data[TELEMETRY_TYPE_DISTRIBUTION].setdefault(namespace, []).append({
                     "metric": name,
                     "points": value,
                     "tags": tags,
@@ -70,7 +70,7 @@ cdef class MetricNamespace:
                 }
                 if metric_type in (MetricType.RATE, MetricType.GAUGE):
                     metric["interval"] = _interval
-                data[TELEMETRY_TYPE_GENERATE_METRICS].setdefault(namespace.value, []).append(metric)
+                data[TELEMETRY_TYPE_GENERATE_METRICS].setdefault(namespace, []).append(metric)
 
         return data
 
@@ -88,7 +88,7 @@ cdef class MetricNamespace:
         """
         cdef float v
         cdef tuple metric_id
-        metric_id = (name, namespace, tags, metric_type)
+        metric_id = (name, namespace.value, tags, metric_type)
         if metric_type is MetricType.DISTRIBUTION:
             with self._metrics_data_lock:
                 self._metrics_data.setdefault(metric_id, []).append(value)

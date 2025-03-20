@@ -540,7 +540,7 @@ class TelemetryWriter(PeriodicService):
             self._namespace.add_metric(
                 MetricType.GAUGE,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
@@ -553,7 +553,7 @@ class TelemetryWriter(PeriodicService):
             self._namespace.add_metric(
                 MetricType.RATE,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
@@ -566,7 +566,7 @@ class TelemetryWriter(PeriodicService):
             self._namespace.add_metric(
                 MetricType.COUNT,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
@@ -581,7 +581,7 @@ class TelemetryWriter(PeriodicService):
             self._namespace.add_metric(
                 MetricType.DISTRIBUTION,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
