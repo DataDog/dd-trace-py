@@ -513,7 +513,7 @@ typedef enum
 
 /* --- Helper function to build a list from an environment variable --- */
 static char**
-build_list_from_env(const char* env_var_name, Py_ssize_t* count)
+build_list_from_env(const char* env_var_name, size_t* count)
 {
     const char* env_value = getenv(env_var_name);
     static char** modules_list = NULL;
@@ -521,7 +521,7 @@ build_list_from_env(const char* env_var_name, Py_ssize_t* count)
     if (env_value && env_value[0] != '\0') {
         char* env_copy = strdup(env_value);
         if (!env_copy)
-            return -1;
+            return NULL;
         char* token = strtok(env_copy, ",");
         while (token) {
             count_tmp++;
@@ -533,18 +533,18 @@ build_list_from_env(const char* env_var_name, Py_ssize_t* count)
             modules_list = malloc(count_tmp * sizeof(char*));
             if (!modules_list) {
                 PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for user allowlist");
-                return -1;
+                return NULL;
             }
             env_copy = strdup(env_value);
             if (!env_copy)
-                return -1;
+                return NULL;
             count_tmp = 0;
             token = strtok(env_copy, ",");
             while (token) {
                 char* dup = strdup(token);
                 if (!dup) {
                     free(env_copy);
-                    return -1;
+                    return NULL;
                 }
                 for (char* p = dup; *p; p++) {
                     *p = tolower(*p);
@@ -561,10 +561,10 @@ build_list_from_env(const char* env_var_name, Py_ssize_t* count)
 
 /* --- Helper function to free a dynamically allocated list --- */
 static void
-free_list(char** list, Py_ssize_t count)
+free_list(char** list, size_t count)
 {
     if (list != NULL) {
-        for (Py_ssize_t i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; i++) {
             free(list[i]);
         }
         free(list);
@@ -725,7 +725,8 @@ py_build_list_from_env(PyObject* self, PyObject* args)
 
     /* Convert C list to Python list */
     PyObject* py_list = PyList_New(count);
-    if (py_list == NULL) {
+    if (py_list == NULL || result_list == NULL) {
+        Py_XDECREF(py_list);
         free_list(result_list, count);
         return NULL;
     }
@@ -733,7 +734,7 @@ py_build_list_from_env(PyObject* self, PyObject* args)
     for (Py_ssize_t i = 0; i < count; i++) {
         PyObject* py_str = PyUnicode_FromString(result_list[i]);
         if (py_str == NULL) {
-            Py_DECREF(py_list);
+            Py_XDECREF(py_list);
             free_list(result_list, count);
             return NULL;
         }
@@ -753,7 +754,7 @@ py_get_user_allowlist(PyObject* self, PyObject* args)
         return NULL;
     }
 
-    for (Py_ssize_t i = 0; i < user_allowlist_count; i++) {
+    for (size_t i = 0; i < user_allowlist_count; i++) {
         PyObject* py_str = PyUnicode_FromString(user_allowlist[i]);
         if (py_str == NULL) {
             Py_DECREF(py_list);
