@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where mixed APM and LLM Observability tracing caused incorrect parent IDs for LLM Observability spans.
+
