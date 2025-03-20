@@ -9,7 +9,4 @@ target_include_directories(iastpatch PRIVATE ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(iastpatch PRIVATE ${Python3_LIBRARIES})
 
-set_target_properties(iastpatch PROPERTIES
-    PREFIX ""
-    SUFFIX ".so"
-)
+set_target_properties(iastpatch PROPERTIES PREFIX "" SUFFIX ".so")
