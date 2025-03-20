@@ -117,13 +117,28 @@ class DDWaf(WAF):
         for product, path, rules in new_rules:
             if rules is False:
                 ok &= py_remove_config(self._builder, path)
+                if product == "ASM_DD":
+                    self._asm_dd_cache.discard(path)
+                if not self._asm_dd_cache:
+                    # we need to add the default ruleset back
+                    diagnostics = ddwaf_object()
+                    ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
+                    self._set_info(diagnostics, "update")
+                    ddwaf_object_free(diagnostics)
             else:
+                if product == "ASM_DD" and ASM_DD_DEFAULT in self._asm_dd_cache:
+                    # we need to remove the default ruleset before adding the new one
+                    ok &= py_remove_config(self._builder, ASM_DD_DEFAULT)
+                    self._asm_dd_cache.discard(ASM_DD_DEFAULT)
                 diagnostics = ddwaf_object()
                 ruleset_object = ddwaf_object.create_without_limits(rules)
                 ok &= py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
                 self._set_info(diagnostics, "update")
                 ddwaf_object_free(ruleset_object)
                 ddwaf_object_free(diagnostics)
+        new_handle = py_ddwaf_builder_build_instance(self._builder)
+        if new_handle:
+            self._handle = new_handle
         return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
