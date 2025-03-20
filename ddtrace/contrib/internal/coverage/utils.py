@@ -1,8 +1,9 @@
-import os
 import sys
 from typing import List
 
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 
 
 def is_coverage_loaded() -> bool:
@@ -21,6 +22,6 @@ def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
 
 
 def _is_coverage_invoked_by_coverage_run() -> bool:
-    if os.environ.get("COVERAGE_RUN", False):
+    if _get_config("COVERAGE_RUN", False, asbool):
         return True
     return _command_invokes_coverage_run(_original_sys_argv_command)
