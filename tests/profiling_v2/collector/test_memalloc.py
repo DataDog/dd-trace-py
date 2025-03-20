@@ -1,5 +1,6 @@
 import inspect
 import os
+import sys
 import threading
 
 import pytest
@@ -7,6 +8,9 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
+
+
+PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 
 
 def _allocate_1k():
@@ -140,20 +144,20 @@ def test_heap_profiler_large_heap_overhead():
     # Un-skip this test if/when we improve the worst-case performance of the
     # heap profiler for large heaps
     from ddtrace.profiling import Profiler
-    from tests.profiling_v2.collector.test_memalloc import MyClass
+    from tests.profiling_v2.collector.test_memalloc import one
 
     p = Profiler()
     p.start()
 
     count = 100_000
-    thing_size = 3
+    thing_size = 32
 
     junk = []
     for i in range(count):
-        b1 = [MyClass(i) for i in range(thing_size)]
-        b2 = [MyClass(i) for i in range(2 * thing_size)]
-        b3 = [MyClass(i) for i in range(3 * thing_size)]
-        b4 = [MyClass(i) for i in range(4 * thing_size)]
+        b1 = one(thing_size)
+        b2 = one(2 * thing_size)
+        b3 = one(3 * thing_size)
+        b4 = one(4 * thing_size)
         t = (b1, b2, b3, b4)
         junk.append(t)
 
@@ -161,27 +165,36 @@ def test_heap_profiler_large_heap_overhead():
 
     p.stop()
 
-class MyClass:
-    def __init__(self, value):
-        self.value = value
 
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
 def one(size):
-    return [MyClass(i) for i in range(size)]
+    if PY_313_OR_ABOVE:
+        return (None,) * size
+    else:
+        return bytearray(size)
 
 
 def two(size):
-    return [MyClass(i) for i in range(size)]
+    if PY_313_OR_ABOVE:
+        return (None,) * size
+    else:
+        return bytearray(size)
 
 
 def three(size):
-    return [MyClass(i) for i in range(size)]
+    if PY_313_OR_ABOVE:
+        return (None,) * size
+    else:
+        return bytearray(size)
 
 
 def four(size):
-    return [MyClass(i) for i in range(size)]
+    if PY_313_OR_ABOVE:
+        return (None,) * size
+    else:
+        return bytearray(size)
 
 
 class HeapInfo:
@@ -207,7 +220,10 @@ def get_tracemalloc_stats_per_func(stats, funcs):
 
     for f in funcs:
         file = inspect.getsourcefile(f)
-        line = inspect.getsourcelines(f)[1] + 1
+        if PY_313_OR_ABOVE:
+            line = inspect.getsourcelines(f)[1] + 2
+        else:
+            line = inspect.getsourcelines(f)[1] + 4
         source_to_func[str(file) + str(line)] = f.__name__
 
     actual_sizes = {}
@@ -245,7 +261,7 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
 
     junk = []
     for i in range(1000):
-        size = 3
+        size = 256
         junk.append(one(size))
         junk.append(two(2 * size))
         junk.append(three(3 * size))
