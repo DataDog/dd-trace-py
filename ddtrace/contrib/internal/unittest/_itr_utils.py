@@ -1,10 +1,7 @@
 import os
 import unittest
 
-from ddtrace.contrib.internal.unittest.patch import _extract_module_file_path
-from ddtrace.contrib.internal.unittest.patch import _extract_suite_name_from_test_method
 from ddtrace.ext import test
-from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -26,6 +23,10 @@ def _mark_test_as_unskippable(test_object: unittest.TestCase) -> bool:
     Returns:
         True if the test was successfully marked as unskippable, False otherwise
     """
+
+    from ddtrace.contrib.internal.unittest.patch import _extract_module_file_path
+    from ddtrace.contrib.internal.unittest.patch import _extract_suite_name_from_test_method
+    from ddtrace.internal.ci_visibility import CIVisibility
 
     if not hasattr(CIVisibility, "_unittest_data"):
         return False
@@ -60,6 +61,9 @@ def _should_skip_with_itr(test_object: unittest.TestCase) -> bool:
     Returns:
         True if the test should be skipped, False otherwise
     """
+    from ddtrace.contrib.internal.unittest.patch import _extract_module_file_path
+    from ddtrace.contrib.internal.unittest.patch import _extract_suite_name_from_test_method
+    from ddtrace.internal.ci_visibility import CIVisibility
 
     # Get test identification
     test_module_path = _extract_module_file_path(test_object)
