@@ -592,7 +592,7 @@ class TracerTestCases(TracerTestCase):
 def test_tracer_url_default():
     import ddtrace
 
-    assert ddtrace.trace.tracer._writer.agent_url == "http://localhost:8126"
+    assert ddtrace.trace.tracer._span_aggregagtor.writer.agent_url == "http://localhost:8126"
 
 
 @pytest.mark.subprocess()
@@ -652,7 +652,7 @@ def test_tracer_fork():
     from ddtrace.trace import tracer as t
 
     original_pid = t._pid
-    original_writer = t._writer
+    original_writer = t._span_aggregagtor.writer
 
     @contextlib.contextmanager
     def capture_failures(errors):
@@ -687,12 +687,12 @@ def test_tracer_fork():
     # Ensure writing into the tracer in this process still works as expected
     with t.trace("test", service="test"):
         assert t._pid == original_pid
-        assert t._writer == original_writer
-        assert t._writer._encoder == original_writer._encoder
+        assert t._span_aggregagtor.writer == original_writer
+        assert t._span_aggregagtor.writer._encoder == original_writer._encoder
 
     # Assert the trace got written into the correct queue
     assert len(original_writer._encoder) == 1
-    assert len(t._writer._encoder) == 1
+    assert len(t._span_aggregagtor.writer._encoder) == 1
 
 
 def test_tracer_with_version():
@@ -845,11 +845,11 @@ class EnvTracerTestCase(TracerTestCase):
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
-        assert isinstance(ddtrace.tracer._writer, LogWriter)
+        assert isinstance(ddtrace.tracer._span_aggregagtor.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(global_tracer._writer, AgentWriter)
+        assert isinstance(global_tracer._span_aggregagtor.writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1721,7 +1721,7 @@ def test_tracer_api_version():
     from ddtrace.internal.encoding import MsgpackEncoderV05
     from ddtrace.trace import tracer as t
 
-    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._span_aggregagtor.writer._encoder, MsgpackEncoderV05)
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
@@ -1881,8 +1881,8 @@ def test_detect_agent_config_with_lambda_extension():
 
         assert ddtrace.internal.serverless.has_aws_lambda_agent_extension()
 
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
+        assert isinstance(tracer._span_aggregagtor.writer, AgentWriter)
+        assert tracer._span_aggregagtor.writer._sync_mode
 
 
 @pytest.mark.subprocess()

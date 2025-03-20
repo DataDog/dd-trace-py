@@ -21,7 +21,7 @@ from tests.utils import flaky
 
 
 def _get_agent_client():
-    parsed = parse.urlparse(tracer._writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregagtor.writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     return conn
 
