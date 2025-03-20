@@ -2,7 +2,7 @@
   {
     "name": "litellm.request",
     "service": "tests.contrib.litellm",
-    "resource": "litellm.completion",
+    "resource": "litellm.acompletion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -23,6 +23,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 34947
     },
-    "duration": 42807000,
-    "start": 1742495036462994000
+    "duration": 11435000,
+    "start": 1742495036748464000
   }]]
