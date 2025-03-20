@@ -48,12 +48,14 @@ class PublisherSubscriberConnector:
         result = 0
         for payload in payload_sequence:
             result ^= hash(payload.metadata)
+            if payload.content is False:
+                result <<= 1
         return result
 
     def read(self) -> SharedDataType:
         config_raw = to_unicode(self.data.value)
         config = json.loads(config_raw) if config_raw else None
-        if config:
+        if config is not None:
             shared_data_counter = config["shared_data_counter"]
             if shared_data_counter > self.shared_data_counter:
                 self.shared_data_counter += 1

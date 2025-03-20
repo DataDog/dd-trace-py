@@ -108,8 +108,8 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
         else:
             for_the_waf.append((payload.metadata.product_name, payload.path, payload.content))
     _process_asm_features(for_the_tracer, local_tracer)
-    if tracer._appsec_processor is not None:
-        tracer._appsec_processor._update_rules(for_the_waf)
+    if local_tracer._appsec_processor is not None:
+        local_tracer._appsec_processor._update_rules(for_the_waf)
 
 
 def _update_asm_features(payload_list, cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -150,7 +150,7 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
         else:
             disable_asm(local_tracer)
     if "auto_user_instrum" in result:
-        asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"]["mode"]
+        asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"].get("mode", None)
 
 
 def disable_asm(local_tracer: Tracer):
@@ -160,7 +160,7 @@ def disable_asm(local_tracer: Tracer):
 
 def enable_asm(local_tracer: Tracer):
     if not asm_config._asm_enabled:
-        local_tracer._configure(appsec_enabled=False)
+        local_tracer._configure(appsec_enabled=True)
 
 
 def _preprocess_results_appsec_1click_activation(
