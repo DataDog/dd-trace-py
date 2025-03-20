@@ -170,19 +170,19 @@ def test_heap_profiler_large_heap_overhead():
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
 def one(size):
-    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def two(size):
-    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def three(size):
-    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def four(size):
-    return (None, ) * size if PY_313_OR_ABOVE else bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 class HeapInfo:
