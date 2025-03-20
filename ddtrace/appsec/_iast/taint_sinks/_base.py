@@ -11,7 +11,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import tracer
 
 from .._iast_request_context import get_iast_reporter
-from .._iast_request_context import is_iast_request_enabled
 from .._iast_request_context import set_iast_reporter
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
@@ -57,10 +56,10 @@ class VulnerabilityBase(Operation):
             """Get the current root Span and attach it to the wrapped function. We need the span to report the
             vulnerability and update the context with the report information.
             """
-            if not is_iast_request_enabled():
+            if not asm_config.is_iast_request_enabled:
                 if _is_iast_debug_enabled():
                     log.debug(
-                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
+                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
                         "is outside the context"
                     )
                 return wrapped(*args, **kwargs)
@@ -74,10 +73,10 @@ class VulnerabilityBase(Operation):
     @classmethod
     @taint_sink_deduplication
     def _prepare_report(cls, vulnerability_type, evidence, file_name, line_number):
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
-                    "[IAST] VulnerabilityBase._prepare_report. "
+                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
                     "No request quota or this vulnerability is outside the context"
                 )
             return False

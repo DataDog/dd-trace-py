@@ -2,9 +2,9 @@
 import logging
 import os
 import sys
+from unittest import mock
 
 import astunparse
-import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -78,6 +78,7 @@ def test_astpatch_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -95,6 +96,7 @@ def test_astpatch_module_changed_add_operator(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -112,6 +114,7 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -136,6 +139,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+import ddtrace.appsec._iast.sources as {_PREFIX}sources
 import ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks
 import ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects
 import html"""
@@ -211,7 +215,10 @@ def test_module_path_none(caplog):
         assert ("", None) == astpatch_module(
             __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
         )
-        assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
+        assert (
+            "iast::instrumentation::ast_patching::compiling::"
+            "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
+        )
 
 
 @pytest.mark.parametrize(
@@ -226,6 +233,7 @@ def test_astpatch_stringio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -244,6 +252,7 @@ def test_astpatch_bytesio_module_changed(module_name):
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
