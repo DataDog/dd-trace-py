@@ -498,7 +498,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None: #ꙮ
+    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
 
     original_result = outcome.get_result()
@@ -524,7 +524,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    if original_result.failed and is_quarantined:
+    if original_result.failed and (is_quarantined or is_disabled):
         # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
         original_result.outcome = OUTCOME_QUARANTINED
