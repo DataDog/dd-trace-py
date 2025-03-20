@@ -73,8 +73,6 @@ suites:
     runner: hatch
   iast_aggregated_leak_testing:
     parallelism: 3
-  iast_aggregated_leak_testing:
-    parallelism: 3
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_aggregated_memcheck/*
@@ -97,19 +95,6 @@ suites:
 #      - "3.10"
 #      - "3.11"
 #      - "3.12"
-  iast_tdd_propagation:
-    parallelism: 5
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@appsec'
-      - '@appsec_iast'
-      - '@remoteconfig'
-      - tests/appsec/iast_tdd_propagation/*
-    retry: 2
-    runner: hatch
-    timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
     paths:
