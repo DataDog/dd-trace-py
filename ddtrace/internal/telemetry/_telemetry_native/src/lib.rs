@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
-    env
+    env,
 };
 
 // Python-friendly Config wrapper with all fields as Option
@@ -48,6 +48,7 @@ impl PyConfig {
         }
     }
 }
+
 
 #[pyclass]
 struct NativeTelemetryWorker {
