@@ -12,11 +12,3 @@ appsec:
 iast:
   <<: *tracer
   iast_enabled: true
-iast_debug_mode:
-  <<: *tracer
-  tracer_debug: true
-  iast_enabled: true
-appsec_iast:
-  <<: *tracer
-  appsec_enabled: true
-  iast_enabled: true
