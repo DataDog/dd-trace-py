@@ -41,10 +41,11 @@ class LLMObsContextProvider(DefaultContextProvider):
         new_active: Optional[Span] = span
         while new_active and new_active.finished:
             new_active = new_active._parent
-            if new_active and not new_active.finished and new_active.span_type == SpanTypes.LLM:
-                break
-        self.activate(new_active)
-        return new_active
+        if new_active and not new_active.finished and new_active.span_type == SpanTypes.LLM:
+            self.activate(new_active)
+            return new_active
+        self.activate(None)
+        return None
 
     def activate(self, ctx: ContextTypeValue) -> None:
         """Makes the given context active in the current execution."""
