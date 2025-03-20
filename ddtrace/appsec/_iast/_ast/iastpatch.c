@@ -522,7 +522,7 @@ typedef enum
 
 /* --- Helper function to build a list from an environment variable --- */
 static char**
-build_list_from_env(const char* env_var_name, size_t* count)
+get_list_from_env(const char* env_var_name, size_t* count)
 {
     const char* env_value = getenv(env_var_name);
     static char** modules_list = NULL;
@@ -574,7 +574,9 @@ free_list(char** list, size_t count)
 {
     if (list != NULL) {
         for (size_t i = 0; i < count; i++) {
-            free(list[i]);
+            if (list[i] != NULL) {
+                free(list[i]);
+            }
         }
         free(list);
     }
@@ -583,8 +585,6 @@ free_list(char** list, size_t count)
 /* --- Function init_globals ---
    Initializes global lists:
    1. builtins_denylist is composed of static stdlib names and sys.builtin_module_names.
-   2. user_allowlist and user_denylist are extracted from the environment variables
-      _DD_IAST_PATCH_MODULES and _DD_IAST_DENY_MODULES, respectively, and converted to lowercase.
    This implementation uses C char arrays and avoids excessive creation of PyTuples and PyObjects.
 */
 static int
@@ -628,18 +628,6 @@ init_globals(void)
                 builtins_denylist[static_stdlib_count + i] = dup;
             }
         }
-    }
-
-    /* 2. Initialize user_allowlist from _DD_IAST_PATCH_MODULES */
-    char** new_allowlist = build_list_from_env("_DD_IAST_PATCH_MODULES", &user_allowlist_count);
-    if (new_allowlist != NULL) {
-        free_list(user_allowlist, user_allowlist_count);
-        user_allowlist = new_allowlist;
-    }
-    char** new_denylist = build_list_from_env("_DD_IAST_DENY_MODULES", &user_denylist_count);
-    if (new_denylist != NULL) {
-        free_list(user_denylist, user_denylist_count);
-        user_denylist = new_denylist;
     }
     return 0; // Success
 }
@@ -702,6 +690,32 @@ py_should_iast_patch(PyObject* self, PyObject* args)
     return PyLong_FromLong(DENIED_NOT_FOUND);
 }
 
+int
+build_list_from_env(const char* env_var_name)
+{
+    size_t count = 0;
+    char** result_list = get_list_from_env(env_var_name, &count);
+    if (result_list == NULL && count > 0) {
+        return -1;
+    }
+    if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
+        free_list(user_allowlist, user_allowlist_count);
+        user_allowlist = result_list;
+        user_allowlist_count = count;
+    } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
+        for (ssize_t i = 0; i < user_denylist_count; i++) {
+            if (user_denylist[i] != NULL) {
+                printf("  %s\n", user_denylist[i]);
+            }
+        }
+        free_list(user_denylist, user_denylist_count);
+        user_denylist = result_list;
+        user_denylist_count = count;
+    } else {
+        return -1;
+    }
+    return 0;
+}
 /* --- Exported function to build a list from an environment variable and update globals --- */
 static PyObject*
 py_build_list_from_env(PyObject* self, PyObject* args)
@@ -710,32 +724,11 @@ py_build_list_from_env(PyObject* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "s", &env_var_name)) {
         return NULL;
     }
-
-    ssize_t count = 0;
-    char** result_list = build_list_from_env(env_var_name, &count);
-    if (result_list == NULL && count > 0) {
-        Py_RETURN_FALSE;
+    int result = build_list_from_env(env_var_name);
+    if (result >= 0) {
+        Py_RETURN_TRUE;
     }
-    //    printf("Result List:\n");
-    //    for (ssize_t i = 0; i < count; i++) {
-    //        if (result_list[i]) {
-    //            printf("  %s\n", result_list[i]);
-    //        }
-    //    }
-    //    printf("Count: %zd\n", count);
-    if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-
-        free_list(user_allowlist, user_allowlist_count);
-        user_allowlist = result_list;
-        user_allowlist_count = count;
-    } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        free_list(user_denylist, user_denylist_count);
-        user_denylist = result_list;
-        user_denylist_count = count;
-    } else {
-        Py_RETURN_FALSE;
-    }
-    Py_RETURN_TRUE;
+    Py_RETURN_FALSE;
 }
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */
