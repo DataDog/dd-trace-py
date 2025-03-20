@@ -9,6 +9,7 @@ from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Sequence
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -289,6 +290,16 @@ def get_error_ranges(error_range_str):
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
+_AttributeValueType = Union[
+    str,
+    bool,
+    int,
+    float,
+    Sequence[str],
+    Sequence[bool],
+    Sequence[int],
+    Sequence[float],
+]
 
 
 class _ConfigItem:

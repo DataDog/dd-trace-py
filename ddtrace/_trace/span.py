@@ -15,9 +15,6 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-import opentelemetry  # noqa F401
-from opentelemetry.util.types import AttributeValue
-
 from ddtrace import config
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
@@ -56,6 +53,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.settings._config import _AttributeValueType
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -66,7 +64,10 @@ class SpanEvent:
 
     # TODO: change _JSONType to match the spec. Should only contain a list of homogeneous primitive types
     def __init__(
-        self, name: str, attributes: Optional[Dict[str, AttributeValue]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ):
         self.name: str = name
         if time_unix_nano is None:
@@ -491,7 +492,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, AttributeValue]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
         self._events.append(SpanEvent(name, attributes, timestamp))
 
@@ -609,7 +610,7 @@ class Span(object):
     def record_exception(
         self,
         exception: BaseException,
-        attributes: Optional[Dict[str, AttributeValue]] = None,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
         timestamp: Optional[int] = None,
         escaped=False,
     ) -> None:
