@@ -436,13 +436,22 @@ is_first_party(const char* module_name)
 
     // If the packages list is not cached, call packages_distributions and cache its result.
     if (cached_packages == NULL) {
-        PyObject* metadata = PyImport_ImportModule("importlib.metadata");
-        if (!metadata)
+        PyObject* metadata;
+        if (PY_VERSION_HEX < 0x030A0000) {  // Python < 3.10
+            metadata = PyImport_ImportModule("importlib_metadata");
+        } else {
+            metadata = PyImport_ImportModule("importlib.metadata");
+        }
+
+        if (!metadata) {
             return 0;
+        }
+
         PyObject* func = PyObject_GetAttrString(metadata, "packages_distributions");
         Py_DECREF(metadata);
-        if (!func)
+        if (!func) {
             return 0;
+        }
         PyObject* result = PyObject_CallObject(func, NULL);
         Py_DECREF(func);
         if (!result)
