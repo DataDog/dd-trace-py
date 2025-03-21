@@ -223,7 +223,7 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = DefaultContextProvider()
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
         self._dogstatsd_url = agent.get_stats_url()
         if asm_config._apm_opt_out:
             self.enabled = False
