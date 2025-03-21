@@ -807,3 +807,90 @@ class TestThreadingLockCollector:
                 ),
             ],
         )
+
+    def test_lock_acquire_fail(self):
+        collector = collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True)
+        with collector:
+            lock = threading.Lock()  # !CREATE! test_lock_acquire_fail
+            lock.acquire()  # !ACQUIRE! test_lock_acquire_fail
+
+            # Try to acquire the lock again, this should fail. To test this
+            # behavior, we set blocking=False so that the lock doesn't block
+            ret = lock.acquire(blocking=False)
+            assert not ret
+
+        ddup.upload()
+
+        profile = pprof_utils.parse_profile(self.output_filename)
+
+        linenos = get_lock_linenos("test_lock_acquire_fail")
+        lock_acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+        assert len(lock_acquire_samples) == 1, "Expected 1 lock-acquire sample"
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+        )
+
+    def test_lock_release_fail(self):
+        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+            lock = threading.Lock()  # !CREATE! test_lock_release_fail
+            lock.acquire()  # !ACQUIRE! test_lock_release_fail
+
+            sema = threading.Semaphore()
+            sema.acquire()
+
+            def thread_1():
+                lock.release()  # !RELEASE! test_lock_release_fail
+                # to mimic a situation where the lock release() is called by
+                # two threads at the same time, though this should generally
+                # not happen, but we can be cautious, set `_self_acquired_at`
+                # explicitly here to some value
+                lock._self_acquired_at = 123
+
+                # thread_2 can now see our simulated "race" on releasing the lock
+                sema.release()
+
+            def thread_2():
+                # wait for thread_1 to "race" on releasing the lock
+                sema.acquire()
+
+                with pytest.raises(RuntimeError):
+                    lock.release()
+
+            t1 = threading.Thread(target=thread_1)
+            t2 = threading.Thread(target=thread_2)
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+
+        ddup.upload()
+
+        linenos = get_lock_linenos("test_lock_release_fail")
+        profile = pprof_utils.parse_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="thread_1",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                ),
+            ],
+        )

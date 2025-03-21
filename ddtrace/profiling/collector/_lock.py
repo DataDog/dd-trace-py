@@ -118,61 +118,71 @@ class _ProfiledLock(wrapt.ObjectProxy):
             return inner_func(*args, **kwargs)
 
         start = time.monotonic_ns()
+        result = False
         try:
-            return inner_func(*args, **kwargs)
+            # acquire() returns True if the lock was acquired, False if not
+            # we only want to record the event if the lock was acquired
+            # so we store the result to check it in the finally block
+            result = inner_func(*args, **kwargs)
+            return result
         finally:
-            try:
-                end = self._self_acquired_at = time.monotonic_ns()
-                thread_id, thread_name = _current_thread()
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-                self._maybe_update_self_name()
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-
-                if task_frame is None:
-                    # If we can't get the task frame, we use the caller frame. We expect acquire/release or
-                    # __enter__/__exit__ to be on the stack, so we go back 2 frames.
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
-
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
-
-                if self._self_export_libdd_enabled:
-                    thread_native_id = _threading.get_thread_native_id(thread_id)
-
-                    handle = ddup.SampleHandle()
-                    handle.push_monotonic_ns(end)
-                    handle.push_lock_name(lock_name)
-                    handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                    handle.push_task_id(task_id)
-                    handle.push_task_name(task_name)
-
-                    if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span())
-                    for frame in frames:
-                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.flush_sample()
-                else:
-                    event = self.ACQUIRE_EVENT_CLASS(
-                        lock_name=lock_name,
-                        frames=frames,
-                        nframes=nframes,
-                        thread_id=thread_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        wait_time_ns=end - start,
-                        sampling_pct=self._self_capture_sampler.capture_pct,
+            if result:
+                try:
+                    end = self._self_acquired_at = time.monotonic_ns()
+                    thread_id, thread_name = _current_thread()
+                    task_id, task_name, task_frame = _task.get_task(thread_id)
+                    self._maybe_update_self_name()
+                    lock_name = (
+                        "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
                     )
 
-                    if self._self_tracer is not None:
-                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                    if task_frame is None:
+                        # If we can't get the task frame, we use the caller frame. We expect acquire/release or
+                        # __enter__/__exit__ to be on the stack, so we go back 2 frames.
+                        frame = sys._getframe(2)
+                    else:
+                        frame = task_frame
 
-                    self._self_recorder.push_event(event)
-            except Exception as e:
-                LOG.debug("Failed to record a lock acquire event: %s", e)
-                pass  # nosec
+                    frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+
+                    if self._self_export_libdd_enabled:
+                        thread_native_id = _threading.get_thread_native_id(thread_id)
+
+                        handle = ddup.SampleHandle()
+                        handle.push_monotonic_ns(end)
+                        handle.push_lock_name(lock_name)
+                        handle.push_acquire(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
+                        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                        handle.push_task_id(task_id)
+                        handle.push_task_name(task_name)
+
+                        if self._self_tracer is not None:
+                            handle.push_span(self._self_tracer.current_span())
+                        for frame in frames:
+                            handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                        handle.flush_sample()
+                    else:
+                        event = self.ACQUIRE_EVENT_CLASS(
+                            lock_name=lock_name,
+                            frames=frames,
+                            nframes=nframes,
+                            thread_id=thread_id,
+                            thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
+                            wait_time_ns=end - start,
+                            sampling_pct=self._self_capture_sampler.capture_pct,
+                        )
+
+                        if self._self_tracer is not None:
+                            event.set_trace_info(
+                                self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                            )
+
+                        self._self_recorder.push_event(event)
+                except Exception as e:
+                    # TODO(taegyunkim): consider exporting this to telemetry
+                    LOG.debug("Failed to record a lock acquire event: %s", e)
 
     def acquire(self, *args, **kwargs):
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -180,63 +190,97 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
 
-        start = None
-        if hasattr(self, "_self_acquired_at"):
-            # _self_acquired_at is only set when the acquire was captured
-            # if it's not set, we're not capturing the release
-            start = self._self_acquired_at
+        # _self_acquired_at is only set when the acquire was captured, if it's
+        # not set, we're not capturing the release. We get the start time before
+        # calling the inner function, as once the lock is released, another
+        # thread can acquire it and we can get a wrong start time.
+        start = getattr(self, "_self_acquired_at", None)
+        try:
             del self._self_acquired_at
+        except AttributeError:
+            # TODO(taegyunkim): consider exporting this to telemetry
+            LOG.debug("Failed to delete _self_acquired_at")
 
+        # When inner_func raises an exception, we don't want to record any sample
+        # event, so use this flag to check if an exception was raised. Though
+        # we check if start is not None, that is not enough. Consider the
+        # following scenario:
+        # 1. Thread A acquires the lock and sets _self_acquired_at
+        # 2. Thread A and B both calls release() on the lock
+        # 3. Both threads set start to some value, and one of the threads
+        #   successfully releases the lock, and the other thread raises an
+        #   exception.
+        # In this case, we don't want to record any event from the thread that
+        # raised the exception. Step 2 should generally not happen but we're
+        # being cautious.
+        # This is a bit of a hack, and using thread local storage might be an
+        # alternative, but that would require us importing threading module
+        # which this module tries to patch. So we're using this approach.
+        exception_raised = False
         try:
             return inner_func(*args, **kwargs)
+        except Exception as e:
+            exception_raised = True
+            raise e
         finally:
-            if start is not None:
-                end = time.monotonic_ns()
-                thread_id, thread_name = _current_thread()
-                task_id, task_name, task_frame = _task.get_task(thread_id)
-                lock_name = "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
-
-                if task_frame is None:
-                    # See the comments in _acquire
-                    frame = sys._getframe(2)
-                else:
-                    frame = task_frame
-
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
-
-                if self._self_export_libdd_enabled:
-                    thread_native_id = _threading.get_thread_native_id(thread_id)
-
-                    handle = ddup.SampleHandle()
-                    handle.push_monotonic_ns(end)
-                    handle.push_lock_name(lock_name)
-                    handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
-                    handle.push_threadinfo(thread_id, thread_native_id, thread_name)
-                    handle.push_task_id(task_id)
-                    handle.push_task_name(task_name)
-
-                    if self._self_tracer is not None:
-                        handle.push_span(self._self_tracer.current_span())
-                    for frame in frames:
-                        handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.flush_sample()
-                else:
-                    event = self.RELEASE_EVENT_CLASS(
-                        lock_name=lock_name,
-                        frames=frames,
-                        nframes=nframes,
-                        thread_id=thread_id,
-                        thread_name=thread_name,
-                        task_id=task_id,
-                        task_name=task_name,
-                        locked_for_ns=end - start,
-                        sampling_pct=self._self_capture_sampler.capture_pct,
+            # We wrap the following code in a try/except block, as sys._getframe()
+            # can raise an exception if the frame depth is too low, though it should
+            # not happen in normal circumstances.
+            try:
+                if not exception_raised and start is not None:
+                    end = time.monotonic_ns()
+                    thread_id, thread_name = _current_thread()
+                    task_id, task_name, task_frame = _task.get_task(thread_id)
+                    lock_name = (
+                        "%s:%s" % (self._self_init_loc, self._self_name) if self._self_name else self._self_init_loc
                     )
 
-                    if self._self_tracer is not None:
-                        event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
+                    if task_frame is None:
+                        # See the comments in _acquire
+                        frame = sys._getframe(2)
+                    else:
+                        frame = task_frame
 
-                    self._self_recorder.push_event(event)
+                    frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+
+                    if self._self_export_libdd_enabled:
+                        thread_native_id = _threading.get_thread_native_id(thread_id)
+
+                        handle = ddup.SampleHandle()
+                        handle.push_monotonic_ns(end)
+                        handle.push_lock_name(lock_name)
+                        handle.push_release(end - start, 1)  # AFAICT, capture_pct does not adjust anything here
+                        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+                        handle.push_task_id(task_id)
+                        handle.push_task_name(task_name)
+
+                        if self._self_tracer is not None:
+                            handle.push_span(self._self_tracer.current_span())
+                        for frame in frames:
+                            handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
+                        handle.flush_sample()
+                    else:
+                        event = self.RELEASE_EVENT_CLASS(
+                            lock_name=lock_name,
+                            frames=frames,
+                            nframes=nframes,
+                            thread_id=thread_id,
+                            thread_name=thread_name,
+                            task_id=task_id,
+                            task_name=task_name,
+                            locked_for_ns=end - start,
+                            sampling_pct=self._self_capture_sampler.capture_pct,
+                        )
+
+                        if self._self_tracer is not None:
+                            event.set_trace_info(
+                                self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                            )
+
+                        self._self_recorder.push_event(event)
+            except Exception as e:
+                # TODO(taegyunkim): consider exporting this to telemetry
+                LOG.debug("Failed to record a lock release event: %s", e)
 
     def release(self, *args, **kwargs):
         return self._release(self.__wrapped__.release, *args, **kwargs)
