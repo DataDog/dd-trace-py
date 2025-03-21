@@ -76,13 +76,13 @@ struct DdogProfExporterDeleter
 inline ddog_CharSlice
 to_slice(std::string_view str)
 {
-    return { str.data(), str.size() };
+    return { .ptr = str.data(), .len = str.size() };
 }
 
 inline ddog_ByteSlice
 to_byte_slice(std::string_view str)
 {
-    return { reinterpret_cast<const uint8_t*>(str.data()), str.size() };
+    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
 }
 
 inline std::string
