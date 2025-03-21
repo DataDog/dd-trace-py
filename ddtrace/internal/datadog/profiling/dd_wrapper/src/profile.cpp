@@ -13,7 +13,6 @@
 #include <unistd.h>
 #endif
 
-
 // Inline helpers
 namespace {
 

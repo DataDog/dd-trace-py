@@ -11,7 +11,6 @@
 #include <windows.h>
 #endif
 
-
 Datadog::internal::StringArena::StringArena()
 {
     chunks.emplace_back();

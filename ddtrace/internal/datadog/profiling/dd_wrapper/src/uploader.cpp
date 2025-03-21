@@ -104,7 +104,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                        nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
-    if (build_res.tag == DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (build_res.tag ==
+        DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
