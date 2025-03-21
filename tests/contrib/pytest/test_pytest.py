@@ -4097,6 +4097,7 @@ class PytestTestCase(PytestTestCaseBase):
         ) as mock_ci_config:
             mock_ddconfig._ci_visibility_agentless_enabled = True
             mock_ci_config.api_key = "foobar.baz"
+            mock_ci_config.agent_url = ""
             self.inline_run("--ddtrace")
 
             spans = self.pop_spans()
