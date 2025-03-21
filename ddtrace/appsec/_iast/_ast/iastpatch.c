@@ -172,7 +172,7 @@ static const char* static_denylist[] = { "django.apps.config.",
                                          "django_filters.widgets." };
 
 static size_t static_stdlib_count = 216;
-static const char* stdlib_names[] = {
+static const char* static_stdlib_denylist[] = {
     "__future__",
     "_ast",
     "_compression",
@@ -409,15 +409,24 @@ str_in_list(const char* needle, const char** list, size_t count)
 void
 get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
 {
+    if (!module_name || !first_part || max_len == 0) {
+        if (first_part && max_len > 0) {
+            first_part[0] = '\0';
+        }
+        return;
+    }
+
     const char* dot = strchr(module_name, '.');
     size_t len = dot ? (size_t)(dot - module_name) : strlen(module_name);
-    if (len >= max_len)
+
+    if (len >= max_len) {
         len = max_len - 1;
+    }
+
     strncpy(first_part, module_name, len);
     first_part[len] = '\0';
 
-    // Convert the first part to lowercase
-    for (size_t i = 0; i < strlen(first_part); i++) {
+    for (size_t i = 0; i < len; i++) {
         first_part[i] = (char)tolower((unsigned char)first_part[i]);
     }
 }
@@ -594,20 +603,26 @@ init_globals(void)
 {
     /* 1. Initialize builtins_denylist */
     /* Get sys.builtin_module_names (borrowed reference) */
+    size_t i;
+    size_t builtin_count;
     PyObject* builtin_names = PySys_GetObject("builtin_module_names");
-    size_t builtin_count = 0;
-    if (builtin_names && PyTuple_Check(builtin_names)) {
-        builtin_count = (size_t)PyTuple_Size(builtin_names);
+
+    if (!builtin_names || !PyTuple_Check(builtin_names)) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not get builtin_module_names");
+        return -1;
     }
+
+    builtin_count = (size_t)PyTuple_Size(builtin_names);
     builtins_denylist_count = static_stdlib_count + builtin_count;
-    builtins_denylist = malloc(builtins_denylist_count * sizeof(char*));
+
+    builtins_denylist = calloc(builtins_denylist_count, sizeof(char*));
     if (!builtins_denylist) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for not_patch_module_names");
+        PyErr_NoMemory();
         return -1;
     }
     /* Copy static stdlib names */
-    for (size_t i = 0; i < static_stdlib_count; i++) {
-        char* dup = strdup(stdlib_names[i]);
+    for (i = 0; i < static_stdlib_count; i++) {
+        char* dup = strdup(static_stdlib_denylist[i]);
         if (!dup)
             return -1;
         for (char* p = dup; *p; p++) {
@@ -615,6 +630,7 @@ init_globals(void)
         }
         builtins_denylist[i] = dup;
     }
+
     /* Copy built-in module names */
     for (size_t i = 0; i < builtin_count; i++) {
         PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
@@ -631,7 +647,11 @@ init_globals(void)
             }
         }
     }
-    return 0; // Success
+    int result = build_list_from_env("_DD_IAST_PATCH_MODULES");
+    if (result >= 0) {
+        result = build_list_from_env("_DD_IAST_DENY_MODULES");
+    }
+    return result; // Success
 }
 
 /* --- Exported Function: py_should_iast_patch ---
@@ -643,8 +663,22 @@ static PyObject*
 py_should_iast_patch(PyObject* self, PyObject* args)
 {
     const char* module_name;
-    if (!PyArg_ParseTuple(args, "s", &module_name))
+
+    if (!PyArg_ParseTuple(args, "s", &module_name)) {
         return NULL;
+    }
+
+    if (strlen(module_name) > 512) {
+        PyErr_SetString(PyExc_ValueError, "Module name too long");
+        return NULL;
+    }
+
+    for (const char* p = module_name; *p; p++) {
+        if (!isalnum(*p) && *p != '.' && *p != '_') {
+            PyErr_SetString(PyExc_ValueError, "Invalid characters in module name");
+            return NULL;
+        }
+    }
 
     /* Create lower_module: lowercase version of module_name with a trailing '.' */
     char lower_module[512];
@@ -697,23 +731,19 @@ build_list_from_env(const char* env_var_name)
 {
     size_t count = 0;
     char** result_list = get_list_from_env(env_var_name, &count);
-    if (result_list == NULL && count > 0) {
-        return -1;
+    if (result_list == NULL) {
+        return 0;
     }
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
         free_list(user_allowlist, user_allowlist_count);
         user_allowlist = result_list;
         user_allowlist_count = count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        for (ssize_t i = 0; i < user_denylist_count; i++) {
-            if (user_denylist[i] != NULL) {
-                printf("  %s\n", user_denylist[i]);
-            }
-        }
         free_list(user_denylist, user_denylist_count);
         user_denylist = result_list;
         user_denylist_count = count;
     } else {
+        free_list(result_list, count);
         return -1;
     }
     return 0;
@@ -770,11 +800,34 @@ static PyMethodDef IastPatchMethods[] = {
       "Returns the current user allowlist as a Python list." },
     { NULL, NULL, 0, NULL }
 };
-static struct PyModuleDef iastpatchmodule = { PyModuleDef_HEAD_INIT,
-                                              "iastpatch", /* Module name */
-                                              "Module to decide if a module should be patched for IAST", /* Docstring */
-                                              -1,
-                                              IastPatchMethods };
+
+static void cleanup_globals(void) {
+    free_list(builtins_denylist, builtins_denylist_count);
+    free_list(user_allowlist, user_allowlist_count);
+    free_list(user_denylist, user_denylist_count);
+    free_list(cached_packages, cached_packages_count);
+
+    builtins_denylist = NULL;
+    user_allowlist = NULL;
+    user_denylist = NULL;
+    cached_packages = NULL;
+}
+
+static void module_free(void* m) {
+    cleanup_globals();
+}
+
+static struct PyModuleDef iastpatchmodule = {
+    PyModuleDef_HEAD_INIT,
+    "iastpatch",
+    "Module to decide if a module should be patched for IAST",
+    -1,
+    IastPatchMethods,
+    NULL,
+    NULL,
+    NULL,
+    module_free
+};
 
 PyMODINIT_FUNC
 PyInit_iastpatch(void)
