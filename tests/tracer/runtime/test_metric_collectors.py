@@ -28,8 +28,9 @@ class TestRuntimeMetricCollector(BaseTestCase):
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
-        for _, value in collector.collect(PSUTIL_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
     def test_static_metrics(self):
         import os
@@ -127,8 +128,9 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for _, value in collector.collect(GC_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
     def test_gen1_changes(self):
         # disable gc
