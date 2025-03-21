@@ -8,6 +8,7 @@ import threading
 from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
+from .utils.formats import asbool
 
 
 # Do not use an absolute import here Cython<3.0.0 will
@@ -23,6 +24,7 @@ from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
+from .agent import AgentConfig
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -101,6 +103,40 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
         ret = msgpack_pack_raw_body(pk, bs, l)
     return ret
 
+cdef inline int pack_bool(msgpack_packer *pk, object n) except? -1:
+    if n is None:
+        return msgpack_pack_nil(pk)
+
+    if PyBool_Check(n):
+        if n:
+            return msgpack_pack_true(pk)
+        else:
+            return msgpack_pack_false(pk)
+
+cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
+    if n is None:
+        return msgpack_pack_nil(pk)
+
+    ret = msgpack_pack_array(pk, len(n))
+    if ret != 0:
+        return ret
+
+    for v in n:
+        if isinstance(v, str):
+            ret = pack_text(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, (int, float)):
+            ret = pack_number(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, bool):
+            ret = pack_bool(pk, v)
+            if ret != 0:
+                return ret
+        else:
+            raise ValueError("Unsupported type {type(v)}")
+    return ret
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
@@ -548,6 +584,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 
 cdef class MsgpackEncoderV04(MsgpackEncoderBase):
+    cdef bint top_level_span_event_encoding
+
+    def __cinit__(self, size_t max_size, size_t max_item_size):
+        self.top_level_span_event_encoding = AgentConfig.trace_native_span_events
+
     cpdef flush(self):
         with self._lock:
             try:
@@ -607,6 +648,61 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                             return ret
                 else:
                     raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
+                if ret != 0:
+                    return ret
+        return 0
+
+    cdef inline int _pack_span_events(self, list span_events):
+        ret = msgpack_pack_array(&self.pk, len(span_events))
+        if ret != 0:
+            return ret
+
+        for event in span_events:
+            # get dict representation of span event
+            d = dict(event)
+            ret = msgpack_pack_map(&self.pk, len(d))
+            if ret != 0:
+                return ret
+
+            for k, v in d.items():
+                # pack the name of a span event
+                ret = pack_text(&self.pk, k)
+                if ret != 0:
+                    return ret
+                if isinstance(v, (int, float)):
+                    ret = pack_number(&self.pk, v)
+                elif isinstance(v, str):
+                    ret = pack_text(&self.pk, v)
+                elif k == "attributes":
+                    # span events can contain attributes, this is analougous to span tags
+                    attributes = v.items()
+                    ret = msgpack_pack_map(&self.pk, len(attributes))
+                    for attr_k, attr_v in attributes:
+                        ret = pack_text(&self.pk, attr_k)
+                        if isinstance(attr_v, str):
+                            ret = pack_text(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
+                        elif isinstance(attr_v, bool):
+                            ret = pack_bool(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
+                        elif isinstance(attr_v, (int, float)):
+                            ret = pack_number(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
+                        # pack a list.
+                        elif isinstance(attr_v, (list, tuple)):
+                            ret = pack_list(&self.pk, attr_v)
+                            if ret != 0:
+                                return ret
+                        else:
+                            ret = msgpack_pack_nil(&self.pk)
+                            if ret != 0:
+                                return ret
+
+                else:
+                    raise ValueError(f"Failed to encode SpanEvent {k}={v} contains an unsupported type {type(v)}")
                 if ret != 0:
                     return ret
         return 0
@@ -685,7 +781,13 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
 
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+        # do not include in meta
+        if self.top_level_span_event_encoding:
+            has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events \
+                + has_meta_struct
+        else:
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -771,13 +873,21 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
+            if has_span_events and self.top_level_span_event_encoding:
+                ret = pack_bytes(&self.pk, <char *> b"span_events", 11)
+                if ret != 0:
+                    return ret
+                ret = self._pack_span_events(span._events)
+                if ret != 0:
+                    return ret
+
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
 
                 span_events = ""
-                if has_span_events:
+                if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
