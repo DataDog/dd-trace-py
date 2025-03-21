@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import subprocess
 import threading
@@ -308,18 +307,15 @@ def test_should_iast_patch_invalid_input(module_name, expected_error):
 
 
 def test_should_iast_patch_empty_lists():
-    # Limpiar las listas existentes
     os.environ[IAST.PATCH_MODULES] = ""
     os.environ[IAST.DENY_MODULES] = ""
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
-    # Probar con listas vacías
     assert iastpatch.should_iast_patch("some.module") == iastpatch.DENIED_NOT_FOUND
 
 
 def test_should_iast_patch_max_list_size():
-    # Probar con listas muy grandes
     large_list = ",".join([f"module{i}" for i in range(1000)])
     os.environ[IAST.PATCH_MODULES] = large_list
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
@@ -329,13 +325,9 @@ def test_should_iast_patch_max_list_size():
 @pytest.mark.parametrize(
     "module_name,allowlist,denylist,expected_result",
     [
-        # Módulo en ambas listas (denylist tiene prioridad)
         ("module.both", "module.both.", "module.both.", iastpatch.ALLOWED_USER_ALLOWLIST),
-        # Submódulo en allowlist pero módulo padre en denylist
         ("parent.child", "parent.child.", "parent.", iastpatch.ALLOWED_USER_ALLOWLIST),
-        # Módulo padre en allowlist pero submódulo en denylist
         ("parent.child", "parent.", "parent.child.", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
-        # Conflicto entre static y user lists
         ("django.core", "django.core.", "", iastpatch.ALLOWED_USER_ALLOWLIST),
     ],
 )
@@ -362,11 +354,9 @@ def test_should_iast_patch_special_modules(module_name, expected_result):
 
 
 def test_should_iast_patch_cached_packages():
-    # Verificar que cached_packages funciona correctamente
     result1 = iastpatch.should_iast_patch("new.module")
     result2 = iastpatch.should_iast_patch("new.module")
 
-    # Deberían usar el mismo caché
     assert result1 == result2
 
 
@@ -382,5 +372,4 @@ def test_should_iast_patch_thread_safety():
     for t in threads:
         t.join()
 
-    # Todos los resultados deberían ser iguales
     assert len(set(results)) == 1
