@@ -3,6 +3,9 @@ import asyncio
 import mock
 import pytest
 
+from ddtrace import Span
+from typing import List
+from typing import Dict
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -118,10 +121,9 @@ async def test_manual_tracing(agents, mock_tracer, request_vcr, llmobs_events, s
         span_links=True,
     )
 
+
 @pytest.mark.asyncio
-async def test_single_agent_with_tool_calls(
-    agents, mock_tracer, request_vcr, llmobs_events, addition_agent
-):
+async def test_single_agent_with_tool_calls(agents, mock_tracer, request_vcr, llmobs_events, addition_agent):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
@@ -362,48 +364,124 @@ async def test_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_
 
 
 @pytest.mark.asyncio
-async def test_single_agent_with_gaurdrail_errors(
-    agents, mock_tracer, llmobs_events, simple_agent_with_gaurdrail
+async def test_single_agent_with_tool_errors(
+    agents, mock_tracer, request_vcr, llmobs_events, addition_agent_with_tool_errors
 ):
+    with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
+        result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
+    spans = mock_tracer.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 5
+
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        input_value="What is the sum of 1 and 2?",
+        output_value=result.final_output,
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        span_links=True,
+    )
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
+        spans[1],
+        span_kind="agent",
+        metadata={"handoffs": [], "tools": ["add"]},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
+        spans[2],
+        span_kind="llm",
+        input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
+        output_messages=[
+            {
+                "tool_calls": [
+                    {
+                        "tool_id": mock.ANY,
+                        "arguments": {"a": 1, "b": 2},
+                        "name": "add",
+                        "type": "function_call",
+                    }
+                ]
+            }
+        ],
+        token_metrics={
+            "input_tokens": mock.ANY,
+            "output_tokens": mock.ANY,
+            "total_tokens": mock.ANY,
+        },
+        metadata=COMMON_RESPONSE_LLM_METADATA,
+        model_name="gpt-4o-2024-08-06",
+        model_provider="openai",
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        span_links=True,
+    )
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
+        spans[3],
+        span_kind="tool",
+        input_value=mock.ANY,
+        output_value=mock.ANY,
+        metadata=mock.ANY,
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        span_links=True,
+        error="Error running tool (non-fatal)",
+        error_message='Error running tool (non-fatal)\n{"tool_name": "add", "error": "This is a test error"}',
+    )
+    assert llmobs_events[4] == _expected_llmobs_llm_span_event(
+        spans[4],
+        span_kind="llm",
+        input_messages=[
+            {"role": "user", "content": "What is the sum of 1 and 2?"},
+            {
+                "tool_calls": [
+                    {
+                        "tool_id": mock.ANY,
+                        "arguments": {"a": 1, "b": 2},
+                        "name": "add",
+                        "type": "function_call",
+                    }
+                ]
+            },
+            {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+        ],
+        output_messages=[{"role": "assistant", "content": result.final_output}],
+        token_metrics={
+            "input_tokens": mock.ANY,
+            "output_tokens": mock.ANY,
+            "total_tokens": mock.ANY,
+        },
+        metadata=COMMON_RESPONSE_LLM_METADATA,
+        model_name="gpt-4o-2024-08-06",
+        model_provider="openai",
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        span_links=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_single_agent_with_gaurdrail_errors(agents, llmobs_events, simple_agent_with_gaurdrail):
     from agents.exceptions import InputGuardrailTripwireTriggered
+
     with pytest.raises(InputGuardrailTripwireTriggered):
         await agents.Runner.run(simple_agent_with_gaurdrail, "What is the sum of 1 and 2?")
-    # need to investigate issue why spans are not showing up but llmobs events are
 
-    # spans = mock_tracer.pop_traces()[0]
-    # spans.sort(key=lambda span: span.start_ns)
-    # llmobs_events.sort(key=lambda event: event["start_ns"])
+    # NOTE: there is an issue where APM spans are not enqeued to the mock tracer
+    # NOTE: gaurdrails are executed in parallel so sorting by time is unreliable
+    llmobs_events.sort(key=lambda event: event["meta"]["span.kind"])
 
-    # assert len(spans) == len(llmobs_events) == 3
+    assert len(llmobs_events) == 3
 
-    # # First span - workflow
-    # assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-    #     spans[0],
-    #     span_kind="workflow",
-    #     metadata={},
-    #     tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    # )
+    assert llmobs_events[0]["meta"]["span.kind"] == "agent"
+    assert llmobs_events[1]["meta"]["span.kind"] == "task"
+    assert llmobs_events[2]["meta"]["span.kind"] == "workflow"
 
-    # # Second span - agent with error
-    # assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-    #     spans[1],
-    #     span_kind="agent",
-    #     metadata={"handoffs": [], "tools": []},
-    #     tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "error": "1"},
-    #     error="Guardrail tripwire triggered\n{'guardrail': 'simple_gaurdrail'}",
-    #     error_message="Guardrail tripwire triggered\n{'guardrail': 'simple_gaurdrail'}",
-    # )
-
-    # # Third span - guardrail execution
-    # assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
-    #     spans[2],
-    #     span_kind="task",
-    #     metadata={},
-    #     tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    # )
+    assert llmobs_events[0]["status"] == "error"
+    assert llmobs_events[0]["meta"]["error.type"] == "Guardrail tripwire triggered"
+    assert (
+        llmobs_events[0]["meta"]["error.message"] == 'Guardrail tripwire triggered\n{"guardrail": "simple_gaurdrail"}'
+    )
 
 
-async def test_single_agent_with_chat_completions(
-    agents, simple_agent, request_vcr, mock_tracer, llmobs_events
-):
+async def test_single_agent_with_chat_completions(agents, simple_agent, request_vcr, mock_tracer, llmobs_events):
     pass

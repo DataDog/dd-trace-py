@@ -66,6 +66,7 @@ def research_workflow():
         handoffs=[summarizer],
     )
 
+
 @pytest.fixture
 def addition_agent():
     """An agent with addition tools"""
@@ -73,6 +74,22 @@ def addition_agent():
         name="Addition Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         tools=[add],
+    )
+
+
+@function_tool(name_override="add")
+def add_with_error(a: int, b: int) -> int:
+    """Add two numbers together"""
+    raise ValueError("This is a test error")
+
+
+@pytest.fixture
+def addition_agent_with_tool_errors():
+    """An agent with addition tools that will error"""
+    yield Agent(
+        name="Addition Agent",
+        instructions="You are a helpful assistant specialized in addition calculations. Do not retry the tool call if it errors and instead return immediately",
+        tools=[add_with_error],
     )
 
 
@@ -87,14 +104,16 @@ async def simple_gaurdrail(
         tripwire_triggered="safe" not in input,
     )
 
+
 @pytest.fixture
 def simple_agent_with_gaurdrail():
     """An agent with addition tools and a gaurdrail"""
-    yield Agent(    
+    yield Agent(
         name="Simple Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         input_guardrails=[simple_gaurdrail],
     )
+
 
 @pytest.fixture
 def simple_agent():
@@ -127,7 +146,7 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def enqueue(self, event):
         self.events.append(event)
 
-    
+
 @pytest.fixture
 def mock_tracer(agents):
     mock_tracer = DummyTracer()
