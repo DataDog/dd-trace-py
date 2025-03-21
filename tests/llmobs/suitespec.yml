@@ -120,5 +120,6 @@ suites:
       - '@openai_agents'
       - '@llmobs'
       - tests/contrib/openai_agents/*
+      - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
