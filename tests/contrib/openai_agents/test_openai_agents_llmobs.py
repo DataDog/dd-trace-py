@@ -30,7 +30,7 @@ def _assert_expected_agent_run(
     tool_calls: List[dict] = None,
     previous_tool_events: List[dict] = None,
 ) -> List[dict]:
-    """Assert expected LLMObs events matches (including span links) actual events for an agent run
+    """Assert expected LLMObs events matches actual events for an agent run
     Return previous tool events for span linking assertions across agent runs
 
     Args:

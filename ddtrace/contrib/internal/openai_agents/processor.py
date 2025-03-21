@@ -25,8 +25,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that started.
         """
-        span_adapter = OaiSpanAdapter(span)
-        self.integration.start_span_from_oai_span(Pin.get_from(agents), raw_oai_span=span_adapter)
+        self.integration.start_span_from_oai_span(Pin.get_from(agents), oai_span=OaiSpanAdapter(span))
 
     def on_trace_start(self, trace: OaiTrace) -> None:
         """Called when a trace starts.
@@ -34,8 +33,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        trace_adapter = OaiTraceAdapter(trace)
-        self.integration.start_span_from_oai_trace(Pin.get_from(agents), raw_oai_trace=trace_adapter)
+        self.integration.start_span_from_oai_trace(Pin.get_from(agents), oai_trace=OaiTraceAdapter(trace))
 
     def on_trace_end(self, trace: OaiTrace) -> None:
         """Called when a trace is finished.
@@ -51,7 +49,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         self.integration.llmobs_set_tags(
             cur_trace,
             [],
-            {"raw_oai_trace": trace_adapter},
+            {"oai_trace": trace_adapter},
         )
         cur_trace.finish()
 
@@ -65,7 +63,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         llmobs_span = self.integration.oai_to_llmobs_span.get(span_adapter.span_id)
         if not llmobs_span:
             return
-        self.integration.llmobs_set_tags(llmobs_span, [], {"raw_oai_span": span_adapter})
+        self.integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
         llmobs_span.finish()
 
     def force_flush(self) -> bool:
