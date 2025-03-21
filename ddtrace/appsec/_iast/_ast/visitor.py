@@ -474,8 +474,7 @@ class AstVisitor(ast.NodeTransformer):
         module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
-        self.generic_visit(module_node)
-        return module_node
+        return self.generic_visit(module_node)
 
     def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
