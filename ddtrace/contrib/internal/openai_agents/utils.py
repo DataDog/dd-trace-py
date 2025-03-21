@@ -44,7 +44,7 @@ class OaiSpanAdapter:
         """Get the span name."""
         if hasattr(self._span, "span_data") and hasattr(self._span.span_data, "name"):
             return self._span.span_data.name
-        return ""
+        return "openai_agents.{}".format(self.span_type.lower())
 
     @property
     def span_type(self) -> str:
@@ -391,11 +391,6 @@ class OaiTraceAdapter:
     def name(self) -> str:
         """Get the trace name."""
         return getattr(self._trace, "name", "Agent workflow")
-
-    @property
-    def llmobs_span_kind(self) -> str:
-        """Get the LLMObs span kind for trace."""
-        return "workflow"
 
     @property
     def group_id(self) -> Optional[str]:

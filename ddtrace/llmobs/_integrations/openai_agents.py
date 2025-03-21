@@ -52,12 +52,11 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             logger.warning("Expected OaiTraceAdapter but got %s", type(oai_trace))
             return None
 
-        span_name = oai_trace.name
         llmobs_span = super().trace(
             pin,
-            operation_id=span_name,
+            operation_id=oai_trace.name,
             submit_to_llmobs=True,
-            span_name=span_name,
+            span_name=oai_trace.name,
         )
 
         llmobs_span._set_ctx_item(SPAN_KIND, "workflow")
@@ -83,14 +82,11 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not oai_span or not isinstance(oai_span, OaiSpanAdapter):
             return None
 
-        span_name = oai_span.name
         span_kind = oai_span.llmobs_span_kind
         if not span_kind:
             return None
 
-        span_name = span_name if span_name else "openai_agents.{}".format(span_kind.lower())
-
-        llmobs_span = super().trace(pin, operation_id=span_name, submit_to_llmobs=True, span_name=span_name)
+        llmobs_span = super().trace(pin, operation_id=oai_span.name, submit_to_llmobs=True, span_name=oai_span.name)
 
         llmobs_span._set_ctx_item(SPAN_KIND, span_kind)
         self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
