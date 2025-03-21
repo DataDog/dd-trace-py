@@ -1,7 +1,30 @@
 import pytest
-import os
 
+from tests.utils import override_global_config
 from tests.contrib.litellm.utils import get_cassette_name
+
+def test_global_tags(ddtrace_config_litellm, litellm, request_vcr, mock_tracer):
+    """
+    When the global config UST tags are set
+        The service name should be used for all data
+        The env should be used for all data
+        The version should be used for all data
+    """
+    with override_global_config(dict(service="test-svc", env="staging", version="1234")):
+        cassette_name = "completion.yaml"
+        with request_vcr.use_cassette(cassette_name):
+            messages = [{ "content": "Hey, what is up?","role": "user"}]
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+            )
+
+    span = mock_tracer.pop_traces()[0][0]
+    assert span.resource == "litellm.completion"
+    assert span.service == "test-svc"
+    assert span.get_tag("env") == "staging"
+    assert span.get_tag("version") == "1234"
+    assert span.get_tag("litellm.request.model") == "gpt-3.5-turbo"
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 @pytest.mark.snapshot(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"])
