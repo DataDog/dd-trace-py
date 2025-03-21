@@ -17,39 +17,13 @@ from ddtrace.internal.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-@dataclass
-class LLMObsTraceInfo:
-    """Metadata for llmobs trace used for setting root span attributes and span links"""
-
-    trace_id: str
-    span_id: str
-    current_top_level_agent_span_id: Optional[str] = None
-    input_oai_span: Optional[Any] = None
-    output_oai_span: Optional[Any] = None
-
-
-@dataclass
-class ToolCall:
-    """Tool call and its associated llmobs spans."""
-
-    tool_id: str
-    tool_name: str
-    arguments: str
-    llm_span_id: Optional[str] = None  # ID of the LLM span that initiated this tool call
-    tool_span_id: Optional[str] = None  # ID of the tool span that executed this call
-    tool_kind: Optional[str] = None  # Type of tool (function, handoff, etc)
-    is_handoff_completed: bool = False  # Track if handoff is completed to avoid dupe links
-
-
 T = TypeVar("T")
 
 
 class OaiSpanAdapter:
-    """Adapter for OpenAI Agents SDK Span objects.
-
-    This class provides a clean interface for the integration code to interact with
-    OpenAI Agents SDK Span objects without needing to know their internal structure.
+    """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
+    This is so the integrations code does not need to interact directly with any oai agent sdk types.
+    It is also handy for providing defaults when we bump into missing data or unexpected data shapes.
     """
 
     def __init__(self, span: OaiSpan[Any]):
@@ -89,8 +63,7 @@ class OaiSpanAdapter:
             "guardrail": "task",
             "custom": "task",
         }
-        kind = kind_mapping.get(self.span_type, "task")
-        return kind
+        return kind_mapping.get(self.span_type, "task")
 
     @property
     def input(self) -> str | list[Any]:
@@ -443,6 +416,42 @@ class OaiTraceAdapter:
         return self._trace
 
 
+def load_span_data_value(value):
+    """Helper function to load values stored in span data in a consistent way"""
+    if isinstance(value, list):
+        return [load_span_data_value(item) for item in value]
+    elif hasattr(value, "model_dump"):
+        return value.model_dump()
+    elif is_dataclass(value):
+        return asdict(value)
+    else:
+        return json.loads(json.dumps(value))
+
+
+@dataclass
+class LLMObsTraceInfo:
+    """Metadata for llmobs trace used for setting root span attributes and span links"""
+
+    trace_id: str
+    span_id: str
+    current_top_level_agent_span_id: Optional[str] = None
+    input_oai_span: Optional[OaiSpanAdapter] = None
+    output_oai_span: Optional[OaiSpanAdapter] = None
+
+
+@dataclass
+class ToolCall:
+    """Tool call and its associated llmobs spans."""
+
+    tool_id: str
+    tool_name: str
+    arguments: str
+    llm_span_id: Optional[str] = None  # ID of the LLM span that initiated this tool call
+    tool_span_id: Optional[str] = None  # ID of the tool span that executed this call
+    tool_kind: Optional[str] = None  # Type of tool (function, handoff, etc)
+    is_handoff_completed: bool = False  # Track if handoff is completed to avoid dupe links
+
+
 class ToolCallTracker:
     """Used to track tool data and their associated llm/tool spans for span linking."""
 
@@ -484,15 +493,3 @@ class ToolCallTracker:
     def cleanup_input(self, tool_name: str, arguments: str) -> None:
         """Remove an input lookup entry after it's been used."""
         self._input_lookup.pop((tool_name, arguments), None)
-
-
-def load_span_data_value(value):
-    """Helper function to load values stored in span data in a consistent way"""
-    if isinstance(value, list):
-        return [load_span_data_value(item) for item in value]
-    elif hasattr(value, "model_dump"):
-        return value.model_dump()
-    elif is_dataclass(value):
-        return asdict(value)
-    else:
-        return json.loads(json.dumps(value))

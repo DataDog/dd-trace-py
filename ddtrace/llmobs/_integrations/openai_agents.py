@@ -131,29 +131,22 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             return
 
         if trace_info.input_oai_span:
-            input_value = None
-            if isinstance(trace_info.input_oai_span, OaiSpanAdapter):
-                input_value = trace_info.input_oai_span.llmobs_trace_input()
+            input_value = trace_info.input_oai_span.llmobs_trace_input()
             if input_value:
                 span._set_ctx_item(INPUT_VALUE, input_value)
 
         if trace_info.output_oai_span:
-            # We assume output_oai_span is always a span adapter by this point
             output_oai_span = trace_info.output_oai_span
-            if isinstance(output_oai_span, OaiSpanAdapter):
-                # Use the adapter properties
-                output_text = output_oai_span.response_output_text
-                if output_text:
-                    span._set_ctx_item(OUTPUT_VALUE, output_text)
-
-                    llmobs_output_span = self.oai_to_llmobs_span[output_oai_span.span_id]
-                    add_span_link(
-                        span,
-                        str(llmobs_output_span.span_id),
-                        format_trace_id(llmobs_output_span.trace_id),
-                        "output",
-                        "output",
-                    )
+            if output_oai_span:
+                span._set_ctx_item(OUTPUT_VALUE, output_oai_span.response_output_text)
+                llmobs_output_span = self.oai_to_llmobs_span[output_oai_span.span_id]
+                add_span_link(
+                    span,
+                    str(llmobs_output_span.span_id),
+                    format_trace_id(llmobs_output_span.trace_id),
+                    "output",
+                    "output",
+                )
 
         metadata = oai_trace.metadata
         if metadata:
