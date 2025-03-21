@@ -12,6 +12,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.contrib.litellm.utils import get_request_vcr
 
+
 def default_global_config():
     return {}
 
@@ -19,6 +20,7 @@ def default_global_config():
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
 
 @pytest.fixture
 def ddtrace_config_litellm():
