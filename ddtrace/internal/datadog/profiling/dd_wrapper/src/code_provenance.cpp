@@ -70,7 +70,7 @@ CodeProvenance::add_filename(std::string_view filename)
     }
 
     std::string_view package_name = get_package_name(filename);
-    if (package_name.empty() || package_name == STDLIB) {
+    if (package_name.empty() or package_name == STDLIB) {
         return;
     }
 
