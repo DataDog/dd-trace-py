@@ -388,11 +388,13 @@ def _inject():
                 import ddtrace.bootstrap.sitecustomize
 
                 # Modify the PYTHONPATH for any subprocesses that might be spawned:
+                #   - Remove any preexisting entries related to ddtrace to ensure initial state is clean
                 #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
                 #     now that the package is installed.
                 #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
                 #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
                 python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
+                python_path = [entry for entry in python_path if "ddtrace" not in entry]
                 if SCRIPT_DIR in python_path:
                     python_path.remove(SCRIPT_DIR)
                 python_path.insert(-1, site_pkgs_path)
