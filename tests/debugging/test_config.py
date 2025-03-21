@@ -12,7 +12,7 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
-        from ddtrace.settings import Config
+        from ddtrace.settings._config import Config
         import ddtrace.settings.dynamic_instrumentation
 
         old_config = ddtrace.settings.dynamic_instrumentation.ddconfig

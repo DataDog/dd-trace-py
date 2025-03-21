@@ -36,7 +36,7 @@ from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess

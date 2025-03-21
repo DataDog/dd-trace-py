@@ -1,4 +1,4 @@
-from ddtrace.debugging._config import er_config
+from ddtrace.debugging._config import er_config as config
 
 
 # TODO[gab]: Uncomment this when the feature is ready
@@ -10,7 +10,7 @@ def post_preload():
 
 
 def start():
-    if er_config.enabled:
+    if config.enabled:
         from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
         SpanExceptionHandler.enable()
@@ -21,7 +21,7 @@ def restart(join=False):
 
 
 def stop(join=False):
-    if er_config.enabled:
+    if config.enabled:
         from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
         SpanExceptionHandler.disable()

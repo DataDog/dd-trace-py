@@ -6,10 +6,12 @@ import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
+from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
@@ -60,6 +62,10 @@ class ProductManager:
             except Exception:
                 log.exception("Failed to load product plugin '%s'", name)
                 continue
+
+            # Report configuration via telemetry
+            if isinstance(config := getattr(product, "config", None), DDConfig):
+                report_configuration(config)
 
             log.debug("Product plugin '%s' loaded successfully", name)
 
