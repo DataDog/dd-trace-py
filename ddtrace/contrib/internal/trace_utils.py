@@ -528,7 +528,7 @@ def set_http_meta(
         # Extract referrer host if referer header is present
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referrer_host:
-            span.set_tag_str(http.REFERRER_HOST, referrer_host)
+            span.set_tag_str(http.REFERRER_HOSTNAME, referrer_host)
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
