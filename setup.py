@@ -1,4 +1,5 @@
 import atexit
+import fnmatch
 import hashlib
 import os
 import platform
@@ -531,6 +532,28 @@ def check_rust_toolchain():
         raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
+DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "").split(",") if _.strip()]
+DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
+
+
+def filter_extensions(extensions):
+    # type: (list[Extension]) -> list[Extension]
+    if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
+        return extensions
+
+    filtered: list[Extension] = []
+    for ext in extensions:
+        if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
+            print(f"INFO: Excluding extension {ext.name}")
+            continue
+        elif DD_BUILD_EXT_INCLUDES and not any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_INCLUDES):
+            print(f"INFO: Excluding extension {ext.name}")
+            continue
+        print(f"INFO: Including extension {ext.name}")
+        filtered.append(ext)
+    return filtered
+
+
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
@@ -643,14 +666,13 @@ if not IS_PYSTON:
             )
         )
 
-        if sys.version_info < (3, 13):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
 
 else:
     ext_modules = []
@@ -679,57 +701,60 @@ setup(
         "clean": CleanLibraries,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=ext_modules
+    ext_modules=filter_extensions(ext_modules)
     + cythonize(
-        [
-            Cython.Distutils.Extension(
-                "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.internal._tagset",
-                sources=["ddtrace/internal/_tagset.pyx"],
-                language="c",
-            ),
-            Extension(
-                "ddtrace.internal._encoding",
-                ["ddtrace/internal/_encoding.pyx"],
-                include_dirs=["."],
-                libraries=encoding_libraries,
-                define_macros=encoding_macros,
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
-                language="c",
-                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
-                # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
-                # GNU-like toolchain
-                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling._threading",
-                sources=["ddtrace/profiling/_threading.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._task",
-                sources=["ddtrace/profiling/collector/_task.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.exporter.pprof",
-                sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                language="c",
-            ),
-        ],
+        filter_extensions(
+            [
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._tagset",
+                    sources=["ddtrace/internal/_tagset.pyx"],
+                    language="c",
+                ),
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector.stack",
+                    sources=["ddtrace/profiling/collector/stack.pyx"],
+                    language="c",
+                    # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
+                    # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
+                    # everything else is on a GNU-like toolchain
+                    extra_compile_args=extra_compile_args
+                    + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._traceback",
+                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._threading",
+                    sources=["ddtrace/profiling/_threading.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._task",
+                    sources=["ddtrace/profiling/collector/_task.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+            ]
+        ),
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
@@ -740,14 +765,16 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("psutil"),
-    rust_extensions=[
-        RustExtension(
-            "ddtrace.internal.native._native",
-            path="src/native/Cargo.toml",
-            py_limited_api="auto",
-            binding=Binding.PyO3,
-            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-        ),
-    ],
+    + filter_extensions(get_exts_for("psutil")),
+    rust_extensions=filter_extensions(
+        [
+            RustExtension(
+                "ddtrace.internal.native._native",
+                path="src/native/Cargo.toml",
+                py_limited_api="auto",
+                binding=Binding.PyO3,
+                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+            ),
+        ]
+    ),
 )
