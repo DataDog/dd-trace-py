@@ -169,6 +169,8 @@ def test_heap_profiler_large_heap_overhead():
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
+# Python 3.13 changed bytearray to use an allocation domain that we don't
+# currently profile, so we use None instead of bytearray to test.
 def one(size):
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
