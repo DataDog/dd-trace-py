@@ -112,7 +112,7 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
         local_tracer._appsec_processor._update_rules(for_the_waf)
 
 
-def _update_asm_features(payload_list, cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     res: Dict[str, Dict[str, Optional[bool]]] = {}
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
@@ -144,7 +144,7 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
     ```
     """
     result = _update_asm_features(payload_list, cache)
-    if "asm" in result:
+    if "asm" in result and asm_config._asm_can_be_enabled:
         if result["asm"].get("enabled", False):
             enable_asm(local_tracer)
         else:
