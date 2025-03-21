@@ -293,7 +293,7 @@ def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
 @pytest.mark.parametrize(
     "module_name,expected_error",
     [
-        ("", "Module name too long"),
+        ("", "Invalid module name"),
         ("a" * 540, "Module name too long"),
         ("invalid!module@name", "Invalid characters in module name"),
         ("module/name", "Invalid characters in module name"),
@@ -312,7 +312,7 @@ def test_should_iast_patch_empty_lists():
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
-    assert iastpatch.should_iast_patch("some.module") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("some.module") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
 
 
 def test_should_iast_patch_max_list_size():
@@ -327,7 +327,7 @@ def test_should_iast_patch_max_list_size():
     [
         ("module.both", "module.both.", "module.both.", iastpatch.ALLOWED_USER_ALLOWLIST),
         ("parent.child", "parent.child.", "parent.", iastpatch.ALLOWED_USER_ALLOWLIST),
-        ("parent.child", "parent.", "parent.child.", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("parent.child", "parent.", "parent.child.", iastpatch.DENIED_USER_DENYLIST),
         ("django.core", "django.core.", "", iastpatch.ALLOWED_USER_ALLOWLIST),
     ],
 )

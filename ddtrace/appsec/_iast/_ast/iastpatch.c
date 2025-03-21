@@ -615,7 +615,7 @@ init_globals(void)
     builtin_count = (size_t)PyTuple_Size(builtin_names);
     builtins_denylist_count = static_stdlib_count + builtin_count;
 
-    builtins_denylist = calloc(builtins_denylist_count, sizeof(char*));
+    builtins_denylist = malloc(builtins_denylist_count * sizeof(char*));
     if (!builtins_denylist) {
         PyErr_NoMemory();
         return -1;
@@ -662,6 +662,11 @@ py_should_iast_patch(PyObject* self, PyObject* args)
     const char* module_name;
 
     if (!PyArg_ParseTuple(args, "s", &module_name)) {
+        return NULL;
+    }
+
+    if (strlen(module_name) == 0) {
+        PyErr_SetString(PyExc_ValueError, "Invalid module name");
         return NULL;
     }
 
@@ -749,10 +754,7 @@ build_list_from_env(const char* env_var_name)
         return -1;
     }
 
-    // Liberar la lista antigua después de la asignación
-    if (old_list != NULL) {
-        free_list(old_list, old_count);
-    }
+
     return 0;
 }
 /* --- Exported function to build a list from an environment variable and update globals --- */
@@ -808,33 +810,11 @@ static PyMethodDef IastPatchMethods[] = {
     { NULL, NULL, 0, NULL }
 };
 
-static void cleanup_globals(void) {
-    free_list(builtins_denylist, builtins_denylist_count);
-    free_list(user_allowlist, user_allowlist_count);
-    free_list(user_denylist, user_denylist_count);
-    free_list(cached_packages, cached_packages_count);
-
-    builtins_denylist = NULL;
-    user_allowlist = NULL;
-    user_denylist = NULL;
-    cached_packages = NULL;
-}
-
-static void module_free(void* m) {
-    cleanup_globals();
-}
-
-static struct PyModuleDef iastpatchmodule = {
-    PyModuleDef_HEAD_INIT,
-    "iastpatch",
-    "Module to decide if a module should be patched for IAST",
-    -1,
-    IastPatchMethods,
-    NULL,
-    NULL,
-    NULL,
-    module_free
-};
+static struct PyModuleDef iastpatchmodule = { PyModuleDef_HEAD_INIT,
+                                              "iastpatch", /* Module name */
+                                              "Module to decide if a module should be patched for IAST", /* Docstring */
+                                              -1,
+                                              IastPatchMethods };
 
 PyMODINIT_FUNC
 PyInit_iastpatch(void)
