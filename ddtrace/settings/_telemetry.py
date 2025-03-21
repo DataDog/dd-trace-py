@@ -4,11 +4,6 @@ import typing as t
 from ddtrace.settings._core import DDConfig
 from ddtrace.settings._inferred_base_service import detect_service
 
-from ..internal.logger import get_logger
-
-
-log = get_logger(__name__)
-
 
 class TelemetryConfig(DDConfig):
     __prefix__ = "dd"
@@ -18,7 +13,7 @@ class TelemetryConfig(DDConfig):
     ENV = DDConfig.v(str, "env", default="")
     SERVICE = DDConfig.v(str, "service", default=detect_service(sys.argv) or "unnamed-python-service")
     VERSION = DDConfig.v(str, "version", default="")
-    AGENTLESS_MODE = DDConfig.v(bool, "ci_visibility.agentless_mode", default=False)
+    AGENTLESS_MODE = DDConfig.v(bool, "civisibility.agentless.enabled", default=False)
     DEBUG = DDConfig.v(bool, "trace.debug", default=False)
     HEARTBEAT_INTERVAL = DDConfig.v(float, "telemetry.heartbeat_interval", default=60.0)
     TELEMETRY_ENABLED = DDConfig.v(bool, "instrumentation_telemetry.enabled", default=True)

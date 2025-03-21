@@ -1,7 +1,6 @@
 import sys
 import typing as t
 
-from ddtrace.internal.telemetry import report_configuration
 from ddtrace.settings._core import DDConfig
 
 
@@ -60,4 +59,3 @@ if (not config._modules_to_report) is False or config._report_handled_errors in 
     elif config._report_handled_errors == "all":
         config._instrument_all = True
     config.enabled = True
-    report_configuration(config)

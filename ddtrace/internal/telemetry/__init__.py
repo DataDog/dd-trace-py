@@ -7,15 +7,17 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 import os
 import typing as t
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.settings._core import FLEET_CONFIG
 from ddtrace.settings._core import LOCAL_CONFIG
 from ddtrace.settings._core import DDConfig
 from ddtrace.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.settings._otel_remapper import parse_otel_env
-from ddtrace.settings._telemetry import log
 
-from .writer import TelemetryWriter
+
+log = get_logger(__name__)
 
 
 telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
