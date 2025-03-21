@@ -430,7 +430,7 @@ class ProfilingConfigExport(DDConfig):
     _libdd_enabled = DDConfig.v(
         bool,
         "libdd_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
     )
