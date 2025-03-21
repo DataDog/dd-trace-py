@@ -9,7 +9,7 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-
+# trigger pipeline
 SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 7),
     (3, 8),
