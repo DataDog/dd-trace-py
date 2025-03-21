@@ -174,6 +174,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "crewai",
         "logging",
         "cassandra",
         "boto",
