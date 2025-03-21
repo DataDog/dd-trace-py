@@ -661,18 +661,18 @@ if not IS_PYSTON:
     if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                source_dir=STACK_V2_DIR,
-                optional=False,
-            ),
-        )
-
-        ext_modules.append(
-            CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
             )
+        )
+
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
         )
 
 
