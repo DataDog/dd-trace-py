@@ -10,8 +10,16 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   # CI_DEBUG_SERVICES: "true"
 
-default:
-  interruptible: true
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+    on_job_failure: all
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == 'true'
+      auto_cancel:
+        on_new_commit: none
+        on_job_failure: none
+    - when: always
 
 include:
   - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
