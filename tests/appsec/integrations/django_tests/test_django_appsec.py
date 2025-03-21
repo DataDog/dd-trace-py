@@ -93,6 +93,38 @@ def test_request_block_request_callable(client, test_spans, tracer):
             assert result.headers["content-type"] == "application/json"
 
 
+@pytest.mark.django_db
+def test_create_new_user(client, test_spans, tracer):
+    with override_global_config(dict(_asm_enabled=True)):
+        root, result = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            url="/appsec/signup/?login=john&pwd=secret",
+            headers={"HTTP_USER_AGENT": "fooagent"},
+        )
+        # Should not block by IP, but the block callable is called directly inside that view
+        assert result.status_code == 200
+        assert result.content == b"OK"
+        assert root.get_tag(http.STATUS_CODE) == "200"
+        assert root.get_tag(http.URL) == "http://testserver/appsec/signup/?login=john&<redacted>", root.get_tag(
+            http.URL
+        )
+        assert root.get_tag(http.METHOD) == "GET"
+        assert root.get_tag(http.USER_AGENT) == "fooagent"
+        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith("text/html")
+        if hasattr(result, "headers"):
+            assert result.headers["content-type"].startswith("text/html")
+        assert root.get_tag("appsec.events.users.signup.usr.login") == "john"
+        assert root.get_tag("_dd.appsec.usr.login") == "john"
+        assert root.get_tag("_dd.appsec.events.users.signup.auto.mode") == "identification", root.get_tag(
+            "_dd.appsec.events.users.signup.auto.mode"
+        )
+        assert root.get_tag("appsec.events.users.signup.track") == "true"
+        assert root.get_tag("appsec.events.users.signup.usr.id")
+        assert root.get_tag("_dd.appsec.usr.id")
+
+
 _BLOCKED_USER = "123456"
 _ALLOWED_USER = "111111"
 

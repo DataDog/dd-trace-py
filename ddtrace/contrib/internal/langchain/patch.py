@@ -173,13 +173,17 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
     )
     completions = None
+
+    integration.record_instance(instance, span)
+
     try:
         if integration.is_pc_sampled_span(span):
             for idx, prompt in enumerate(prompts):
@@ -225,12 +229,16 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
     )
+
+    integration.record_instance(instance, span)
+
     completions = None
     try:
         if integration.is_pc_sampled_span(span):
@@ -276,12 +284,16 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+
+    integration.record_instance(instance, span)
+
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -366,12 +378,16 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        submit_to_llmobs=True,
+        # only report LLM Obs spans if base_url has not been changed
+        submit_to_llmobs=integration.has_default_base_url(instance),
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+
+    integration.record_instance(instance, span)
+
     chat_completions = None
     try:
         for message_set_idx, message_set in enumerate(chat_messages):
@@ -469,6 +485,9 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
     )
+
+    integration.record_instance(instance, span)
+
     embeddings = None
     try:
         if isinstance(input_texts, str):
@@ -520,6 +539,9 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
     )
     inputs = None
     final_output = None
+
+    integration.record_instance(instance, span)
+
     try:
         try:
             inputs = get_argument_value(args, kwargs, 0, "input")
@@ -564,6 +586,9 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
     )
     inputs = None
     final_output = None
+
+    integration.record_instance(instance, span)
+
     try:
         try:
             inputs = get_argument_value(args, kwargs, 0, "input")
@@ -608,6 +633,9 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         provider=provider,
         api_key=_extract_api_key(instance),
     )
+
+    integration.record_instance(instance, span)
+
     documents = []
     try:
         if integration.is_pc_sampled_span(span):
@@ -655,6 +683,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
 
     def _on_span_started(span: Span):
+        integration.record_instance(instance, span)
         inputs = get_argument_value(args, kwargs, 0, "input")
         if not integration.is_pc_sampled_span(span):
             return
@@ -712,6 +741,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
     model = _extract_model_name(instance)
 
     def _on_span_started(span: Span):
+        integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
         chat_messages = get_argument_value(args, kwargs, 0, "input")
@@ -771,6 +801,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
     model = _extract_model_name(instance)
 
     def _on_span_start(span: Span):
+        integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
         inp = get_argument_value(args, kwargs, 0, "input")
@@ -817,6 +848,8 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         interface_type="tool",
         submit_to_llmobs=True,
     )
+
+    integration.record_instance(instance, span)
 
     tool_output = None
     tool_info = {}
@@ -868,6 +901,8 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         interface_type="tool",
         submit_to_llmobs=True,
     )
+
+    integration.record_instance(instance, span)
 
     tool_output = None
     tool_info = {}
@@ -1088,29 +1123,6 @@ def unpatch():
         _unpatch_embeddings_and_vectorstores()
 
     delattr(langchain, "_datadog_integration")
-
-
-def taint_outputs(instance, inputs, outputs):
-    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    try:
-        ranges = None
-        for key in filter(lambda x: x in inputs, instance.input_keys):
-            input_val = inputs.get(key)
-            if input_val:
-                ranges = get_tainted_ranges(input_val)
-                if ranges:
-                    break
-
-        if ranges:
-            source = ranges[0].source
-            for key in filter(lambda x: x in outputs, instance.output_keys):
-                output_value = outputs[key]
-                outputs[key] = taint_pyobject(output_value, source.name, source.value, source.origin)
-    except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain taint_outputs. {}".format(e))
 
 
 def taint_parser_output(func, instance, args, kwargs):

@@ -1,14 +1,9 @@
 import sys
 import os
-import warnings
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-from ddtrace.internal.module import ModuleWatchdog
-
-
-ModuleWatchdog.install()
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
@@ -17,7 +12,9 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings import _global_config as config
+from .settings._config import Config as _Config
+
+config = _Config()
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
@@ -28,10 +25,6 @@ from ._monkey import patch_all  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
-# TODO(munir): Remove the imports below in v3.0
-from ddtrace._trace import pin as _p  # noqa: E402, F401
-from ddtrace._trace import span as _s  # noqa: E402, F401
-from ddtrace._trace import tracer as _t  # noqa: E402, F401
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
 

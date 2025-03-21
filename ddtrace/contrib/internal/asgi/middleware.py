@@ -164,6 +164,8 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
+            distributed_headers_config=config.asgi,
+            distributed_headers=headers,
             pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -314,6 +316,15 @@ class TraceMiddleware:
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
                 raise
+            except BaseException as exception:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if exception.__class__.__name__ == "BaseExceptionGroup":
+                    for exc in exception.exceptions:
+                        if isinstance(exc, BlockingException):
+                            set_blocked(exc.args[0])
+                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                raise
             finally:
+                core.dispatch("web.request.final_tags", (span,))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

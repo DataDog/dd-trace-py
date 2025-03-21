@@ -6,10 +6,12 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib import parse
 
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
@@ -19,6 +21,9 @@ from ddtrace._trace.utils_botocore.span_tags import (
 from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
@@ -28,7 +33,6 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -121,11 +125,25 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
+
+    if config._inferred_proxy_services_enabled:
+        # dispatch event for checking headers and possibly making an inferred proxy span
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+        # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
+        span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
+
     span_kwargs.update(kwargs)
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
+
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
+
     ctx.span = span
+
+    if config._inferred_proxy_services_enabled:
+        # dispatch event for inferred proxy finish
+        core.dispatch("inferred_proxy.finish", (ctx,))
+
     return span
 
 
@@ -148,7 +166,7 @@ def _on_web_framework_start_request(ctx, int_config):
 
 
 def _on_web_framework_finish_request(
-    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish
+    span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
     trace_utils.set_http_meta(
         span=span,
@@ -160,9 +178,70 @@ def _on_web_framework_finish_request(
         request_headers=req_headers,
         response_headers=res_headers,
         route=route,
+        **kwargs,
     )
+    _set_inferred_proxy_tags(span, status_code)
+
     if finish:
         span.finish()
+
+
+def _set_inferred_proxy_tags(span, status_code):
+    if span._parent and span._parent.name == "aws.apigateway":
+        inferred_span = span._parent
+        status_code = status_code if status_code else span.get_tag("http.status_code")
+        if status_code:
+            inferred_span.set_tag("http.status_code", status_code)
+        if span.error == 1:
+            inferred_span.error = span.error
+            if ERROR_MSG in span._meta.keys():
+                inferred_span.set_tag(ERROR_MSG, span.get_tag(ERROR_MSG))
+            if ERROR_TYPE in span._meta.keys():
+                inferred_span.set_tag(ERROR_TYPE, span.get_tag(ERROR_TYPE))
+            if ERROR_STACK in span._meta.keys():
+                inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
+
+
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+    # Skip creating another inferred span if one has already been created for this request
+    if ctx.get_item("inferred_proxy_span"):
+        return
+
+    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
+    # and normalized headers in 'headers'
+    headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+
+    # Inferred Proxy Spans
+    if distributed_headers_config and headers is not None:
+        create_inferred_proxy_span_if_headers_exist(
+            ctx,
+            headers=headers,
+            child_of=tracer.current_trace_context(),
+            tracer=tracer,
+        )
+        inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+
+        # use the inferred proxy span as the new parent span
+        if inferred_proxy_span and not call_trace:
+            span_kwargs["child_of"] = inferred_proxy_span
+            ctx.set_item("span_kwargs", span_kwargs)
+
+
+def _on_inferred_proxy_finish(ctx):
+    if not config._inferred_proxy_services_enabled:
+        return
+
+    inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+    inferred_proxy_finish_callback = ctx.get_item("inferred_proxy_finish_callback")
+
+    # add callback to finish inferred proxy span when this span finishes
+    if (
+        inferred_proxy_span
+        and inferred_proxy_finish_callback
+        and ctx.span
+        and ctx.span.parent_id == inferred_proxy_span.span_id
+    ):
+        ctx.span._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
 def _on_traced_request_context_started_flask(ctx):
@@ -332,12 +411,17 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
         span.resource = " ".join((request.method, code))
 
     response_cookies = _cookies_from_response_headers(headers)
-    trace_utils.set_http_meta(
-        span,
-        flask_config,
+    _on_web_framework_finish_request(
+        span=span,
+        int_config=flask_config,
+        method=request.method,
+        url=None,
         status_code=code,
-        response_headers=headers,
+        query=None,
+        req_headers=None,
+        res_headers=headers,
         route=span.get_tag(FLASK_URL_RULE),
+        finish=False,
         response_cookies=response_cookies,
     )
 
@@ -408,11 +492,20 @@ def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_r
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
+def _on_web_request_final_tags(span):
+    # Necessary to add remaining http status codes and
+    # errors relevant to the aws api gateway spans on close
+    if span and span.span_type == "web":
+        _set_inferred_proxy_tags(span, None)
+
+
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
+
     trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+    _set_inferred_proxy_tags(span, None)
 
 
 def _on_django_start_response(
@@ -587,7 +680,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
@@ -595,8 +688,10 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
-    span.set_tag_str("bedrock.usage.prompt_tokens", input_token_count)
-    span.set_tag_str("bedrock.usage.completion_tokens", output_token_count)
+    if input_token_count:
+        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
+    if output_token_count:
+        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
 
 
 def _propagate_context(ctx, headers):
@@ -624,6 +719,19 @@ def _on_end_of_traced_method_in_fork(ctx):
     ctx["pin"].tracer.flush()
 
 
+def _on_botocore_bedrock_process_response_converse(
+    ctx: core.ExecutionContext,
+    result: List[Dict[str, Any]],
+):
+    ctx["bedrock_integration"].llmobs_set_tags(
+        ctx.span,
+        args=[ctx],
+        kwargs={},
+        response=result,
+    )
+    ctx.span.finish()
+
+
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
@@ -640,7 +748,10 @@ def _on_botocore_bedrock_process_response(
     integration = ctx["bedrock_integration"]
     if metadata is not None:
         for k, v in metadata.items():
-            span.set_tag_str("bedrock.{}".format(k), str(v))
+            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
+                span.set_metric("bedrock.response.{}".format(k), int(v))
+            else:
+                span.set_tag_str("bedrock.{}".format(k), str(v))
     if "embed" in model_name:
         span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
@@ -654,7 +765,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
 
@@ -798,6 +909,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
@@ -810,6 +922,11 @@ def listen():
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
+    core.on("web.request.final_tags", _on_web_request_final_tags)
+
+    # inferred proxy handlers
+    core.on("inferred_proxy.start", _on_inferred_proxy_start)
+    core.on("inferred_proxy.finish", _on_inferred_proxy_finish)
 
     core.on("test_visibility.enable", _on_test_visibility_enable)
     core.on("test_visibility.disable", _on_test_visibility_disable)
@@ -827,6 +944,7 @@ def listen():
         "molten.request",
         "pyramid.request",
         "sanic.request",
+        "tornado.request",
         "flask.call",
         "flask.jsonify",
         "flask.render_template",

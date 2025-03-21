@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- encoding: utf-8 -*-
 import logging
 
 import pytest
@@ -273,10 +271,7 @@ def test_taint_object_error_with_no_context(log_level, iast_debug, caplog):
         ranges_result = get_tainted_ranges(result)
         assert len(ranges_result) == 0
 
-        assert not any(record.message.startswith("Tainting object error") for record in caplog.records), [
-            record.message for record in caplog.records
-        ]
-        assert not any("[IAST] Tainted Map" in record.message for record in caplog.records)
+        assert not any("iast::propagation::native::error::" in record.message for record in caplog.records)
 
         _start_iast_context_and_oce()
         result = taint_pyobject(
@@ -328,5 +323,5 @@ def test_propagate_ranges_with_no_context(caplog):
     create_context()
     ranges_result = get_tainted_ranges(result_2)
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
     assert len(ranges_result) == 0

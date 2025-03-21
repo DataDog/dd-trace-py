@@ -103,16 +103,16 @@ jobs:
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
             for w in ./tempwheelhouse/*.whl; do
-              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
             MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
-            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
             move "{wheel}" "{dest_dir}"
           CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
@@ -130,6 +130,7 @@ jobs:
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
+              yum install -y libatomic.i686
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
@@ -144,16 +145,16 @@ jobs:
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
             for w in ./tempwheelhouse/*.whl; do
-              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
             MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
-            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
             move "{wheel}" "{dest_dir}"
           CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS

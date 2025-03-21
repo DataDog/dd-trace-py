@@ -18,12 +18,12 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
+from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -40,7 +40,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        with override_global_config(
             dict(
                 _iast_enabled=True,
                 _iast_deduplication_enabled=False,
@@ -48,15 +48,12 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             )
         ):
             patch_sqlite_sqli()
+            patch_insecure_cookie()
             patch_header_injection()
             patch_xss_injection()
             patch_json()
-            from jinja2.filters import FILTERS
-            from jinja2.filters import do_mark_safe
-
-            FILTERS["safe"] = do_mark_safe
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
-            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer._configure(api_version="v0.4", iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -108,6 +105,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"]
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -164,6 +163,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_2"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -220,6 +221,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_2"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -274,6 +277,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_3"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -326,6 +331,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_4"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     def test_flask_simple_iast_path_header_and_querystring_tainted(self):
@@ -472,6 +479,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_7"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -534,6 +543,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     }
                     assert vulnerability["location"]["line"] == line
                     assert vulnerability["location"]["path"] == TEST_FILE_PATH
+                    assert vulnerability["location"]["method"] == "sqli_8"
+                    assert vulnerability["location"]["class_name"] == ""
                     assert vulnerability["hash"] == hash_value
 
             assert {VULN_SQL_INJECTION} == vulnerabilities
@@ -585,6 +596,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_9"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -642,6 +655,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_13"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -699,6 +714,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_14"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -764,6 +781,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_10"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -828,6 +847,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -892,6 +913,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -958,6 +981,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1095,6 +1120,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_11"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1201,6 +1228,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "sqli_12"
+            assert vulnerability["location"]["class_name"] == ""
             assert vulnerability["hash"] == hash_value
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1305,6 +1334,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_insecure_cookie
             resp.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
             return resp
 
@@ -1326,10 +1357,15 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_INSECURE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
+            assert "class_name" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie_empty(self):
@@ -1369,6 +1405,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_http_only_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=False, samesite="Strict")
             return resp
 
@@ -1390,10 +1428,13 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_http_only_cookie", VULN_NO_HTTPONLY_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_http_only_cookie_empty(self):
@@ -1434,6 +1475,8 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
+
+            # label test_flask_no_samesite_cookie
             resp.set_cookie("insecure", "cookie", secure=True, httponly=True, samesite="None")
             return resp
 
@@ -1455,10 +1498,14 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-            assert "path" not in vulnerability["location"].keys()
-            assert "line" not in vulnerability["location"].keys()
+            assert "method" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
+            line, hash_value = get_line_and_hash(
+                "test_flask_no_samesite_cookie", VULN_NO_SAMESITE_COOKIE, filename=TEST_FILE_PATH
+            )
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_no_samesite_cookie_empty(self):
@@ -1657,6 +1704,8 @@ Lorem Ipsum Foobar
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "xss_view"
+            assert vulnerability["location"]["class_name"] == ""
 
     def test_flask_xss_concat(self):
         @self.app.route("/xss/concat/", methods=["GET"])
@@ -1702,6 +1751,8 @@ Lorem Ipsum Foobar
             }
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "xss_view"
+            assert vulnerability["location"]["class_name"] == ""
 
     def test_flask_xss_template_secure(self):
         @self.app.route("/xss/template/secure/", methods=["GET"])
@@ -1804,18 +1855,19 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             return "OK", 200
 
-        if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
-            self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
-        else:
-            self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
+        with override_global_config(dict(_iast_enabled=False)):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+                self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
+            else:
+                self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
 
-        resp = self.client.post("/sqli/cookies/")
-        assert resp.status_code == 200
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
 
-        root_span = self.pop_spans()[0]
-        assert root_span.get_metric(IAST.ENABLED) is None
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
 
-        assert root_span.get_tag(IAST.JSON) is None
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):

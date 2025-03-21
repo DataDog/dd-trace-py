@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+from urllib.parse import urlencode
 
 import pytest
 
@@ -10,7 +11,6 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
-from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
@@ -134,7 +134,7 @@ def test_django_tainted_user_agent_iast_enabled(client, test_spans, tracer):
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_view_with_exception(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
-        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
+        dict(_iast_enabled=True, _iast_deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         response = _aux_appsec_get_root_span_with_exception(
             client,
@@ -168,7 +168,7 @@ def test_django_tainted_user_agent_iast_disabled(client, test_spans, tracer):
 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_tainted_user_agent_iast_enabled_sqli_http_request_parameter(client, test_spans, tracer):
+def test_django_sqli_http_request_parameter(client, test_spans, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
         test_spans,
@@ -302,6 +302,46 @@ def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer
             {
                 "redacted": True,
             },
+        ]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+
+
+@pytest.mark.django_db()
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_sqli_query_no_redacted(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/sqli_query_no_redacted/?q=sqlite_master",
+    )
+
+    vuln_type = "SQL_INJECTION"
+
+    assert response.status_code == 200
+    assert response.content == b"OK"
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("sqli_query_no_redacted", vuln_type, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {
+            "name": "q",
+            "origin": "http.request.parameter",
+            "value": "sqlite_master",
+        }
+    ]
+
+    assert loaded["vulnerabilities"][0]["type"] == vuln_type
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [
+            {"value": "SELECT * FROM "},
+            {"source": 0, "value": "sqlite_master"},
+            {"value": " ORDER BY name"},
         ]
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
@@ -510,6 +550,8 @@ def test_django_sqli_http_cookies_name(client, test_spans, tracer):
     line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_name", VULN_SQL_INJECTION, filename=TEST_FILE)
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == "sqli_http_request_cookie_name"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 
@@ -567,6 +609,8 @@ def test_django_sqli_http_cookies_value(client, test_spans, tracer):
     line, hash_value = get_line_and_hash("iast_enabled_sqli_http_cookies_value", VULN_SQL_INJECTION, filename=TEST_FILE)
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
+    assert vulnerability["location"]["method"] == "sqli_http_request_cookie_value"
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 
@@ -655,7 +699,7 @@ def test_django_sqli_http_body(client, test_spans, tracer, payload, content_type
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_tainted_http_body_empty(client, test_spans, tracer, payload, content_type, deduplication, sampling):
     with override_global_config(
-        dict(_iast_enabled=True, _deduplication_enabled=deduplication, _iast_request_sampling=sampling)
+        dict(_iast_enabled=True, _iast_deduplication_enabled=deduplication, _iast_request_sampling=sampling)
     ):
         root_span, response = _aux_appsec_get_root_span(
             client,
@@ -777,10 +821,11 @@ def test_django_insecure_cookie(client, test_spans, tracer):
     vulnerability = loaded["vulnerabilities"][0]
     assert vulnerability["type"] == VULN_INSECURE_COOKIE
     assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-    assert "path" not in vulnerability["location"].keys()
-    assert "line" not in vulnerability["location"].keys()
     assert vulnerability["location"]["spanId"]
     assert vulnerability["hash"]
+    line, hash_value = get_line_and_hash("test_django_insecure_cookie", VULN_INSECURE_COOKIE, filename=TEST_FILE)
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["path"] == TEST_FILE
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -844,10 +889,13 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     vulnerability = loaded["vulnerabilities"][0]
     assert vulnerability["type"] == VULN_INSECURE_COOKIE
     assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
-    assert "path" not in vulnerability["location"].keys()
-    assert "line" not in vulnerability["location"].keys()
     assert vulnerability["location"]["spanId"]
     assert vulnerability["hash"]
+    line, hash_value = get_line_and_hash(
+        "test_django_insecure_cookie_special_characters", VULN_INSECURE_COOKIE, filename=TEST_FILE
+    )
+    assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["path"] == TEST_FILE
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")

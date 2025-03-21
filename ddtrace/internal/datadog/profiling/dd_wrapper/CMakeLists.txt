@@ -26,6 +26,9 @@ include(CheckSymbolExists)
 # Load libdatadog
 include(FindLibdatadog)
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
 # the parent scope.
 set(Datadog_INCLUDE_DIRS

@@ -2,11 +2,11 @@
 
 #include <memory>
 #include <mutex>
-#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Datadog {
@@ -83,9 +83,6 @@ CodeProvenance::add_filename(std::string_view filename)
 
     const Package* package = it->second.get();
     if (package) {
-        if (packages_to_files.find(package) == packages_to_files.end()) {
-            packages_to_files[package] = std::set<std::string>();
-        }
         packages_to_files[package].insert(std::string(filename));
     }
 }

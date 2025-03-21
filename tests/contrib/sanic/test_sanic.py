@@ -17,9 +17,12 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import USER_KEEP
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -524,3 +527,82 @@ if __name__ == "__main__":
         env=env,
     )
     assert status == 0, out or err
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {"endpoint": "/hello", "status_code": "200"},
+        {"endpoint": "/error", "status_code": "500"},
+        {"endpoint": "/invalid", "status_code": "500"},
+    ],
+)
+@pytest.mark.parametrize(
+    "test_headers",
+    [
+        {
+            "type": "default",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+            },
+        },
+        {
+            "type": "distributed",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "x-datadog-trace-id": "1",
+                "x-datadog-parent-id": "2",
+                "x-datadog-origin": "rum",
+                "x-datadog-sampling-priority": "2",
+            },
+        },
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
+@pytest.mark.asyncio
+async def test_inferred_spans_api_gateway_default(
+    tracer, client, test_spans, test, inferred_proxy_enabled, test_headers
+):
+    # When the inferred proxy feature is enabled, there should be an inferred span
+    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+        await client.get(test["endpoint"], headers=test_headers["headers"])
+
+        if inferred_proxy_enabled:
+            web_span = test_spans.find_span(name="sanic.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="sanic.request",
+                web_span_component="sanic",
+                web_span_service_name="sanic",
+                web_span_resource="GET " + test["endpoint"],
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                status_code=test["status_code"],
+                url="local/",
+                start=1736973768,
+                is_distributed=test_headers["type"] == "distributed",
+                distributed_trace_id=1,
+                distributed_parent_id=2,
+                distributed_sampling_priority=USER_KEEP,
+            )
+
+        else:
+            web_span = test_spans.find_span(name="sanic.request")
+            assert web_span._parent is None
+
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1
