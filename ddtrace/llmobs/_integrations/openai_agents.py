@@ -4,10 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.contrib.internal.openai_agents.utils import LLMObsTraceInfo
-from ddtrace.contrib.internal.openai_agents.utils import OaiSpanAdapter
-from ddtrace.contrib.internal.openai_agents.utils import OaiTraceAdapter
-from ddtrace.contrib.internal.openai_agents.utils import ToolCallTracker
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -23,6 +19,10 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
+from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
+from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._integrations.utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import add_span_link
