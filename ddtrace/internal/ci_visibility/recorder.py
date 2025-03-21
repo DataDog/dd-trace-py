@@ -163,12 +163,12 @@ class CIVisibility(Service):
             if TestOptEnv.CIVisibilityEnv.use_ci_context_provider:
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
-                url = ddconfig._trace_agent_url
+                url = CIEnv.agent_url or ddconfig._trace_agent_url
 
-                env_agent_url = CIEnv.agent_url
-                if env_agent_url != "":
-                    log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    url = env_agent_url
+                # env_agent_url =
+                # if env_agent_url != "":
+                #     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
+                #     url = env_agent_url
 
                 self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:
