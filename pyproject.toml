@@ -213,7 +213,7 @@ exclude = [
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
-    "ddtrace/profiling/exporter/pprof_*pb2.py",
+    "tests/profiling/collector/pprof_*pb2.py",
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",

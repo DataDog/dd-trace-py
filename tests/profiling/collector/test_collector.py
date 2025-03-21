@@ -1,62 +1,6 @@
-import time
-
 import pytest
 
 from ddtrace.profiling import collector
-from ddtrace.profiling import recorder
-
-
-def _test_collector_collect(collector, event_type, fn=None, **kwargs):
-    r = recorder.Recorder()
-    c = collector(r, **kwargs)
-    c.start()
-    thread_id = c._worker.ident
-    while not r.events[event_type]:
-        if fn is not None:
-            _ = fn()
-        # Sleep so gevent can switch to the other thread
-        time.sleep(0)
-    c.stop()
-    assert len(r.events[event_type]) >= 1
-    return r, c, thread_id
-
-
-def _test_repr(collector_class, s):
-    r = recorder.Recorder()
-    assert repr(collector_class(r)) == s
-
-
-def _test_restart(collector, **kwargs):
-    r = recorder.Recorder()
-    c = collector(r, **kwargs)
-    c.start()
-    c.stop()
-    c.join()
-    c.start()
-    with pytest.raises(RuntimeError):
-        c.start()
-    c.stop()
-    c.join()
-
-
-def test_dynamic_interval():
-    r = recorder.Recorder()
-    c = collector.PeriodicCollector(recorder=r, interval=1)
-    c.start()
-    assert c.interval == 1
-    assert c._worker.interval == c.interval
-    c.interval = 2
-    assert c.interval == 2
-    assert c._worker.interval == c.interval
-    c.stop()
-
-
-def test_thread_name():
-    r = recorder.Recorder()
-    c = collector.PeriodicCollector(recorder=r, interval=1)
-    c.start()
-    assert c._worker.name == "ddtrace.profiling.collector:PeriodicCollector"
-    c.stop()
 
 
 def test_capture_sampler():

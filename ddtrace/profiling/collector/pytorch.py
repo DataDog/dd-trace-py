@@ -10,7 +10,6 @@ import wrapt
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
 
@@ -22,20 +21,18 @@ class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
         self,
         wrapped: typing.Any,
-        recorder: Recorder,
         tracer: typing.Optional[Tracer],
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
         self.on_trace_ready = handle_torch_trace
-        self._self_recorder = recorder
         self._self_tracer = tracer
 
 
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
-    def __init__(self, recorder=None):
-        super().__init__(recorder)
+    def __init__(self):
+        super().__init__()
         self.tracer = None
         # Holds the pytorch profiler object which is wrapped by this class
         self._original: typing.Any = None
@@ -80,7 +77,6 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
             profiler = wrapped(*args, **kwargs)
             return self.PROFILED_TORCH_CLASS(
                 profiler,
-                self.recorder,
                 self.tracer,
             )
 
@@ -97,8 +93,8 @@ class TorchProfilerCollector(MLProfilerCollector):
 
     PROFILED_TORCH_CLASS = _WrappedTorchProfiler
 
-    def __init__(self, recorder=None):
-        super().__init__(recorder)
+    def __init__(self):
+        super().__init__()
 
     def _get_patch_target(self):
         # type: (...) -> typing.Any
