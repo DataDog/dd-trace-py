@@ -6,8 +6,8 @@ function(add_ddup_config target)
     target_compile_features(${target} PUBLIC cxx_std_17)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        # Named struct initialization is supported in C++20, but clang/gcc also support it in C++17
-        # MSVC doesn't support it until C++20.
+        # Named struct initialization is supported in C++20, but clang/gcc also support it in C++17 MSVC doesn't support
+        # it until C++20.
         target_compile_features(${target} PUBLIC cxx_std_20)
         target_compile_options(
             ${target}
