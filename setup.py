@@ -647,7 +647,9 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (not (platform.system() == "Darwin" and platform.machine() == "x86_64")) and is_64_bit_python():
+    if (
+        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
+    ) or CURRENT_OS == "Windows":
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -656,9 +658,15 @@ if not IS_PYSTON:
             )
         )
 
-    if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
+
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
@@ -667,13 +675,6 @@ if not IS_PYSTON:
             )
         )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                source_dir=STACK_V2_DIR,
-                optional=False,
-            ),
-        )
 
 else:
     ext_modules = []
