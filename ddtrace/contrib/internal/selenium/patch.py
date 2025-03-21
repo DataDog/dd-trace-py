@@ -26,23 +26,9 @@ if (window.DD_RUM && window.DD_RUM.stopSession) {
 }
 """
 
-_DEFAULT_FLUSH_SLEEP_MS = 500
-
 
 def _get_flush_sleep_ms() -> int:
-    env_flush_sleep_ms = TestOptEnv.CIVisibilityEnv.rum_flush_wait_millis
-    if env_flush_sleep_ms is None:
-        return _DEFAULT_FLUSH_SLEEP_MS
-
-    try:
-        return int(env_flush_sleep_ms)
-    except Exception:  # noqa E722
-        log.warning(
-            "Could not convert DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS value %s to int, using default: %s",
-            env_flush_sleep_ms,
-            _DEFAULT_FLUSH_SLEEP_MS,
-        )
-        return _DEFAULT_FLUSH_SLEEP_MS
+    return TestOptEnv.CIVisibilityEnv.rum_flush_wait_millis
 
 
 config._add(
