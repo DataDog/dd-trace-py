@@ -2,17 +2,11 @@ import errno
 from functools import lru_cache
 import os
 import re
-import sys
 from typing import Any
 from typing import Dict
+from typing import Literal  # noqa:F401
 from typing import Optional
 from typing import Union
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal
 
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME

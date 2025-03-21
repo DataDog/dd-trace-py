@@ -840,8 +840,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
 
     # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
     # in old versions of Python, but it's not always so. Thus not checked.
-    if sys.version_info >= (3, 8):
-        _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 # NOTE: the "prettier" one-liner version (eg: assert (3,11) <= sys.version_info < (3,12)) does not work for mypy
 # NOTE: Python 3.8 and 3.9 use the same instrumentation
-assert sys.version_info >= (3, 8) and sys.version_info < (3, 10)  # nosec
+assert sys.version_info < (3, 10)  # nosec
 
 
 class JumpDirection(int, Enum):
