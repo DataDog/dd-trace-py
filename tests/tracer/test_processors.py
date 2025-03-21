@@ -242,14 +242,10 @@ def test_aggregator_partial_flush_2_spans():
     assert parent.get_metric("_dd.py.partial_flush") is None
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
-    tracer = DummyTracer()
-    tracer._configure(
-        partial_flush_enabled=True,
-        partial_flush_min_spans=2,
-        writer=DummyWriter(),
-    )
+    from ddtrace import tracer
 
     with tracer.trace("parent") as parent:
         with tracer.trace("1") as child1:
@@ -687,20 +683,3 @@ def test_register_unregister_span_processor():
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") is None
     assert span.get_tag("on_finish") is None
-
-
-def _stderr_contains_log(stderr: str) -> bool:
-    return "finished span not connected to a trace" in stderr
-
-
-@pytest.mark.subprocess(
-    err=_stderr_contains_log, env=dict(DD_TRACE_DEBUG="true", DD_API_KEY="test", DD_CIVISIBILITY_AGENTLESS_ENABLED=None)
-)
-def test_tracer_reconfigured_with_active_span_does_not_crash():
-    import ddtrace
-
-    with ddtrace.tracer.trace("regression1") as exploding_span:
-        # Reconfiguring the tracer clears active traces
-        # Calling .finish() manually bypasses the code that catches the exception
-        ddtrace.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=1)
-        exploding_span.finish()
