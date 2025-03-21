@@ -32,7 +32,8 @@ if(NOT DEFINED DD_CHECKSUMS)
         "ced5db61e0ca8e974b9d59b0b6833c28e19445a3e4ec3c548fda965806c17560 libdatadog-x86_64-apple-darwin.tar.gz"
         "caaec84fc9afbcb3ec4618791b3c3f1ead65196009e9f07fd382e863dc3bdc66 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
         "3ec847560bd1de86935c230f34cb58d2a0f3f17865349d094e18d3e8edf8518955ede05bf595dc3ca41f99a911760f891bcf58d92fc5c06ce6ad98cdc8f034e3 libdatadog-x64-windows.zip"
-        "2d884d76a35e4c37d05f6902c16b9e08ce1565976a6c9cf5fbd30273d8bd5385ad2523658eebadb02f90543191e217b028e86722ae7bcc08cbca2c342a5b5e79 libdatadog-x86-windows.zip")
+        "2d884d76a35e4c37d05f6902c16b9e08ce1565976a6c9cf5fbd30273d8bd5385ad2523658eebadb02f90543191e217b028e86722ae7bcc08cbca2c342a5b5e79 libdatadog-x86-windows.zip"
+    )
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
