@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_ret
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -135,7 +136,7 @@ def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.
 
     failed_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
     for report in failed_tests:
-        if ("dd_quarantined", True) not in report.user_properties:
+        if USER_PROPERTY_QUARANTINED not in report.user_properties:
             terminalreporter.stats.setdefault("failed", []).append(report)
 
     skipped_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_SKIPPED, [])

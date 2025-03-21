@@ -38,6 +38,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
@@ -94,7 +95,6 @@ log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
-USER_PROPERTY_QUARANTINED = "dd_quarantined"
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
@@ -143,7 +143,7 @@ def _handle_test_management(item, test_id):
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
     elif is_quarantined or (is_disabled and is_attempt_to_fix):
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
-        item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
+        item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
@@ -697,7 +697,7 @@ def pytest_report_teststatus(
             return test_status
 
     user_properties = getattr(report, "user_properties", [])
-    is_quarantined = (USER_PROPERTY_QUARANTINED, True) in user_properties
+    is_quarantined = USER_PROPERTY_QUARANTINED in user_properties
     if is_quarantined:
         if report.when == "teardown":
             return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
