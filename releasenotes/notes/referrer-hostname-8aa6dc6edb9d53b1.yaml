@@ -1,0 +1,3 @@
+---
+features:
+  - The referrer hostname is extracted from the `Referer` header and stored as `http.referrer_host` tag.
