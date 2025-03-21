@@ -46,7 +46,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self,
         pin: Pin,
         **kwargs,
-    ) -> Span:
+    ) -> Optional[Span]:
         raw_oai_trace = kwargs.get("raw_oai_trace")
         if not isinstance(raw_oai_trace, OaiTraceAdapter):
             logger.warning("Expected OaiTraceAdapter but got %s", type(raw_oai_trace))
@@ -190,8 +190,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             error_msg = raw_oai_span.get_error_message()
             error_data = raw_oai_span.get_error_data()
             span.error = 1
-            span.set_tag("error.type", error_msg)
-            span.set_tag("error.message", error_msg + "\n" + json.dumps(error_data))
+            if error_msg:
+                span.set_tag("error.type", error_msg)
+            if error_data and error_msg:
+                span.set_tag("error.message", error_msg + "\n" + json.dumps(error_data))
 
         if span_type == "response":
             self._set_response_attributes(span, raw_oai_span)
@@ -242,7 +244,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             span._set_ctx_item(INPUT_MESSAGES, messages)
 
         # Process output messages
-        if span_data_adapter.response_output:
+        if span_data_adapter.response.output:
             messages, tool_call_outputs = span_data_adapter.llmobs_output_messages()
             for tool_id, tool_name, tool_args in tool_call_outputs:
                 self.tool_tracker.register_llm_tool_call(
@@ -315,9 +317,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _set_agent_attributes(self, span: Span, raw_oai_span: OaiSpanAdapter) -> None:
         """Sets attributes for agent type spans."""
         # Use the adapter's metadata property
-        metadata = raw_oai_span.metadata
-        if metadata:
-            span._set_ctx_item(METADATA, metadata)
+        if raw_oai_span.llmobs_metadata:
+            span._set_ctx_item(METADATA, raw_oai_span.llmobs_metadata)
 
     def get_trace_info(self, raw_oai_trace_or_span) -> Optional[LLMObsTraceInfo]:
         """Get trace info for a span safely.

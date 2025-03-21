@@ -9,10 +9,9 @@ from typing import Optional
 from typing import Tuple
 from typing import TypeVar
 
+from agents.tracing.span_data import SpanData
 from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
-from agents.tracing.span_data import SpanData
-from openai.types.response import Response, ResponseInputItemParam
 
 from ddtrace.internal.logger import get_logger
 
@@ -68,7 +67,7 @@ class SpanDataAdapter:
         return getattr(self._span_data, "name", "")
 
     @property
-    def input(self) -> str | list[ResponseInputItemParam]:
+    def input(self) -> str | list[Any]:
         """Get the span data input."""
         return getattr(self._span_data, "input", "")
 
@@ -78,19 +77,19 @@ class SpanDataAdapter:
         return getattr(self._span_data, "output", None)
 
     @property
-    def response(self) -> Optional[Response]:
+    def response(self) -> Optional[Any]:
         """Get the span data response."""
         return getattr(self._span_data, "response", None)
 
     @property
-    def from_agent(self) -> Optional[str]:
+    def from_agent(self) -> str:
         """Get the span data from_agent."""
-        return getattr(self._span_data, "from_agent", None)
+        return getattr(self._span_data, "from_agent", "")
 
     @property
-    def to_agent(self) -> Optional[str]:
+    def to_agent(self) -> str:
         """Get the span data to_agent."""
-        return getattr(self._span_data, "to_agent", None)
+        return getattr(self._span_data, "to_agent", "")
 
     @property
     def handoffs(self) -> Optional[List[str]]:
@@ -121,7 +120,6 @@ class SpanDataAdapter:
         if not self.response:
             return ""
         return self.response.output_text
-
 
     def llmobs_input_messages(self) -> Tuple[List[Dict[str, Any]], List[str]]:
         """Returns processed input messages for LLM Obs LLM spans.
