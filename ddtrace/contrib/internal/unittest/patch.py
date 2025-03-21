@@ -15,6 +15,8 @@ from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.unittest._atr_utils import atr_handle_retries
+from ddtrace.contrib.internal.unittest._atr_utils import patch_test_result
+from ddtrace.contrib.internal.unittest._atr_utils import print_atr_report
 from ddtrace.contrib.internal.unittest._attempt_to_fix import attempt_to_fix_handle_retries
 
 # Import the new utility modules
@@ -437,6 +439,10 @@ def patch():
 
     # Integrate ITR (Intelligent Test Runner)
     add_itr_skip_decorator()
+
+    # Patch TestResult for ATR support
+    if InternalTest.atr_enabled():
+        patch_test_result()
 
     # Expose CI Visibility features at module level
     unittest.dd_unskippable = dd_unskippable
@@ -881,6 +887,11 @@ def _finish_test_session_span():
         run_coverage_report()
         _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
         unpatch_coverage()
+
+    # Print ATR report if enabled
+    if InternalTest.atr_enabled():
+        print_atr_report()
+
     _finish_span(_CIVisibility._datadog_session_span)
 
 

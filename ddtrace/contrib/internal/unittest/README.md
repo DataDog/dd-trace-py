@@ -10,7 +10,31 @@ Early Flake Detection (EFD) can help identify flaky tests by automatically retry
 
 ### 2. Automatic Test Retry (ATR)
 
-Automatic Test Retry (ATR) automatically retries failed tests to reduce false-positive failures. When a test fails, it will be retried a configurable number of times before being reported as a failure.
+Automatic Test Retry (ATR) automatically retries failed tests to reduce false-positive failures. When a test fails, it will be retried a configurable number of times before being reported as a failure. 
+
+If a test passes during a retry, it will be considered a success in the final test results, helping to avoid pipeline failures due to transient issues.
+
+Features of ATR:
+- Automatically retries failing tests
+- Displays a summary of retried and recovered tests
+- Updates test result counts to reflect recovered tests
+- Configurable retry count via environment variables
+
+Example output:
+```
+=== Datadog Auto Test Retries ===
+Total tests retried: 3
+Tests recovered: 2
+Tests failed after retries: 1
+
+Recovered tests:
+  - MyTestClass.test_recovered_1
+  - MyTestClass.test_recovered_2
+
+Failed tests after retries:
+  - MyTestClass.test_still_failing
+================================
+```
 
 ### 3. Attempt to Fix (ATF)
 
@@ -51,5 +75,5 @@ The features can be enabled or disabled through environment variables:
 Additional configuration options are available for each feature:
 
 - `DD_CIVISIBILITY_EFD_RETRY_COUNT=3` - Number of EFD retry attempts
-- `DD_CIVISIBILITY_ATR_RETRY_COUNT=3` - Number of ATR retry attempts
+- `DD_CIVISIBILITY_ATR_RETRY_COUNT=3` - Number of ATR retry attempts (default: 3)
 - `DD_CIVISIBILITY_ATTEMPT_TO_FIX_RETRY_COUNT=3` - Number of Attempt to Fix retry attempts 
