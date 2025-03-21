@@ -1,11 +1,10 @@
-import asyncio
+from typing import Dict
+from typing import List
+from typing import Tuple
 
 import mock
 import pytest
 
-from ddtrace import Span
-from typing import List
-from typing import Dict
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
@@ -20,6 +19,86 @@ COMMON_RESPONSE_LLM_METADATA = {
     "truncation": "disabled",
     "text": {"format": {"type": "text"}},
 }
+
+
+def _assert_expected_agent_run(
+    spans,
+    llmobs_events,
+    handoffs: List[str] = None,
+    tools: List[str] = None,
+    llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
+    tool_calls: List[dict] = None,
+    previous_tool_events: List[dict] = None,
+) -> List[dict]:
+    """Assert expected LLMObs events matches (including span links) actual events for an agent run
+    Return previous tool events for span linking assertions across agent runs
+
+    Args:
+        spans: List of spans from the mock tracer
+        llmobs_events: List of LLMObs events
+        agent_name: Name of the agent
+        handoffs: List of handoff names
+        tools: List of tool names
+        llm_calls: List of (input_messages, output_messages) for each LLM call
+        tool_calls: List of information about tool calls
+        previous_tool_events: List of previous tool events for span linking assertions across agent runs
+    """
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="agent",
+        metadata={"handoffs": handoffs, "tools": tools},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    if not previous_tool_events:
+        previous_tool_events = []
+    for i, event in enumerate(llmobs_events[1:]):
+        if i % 2 == 0:
+            assert event == _expected_llmobs_llm_span_event(
+                spans[i + 1],
+                span_kind="llm",
+                input_messages=llm_calls[i // 2][0],
+                output_messages=llm_calls[i // 2][1],
+                token_metrics={
+                    "input_tokens": mock.ANY,
+                    "output_tokens": mock.ANY,
+                    "total_tokens": mock.ANY,
+                },
+                metadata=COMMON_RESPONSE_LLM_METADATA,
+                model_name="gpt-4o-2024-08-06",
+                model_provider="openai",
+                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                span_links=True,
+            )
+            for tool in previous_tool_events:
+                _assert_span_link(tool, event, "output", "input")
+        else:
+            tool_call = tool_calls[i // 2]
+            error_args = (
+                {
+                    "error": "Error running tool (non-fatal)",
+                    "error_message": (
+                        "Error running tool (non-fatal)\n"
+                        f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}'
+                    ),
+                }
+                if tool_call["error"]
+                else {}
+            )
+            io_args = (
+                {"input_value": mock.ANY, "output_value": mock.ANY} if tool_call["type"] == "function_call" else {}
+            )
+            assert event == _expected_llmobs_non_llm_span_event(
+                spans[i + 1],
+                span_kind="tool",
+                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                span_links=True,
+                **io_args,
+                **error_args,
+            )
+            # assert tool is linked to the previous LLM call
+            _assert_span_link(llmobs_events[i], event, "output", "input")
+            previous_tool_events.append(event)
+    return previous_tool_events
 
 
 @pytest.mark.asyncio
@@ -43,33 +122,25 @@ async def test_single_simple_agent(agents, mock_tracer, request_vcr, llmobs_even
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
         span_links=True,
     )
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        spans[1],
-        span_kind="agent",
-        metadata={"handoffs": [], "tools": []},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        spans[2],
-        span_kind="llm",
-        input_messages=[{"role": "user", "content": "What is the capital of France?"}],
-        output_messages=[{"role": "assistant", "content": result.final_output}],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
+    _assert_expected_agent_run(
+        spans[1:],
+        llmobs_events[1:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the capital of France?"}],
+                [{"role": "assistant", "content": result.final_output}],
+            )
+        ],
+        tool_calls=[],
     )
 
 
 @pytest.mark.asyncio
 async def test_manual_tracing(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
-    from agents.tracing import trace, custom_span
+    from agents.tracing import custom_span
+    from agents.tracing import trace
 
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         with trace("Simple Workflow", metadata={"foo": "bar"}):
@@ -98,27 +169,18 @@ async def test_manual_tracing(agents, mock_tracer, request_vcr, llmobs_events, s
         metadata={"foo": "bar"},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
-        spans[2],
-        span_kind="agent",
-        metadata={"handoffs": [], "tools": []},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-    assert llmobs_events[3] == _expected_llmobs_llm_span_event(
-        spans[3],
-        span_kind="llm",
-        input_messages=[{"role": "user", "content": "What is the capital of France?"}],
-        output_messages=[{"role": "assistant", "content": result.final_output}],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
+    _assert_expected_agent_run(
+        spans[2:],
+        llmobs_events[2:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the capital of France?"}],
+                [{"role": "assistant", "content": result.final_output}],
+            )
+        ],
+        tool_calls=[],
     )
 
 
@@ -142,76 +204,46 @@ async def test_single_agent_with_tool_calls(agents, mock_tracer, request_vcr, ll
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
         span_links=True,
     )
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        spans[1],
-        span_kind="agent",
-        metadata={"handoffs": [], "tools": ["add"]},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        spans[2],
-        span_kind="llm",
-        input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
-        output_messages=[
-            {
-                "tool_calls": [
+    _assert_expected_agent_run(
+        spans[1:],
+        llmobs_events[1:],
+        handoffs=[],
+        tools=["add"],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                [
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"a": 1, "b": 2},
-                        "name": "add",
-                        "type": "function_call",
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"a": 1, "b": 2},
+                                "name": "add",
+                                "type": "function_call",
+                            }
+                        ]
                     }
-                ]
-            }
-        ],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
-        spans[3],
-        span_kind="tool",
-        input_value=mock.ANY,
-        output_value=mock.ANY,
-        metadata=mock.ANY,
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-    assert llmobs_events[4] == _expected_llmobs_llm_span_event(
-        spans[4],
-        span_kind="llm",
-        input_messages=[
-            {"role": "user", "content": "What is the sum of 1 and 2?"},
-            {
-                "tool_calls": [
+                ],
+            ),
+            (
+                [
+                    {"role": "user", "content": "What is the sum of 1 and 2?"},
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"a": 1, "b": 2},
-                        "name": "add",
-                        "type": "function_call",
-                    }
-                ]
-            },
-            {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"a": 1, "b": 2},
+                                "name": "add",
+                                "type": "function_call",
+                            }
+                        ]
+                    },
+                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                ],
+                [{"role": "assistant", "content": result.final_output}],
+            ),
         ],
-        output_messages=[{"role": "assistant", "content": result.final_output}],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
+        tool_calls=[{"type": "function_call", "error": False}],
     )
 
 
@@ -238,128 +270,80 @@ async def test_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
         span_links=True,
     )
-
-    # first research agent invoked
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        spans[1],
-        span_kind="agent",
-        metadata={"handoffs": ["Summarizer"], "tools": ["research"]},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-
-    # first llm call of the research agent
-    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        spans[2],
-        span_kind="llm",
-        input_messages=[
-            {"role": "user", "content": "What is a brief summary of what happened yesterday in the soccer world??"}
-        ],
-        output_messages=[
-            {
-                "tool_calls": [
+    previous_tool_events = _assert_expected_agent_run(
+        spans[1:6],
+        llmobs_events[1:6],
+        handoffs=["Summarizer"],
+        tools=["research"],
+        llm_calls=[
+            (
+                [
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"query": "soccer news October 4 2023"},
-                        "name": "research",
-                        "type": "function_call",
+                        "role": "user",
+                        "content": "What is a brief summary of what happened yesterday in the soccer world??",
                     }
-                ]
-            }
-        ],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-
-    # tool call to do research
-    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
-        spans[3],
-        span_kind="tool",
-        input_value=mock.ANY,
-        output_value=mock.ANY,
-        metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-
-    # second llm call of the research agent
-    assert llmobs_events[4] == _expected_llmobs_llm_span_event(
-        spans[4],
-        span_kind="llm",
-        input_messages=[
-            {"content": "What is a brief summary of what happened yesterday in the soccer world??", "role": "user"},
-            {
-                "tool_calls": [
+                ],
+                [
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"query": "soccer news October 4 2023"},
-                        "name": "research",
-                        "type": "function_call",
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"query": "soccer news October 4 2023"},
+                                "name": "research",
+                                "type": "function_call",
+                            }
+                        ]
                     }
-                ]
-            },
-            {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                ],
+            ),
+            (
+                [
+                    {
+                        "content": "What is a brief summary of what happened yesterday in the soccer world??",
+                        "role": "user",
+                    },
+                    {
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"query": "soccer news October 4 2023"},
+                                "name": "research",
+                                "type": "function_call",
+                            }
+                        ]
+                    },
+                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                ],
+                [
+                    {"role": "assistant", "content": mock.ANY},
+                    {
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {},
+                                "name": "transfer_to_summarizer",
+                                "type": "function_call",
+                            }
+                        ]
+                    },
+                ],
+            ),
         ],
-        output_messages=[
-            {"role": "assistant", "content": mock.ANY},
-            {
-                "tool_calls": [
-                    {"tool_id": mock.ANY, "arguments": {}, "name": "transfer_to_summarizer", "type": "function_call"}
-                ]
-            },
+        tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
+    )
+    _assert_expected_agent_run(
+        spans[6:],
+        llmobs_events[6:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                mock.ANY,
+                [{"role": "assistant", "content": result.final_output}],
+            )
         ],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-
-    # handoff tool call
-    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
-        spans[5],
-        span_kind="tool",
-        metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-
-    # summarizer agent invoked
-    assert llmobs_events[6] == _expected_llmobs_non_llm_span_event(
-        spans[6],
-        span_kind="agent",
-        metadata={"handoffs": [], "tools": []},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-
-    # final llm call of the summarizer agent
-    assert llmobs_events[7] == _expected_llmobs_llm_span_event(
-        spans[7],
-        span_kind="llm",
-        input_messages=mock.ANY,
-        output_messages=[{"role": "assistant", "content": result.final_output}],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
+        tool_calls=[],
+        previous_tool_events=previous_tool_events,
     )
 
 
@@ -384,78 +368,46 @@ async def test_single_agent_with_tool_errors(
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
         span_links=True,
     )
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        spans[1],
-        span_kind="agent",
-        metadata={"handoffs": [], "tools": ["add"]},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-    )
-    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        spans[2],
-        span_kind="llm",
-        input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
-        output_messages=[
-            {
-                "tool_calls": [
+    _assert_expected_agent_run(
+        spans[1:],
+        llmobs_events[1:],
+        handoffs=[],
+        tools=["add"],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                [
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"a": 1, "b": 2},
-                        "name": "add",
-                        "type": "function_call",
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"a": 1, "b": 2},
+                                "name": "add",
+                                "type": "function_call",
+                            }
+                        ]
                     }
-                ]
-            }
-        ],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-    )
-    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
-        spans[3],
-        span_kind="tool",
-        input_value=mock.ANY,
-        output_value=mock.ANY,
-        metadata=mock.ANY,
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
-        error="Error running tool (non-fatal)",
-        error_message='Error running tool (non-fatal)\n{"tool_name": "add", "error": "This is a test error"}',
-    )
-    assert llmobs_events[4] == _expected_llmobs_llm_span_event(
-        spans[4],
-        span_kind="llm",
-        input_messages=[
-            {"role": "user", "content": "What is the sum of 1 and 2?"},
-            {
-                "tool_calls": [
+                ],
+            ),
+            (
+                [
+                    {"role": "user", "content": "What is the sum of 1 and 2?"},
                     {
-                        "tool_id": mock.ANY,
-                        "arguments": {"a": 1, "b": 2},
-                        "name": "add",
-                        "type": "function_call",
-                    }
-                ]
-            },
-            {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                        "tool_calls": [
+                            {
+                                "tool_id": mock.ANY,
+                                "arguments": {"a": 1, "b": 2},
+                                "name": "add",
+                                "type": "function_call",
+                            }
+                        ]
+                    },
+                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                ],
+                [{"role": "assistant", "content": result.final_output}],
+            ),
         ],
-        output_messages=[{"role": "assistant", "content": result.final_output}],
-        token_metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
+        tool_calls=[{"type": "function_call", "error": True, "tool_name": "add"}],
     )
 
 
@@ -481,7 +433,3 @@ async def test_single_agent_with_gaurdrail_errors(agents, llmobs_events, simple_
     assert (
         llmobs_events[0]["meta"]["error.message"] == 'Guardrail tripwire triggered\n{"guardrail": "simple_gaurdrail"}'
     )
-
-
-async def test_single_agent_with_chat_completions(agents, simple_agent, request_vcr, mock_tracer, llmobs_events):
-    pass

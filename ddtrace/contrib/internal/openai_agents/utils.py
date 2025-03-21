@@ -210,7 +210,7 @@ def _process_input_messages(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[s
     return processed, tool_call_ids
 
 
-def _process_output_messages(messages) -> List[Dict[str, Any]]:
+def _process_output_messages(messages) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str]]]:
     """Process output messages that are Pydantic models."""
     processed = []
     if not messages:

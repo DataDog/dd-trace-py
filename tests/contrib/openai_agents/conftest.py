@@ -1,9 +1,9 @@
 import os
 
 from agents import Agent
+from agents import GuardrailFunctionOutput
 from agents import function_tool
 from agents import input_guardrail
-from agents import GuardrailFunctionOutput
 import pytest
 import vcr
 
@@ -61,7 +61,10 @@ def research_workflow():
     )
     yield Agent(
         name="Researcher",
-        instructions="""You are a helpful assistant that can research a topic using your research tool. Always research the topic before summarizing.""",
+        instructions=(
+            "You are a helpful assistant that can research a topic using your research tool. "
+            "Always research the topic before summarizing."
+        ),
         tools=[research],
         handoffs=[summarizer],
     )
@@ -88,7 +91,10 @@ def addition_agent_with_tool_errors():
     """An agent with addition tools that will error"""
     yield Agent(
         name="Addition Agent",
-        instructions="You are a helpful assistant specialized in addition calculations. Do not retry the tool call if it errors and instead return immediately",
+        instructions=(
+            "You are a helpful assistant specialized in addition calculations. "
+            "Do not retry the tool call if it errors and instead return immediately"
+        ),
         tools=[add_with_error],
     )
 
@@ -97,11 +103,11 @@ def addition_agent_with_tool_errors():
 async def simple_gaurdrail(
     context,
     agent,
-    input,
+    inp,
 ):
     return GuardrailFunctionOutput(
         output_info="dummy",
-        tripwire_triggered="safe" not in input,
+        tripwire_triggered="safe" not in inp,
     )
 
 
