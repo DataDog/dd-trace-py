@@ -80,7 +80,7 @@ def record_span_started():
 
 
 def record_span_created(span: Span):
-    is_root_span = span._get_ctx_item(PARENT_ID_KEY) != ROOT_PARENT_ID
+    is_root_span = span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
     has_session_id = span._get_ctx_item(SESSION_ID) is not None
     integration = span._get_ctx_item(INTEGRATION)
     autoinstrumented = integration is not None
@@ -149,7 +149,7 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     is_root_span = "0"
     if span and isinstance(span, Span):
         span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
-        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) != ROOT_PARENT_ID))
+        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
@@ -172,7 +172,7 @@ def record_span_exported(span: Optional[Span], error: Optional[str]):
     is_root_span = "0"
     if span and isinstance(span, Span):
         span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
-        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) != ROOT_PARENT_ID))
+        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPANS_EXPORTED, value=1, tags=tuple(tags)
