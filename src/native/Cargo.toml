@@ -9,11 +9,11 @@ strip = "debuginfo"
 opt-level = 3
 
 [dependencies]
-pyo3 = { version = "0.24", features = ["extension-module"] }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
-tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
+pyo3 = { version = "0.24.0", features = ["extension-module"] }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "dec5b9c" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "dec5b9c" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "dec5b9c" }
+tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "dec5b9c" }
 
 [build-dependencies]
 pyo3-build-config = "0.21.2"
