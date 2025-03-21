@@ -171,6 +171,11 @@ def send_telemetry(event):
             level="error",
         )
 
+    try:
+        p.wait(1)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
 
 def _get_clib():
     """Return the C library used by the system.
