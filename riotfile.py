@@ -2584,6 +2584,9 @@ venv = Venv(
                 "litellm": latest,
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
+                "botocore": latest,
+                "boto3": latest,
+                "google-auth": latest,
             },
         ),
         Venv(
