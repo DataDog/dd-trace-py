@@ -141,7 +141,7 @@ def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.
 
     skipped_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_SKIPPED, [])
     for report in skipped_tests:
-        if ("dd_quarantined", True) not in report.user_properties:
+        if USER_PROPERTY_QUARANTINED not in report.user_properties:
             terminalreporter.stats.setdefault("skipped", []).append(report)
 
     # TODO: report list of attempt-to-fix results.
