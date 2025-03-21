@@ -4,6 +4,7 @@ import typing
 
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.trace import Span
 from ddtrace.trace import tracer as default_tracer
 from tests.utils import override_global_config
@@ -50,3 +51,22 @@ def asm_context(
 
 def is_blocked(span: Span) -> bool:
     return span.get_tag("appsec.blocked") == "true" and span.get_tag("appsec.event") == "true"
+
+
+_ID = 0
+
+
+def build_payload(product, data, path, sha_hash=None):
+    global _ID
+    _ID += 1
+    return Payload(
+        {
+            "id": _ID,
+            "product_name": product,
+            "sha256_hash": sha_hash or hash(str(data)),
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )
