@@ -117,6 +117,8 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+                    {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -354,6 +356,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
+        {"name": "DD_DOGSTATSD_HOST", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
@@ -453,6 +456,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": None},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+        {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
@@ -460,6 +465,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": "set()"},
+        {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": ""},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
@@ -517,7 +524,6 @@ import ddtrace.settings.exception_replay
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-        {"name": "trace_sample_rate", "origin": "default", "value": 1.0},
     ]
     assert configurations == expected, configurations
 

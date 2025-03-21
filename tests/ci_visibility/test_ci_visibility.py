@@ -31,6 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 import ddtrace.internal.test_visibility._internal_item_ids
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
@@ -332,7 +333,8 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
-        _do_request.assert_not_called()
+        if agentless_enabled:
+            _do_request.assert_called()
         CIVisibility.disable()
 
 
@@ -457,7 +459,7 @@ def test_get_client_do_request_agentless_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -472,7 +474,7 @@ def test_get_client_do_request_evp_proxy_headers():
     response.status = 200
 
     with mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request, mock.patch(
-        "ddtrace.internal.compat.get_connection_response", return_value=response
+        "ddtrace.internal.http.HTTPConnection.getresponse", return_value=response
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
@@ -520,7 +522,7 @@ def test_git_do_request_agentless(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()
@@ -553,7 +555,7 @@ def test_git_do_request_evp(git_repo):
     setattr(response, "status", 200)  # noqa: B010
 
     with mock.patch("ddtrace.internal.ci_visibility.git_client.get_connection") as mock_get_connection:
-        with mock.patch("ddtrace.internal.compat.get_connection_response", return_value=response):
+        with mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response):
             mock_http_connection = mock.Mock()
             mock_http_connection.request = mock.Mock()
             mock_http_connection.close = mock.Mock()
@@ -1415,3 +1417,32 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             CIVisibility.enable()
             CIVisibility.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
+
+
+class TestCIVisibilityLibraryCapabilities(TracerTestCase):
+    def tearDown(self):
+        try:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+        except Exception:
+            # no-dd-sa:python-best-practices/no-silent-exception
+            pass
+
+    def test_set_library_capabilities(self):
+        with _ci_override_env(), set_up_mock_civisibility(), _patch_dummy_writer():
+            CIVisibility.enable()
+            CIVisibility.set_library_capabilities(
+                LibraryCapabilities(
+                    early_flake_detection="1",
+                    auto_test_retries=None,
+                    test_impact_analysis="2",
+                )
+            )
+
+        payload = msgpack.loads(
+            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+        )
+        assert payload["metadata"]["test"] == {
+            "_dd.library_capabilities.early_flake_detection": "1",
+            "_dd.library_capabilities.test_impact_analysis": "2",
+        }

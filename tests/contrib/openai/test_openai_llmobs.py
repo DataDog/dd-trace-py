@@ -6,6 +6,9 @@ from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
+from tests.contrib.openai.utils import mock_openai_chat_completions_response
+from tests.contrib.openai.utils import mock_openai_completions_response
+from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -14,6 +17,26 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsOpenaiV1:
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
+        # mock out the completions response
+        mock_completions_post.return_value = mock_openai_completions_response
+        model = "gpt-3.5-turbo"
+        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
+        client.completions.create(
+            model=model,
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -45,6 +68,26 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) >= (1, 60),
+        reason="latest openai versions use modified azure requests",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_completion_azure_proxy(
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        prompt = "Hello world"
+        mock_completions_post.return_value = mock_openai_completions_response
+        azure_client = openai.AzureOpenAI(
+            base_url="http://0.0.0.0:4000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.completions.create(
+            model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        assert mock_llmobs_writer.enqueue.call_count == 0
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -141,6 +184,18 @@ class TestLLMObsOpenaiV1:
             ),
         )
 
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Ensure llmobs records are not emitted for chat completion endpoints when the base_url is specified."""
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        model = "gpt-3.5-turbo"
+        input_messages = multi_message_input
+        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
+        client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -148,12 +203,7 @@ class TestLLMObsOpenaiV1:
         """
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion.yaml"):
             model = "gpt-3.5-turbo"
-            input_messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Who won the world series in 2020?"},
-                {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                {"role": "user", "content": "Where was it played?"},
-            ]
+            input_messages = multi_message_input
             client = openai.OpenAI()
             resp = client.chat.completions.create(
                 model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
@@ -172,6 +222,28 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) >= (1, 60),
+        reason="latest openai versions use modified azure requests",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_azure_proxy(
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        input_messages = [
+            {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
+        ]
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        azure_client = openai.AzureOpenAI(
+            base_url="http://0.0.0.0:4000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        assert mock_llmobs_writer.enqueue.call_count == 0
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -458,12 +530,7 @@ class TestLLMObsOpenaiV1:
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
                 model = "gpt-3.5-turbo"
                 client = openai.OpenAI()
-                input_messages = [
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ]
+                input_messages = multi_message_input
                 client.chat.completions.create(
                     model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
                 )
