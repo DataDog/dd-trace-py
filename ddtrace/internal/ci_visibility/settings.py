@@ -36,8 +36,7 @@ class TestOptEnv(DDConfig):
         """Class encapsulating CI Visibility environment variables and their access."""
 
         # Prefix for CI Visibility environment variables
-        __prefix__ = "civisibility"
-
+        __item__ = __prefix__ = "civisibility"
         # ITR-related settings
         itr_suite_mode = DDConfig.v(bool, "itr_suite_mode", private=True, default=False)
         itr_force_enable_coverage = DDConfig.v(bool, "itr_force_enable_coverage", default=False, private=True)
