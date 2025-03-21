@@ -284,7 +284,8 @@ def get_messages_from_converse_content(role: str, content: list):
 
 class OaiSpanAdapter:
     """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
-    This is so the integrations code does not need to interact directly with any oai agent sdk types.
+    This is to consolidate the code where we access oai library types which provides a clear starting point for
+    troubleshooting data issues.
     It is also handy for providing defaults when we bump into missing data or unexpected data shapes.
     """
 
