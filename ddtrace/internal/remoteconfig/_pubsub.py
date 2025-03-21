@@ -63,6 +63,8 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 """
 
+from abc import ABC
+from abc import abstractmethod
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 
@@ -79,10 +81,14 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-class PubSub:
+class PubSub(ABC):
     _shared_data = None  # type: PublisherSubscriberConnector
     _publisher = None  # type: RemoteConfigPublisherBase
     _subscriber = None  # type: RemoteConfigSubscriber
+
+    @abstractmethod
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
 
     def start_subscriber(self):
         self._subscriber.start()

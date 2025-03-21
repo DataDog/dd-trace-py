@@ -17,7 +17,6 @@ from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.internal import core
-from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
@@ -27,6 +26,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
+from tests.appsec.utils import build_payload
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -54,25 +54,6 @@ def test_rc_enabled_by_default(tracer):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     assert asm_config._asm_can_be_enabled
-
-
-_ID = 0
-
-
-def build_payload(product, data, path, sha_hash=None):
-    global _ID
-    _ID += 1
-    return Payload(
-        {
-            "id": _ID,
-            "product_name": product,
-            "sha256_hash": sha_hash or hash(str(data)),
-            "length": len(str(data)),
-            "tuf_version": 1,
-        },
-        f"Datadog/1/{product}/{path}",
-        data,
-    )
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_worker):
