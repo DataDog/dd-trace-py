@@ -248,7 +248,7 @@ class LLMObs(Service):
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
         # only do the annotations if it matches the context
-        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warsning log in `annotate`
+        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
         current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
