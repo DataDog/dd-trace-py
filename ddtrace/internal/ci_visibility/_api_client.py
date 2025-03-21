@@ -587,6 +587,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "type": "ci_app_libraries_tests_request",
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
+                    "commit_message": self._git_data.commit_message,
                 },
             }
         }
