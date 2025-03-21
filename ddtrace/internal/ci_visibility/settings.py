@@ -24,7 +24,7 @@ class CIEnv(Env):
         __prefix__ = "DD"
 
         # Agent URL
-        agent_url = Env.var(str, "agent_url", private=True, default=None, help="Internal agent URL used for testing")
+        agent_url = Env.var(str, "agent_url", private=True, default="", help="Internal agent URL used for testing")
 
         # Authentication
         api_key = Env.var(str, "api_key", private=True, default=None, help="Internal API key used for testing")

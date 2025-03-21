@@ -186,7 +186,7 @@ class CIVisibility(Service):
                 url = ddconfig._trace_agent_url
 
                 env_agent_url = CIEnv.DDEnv.agent_url
-                if env_agent_url is not None:
+                if env_agent_url != "":
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
 
