@@ -6,7 +6,7 @@ import unittest
 import wrapt
 
 import ddtrace
-from ddtrace import config
+from ddtrace import config as ddconfig
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -41,13 +41,13 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.settings import TestOptEnv
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
@@ -55,12 +55,12 @@ log = get_logger(__name__)
 _global_skipped_elements = 0
 
 # unittest default settings
-config._add(
+ddconfig._add(
     "unittest",
     dict(
         _default_service="unittest",
         operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
+        strict_naming=TestOptEnv.CIVisibilityEnv.unittest_strict_naming,
     ),
 )
 
