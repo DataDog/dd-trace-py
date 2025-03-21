@@ -125,6 +125,8 @@ def set_up_mock_civisibility(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
         side_effect=_fake_fetch_tests_to_skip,
     ), mock.patch(
+        "ddtrace.internal.ci_visibility.recorder.ci_config",
+    ) as mock_ci_config, mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
         return_value=_fetch_unique_tests_side_effect(unique_test_ids),
     ), mock.patch.multiple(
@@ -138,6 +140,8 @@ def set_up_mock_civisibility(
         upload_git_metadata=_mock_upload_git_metadata,
         _do_request=NotImplementedError,
     ):
+        mock_ci_config.api_key = "civisfakeapikey"
+
         yield
 
 

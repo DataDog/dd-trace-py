@@ -1,10 +1,10 @@
-import os
 import time
 import typing as t
 
 from wrapt.importer import when_imported
 
 from ddtrace import config
+from ddtrace.internal.ci_visibility.settings import test_opt_config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
@@ -26,28 +26,10 @@ if (window.DD_RUM && window.DD_RUM.stopSession) {
 }
 """
 
-_DEFAULT_FLUSH_SLEEP_MS = 500
-
-
-def _get_flush_sleep_ms() -> int:
-    env_flush_sleep_ms = os.getenv("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
-    if env_flush_sleep_ms is None:
-        return _DEFAULT_FLUSH_SLEEP_MS
-
-    try:
-        return int(env_flush_sleep_ms)
-    except Exception:  # noqa E722
-        log.warning(
-            "Could not convert DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS value %s to int, using default: %s",
-            env_flush_sleep_ms,
-            _DEFAULT_FLUSH_SLEEP_MS,
-        )
-        return _DEFAULT_FLUSH_SLEEP_MS
-
 
 config._add(
     "selenium",
-    dict(flush_sleep_ms=_get_flush_sleep_ms()),
+    dict(flush_sleep_ms=test_opt_config.civisibility.rum_flush_wait_millis),
 )
 
 
