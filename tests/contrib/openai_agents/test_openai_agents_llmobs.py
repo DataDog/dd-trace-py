@@ -102,7 +102,7 @@ def _assert_expected_agent_run(
 
 
 @pytest.mark.asyncio
-async def test_single_simple_agent(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
@@ -138,7 +138,7 @@ async def test_single_simple_agent(agents, mock_tracer, request_vcr, llmobs_even
 
 
 @pytest.mark.asyncio
-async def test_manual_tracing(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
 
@@ -185,7 +185,9 @@ async def test_manual_tracing(agents, mock_tracer, request_vcr, llmobs_events, s
 
 
 @pytest.mark.asyncio
-async def test_single_agent_with_tool_calls(agents, mock_tracer, request_vcr, llmobs_events, addition_agent):
+async def test_llmobs_single_agent_with_tool_calls_llmobs(
+    agents, mock_tracer, request_vcr, llmobs_events, addition_agent
+):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
@@ -248,7 +250,7 @@ async def test_single_agent_with_tool_calls(agents, mock_tracer, request_vcr, ll
 
 
 @pytest.mark.asyncio
-async def test_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_events, research_workflow):
+async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_events, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
@@ -348,7 +350,7 @@ async def test_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_
 
 
 @pytest.mark.asyncio
-async def test_single_agent_with_tool_errors(
+async def test_llmobs_single_agent_with_tool_errors(
     agents, mock_tracer, request_vcr, llmobs_events, addition_agent_with_tool_errors
 ):
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
@@ -412,7 +414,7 @@ async def test_single_agent_with_tool_errors(
 
 
 @pytest.mark.asyncio
-async def test_single_agent_with_gaurdrail_errors(agents, llmobs_events, simple_agent_with_gaurdrail):
+async def test_llmobs_single_agent_with_gaurdrail_errors(agents, llmobs_events, simple_agent_with_gaurdrail):
     from agents.exceptions import InputGuardrailTripwireTriggered
 
     with pytest.raises(InputGuardrailTripwireTriggered):
