@@ -33,7 +33,6 @@ from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
-from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
@@ -85,8 +84,6 @@ from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -143,23 +140,6 @@ def _get_custom_configurations() -> Dict[str, str]:
             custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
 
     return custom_configurations
-
-
-def _do_request(
-    method: str, url: str, payload: str, headers: Dict[str, str], timeout: int = DEFAULT_TIMEOUT
-) -> Response:
-    try:
-        parsed_url = verify_url(url)
-        url_path = parsed_url.path
-        conn = get_connection(url, timeout=timeout)
-        log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
-        conn.request("POST", url_path, payload, headers)
-        resp = conn.getresponse()
-        log.debug("Response status: %s", resp.status)
-        result = Response.from_http_response(resp)
-    finally:
-        conn.close()
-    return result
 
 
 class CIVisibilityTracer(Tracer):
