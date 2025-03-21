@@ -8,6 +8,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
+    _provider_map = {}
 
     def _set_base_span_tags(
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
