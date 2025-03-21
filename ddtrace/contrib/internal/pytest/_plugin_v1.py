@@ -22,7 +22,6 @@ from _pytest.nodes import get_fslocation_from_item
 import pytest
 
 import ddtrace
-from ddtrace import DDTraceDeprecationWarning
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -69,6 +68,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.vendor.debtcollector import deprecate

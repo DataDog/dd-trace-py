@@ -5,7 +5,6 @@ import typing as t
 
 import pytest
 
-from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
@@ -64,6 +63,7 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate

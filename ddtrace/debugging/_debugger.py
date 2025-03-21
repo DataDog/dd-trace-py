@@ -21,7 +21,6 @@ from typing import Type
 from typing import TypeVar
 from typing import cast
 
-import ddtrace
 from ddtrace import config as ddconfig
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
@@ -55,6 +54,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import Tracer
+from ddtrace.trace import tracer as global_tracer
 
 
 log = get_logger(__name__)
@@ -319,7 +319,7 @@ class Debugger(Service):
     def __init__(self, tracer: Optional[Tracer] = None) -> None:
         super().__init__()
 
-        self._tracer = tracer or ddtrace.tracer
+        self._tracer = tracer or global_tracer
         service_name = di_config.service_name
 
         self._status_logger = status_logger = self.__logger__(service_name)

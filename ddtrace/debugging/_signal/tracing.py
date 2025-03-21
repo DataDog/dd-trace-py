@@ -19,6 +19,7 @@ from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+import ddtrace.trace
 from ddtrace.trace import Span
 
 
@@ -42,7 +43,7 @@ class DynamicSpan(Signal):
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         probe = t.cast(SpanFunctionProbe, self.probe)
 
-        self._span_cm = ddtrace.tracer.trace(
+        self._span_cm = ddtrace.trace.tracer.trace(
             SPAN_NAME,
             service=None,  # Currently unused
             resource=probe.func_qname,
