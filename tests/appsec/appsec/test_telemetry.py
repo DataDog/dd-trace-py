@@ -198,7 +198,6 @@ unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_run
 
 
 def _wrapped_run(*args, **kwargs):
-    print(f"Wrapped run: {args} {kwargs}")
     unpatched_run(*args, **kwargs)
     return -3
 
