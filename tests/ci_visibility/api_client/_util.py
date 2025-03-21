@@ -159,7 +159,7 @@ class TestTestVisibilityAPIClientBase:
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
-    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
+    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
     default_configurations = {
         "os.architecture": "arm64",
