@@ -185,8 +185,10 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # _self_acquired_at is only set when the acquire was captured
             # if it's not set, we're not capturing the release
             start = self._self_acquired_at
-            del self._self_acquired_at
-
+            try:
+                del self._self_acquired_at
+            except AttributeError:
+                LOG.debug("Failed to delete _self_acquired_at")
         try:
             return inner_func(*args, **kwargs)
         finally:
