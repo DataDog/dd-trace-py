@@ -117,11 +117,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         return llmobs_span
 
-    def _set_trace_attributes(self, span: Span, oai_trace: Any) -> None:
-        if not isinstance(oai_trace, OaiTraceAdapter):
-            logger.warning("Expected OaiTraceAdapter but got %s", type(oai_trace))
-            return
-
+    def _set_trace_attributes(self, span: Span, oai_trace: OaiTraceAdapter) -> None:
         trace_info = self.get_trace_info(oai_trace)
         if not trace_info:
             return
@@ -152,13 +148,14 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self,
         span: Span,
         args: List[Any],
-        kwargs: Dict[str, Any],
+        kwargs: Dict[str, Any | OaiTraceAdapter | OaiSpanAdapter],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        if kwargs.get("oai_trace") is not None:
-            self._set_trace_attributes(span, kwargs.get("oai_trace"))
+        oai_trace = kwargs.get("oai_trace")
+        if oai_trace is not None and isinstance(oai_trace, OaiTraceAdapter):
+            self._set_trace_attributes(span, oai_trace)
             return
 
         oai_span = kwargs.get("oai_span")
