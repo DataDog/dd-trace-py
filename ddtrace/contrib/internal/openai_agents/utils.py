@@ -429,6 +429,10 @@ class LLMObsTraceInfo:
 
     trace_id: str
     span_id: str
+    """
+    We only update trace's input/output llm spans when that llm span's parent is a top-level agent span.
+    This is to ignore extraneous nested llm spans that aren't part of the core agent logic.
+    """
     current_top_level_agent_span_id: Optional[str] = None
     input_oai_span: Optional[OaiSpanAdapter] = None
     output_oai_span: Optional[OaiSpanAdapter] = None
@@ -443,8 +447,8 @@ class ToolCall:
     arguments: str
     llm_span_id: Optional[str] = None  # ID of the LLM span that initiated this tool call
     tool_span_id: Optional[str] = None  # ID of the tool span that executed this call
-    tool_kind: Optional[str] = None  # Type of tool (function, handoff, etc)
-    is_handoff_completed: bool = False  # Track if handoff is completed to avoid dupe links
+    tool_kind: Optional[str] = None  # one of "function", "handoff"
+    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
 
 
 class ToolCallTracker:
@@ -455,7 +459,6 @@ class ToolCallTracker:
         self._input_lookup: Dict[Tuple[str, str], str] = {}  # (name, args) -> tool_id
 
     def register_llm_tool_call(self, tool_id: str, tool_name: str, arguments: str, llm_span_id: str) -> None:
-        """Register a new tool call from an LLM."""
         tool_call = ToolCall(
             tool_id=tool_id,
             tool_name=tool_name,
@@ -466,25 +469,22 @@ class ToolCallTracker:
         self._input_lookup[(tool_name, arguments)] = tool_id
 
     def register_tool_execution(self, tool_id: str, tool_span_id: str, tool_kind: str) -> None:
-        """Register the execution of a tool."""
         if tool_id in self._tool_calls:
             self._tool_calls[tool_id].tool_span_id = tool_span_id
             self._tool_calls[tool_id].tool_kind = tool_kind
 
     def mark_handoff_completed(self, tool_id: str) -> None:
-        """Mark a handoff as completed."""
+        # we need to mark when a hand-off is completed since we only want to link the output of a
+        # handoff tool span to the FIRST llm call that has that hand-off as input.
         if tool_id in self._tool_calls:
             self._tool_calls[tool_id].is_handoff_completed = True
 
     def find_by_input(self, tool_name: str, arguments: str) -> Optional[ToolCall]:
-        """Find a tool call by its input parameters."""
         tool_id = self._input_lookup.get((tool_name, arguments))
         return self._tool_calls.get(tool_id) if tool_id else None
 
     def find_by_id(self, tool_id: str) -> Optional[ToolCall]:
-        """Find a tool call by its ID."""
         return self._tool_calls.get(tool_id)
 
     def cleanup_input(self, tool_name: str, arguments: str) -> None:
-        """Remove an input lookup entry after it's been used."""
         self._input_lookup.pop((tool_name, arguments), None)
