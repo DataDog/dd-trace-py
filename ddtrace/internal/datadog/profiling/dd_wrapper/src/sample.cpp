@@ -72,18 +72,18 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     CodeProvenance::get_instance().add_filename(filename);
 
     const ddog_prof_Location loc = {
-        null_mapping, // No support for mappings in Python
-        {
-          to_slice(name),
-          { 0 },
-          {}, // No support for system_name in Python
-          { 0 },
-          to_slice(filename),
-          { 0 },
-          0, // We don't know the start_line for the function
+        .mapping = null_mapping, // No support for mappings in Python
+        .function = {
+          .name = to_slice(name),
+          .name_id = { 0 },
+          .system_name = {}, // No support for system_name in Python
+          .system_name_id = { 0 },
+          .filename = to_slice(filename),
+          .filename_id = { 0 },
+          .start_line = 0, // We don't know the start_line for the function
         },
-        address,
-        line,
+        .address = address,
+        .line = line,
     };
 
     locations.emplace_back(loc);
@@ -164,9 +164,9 @@ Datadog::Sample::flush_sample(bool reverse_locations)
     }
 
     const ddog_prof_Sample sample = {
-        { locations.data(), locations.size() },
-        { values.data(), values.size() },
-        { labels.data(), labels.size() },
+        .locations = { locations.data(), locations.size() },
+        .values = { values.data(), values.size() },
+        .labels = { labels.data(), labels.size() },
     };
 
     const bool ret = profile_state.collect(sample, endtime_ns);

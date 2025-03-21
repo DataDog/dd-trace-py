@@ -77,8 +77,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
 
     std::vector<ddog_prof_Exporter_File> files_to_send = { {
-      to_slice("auto.pprof"),
-      ddog_Vec_U8_as_slice(&encoded->buffer),
+      .name = to_slice("auto.pprof"),
+      .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     } };
 
     // DEV: This function is called with the profile_lock held, and the following
@@ -86,8 +86,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
     if (json_str_opt.has_value() && !json_str_opt.value().empty()) {
         files_to_send.push_back({
-          to_slice("code-provenance.json"),
-          to_byte_slice(json_str_opt.value()),
+          .name = to_slice("code-provenance.json"),
+          .file = to_byte_slice(json_str_opt.value()),
         });
     }
 
@@ -96,8 +96,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
                                        encoded->start,
                                        encoded->end,
                                        ddog_prof_Exporter_Slice_File_empty(),
-                                       { reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
-                                         static_cast<uintptr_t>(files_to_send.size()) },
+                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
+                                         .len = static_cast<uintptr_t>(files_to_send.size()) },
                                        nullptr,
                                        encoded->endpoints_stats,
                                        nullptr,
