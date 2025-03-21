@@ -6,14 +6,14 @@ import typing as t
 
 from ddtrace import config
 from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
-from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config
 
 
 def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
     return dict(
         _default_service="default_test_visibility_service",
         itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
-        if TestOptEnv.civisibility.itr_suite_mode
+        if test_opt_config.civisibility.itr_suite_mode
         else ITR_SKIPPING_LEVEL.TEST,
         _itr_skipping_ignore_parameters=False,
     )

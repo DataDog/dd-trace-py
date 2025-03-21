@@ -4092,8 +4092,11 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch("ddtrace.ext.git._get_executable_path", return_value=None), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(),
-        ) as mock_ddconfig:
+        ) as mock_ddconfig, mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ci_config",
+        ) as mock_ci_config:
             mock_ddconfig._ci_visibility_agentless_enabled = True
+            mock_ci_config.api_key = "foobar.baz"
             self.inline_run("--ddtrace")
 
             spans = self.pop_spans()

@@ -1016,14 +1016,13 @@ def test_encoder_pack_payload():
 def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_url, expected_url_prefix):
     with _ci_override_env(
         dict(
-            DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
             DD_CIVISIBILITY_AGENTLESS_URL=dd_ci_visibility_agentless_url,
             DD_TAGS="test.configuration.disk:slow,test.configuration.memory:low",
             DD_SERVICE="test-service",
             DD_ENV="test-env",
         )
-    ), mock.patch(
+    ), mock.patch("ddtrace.internal.ci_visibility.recorder.ci_config") as ci_config, mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=TestVisibilityAPISettings(True, True, False, True),
     ), mock.patch.multiple(
@@ -1063,6 +1062,7 @@ def test_fetch_tests_to_skip_custom_configurations(dd_ci_visibility_agentless_ur
         "ddtrace.internal.ci_visibility._api_client.uuid4", return_value="checkoutmyuuid4"
     ):
         mock_build_packfiles.return_value.__enter__.return_value = "myprefix", _GitSubprocessDetails("", "", 10, 0)
+        ci_config.api_key = "foobar.baz"
         CIVisibility.enable(service="test-service")
 
         expected_data_arg = json.dumps(

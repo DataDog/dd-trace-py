@@ -65,8 +65,8 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.settings import ci_config as CIEnv
-from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
+from ddtrace.internal.ci_visibility.settings import ci_config
+from ddtrace.internal.ci_visibility.settings import test_opt_config
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
@@ -160,10 +160,10 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            if TestOptEnv.civisibility.use_ci_context_provider:
+            if test_opt_config.civisibility.use_ci_context_provider:
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
-                url = CIEnv.agent_url or ddconfig._trace_agent_url
+                url = ci_config.agent_url or ddconfig._trace_agent_url
 
                 self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:
@@ -180,9 +180,9 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = CIEnv.api_key or TestOptEnv.api_key
+        self._api_key = ci_config.api_key or test_opt_config.api_key
 
-        self._dd_site = TestOptEnv.site
+        self._dd_site = test_opt_config.site
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
         self._itr_skipping_level: ITR_SKIPPING_LEVEL = ddconfig.test_visibility.itr_skipping_level
         self._itr_skipping_ignore_parameters: bool = ddconfig.test_visibility._itr_skipping_ignore_parameters
@@ -196,7 +196,7 @@ class CIVisibility(Service):
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
-        self._is_auto_injected = TestOptEnv.civisibility.auto_instrumentation_provider
+        self._is_auto_injected = test_opt_config.civisibility.auto_instrumentation_provider
         self._service = service
         self._codeowners = None
         self._root_dir = None
@@ -225,7 +225,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        dd_env = CIEnv.env or ddconfig.env
+        dd_env = ci_config.env or ddconfig.env
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
@@ -309,7 +309,7 @@ class CIVisibility(Service):
 
     @staticmethod
     def _should_collect_coverage(coverage_enabled_by_api):
-        if not coverage_enabled_by_api and not TestOptEnv.civisibility.itr_force_enable_coverage:
+        if not coverage_enabled_by_api and not test_opt_config.civisibility.itr_force_enable_coverage:
             return False
         if not is_coverage_available():
             log.warning(
@@ -422,7 +422,7 @@ class CIVisibility(Service):
 
     @classmethod
     def test_skipping_enabled(cls) -> bool:
-        if not cls.enabled or cls._instance is None or TestOptEnv.civisibility.itr_prevent_test_skipping:
+        if not cls.enabled or cls._instance is None or test_opt_config.civisibility.itr_prevent_test_skipping:
             return False
         return cls._instance._api_settings.skipping_enabled
 
@@ -439,19 +439,23 @@ class CIVisibility(Service):
     def is_atr_enabled(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.flaky_test_retries_enabled and TestOptEnv.civisibility.flaky_retry_enabled
+        return (
+            cls._instance._api_settings.flaky_test_retries_enabled and test_opt_config.civisibility.flaky_retry_enabled
+        )
 
     @classmethod
     def is_test_management_enabled(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.test_management.enabled and TestOptEnv.civisibility.test_management_enabled
+        return (
+            cls._instance._api_settings.test_management.enabled and test_opt_config.civisibility.test_management_enabled
+        )
 
     @classmethod
     def should_collect_coverage(cls) -> bool:
         if cls._instance is None:
             return False
-        return cls._instance._api_settings.coverage_enabled or TestOptEnv.civisibility.itr_force_enable_coverage
+        return cls._instance._api_settings.coverage_enabled or test_opt_config.civisibility.itr_force_enable_coverage
 
     def _fetch_tests_to_skip(self) -> None:
         # Make sure git uploading has finished
@@ -527,7 +531,7 @@ class CIVisibility(Service):
     def enable(cls, tracer=None, config=None, service=None) -> None:
         log.debug("Enabling %s", cls.__name__)
         if ddconfig._ci_visibility_agentless_enabled:
-            if not (CIEnv.api_key or TestOptEnv.api_key):
+            if not (ci_config.api_key or test_opt_config.api_key):
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
                     " DD_API_KEY is not set",
@@ -614,7 +618,7 @@ class CIVisibility(Service):
                     "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
                 )
 
-        if self._api_settings.flaky_test_retries_enabled and not TestOptEnv.civisibility.flaky_retry_enabled:
+        if self._api_settings.flaky_test_retries_enabled and not test_opt_config.civisibility.flaky_retry_enabled:
             log.warning(
                 "Auto Test Retries is enabled by API but disabled by "
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
@@ -809,8 +813,8 @@ class CIVisibility(Service):
 
             return AutoTestRetriesSettings(
                 enabled=True,
-                max_retries=TestOptEnv.civisibility.flaky_retry_count,
-                max_session_total_retries=TestOptEnv.civisibility.total_flaky_retry_count,
+                max_retries=test_opt_config.civisibility.flaky_retry_count,
+                max_session_total_retries=test_opt_config.civisibility.total_flaky_retry_count,
             )
 
         return None

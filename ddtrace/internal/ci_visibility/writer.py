@@ -12,7 +12,7 @@ from ddtrace.ext.test import TEST_SESSION_NAME
 from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
-from ddtrace.internal.ci_visibility.settings import ci_config as CIEnv
+from ddtrace.internal.ci_visibility.settings import ci_config
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
@@ -52,7 +52,7 @@ class CIVisibilityEventClient(WriterClientBase):
             "*",
             {
                 "language": "python",
-                "env": CIEnv.env or config.env,
+                "env": ci_config.env or config.env,
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",

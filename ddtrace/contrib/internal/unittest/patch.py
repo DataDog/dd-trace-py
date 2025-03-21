@@ -41,7 +41,7 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
-from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
@@ -60,7 +60,7 @@ ddconfig._add(
     dict(
         _default_service="unittest",
         operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=TestOptEnv.civisibility.unittest_strict_naming,
+        strict_naming=test_opt_config.civisibility.unittest_strict_naming,
     ),
 )
 

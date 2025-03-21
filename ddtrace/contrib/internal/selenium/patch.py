@@ -4,7 +4,7 @@ import typing as t
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
@@ -27,13 +27,9 @@ if (window.DD_RUM && window.DD_RUM.stopSession) {
 """
 
 
-def _get_flush_sleep_ms() -> int:
-    return TestOptEnv.civisibility.rum_flush_wait_millis
-
-
 config._add(
     "selenium",
-    dict(flush_sleep_ms=_get_flush_sleep_ms()),
+    dict(flush_sleep_ms=test_opt_config.civisibility.rum_flush_wait_millis),
 )
 
 
