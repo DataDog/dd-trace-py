@@ -29,7 +29,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.text == BLOCKED_RESPONSE_JSON
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=True,
         )
@@ -45,7 +45,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert query == {"attack": "1' or '1' = '1'"}
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=False,
         )
