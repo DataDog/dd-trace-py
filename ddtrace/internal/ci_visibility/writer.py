@@ -52,7 +52,7 @@ class CIVisibilityEventClient(WriterClientBase):
             "*",
             {
                 "language": "python",
-                "env": CIEnv.DDEnv.env or config.env,
+                "env": CIEnv.env or config.env,
                 "runtime-id": get_runtime_id(),
                 "library_version": ddtrace.__version__,
                 "_dd.test.is_user_provided_service": "true" if config._is_user_provided_service else "false",

@@ -2,34 +2,24 @@ from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.settings._core import DDConfig
 
 
-DEFAULT_TIMEOUT = 15
-DEFAULT_ITR_SKIPPABLE_TIMEOUT = 20
-
-
 class CIEnv(DDConfig):
-    """Class encapsulating CI environment variables and their access."""
+    """Class encapsulating CI DD environment variables and their access.
 
-    # Prefix for all CI environment variables
-    __prefix__ = "ci"
+    These are internal environment variables primarily used for testing
+    and CI/CD pipelines within DataDog.
+    """
 
-    class DDEnv(DDConfig):
-        """Class encapsulating CI DD environment variables and their access.
+    # Prefix for CI_DD environment variables
+    __prefix__ = "ci.dd"
 
-        These are internal environment variables primarily used for testing
-        and CI/CD pipelines within DataDog.
-        """
+    # Agent URL
+    agent_url = DDConfig.v(str, "agent_url", private=True, default="", help="Internal agent URL used for testing")
 
-        # Prefix for CI_DD environment variables
-        __prefix__ = "dd"
+    # Authentication
+    api_key = DDConfig.v(str, "api_key", private=True, default="", help="Internal API key used for testing")
 
-        # Agent URL
-        agent_url = DDConfig.v(str, "agent_url", private=True, default="", help="Internal agent URL used for testing")
-
-        # Authentication
-        api_key = DDConfig.v(str, "api_key", private=True, default="", help="Internal API key used for testing")
-
-        # Env
-        env = DDConfig.v(str, "env", private=True, default="", help="Environment name for CI/CD pipelines")
+    # Env
+    env = DDConfig.v(str, "env", private=True, default="", help="Environment name for CI/CD pipelines")
 
 
 class TestOptEnv(DDConfig):

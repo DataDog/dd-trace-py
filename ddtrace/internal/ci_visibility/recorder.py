@@ -165,7 +165,7 @@ class CIVisibility(Service):
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 url = ddconfig._trace_agent_url
 
-                env_agent_url = CIEnv.DDEnv.agent_url
+                env_agent_url = CIEnv.agent_url
                 if env_agent_url != "":
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     url = env_agent_url
@@ -185,7 +185,7 @@ class CIVisibility(Service):
         if custom_configurations:
             self._configurations["custom"] = custom_configurations
 
-        self._api_key = CIEnv.DDEnv.api_key or TestOptEnv.api_key
+        self._api_key = CIEnv.api_key or TestOptEnv.api_key
 
         self._dd_site = TestOptEnv.site
         self.config = config or ddconfig.test_visibility  # type: Optional[IntegrationConfig]
@@ -230,7 +230,7 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        dd_env = CIEnv.DDEnv.env or ddconfig.env
+        dd_env = CIEnv.env or ddconfig.env
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
@@ -534,7 +534,7 @@ class CIVisibility(Service):
     def enable(cls, tracer=None, config=None, service=None) -> None:
         log.debug("Enabling %s", cls.__name__)
         if ddconfig._ci_visibility_agentless_enabled:
-            if not (CIEnv.DDEnv.api_key or TestOptEnv.api_key):
+            if not (CIEnv.api_key or TestOptEnv.api_key):
                 log.critical(
                     "%s disabled: environment variable DD_CIVISIBILITY_AGENTLESS_ENABLED is true but"
                     " DD_API_KEY is not set",
