@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import subprocess
+import threading
 
 import pytest
 
@@ -288,3 +289,98 @@ def test_config_over_env_var(_iast_enabled, no_ddtracerun, monkeypatch, capfd):
     assert f"IAST env var: {_iast_enabled.capitalize()}" in captured.out
     assert "hi" in captured.out
     assert "ImportError: IAST not enabled" not in captured.err
+
+
+@pytest.mark.parametrize(
+    "module_name,expected_error",
+    [
+        ("", "Module name too long"),
+        ("a" * 540, "Module name too long"),
+        ("invalid!module@name", "Invalid characters in module name"),
+        ("module/name", "Invalid characters in module name"),
+        (None, "argument 1 must be str, not None"),
+    ],
+)
+def test_should_iast_patch_invalid_input(module_name, expected_error):
+    with pytest.raises(Exception) as excinfo:
+        iastpatch.should_iast_patch(module_name)
+    assert str(excinfo.value) == expected_error
+
+
+def test_should_iast_patch_empty_lists():
+    # Limpiar las listas existentes
+    os.environ[IAST.PATCH_MODULES] = ""
+    os.environ[IAST.DENY_MODULES] = ""
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
+
+    # Probar con listas vacías
+    assert iastpatch.should_iast_patch("some.module") == iastpatch.DENIED_NOT_FOUND
+
+
+def test_should_iast_patch_max_list_size():
+    # Probar con listas muy grandes
+    large_list = ",".join([f"module{i}" for i in range(1000)])
+    os.environ[IAST.PATCH_MODULES] = large_list
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    assert iastpatch.should_iast_patch("module1") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+
+
+@pytest.mark.parametrize(
+    "module_name,allowlist,denylist,expected_result",
+    [
+        # Módulo en ambas listas (denylist tiene prioridad)
+        ("module.both", "module.both.", "module.both.", iastpatch.ALLOWED_USER_ALLOWLIST),
+        # Submódulo en allowlist pero módulo padre en denylist
+        ("parent.child", "parent.child.", "parent.", iastpatch.ALLOWED_USER_ALLOWLIST),
+        # Módulo padre en allowlist pero submódulo en denylist
+        ("parent.child", "parent.", "parent.child.", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        # Conflicto entre static y user lists
+        ("django.core", "django.core.", "", iastpatch.ALLOWED_USER_ALLOWLIST),
+    ],
+)
+def test_should_iast_patch_priority_conflicts(module_name, allowlist, denylist, expected_result):
+    os.environ[IAST.PATCH_MODULES] = allowlist
+    os.environ[IAST.DENY_MODULES] = denylist
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    assert iastpatch.should_iast_patch(module_name) == expected_result
+
+
+@pytest.mark.parametrize(
+    "module_name,expected_result",
+    [
+        ("__main__", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("__init__", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("a.b.c.d.e.f", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("module2.sub1", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("my_module._private", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+    ],
+)
+def test_should_iast_patch_special_modules(module_name, expected_result):
+    assert iastpatch.should_iast_patch(module_name) == expected_result
+
+
+def test_should_iast_patch_cached_packages():
+    # Verificar que cached_packages funciona correctamente
+    result1 = iastpatch.should_iast_patch("new.module")
+    result2 = iastpatch.should_iast_patch("new.module")
+
+    # Deberían usar el mismo caché
+    assert result1 == result2
+
+
+def test_should_iast_patch_thread_safety():
+    results = []
+
+    def check_module():
+        results.append(iastpatch.should_iast_patch("concurrent.module"))
+
+    threads = [threading.Thread(target=check_module) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Todos los resultados deberían ser iguales
+    assert len(set(results)) == 1

@@ -647,11 +647,8 @@ init_globals(void)
             }
         }
     }
-    int result = build_list_from_env("_DD_IAST_PATCH_MODULES");
-    if (result >= 0) {
-        result = build_list_from_env("_DD_IAST_DENY_MODULES");
-    }
-    return result; // Success
+
+    return 0; // Success
 }
 
 /* --- Exported Function: py_should_iast_patch ---
@@ -734,17 +731,27 @@ build_list_from_env(const char* env_var_name)
     if (result_list == NULL) {
         return 0;
     }
+    char** old_list = NULL;
+    size_t old_count = 0;
+
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        free_list(user_allowlist, user_allowlist_count);
+        old_list = user_allowlist;
+        old_count = user_allowlist_count;
         user_allowlist = result_list;
         user_allowlist_count = count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        free_list(user_denylist, user_denylist_count);
+        old_list = user_denylist;
+        old_count = user_denylist_count;
         user_denylist = result_list;
         user_denylist_count = count;
     } else {
         free_list(result_list, count);
         return -1;
+    }
+
+    // Liberar la lista antigua después de la asignación
+    if (old_list != NULL) {
+        free_list(old_list, old_count);
     }
     return 0;
 }

@@ -71,7 +71,7 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     ],
 )
 def test_astpatch_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -89,7 +89,7 @@ def test_astpatch_module_changed(module_name):
     ],
 )
 def test_astpatch_module_changed_add_operator(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -107,7 +107,7 @@ def test_astpatch_module_changed_add_operator(module_name):
     ],
 )
 def test_astpatch_module_changed_add_inplace_operator(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -126,7 +126,7 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
     ],
 )
 def test_astpatch_source_changed_with_future_imports(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -155,7 +155,7 @@ import html"""
     ],
 )
 def test_astpatch_source_unchanged(module_name):
-    assert ("", None) == astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", None) == astpatch_module(__import__(module_name, fromlist=["*"]))
 
 
 def test_should_iast_patch_allow_first_party():
@@ -196,9 +196,7 @@ def test_should_not_iast_patch_if_stdlib():
 
 def test_module_path_none(caplog):
     with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
-        assert ("", None) == astpatch_module(
-            __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
-        )
+        assert ("", None) == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=["*"]))
         assert (
             "iast::instrumentation::ast_patching::compiling::"
             "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
@@ -213,7 +211,7 @@ def test_module_path_none(caplog):
     ],
 )
 def test_astpatch_stringio_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -232,7 +230,7 @@ def test_astpatch_stringio_module_changed(module_name):
     ],
 )
 def test_astpatch_bytesio_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -254,7 +252,7 @@ def test_astpatch_globals_module_unchanged(module_name):
     This is a regression test for partially matching function names:
     ``globals()`` was being incorrectly patched with the aspect for ``glob()``
     """
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) == (module_path, new_ast)
 
 
@@ -273,7 +271,7 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
     the env var is False and not added otherwise
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: env_var}):
-        module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+        module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
         assert ("", None) != (module_path, new_ast)
         new_code = astunparse.unparse(new_ast)
 
@@ -306,7 +304,7 @@ def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_n
     unpatched dir() output, both with or without a previous custom __dir__ implementation
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: "false"}):
-        imported_mod = __import__(module_name, fromlist=[None])
+        imported_mod = __import__(module_name, fromlist=["*"])
         orig_dir = set(dir(imported_mod))
 
         for name in expected_names:
