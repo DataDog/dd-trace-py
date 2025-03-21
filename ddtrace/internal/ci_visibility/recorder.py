@@ -65,8 +65,8 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
-from ddtrace.internal.ci_visibility.settings import CIEnv
-from ddtrace.internal.ci_visibility.settings import TestOptEnv
+from ddtrace.internal.ci_visibility.settings import ci_config as CIEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
@@ -164,11 +164,6 @@ class CIVisibility(Service):
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 url = CIEnv.agent_url or ddconfig._trace_agent_url
-
-                # env_agent_url =
-                # if env_agent_url != "":
-                #     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                #     url = env_agent_url
 
                 self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
             else:

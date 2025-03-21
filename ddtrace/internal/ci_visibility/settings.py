@@ -60,3 +60,7 @@ class TestOptEnv(DDConfig):
 
         # Unittest settings
         unittest_strict_naming = DDConfig.v(bool, "unittest_strict_naming", default=True)
+
+
+ci_config = CIEnv()
+test_opt_config = TestOptEnv()

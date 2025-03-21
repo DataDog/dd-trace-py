@@ -4,7 +4,7 @@ import typing as t
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace.internal.ci_visibility.settings import TestOptEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer

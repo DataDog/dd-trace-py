@@ -6,7 +6,7 @@ import typing as t
 
 from ddtrace import config
 from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
-from ddtrace.internal.ci_visibility.settings import TestOptEnv
+from ddtrace.internal.ci_visibility.settings import test_opt_config as TestOptEnv
 
 
 def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
