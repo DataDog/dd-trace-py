@@ -15,7 +15,7 @@ object that implements the product protocol. This consists of a Python object
 | Attribute | Description |
 |-----------|-------------|
 | `start() -> None` | A function with the logic required to start the product |
-| `restart(join: bool = False) -> None` | A function with the logic required to restart the product |
+| `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product |
 | `at_exit(join: bool = False) -> None` | A function with the logic required to stop the product at exit |
 | `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
