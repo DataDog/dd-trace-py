@@ -258,7 +258,7 @@ class TestHeaders(object):
             "referer": "https://example.com/path?query=1",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
-        assert span.get_tag("http.referrer_host") == "example.com"
+        assert span.get_tag("http.referrer_hostname") == "example.com"
 
     def test_referrer_host_with_port(self, span, integration_config):
         """Test that port number is stripped from referrer host"""
@@ -266,7 +266,7 @@ class TestHeaders(object):
             "referer": "https://example.com:8080/path?query=1",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
-        assert span.get_tag("http.referrer_host") == "example.com"
+        assert span.get_tag("http.referrer_hostname") == "example.com"
 
     def test_referrer_host_case_insensitive(self, span, integration_config):
         """Test that referrer host extraction works with case-insensitive header names"""
@@ -274,7 +274,7 @@ class TestHeaders(object):
             "Referer": "https://example.com/path?query=1",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers, headers_are_case_sensitive=True)
-        assert span.get_tag("http.referrer_host") == "example.com"
+        assert span.get_tag("http.referrer_hostname") == "example.com"
 
     def test_referrer_host_missing(self, span, integration_config):
         """Test that no referrer host tag is set when referer header is missing"""
@@ -282,7 +282,7 @@ class TestHeaders(object):
             "other-header": "value",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
-        assert span.get_tag("http.referrer_host") is None
+        assert span.get_tag("http.referrer_hostname") is None
 
     def test_referrer_host_invalid_url(self, span, integration_config):
         """Test that no referrer host tag is set when referer URL is invalid"""
@@ -290,7 +290,7 @@ class TestHeaders(object):
             "referer": "not-a-valid-url",
         }
         trace_utils.set_http_meta(span, integration_config, request_headers=headers)
-        assert span.get_tag("http.referrer_host") is None
+        assert span.get_tag("http.referrer_hostname") is None
 
 
 @pytest.mark.parametrize(
