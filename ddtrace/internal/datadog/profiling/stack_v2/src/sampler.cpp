@@ -138,12 +138,7 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
     _stack_v2_atfork_child();
-
-#ifdef _WIN32
-    // NOTE: Windows doesn't have fork(), so leave this empty for now
-#else
     pthread_atfork(nullptr, nullptr, _stack_v2_atfork_child);
-#endif
 
     // Register our rendering callbacks with echion's Renderer singleton
     Renderer::get().set_renderer(renderer_ptr);
