@@ -60,7 +60,7 @@ ddconfig._add(
     dict(
         _default_service="unittest",
         operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=TestOptEnv.CIVisibilityEnv.unittest_strict_naming,
+        strict_naming=TestOptEnv.civisibility.unittest_strict_naming,
     ),
 )
 

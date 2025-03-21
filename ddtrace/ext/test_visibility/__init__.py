@@ -13,7 +13,7 @@ def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
     return dict(
         _default_service="default_test_visibility_service",
         itr_skipping_level=ITR_SKIPPING_LEVEL.SUITE
-        if TestOptEnv.CIVisibilityEnv.itr_suite_mode
+        if TestOptEnv.civisibility.itr_suite_mode
         else ITR_SKIPPING_LEVEL.TEST,
         _itr_skipping_ignore_parameters=False,
     )

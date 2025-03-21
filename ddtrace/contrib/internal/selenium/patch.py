@@ -28,7 +28,7 @@ if (window.DD_RUM && window.DD_RUM.stopSession) {
 
 
 def _get_flush_sleep_ms() -> int:
-    return TestOptEnv.CIVisibilityEnv.rum_flush_wait_millis
+    return TestOptEnv.civisibility.rum_flush_wait_millis
 
 
 config._add(
