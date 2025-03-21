@@ -194,12 +194,7 @@ class Tracer(object):
     SHUTDOWN_TIMEOUT = 5
     _instance = None
 
-    def __init__(
-        self,
-        url: Optional[str] = None,
-        dogstatsd_url: Optional[str] = None,
-        context_provider: Optional[BaseContextProvider] = None,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -228,8 +223,8 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
+        self._dogstatsd_url = agent.get_stats_url()
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -241,10 +236,10 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = agent.get_trace_url()
         verify_url(self._agent_url)
 
-        if self._use_log_writer() and url is None:
+        if self._use_log_writer():
             writer: TraceWriter = LogWriter()
         else:
             writer = AgentWriter(
