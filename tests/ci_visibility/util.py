@@ -137,8 +137,6 @@ def set_up_mock_civisibility(
         _upload_packfiles=classmethod(lambda *args, **kwargs: None),
         upload_git_metadata=_mock_upload_git_metadata,
         _do_request=NotImplementedError,
-    ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder._do_request", side_effect=NotImplementedError
     ):
         yield
 
