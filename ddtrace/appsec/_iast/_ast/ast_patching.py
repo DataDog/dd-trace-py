@@ -8,13 +8,14 @@ from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._logs import iast_ast_debug_log
+from ddtrace.appsec._iast._logs import iast_compiling_debug_log
+from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 
-from .._logs import iast_ast_debug_log
-from .._logs import iast_compiling_debug_log
 from .visitor import AstVisitor
 
 
@@ -27,23 +28,28 @@ log = get_logger(__name__)
 
 
 def _should_iast_patch(module_name: str) -> bool:
-    result = iastpatch.should_iast_patch(module_name)
-    if asm_config._iast_debug:
-        if result == iastpatch.DENIED_BUILTINS_DENYLIST:
-            iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
-        elif result == iastpatch.ALLOWED_USER_ALLOWLIST:
-            iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
-        elif result == iastpatch.ALLOWED_STATIC_ALLOWLIST:
-            iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
-        elif result == iastpatch.DENIED_USER_DENYLIST:
-            iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
-        elif result == iastpatch.DENIED_STATIC_DENYLIST:
-            iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
-        elif result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
-            iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
-        elif result == iastpatch.DENIED_NOT_FOUND:
-            iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
-
+    result = False
+    try:
+        result = iastpatch.should_iast_patch(module_name)
+        if asm_config._iast_debug:
+            if result == iastpatch.DENIED_BUILTINS_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
+            elif result == iastpatch.ALLOWED_USER_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
+            elif result == iastpatch.ALLOWED_STATIC_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
+            elif result == iastpatch.DENIED_USER_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
+            elif result == iastpatch.DENIED_STATIC_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
+            elif result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
+            elif result == iastpatch.DENIED_NOT_FOUND:
+                iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
+    except Exception as e:
+        iast_instrumentation_ast_patching_debug_log(
+            f"An error occurred while attempting to patch the {module_name} module. Error: {e}"
+        )
     return result >= iastpatch.ALLOWED_USER_ALLOWLIST
 
 
