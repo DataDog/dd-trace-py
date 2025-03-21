@@ -8,7 +8,6 @@ import pytest
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 def test_call_script():

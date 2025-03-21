@@ -6,7 +6,6 @@ import sys
 import pytest
 
 from tests.utils import call_program
-from tests.utils import flaky
 
 from . import utils
 
