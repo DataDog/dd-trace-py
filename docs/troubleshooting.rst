@@ -94,6 +94,17 @@ While this is default behavior for integrations, users can add a trace filter to
   tracer.configure(trace_processors=[ErrorFilter()])
 
 
+ModuleNotFoundError when running tests with riot
+================================================
+If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
+
+Your base virtual environment was likely created without a package.
+Remove all the ``.riot/venv*``  directories and run the tests without the -s option. 
+
+``scripts/ddtest DD_TRACE_AGENT_URL=http://localhost:9126 riot -v run -p3.12 --pass-env <integration_name>``
+
+This will re-create all your virtual environments and hopefully install package in the correct venv.
+
 
 Still having issues?
 ====================
