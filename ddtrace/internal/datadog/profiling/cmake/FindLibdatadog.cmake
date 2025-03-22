@@ -124,7 +124,7 @@ set(ENV{Datadog_ROOT} "${Datadog_ROOT}")
 set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
 # Configure library preferences (static over shared)
-if (NOT WIN32)
+if(NOT WIN32)
     set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 endif()
@@ -132,7 +132,7 @@ endif()
 # Find the package
 find_package(Datadog REQUIRED)
 
-if (NOT WIN32)
+if(NOT WIN32)
     # Restore library preferences
     set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
 endif()
