@@ -118,85 +118,21 @@ FetchContent_Declare(
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)
 
+# Set up paths
 get_filename_component(Datadog_ROOT "${libdatadog_SOURCE_DIR}" ABSOLUTE)
+set(ENV{Datadog_ROOT} "${Datadog_ROOT}")
+set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
-set(DD_LIB_NAME "datadog_profiling")
-
-if(WIN32)
-    find_path(Datadog_INCLUDE_DIR datadog/profiling.h HINTS ${Datadog_ROOT}/include)
-
-    if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-        # Prefer static linking over dynamic unless specified
-        set(LINK_TYPE "static")
-        if(DEFINED VCRUNTIME_LINK_TYPE)
-            string(TOLOWER ${VCRUNTIME_LINK_TYPE} LINK_TYPE)
-        endif()
-
-        set(BUILD_TYPE "release")
-        if(DEFINED CMAKE_BUILD_TYPE)
-            string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-        endif()
-
-        find_library(
-            Datadog_LIBRARY
-            # Windows artifacts publish the library as datadog_profiling_ffi in {build_type}/{link_type} directory
-            NAMES ${DD_LIB_NAME} datadog_profiling_ffi
-            HINTS ${Datadog_ROOT}/lib ${Datadog_ROOT}/${BUILD_TYPE}/${LINK_TYPE})
-
-        # It could be either datadog_profiling or datadog_profiling_ffi, set it to the one that is found
-        get_filename_component(DD_LIB_NAME ${Datadog_LIBRARY} NAME_WE)
-        message(STATUS "Datadog library name: ${DD_LIB_NAME}")
-    else()
-        find_library(
-            Datadog_LIBRARY
-            NAMES ${DD_LIB_NAME}
-            HINTS ${Datadog_ROOT}/lib)
-    endif()
-
-    include(FindPackageHandleStandardArgs)
-
-    find_package_handle_standard_args(Datadog DEFAULT_MSG Datadog_LIBRARY Datadog_INCLUDE_DIR)
-
-    if(Datadog_FOUND)
-        set(Datadog_INCLUDE_DIRS ${Datadog_INCLUDE_DIR})
-        set(Datadog_LIBRARIES ${Datadog_LIBRARY})
-        mark_as_advanced(Datadog_ROOT Datadog_LIBRARY Datadog_INCLUDE_DIR)
-        add_library(${DD_LIB_NAME} INTERFACE)
-        target_include_directories(${DD_LIB_NAME} INTERFACE ${Datadog_INCLUDE_DIRS})
-        target_link_libraries(${DD_LIB_NAME} INTERFACE ${Datadog_LIBRARIES})
-        target_compile_features(${DD_LIB_NAME} INTERFACE c_std_11)
-
-        target_link_libraries(
-            ${DD_LIB_NAME}
-            INTERFACE NtDll.lib
-                      UserEnv.lib
-                      Bcrypt.lib
-                      crypt32.lib
-                      wsock32.lib
-                      ws2_32.lib
-                      shlwapi.lib
-                      Secur32.lib
-                      Ncrypt.lib
-                      PowrProf.lib)
-
-        add_library(Datadog::Profiling ALIAS ${DD_LIB_NAME})
-    else()
-        set(Datadog_ROOT
-            ""
-            CACHE STRING "Directory containing libdatadog")
-    endif()
-
-else()
-    # Set up paths
-    set(Datadog_DIR "${Datadog_ROOT}/cmake")
-
-    # Configure library preferences (static over shared)
+# Configure library preferences (static over shared)
+if (NOT WIN32)
     set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+endif()
 
-    # Find the package
-    find_package(Datadog REQUIRED)
+# Find the package
+find_package(Datadog REQUIRED)
 
+if (NOT WIN32)
     # Restore library preferences
     set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
 endif()
