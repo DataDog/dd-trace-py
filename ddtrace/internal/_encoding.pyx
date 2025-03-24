@@ -8,7 +8,6 @@ import threading
 from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
-from .utils.formats import asbool
 
 
 # Do not use an absolute import here Cython<3.0.0 will
@@ -135,7 +134,7 @@ cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
             if ret != 0:
                 return ret
         else:
-            raise ValueError("Unsupported type {type(v)}")
+            raise ValueError("Unsupported type {type(v)} for list: must be str, int, float, bool")
     return ret
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
