@@ -89,6 +89,7 @@ venv = Venv(
         "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
+        "setuptools": "77.0.3",
     },
     env={
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
@@ -113,6 +114,7 @@ venv = Venv(
             pkgs={
                 "ruamel.yaml": latest,
                 "lxml": latest,
+                "setuptools": "77.0.3",
             },
         ),
         Venv(
@@ -122,6 +124,7 @@ venv = Venv(
             pkgs={
                 "ruamel.yaml": latest,
                 "lxml": latest,
+                "setuptools": "77.0.3",
             },
         ),
         Venv(
@@ -2339,7 +2342,7 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": latest, "pytest-randomly": latest},
+            pkgs={"opentracing": latest, "pytest-randomly": latest, "setuptools": "77.0.3"},
             venvs=[
                 Venv(
                     pys=select_pys(),
