@@ -10,6 +10,7 @@ import typing as t
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.writer import TelemetryWriter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import FLEET_CONFIG
 from ddtrace.settings._core import LOCAL_CONFIG
 from ddtrace.settings._core import DDConfig
@@ -157,6 +158,7 @@ def validate_otel_envs():
             otel_value = os.environ.get(otel_env, "none").lower()
             if otel_value != "none":
                 _invalid_otel_config(otel_env)
+            # TODO: Separate from validation
             telemetry_writer.add_configuration(otel_env, otel_value, "env_var")
 
 
@@ -173,3 +175,7 @@ def _hiding_otel_config(otel_env, dd_env):
         1,
         (("config_opentelemetry", otel_env.lower()), ("config_datadog", dd_env.lower())),
     )
+
+
+# TODO: Remove this once the telemetry feature is refactored to a better design
+report_configuration(agent_config)

@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._trace.pin import Pin
@@ -441,9 +442,8 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
-        from ddtrace.internal.telemetry import validate_otel_envs
-
         validate_otel_envs()
+
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
@@ -490,13 +490,6 @@ class Config(object):
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
-        # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
-        from ddtrace.internal.agent import config as agent_config
-
-        # TODO: remove this import from here
-        from ddtrace.internal.telemetry import report_configuration
-
-        report_configuration(agent_config)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 

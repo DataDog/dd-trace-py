@@ -15,11 +15,11 @@ from typing import Union  # noqa:F401
 import urllib.parse as parse
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._telemetry import config
 
 from ...internal import atexit
 from ...internal import forksafe
-from ..agent import get_connection
 from ..agent import get_trace_url
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
