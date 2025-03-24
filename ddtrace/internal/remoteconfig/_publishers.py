@@ -56,4 +56,4 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         log.debug("[%s][P: %s] Publisher publish data: %s", os.getpid(), os.getppid(), self._config_and_metadata)
 
         self._data_connector.write(self._config_and_metadata)
-        self._config_and_metadata.clear()
+        self._config_and_metadata = []
