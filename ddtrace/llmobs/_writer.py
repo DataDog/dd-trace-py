@@ -71,30 +71,24 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
 
 
 def configure_agentless_enabled() -> None:
+    """Configure whether to use agentless mode based on agent availability and capabilities."""
     if config._llmobs_agentless_enabled is not None:
         return
 
-    conn = get_connection(agent.get_trace_url(), timeout=5.0)
-
     try:
+        conn = get_connection(agent.get_trace_url(), timeout=5.0)
         conn.request("GET", "/info")
         resp = conn.getresponse()
-        agent_running = resp.status == 200
-    except Exception:
-        agent_running = False
+        
+        if resp.status != 200:
+            config._llmobs_agentless_enabled = True
+            return
 
-    should_use_agentless = False
-
-    if not agent_running:
-        should_use_agentless = True
-    else:
         endpoints = json.loads(resp.read())["endpoints"]
-        if "/evp_proxy/v2" in endpoints:
-            should_use_agentless = False
-        else:
-            should_use_agentless = True
+        config._llmobs_agentless_enabled = "/evp_proxy/v2" not in endpoints
 
-    config._llmobs_agentless_enabled = should_use_agentless
+    except Exception:
+        config._llmobs_agentless_enabled = True
 
 
 class BaseLLMObsWriter(PeriodicService):
