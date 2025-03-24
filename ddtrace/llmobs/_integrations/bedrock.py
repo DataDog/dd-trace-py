@@ -1,8 +1,10 @@
+import json
 import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
@@ -75,9 +77,7 @@ class BedrockIntegration(BaseLLMIntegration):
         # Handle different resources appropriately
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
-            self._extract_input_message_for_converse(prompt)
-            if is_converse
-            else self._extract_input_message(prompt)
+            self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
         output_messages = [{"content": ""}]
@@ -85,7 +85,13 @@ class BedrockIntegration(BaseLLMIntegration):
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
-                output_messages = self._extract_output_message_for_converse_stream(response)
+                (
+                    output_messages,
+                    additional_metadata,
+                    streamed_usage_metrics,
+                ) = self._extract_output_message_for_converse_stream(response)
+                metadata.update(additional_metadata)
+                usage_metrics.update(streamed_usage_metrics)
             else:
                 output_messages = self._extract_output_message(response)
 
@@ -148,22 +154,109 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _extract_output_message_for_converse_stream(formatted_response: Dict[str, List[str]], stream_chunks: List[Dict[str, Any]] = None):
-        """Extract output messages from the stored prompt for converse_stream
-
-        This handles the output message extraction from a streamed response that has been 
-        accumulated. In the streaming case, we reconstruct the full message from chunks.
-
-        `formatted_response` contains the already-extracted text and finish_reason.
-        `stream_chunks` contains the raw stream chunks for additional processing if needed.
+    def _extract_output_message_for_converse_stream(
+        streamed_body: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]]:
         """
-        text = formatted_response.get("text", [""])[0]
-        if not text:
-            return [{"content": ""}]
+        Extract output messages from streamed converse responses.
 
-        # In the streaming case, the content is just text without role information
-        # By default, we assume assistant role for streamed responses
-        return [{"content": text, "role": "assistant"}]
+        Converse stream response comes in chunks, where each chunk contains content blocks.
+        message start/stop and content block start/stop events are used to reconstruct the
+        full list of output messages and tools. Uses contentBlockIndex to accurately
+        track content blocks and tool calls.
+        """
+        usage_metrics = {}  # type: Dict[str, int]
+        metadata = {}  # type: Dict[str, str]
+        messages = []  # type: List[Dict[str, Any]]
+        content_blocks = {}  # type: Dict[int, Dict[str, str | Dict[str, str]]]
+
+        try:
+            for chunk in streamed_body:
+                if "metadata" in chunk:
+                    if "usage" in chunk["metadata"]:
+                        usage_metrics["input_tokens"] = chunk["metadata"]["usage"].get("inputTokens")
+                        usage_metrics["output_tokens"] = chunk["metadata"]["usage"].get("outputTokens")
+                        usage_metrics["total_tokens"] = chunk["metadata"]["usage"].get("totalTokens")
+
+                if "messageStart" in chunk:
+                    message_data = chunk["messageStart"]
+                    current_message = {"role": message_data.get("role", "assistant"), "context_block_indices": []}
+
+                if "contentBlockStart" in chunk:
+                    block_start = chunk["contentBlockStart"]
+                    index = block_start.get("contentBlockIndex")
+                    if index is not None:
+                        content_blocks[index] = {}
+                    if "start" in block_start and "toolUse" in block_start["start"]:
+                        content_blocks[index]["toolUse"] = block_start["start"]["toolUse"]
+                    current_message["context_block_indices"].append(index)
+
+                if "contentBlockDelta" in chunk:
+                    if current_message is None:
+                        current_message = {"role": "assistant", "content_blocks": []}
+
+                    delta = chunk["contentBlockDelta"]
+                    index = delta.get("contentBlockIndex")
+                    if index not in content_blocks:
+                        content_blocks[index] = {}
+                        current_message["context_block_indices"].append(index)
+
+                    if "delta" in delta:
+                        delta_content = delta["delta"]
+                        if "text" in delta_content:
+                            if "text" not in content_blocks[index]:
+                                content_blocks[index]["text"] = ""
+                            content_blocks[index]["text"] += delta_content["text"]
+                        if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
+                            if "input" not in content_blocks[index]["toolUse"]:
+                                content_blocks[index]["toolUse"]["input"] = ""
+                            content_blocks[index]["toolUse"]["input"] += delta_content["toolUse"]["input"]
+
+                if "messageStop" in chunk and current_message is not None:
+                    message_output = {"role": current_message["role"]}
+
+                    blocks = sorted(current_message["context_block_indices"])
+                    text_blocks = [
+                        content_blocks.get(b, {}).get("text") for b in blocks if content_blocks.get(b, {}).get("text")
+                    ]
+                    tool_blocks = [
+                        content_blocks.get(b, {}).get("toolUse")
+                        for b in blocks
+                        if content_blocks.get(b, {}).get("toolUse")
+                    ]
+
+                    if text_blocks:
+                        message_output["content"] = "".join(text_blocks)
+                    if tool_blocks:
+                        tool_calls = []
+                        for tool_block in tool_blocks:
+                            tool_args = {}
+                            if "input" in tool_block:
+                                try:
+                                    tool_args = json.loads(tool_block["input"])
+                                except (json.JSONDecodeError, ValueError):
+                                    tool_args = {"input": tool_block["input"]}
+                            tool_calls.append(
+                                {
+                                    "name": tool_block.get("toolName", ""),
+                                    "arguments": tool_args,
+                                    "tool_id": tool_block.get("toolUseId", ""),
+                                }
+                            )
+                        message_output["tool_calls"] = tool_calls
+                    messages.append(message_output)
+                    # Reset current message
+                    current_message = None
+
+        except (IndexError, AttributeError, TypeError) as e:
+            log.warning(
+                "Unable to extract messages/tool data from converse stream response: %s. Defaulting to empty response.",
+                str(e),
+            )
+        if not messages:
+            messages.append({"role": "assistant", "content": ""})
+
+        return messages, metadata, usage_metrics
 
     @staticmethod
     def _extract_input_message(prompt):
