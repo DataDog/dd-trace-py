@@ -38,7 +38,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
         ctx is a required argument of the shape:
         {
-            "resource": str, # oneof("Converse", "InvokeModel")
+            "resource": str, # oneof("Converse", "ConverseStream", "InvokeModel")
             "model_name": str,
             "model_provider": str,
             "llmobs.request_params": {"prompt": str | list[dict],
@@ -72,19 +72,22 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = request_params.get("prompt", "")
 
+        # Handle different resources appropriately
+        is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
             self._extract_input_message_for_converse(prompt)
-            if ctx["resource"] == "Converse"
+            if is_converse
             else self._extract_input_message(prompt)
         )
 
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
-            output_messages = (
-                self._extract_output_message_for_converse(response)
-                if ctx["resource"] == "Converse"
-                else self._extract_output_message(response)
-            )
+            if ctx["resource"] == "Converse":
+                output_messages = self._extract_output_message_for_converse(response)
+            elif ctx["resource"] == "ConverseStream":
+                output_messages = self._extract_output_message_for_converse_stream(response)
+            else:
+                output_messages = self._extract_output_message(response)
 
         span._set_ctx_items(
             {
@@ -143,6 +146,24 @@ class BedrockIntegration(BaseLLMIntegration):
         if not content or not isinstance(content, list):
             return default_content
         return get_messages_from_converse_content(role, content)
+
+    @staticmethod
+    def _extract_output_message_for_converse_stream(formatted_response: Dict[str, List[str]], stream_chunks: List[Dict[str, Any]] = None):
+        """Extract output messages from the stored prompt for converse_stream
+
+        This handles the output message extraction from a streamed response that has been 
+        accumulated. In the streaming case, we reconstruct the full message from chunks.
+
+        `formatted_response` contains the already-extracted text and finish_reason.
+        `stream_chunks` contains the raw stream chunks for additional processing if needed.
+        """
+        text = formatted_response.get("text", [""])[0]
+        if not text:
+            return [{"content": ""}]
+
+        # In the streaming case, the content is just text without role information
+        # By default, we assume assistant role for streamed responses
+        return [{"content": text, "role": "assistant"}]
 
     @staticmethod
     def _extract_input_message(prompt):

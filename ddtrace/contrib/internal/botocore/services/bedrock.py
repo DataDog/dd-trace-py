@@ -114,6 +114,75 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
+class TracedBotocoreConverseStream(wrapt.ObjectProxy):
+    """
+    This class wraps the stream response returned by converse_stream.
+    Since the response is a streaming iterator of content blocks, we need to wrap it in order to 
+    tag the response data and fire completion events as the user consumes the streamed response.
+    """
+
+    def __init__(self, wrapped, ctx: core.ExecutionContext):
+        super().__init__(wrapped)
+        self._stream_chunks = []
+        self._execution_ctx = ctx
+
+    def __iter__(self):
+        """Wraps around the iterator method to tag the response data and finish the span as the user consumes the stream."""
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                self._stream_chunks.append(chunk)
+                yield chunk
+        except Exception:
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
+            exception_raised = True
+            raise
+        finally:
+            if exception_raised:
+                return
+            
+            # Extract usage metrics and metadata
+            metadata = self._extract_stream_metadata(self._stream_chunks)
+            formatted_response = _extract_streamed_response_for_converse(self._execution_ctx, self._stream_chunks)
+            
+            # Process the complete response once streaming is finished
+            core.dispatch(
+                "botocore.bedrock.process_response",
+                    [self._execution_ctx, formatted_response, metadata, self._stream_chunks, False],
+                )
+
+    def _extract_stream_metadata(self, chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract usage metrics from the stream metadata"""
+        metadata = {}
+        for chunk in chunks:
+            if "metrics" in chunk:
+                metrics = chunk["metrics"]
+                if "usage" in metrics:
+                    usage = metrics["usage"]
+                    input_tokens = safe_token_count(usage.get("inputTokens"))
+                    output_tokens = safe_token_count(usage.get("outputTokens"))
+                    total_tokens = safe_token_count(usage.get("totalTokens"))
+                    _set_llmobs_usage(self._execution_ctx, input_tokens, output_tokens, total_tokens)
+                    
+                    metadata = {
+                        "usage.prompt_tokens": input_tokens,
+                        "usage.completion_tokens": output_tokens,
+                    }
+                
+                if "latencyMs" in metrics:
+                    metadata["response.duration"] = metrics["latencyMs"]
+                
+                break  # Found the metrics, no need to continue
+                
+        # If we have a stop reason in any chunk, save it in the context
+        for chunk in reversed(chunks):  # Check from the end as stop reason is typically in the last chunk
+            if "stopReason" in chunk:
+                self._execution_ctx.set_item("llmobs.stop_reason", chunk["stopReason"])
+                break
+                
+        return metadata
+
+
 def safe_token_count(token_count) -> Optional[int]:
     """
     Converse api returns integer token counts, while invoke api returns string token counts.
@@ -279,6 +348,35 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
     return {"text": text, "finish_reason": finish_reason}
 
 
+def _extract_streamed_response_for_converse(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    Extract output messages from streamed converse responses.
+    
+    Converse stream response comes in chunks, where each chunk contains a contentBlockDelta.
+    """
+    text, finish_reason = "", ""
+    try:
+        # Reconstruct the full text from content blocks
+        for chunk in streamed_body:
+            if "contentBlockDelta" in chunk and "delta" in chunk["contentBlockDelta"]:
+                delta = chunk["contentBlockDelta"]["delta"]
+                if "text" in delta:
+                    text += delta["text"]
+            
+            # Check if this chunk has stop reason
+            if "stopReason" in chunk:
+                finish_reason = chunk["stopReason"]
+    except (IndexError, AttributeError, TypeError):
+        log.warning("Unable to extract text/finish_reason from converse stream response. Defaulting to empty text/finish_reason.")
+
+    if not isinstance(text, list):
+        text = [text]
+    if not isinstance(finish_reason, list):
+        finish_reason = [finish_reason]
+
+    return {"text": text, "finish_reason": finish_reason}
+
+
 def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
     model_name = ctx["model_name"]
@@ -365,7 +463,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
     request_params = (
         _extract_request_params_for_converse(ctx["params"])
-        if ctx["resource"] == "Converse"
+        if ctx["resource"] == "Converse" or ctx["resource"] == "ConverseStream"
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
@@ -416,6 +514,11 @@ def handle_bedrock_response(
 
     if ctx["resource"] == "Converse":
         core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        return result
+    if ctx["resource"] == "ConverseStream":
+        # Wrap the stream with our TracedBotocoreConverseStream wrapper
+        if "stream" in result:
+            result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
         return result
 
     body = result["body"]
