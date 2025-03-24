@@ -27,6 +27,7 @@ from distutils.command.clean import clean as CleanCommand  # isort: skip
 
 
 try:
+    # diff
     # ORDER MATTERS
     # Import this after setuptools or it will fail
     from Cython.Build import cythonize  # noqa: I100
