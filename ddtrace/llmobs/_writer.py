@@ -157,7 +157,7 @@ class BaseLLMObsWriter(PeriodicService):
     def _get_base_url(self) -> str:
         if self._is_agentless:
             return "https://%s.%s" % (self._intake, self._site)
-        return agent.get_trace_url()
+        return agent.config.trace_agent_url
 
     def _get_endpoint(self) -> str:
         if self._is_agentless:
@@ -174,7 +174,7 @@ class BaseLLMObsWriter(PeriodicService):
     def _get_connection(self):
         if self._is_agentless:
             return httplib.HTTPSConnection("%s.%s" % (self._intake, self._site), 443, timeout=self._timeout)
-        return get_connection(agent.get_trace_url(), timeout=self._timeout)
+        return get_connection(agent.config.trace_agent_url, timeout=self._timeout)
 
     def _get_headers(self):
         headers = {
@@ -306,7 +306,7 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent.config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
         super(LLMObsSpanWriter, self).__init__(
