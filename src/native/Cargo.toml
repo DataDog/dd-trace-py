@@ -6,7 +6,8 @@ edition = "2021"
 [profile.release]
 lto = true
 strip = "debuginfo"
-opt-level = 3
+codegen-units = 1
+opt-level = "z"
 
 [dependencies]
 pyo3 = { version = "0.24", features = ["extension-module"] }
