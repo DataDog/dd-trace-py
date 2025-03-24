@@ -30,8 +30,10 @@ def preapare_test_env(mypackage_example):
         with open(constraints_file, "w") as f:
             f.write("setuptools<78")
         os.environ["PIP_CONSTRAINT"] = constraints_file
-        
-        subprocess.check_output("pip install --target=" + envdir + " --constraint " + constraints_file + " " + pkgfile, shell=True)
+
+        subprocess.check_output(
+            "pip install --target=" + envdir + " --constraint " + constraints_file + " " + pkgfile, shell=True
+        )
         os.chdir(envdir)
         os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
         yield
