@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -148,7 +149,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self,
         span: Span,
         args: List[Any],
-        kwargs: Dict[str, Any | OaiTraceAdapter | OaiSpanAdapter],
+        kwargs: Dict[str, Union[Any, OaiTraceAdapter, OaiSpanAdapter]],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:

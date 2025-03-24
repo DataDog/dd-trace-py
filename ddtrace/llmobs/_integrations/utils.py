@@ -329,7 +329,7 @@ class OaiSpanAdapter:
         return kind_mapping.get(self.span_type)
 
     @property
-    def input(self) -> str | list[Any]:
+    def input(self) -> Union[str, List[Any]]:
         """Get the span data input."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return ""
