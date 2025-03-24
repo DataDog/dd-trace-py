@@ -1,3 +1,5 @@
+import sys
+
 from openai.version import VERSION as OPENAI_VERSION
 
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
@@ -279,7 +281,48 @@ class _ChatCompletionHook(_BaseCompletionHook):
     
 
 class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
-    pass
+    def _extract_token_chunk(self, chunk, span, resp, streamed_chunks):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not span._get_ctx_item("_dd.auto_extract_token_chunk"):
+            return
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
+        if not getattr(choice, "finish_reason", None):
+            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
+            return
+        try:
+            # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
+            # so we consume it and extract the token usage metadata before it reaches the user.
+            usage_chunk = resp.__next__()
+            streamed_chunks[0].insert(0, usage_chunk)
+        except (StopIteration, GeneratorExit):
+            return
+        
+    def _handle_streamed_response(self, integration, span, kwargs, resp, is_completion=False):
+        """Handle streamed response objects returned from chat endpoint calls.
+
+        This method manually iterates over the streamed response that is parsed from the raw response.
+        """
+        n = kwargs.get("n", 1) or 1
+        streamed_chunks = [[] for _ in range(n)]
+        exception_raised = False
+        try:
+            for chunk in resp:
+                self._extract_token_chunk(chunk, span, resp, streamed_chunks)
+                _loop_handler(span, chunk, streamed_chunks)
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    integration, span, kwargs, streamed_chunks, is_completion=False
+                )
+            span.finish()
+
             
 
 class _EmbeddingHook(_EndpointHook):
