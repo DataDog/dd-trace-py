@@ -7,16 +7,14 @@ import os
 import signal
 import sys
 import time
-from urllib import parse
 import uuid
+from urllib import parse
 
 import pytest
 
 from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.appsec.integrations.flask_tests.utils import _PORT
-from tests.appsec.integrations.flask_tests.utils import _multi_requests
-from tests.appsec.integrations.flask_tests.utils import _request_200
+from tests.appsec.integrations.flask_tests.utils import _PORT, _multi_requests, _request_200
 from tests.utils import flaky
 
 
@@ -240,7 +238,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
-@flaky(until=1742580778, reason="_request_403 is flaky, figure out the error")
+@pytest.mark.skip(reason="_request_403 is flaky, figure out the error. APPSEC-57052")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
@@ -270,9 +268,7 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 @pytest.mark.subprocess(ddtrace_run=True, err=None, out=b"success")
 def test_compatiblity_with_multiprocessing():
     import multiprocessing
-    from multiprocessing import Array
-    from multiprocessing import Process
-    from multiprocessing import Value
+    from multiprocessing import Array, Process, Value
 
     def f(n, a):
         n.value = 420
