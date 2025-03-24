@@ -12,7 +12,6 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 import http.client as httplib
-import json
 
 import ddtrace
 from ddtrace import config
@@ -193,6 +192,7 @@ class BaseLLMObsWriter(PeriodicService):
             api_key=self._api_key,
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=self._is_agentless,
         )
 
 
