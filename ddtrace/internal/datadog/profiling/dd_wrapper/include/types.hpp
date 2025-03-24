@@ -1,7 +1,8 @@
 #pragma once
 
 namespace Datadog {
-enum SampleType : unsigned int
+
+enum class SampleType : unsigned int
 {
     Invalid = 0,
     CPU = 1 << 0,
@@ -14,8 +15,25 @@ enum SampleType : unsigned int
     GPUTime = 1 << 7,
     GPUMemory = 1 << 8,
     GPUFlops = 1 << 9,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops
+    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops,
 };
+
+inline SampleType operator|(SampleType a, SampleType b) {
+    return static_cast<SampleType>(static_cast<unsigned int>(a) | static_cast<unsigned int>(b));
+}
+
+inline SampleType operator&(SampleType a, SampleType b) {
+    return static_cast<SampleType>(static_cast<unsigned int>(a) & static_cast<unsigned int>(b));
+}
+
+inline bool is_valid_type(SampleType a) {
+    a = a & SampleType::All; // bits outside of the valid set get masked off
+    return a != SampleType::Invalid;
+}
+
+inline bool mask_has_type(SampleType mask, SampleType type) {
+    return is_valid_type(mask & type);
+}
 
 // Every Sample object has a corresponding `values` vector, since libdatadog expects contiguous values per sample.
 // The index into that vector is determined by the configured sample types, which is encoded below.
