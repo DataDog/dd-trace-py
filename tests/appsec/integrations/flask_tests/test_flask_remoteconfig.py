@@ -7,15 +7,16 @@ import os
 import signal
 import sys
 import time
-import uuid
 from urllib import parse
+import uuid
 
 import pytest
 
 from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server
-from tests.appsec.integrations.flask_tests.utils import _PORT, _multi_requests, _request_200
-from tests.utils import flaky
+from tests.appsec.integrations.flask_tests.utils import _PORT
+from tests.appsec.integrations.flask_tests.utils import _multi_requests
+from tests.appsec.integrations.flask_tests.utils import _request_200
 
 
 def _get_agent_client():
@@ -268,7 +269,9 @@ def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_chil
 @pytest.mark.subprocess(ddtrace_run=True, err=None, out=b"success")
 def test_compatiblity_with_multiprocessing():
     import multiprocessing
-    from multiprocessing import Array, Process, Value
+    from multiprocessing import Array
+    from multiprocessing import Process
+    from multiprocessing import Value
 
     def f(n, a):
         n.value = 420
