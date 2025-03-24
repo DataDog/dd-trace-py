@@ -4,6 +4,7 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -86,12 +87,11 @@ def efd_handle_retries(
 
     efd_outcome = _efd_do_retries(item)
 
-    final_report = pytest_TestReport(
+    final_report = RetryTestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
         when="call",
-        longrepr=None,
         outcome=_FINAL_OUTCOMES[efd_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)

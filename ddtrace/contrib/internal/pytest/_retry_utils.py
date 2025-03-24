@@ -8,6 +8,7 @@ from _pytest.logging import caplog_records_key
 from _pytest.runner import CallInfo
 import pytest
 
+from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._types import tmppath_result_key
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
@@ -128,3 +129,28 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     if when == "call" or "passed" not in report.outcome:
         item.ihook.pytest_runtest_logreport(report=report)
     return call, report
+
+
+class RetryTestReport(pytest_TestReport):
+    """
+    A RetryTestReport behaves just like a normal pytest TestReport, except that the the failed/passed/skipped
+    properties are aware of retry final states (dd_efd_final_*, etc). This affects the test counts in JUnit XML output,
+    for instance. It also ensures that failed states have a longrepr attribute (again used by JUnit XML output).
+    """
+
+    def __init__(self, *args, **kwargs):
+        if "longrepr" not in kwargs and "final_failed" in kwargs.get("outcome", ""):
+            kwargs["longrepr"] = "All retries failed"
+        super().__init__(*args, **kwargs)
+
+    @property
+    def failed(self):
+        return "final_failed" in self.outcome or super().failed
+
+    @property
+    def passed(self):
+        return "final_passed" in self.outcome or "final_flaky" in self.outcome or super().passed
+
+    @property
+    def skipped(self):
+        return "final_skipped" in self.outcome or super().skipped
