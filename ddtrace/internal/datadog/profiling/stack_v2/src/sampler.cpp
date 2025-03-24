@@ -10,6 +10,52 @@
 
 using namespace Datadog;
 
+// Helper class for spawning a std::thread with control over its default stack size
+#ifdef __linux__
+#include <sys/resource.h>
+#include <unistd.h>
+
+struct ThreadArgs
+{
+    Sampler* sampler;
+    uint64_t seq_num;
+};
+
+void*
+call_sampling_thread(void* args)
+{
+    ThreadArgs thread_args = *static_cast<ThreadArgs*>(args);
+    delete static_cast<ThreadArgs*>(args); // no longer needed, dynamic alloc
+    Sampler* sampler = thread_args.sampler;
+    sampler->sampling_thread(thread_args.seq_num);
+    return nullptr;
+}
+
+pthread_t
+create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
+{
+    pthread_attr_t attr;
+    if (pthread_attr_init(&attr) != 0) {
+        return 0;
+    }
+    if (stack_size > 0) {
+        pthread_attr_setstacksize(&attr, stack_size);
+    }
+
+    pthread_t thread_id;
+    ThreadArgs* thread_args = new ThreadArgs{ sampler, seq_num };
+    int ret = pthread_create(&thread_id, &attr, call_sampling_thread, thread_args);
+
+    pthread_attr_destroy(&attr);
+
+    if (ret != 0) {
+        delete thread_args; // usually deleted in the thread, but need to clean it up here
+        return 0;
+    }
+    return thread_id;
+}
+#endif
+
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
@@ -84,6 +130,9 @@ void
 Sampler::one_time_setup()
 {
     _set_cpu(true);
+    // By default echion will ignore thread that are not running. We still want
+    // to track them and set cpu time 0, so we disable this behavior.
+    _set_ignore_non_running_threads(false);
     init_frame_cache(echion_frame_cache_size);
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
@@ -134,7 +183,7 @@ Sampler::unregister_thread(uint64_t id)
     thread_info_map.erase(id);
 }
 
-void
+bool
 Sampler::start()
 {
     static std::once_flag once;
@@ -143,8 +192,22 @@ Sampler::start()
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
-    std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
-    t.detach();
+#ifdef __linux__
+    // We might as well get the default stack size and use that
+    rlimit stack_sz = {};
+    getrlimit(RLIMIT_STACK, &stack_sz);
+    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+        return false;
+    }
+#else
+    try {
+        std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
+        t.detach();
+    } catch (const std::exception& e) {
+        return false;
+    }
+#endif
+    return true;
 }
 
 void

@@ -15,6 +15,7 @@ from typing import Tuple  # noqa:F401
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
 from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
+from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
@@ -29,6 +30,7 @@ CODE_TYPE_DD = "datadog"
 CODE_TYPE_SITE_PACKAGES = "site_packages"
 CODE_TYPE_STDLIB = "stdlib"
 TAINT_SINK_FUNCTION_REPLACEMENT = _PREFIX + "taint_sinks.ast_function"
+SOURCES_FUNCTION_REPLACEMENT = _PREFIX + "sources.ast_function"
 
 
 def _mark_avoid_convert_recursively(node):
@@ -132,14 +134,6 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
     "taint_sinks": {
         "weak_randomness": DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
         "path_traversal": DEFAULT_PATH_TRAVERSAL_FUNCTIONS,
-        "other": {
-            "load",
-            "run",
-            "path",
-            "exit",
-            "sleep",
-            "socket",
-        },
         # These explicitly WON'T be replaced by taint_sink_function:
         "disabled": {
             "__new__",
@@ -149,6 +143,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
             "super",
         },
     },
+    "sources": {"io": DEFAULT_SOURCE_IO_FUNCTIONS, "disabled": {}},
 }
 
 
@@ -168,9 +163,11 @@ class AstVisitor(ast.NodeTransformer):
         self._sinkpoints_spec = {
             "definitions_module": "ddtrace.appsec._iast.taint_sinks",
             "alias_module": _PREFIX + "taint_sinks",
-            "functions": {},
         }
-        self._sinkpoints_functions = self._sinkpoints_spec["functions"]
+        self._source_spec = {
+            "definitions_module": "ddtrace.appsec._iast.sources",
+            "alias_module": _PREFIX + "sources",
+        }
 
         self._aspect_index = _ASPECTS_SPEC["slices"]["index"]
         self._aspect_slice = _ASPECTS_SPEC["slices"]["slice"]
@@ -182,11 +179,14 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_build_string = _ASPECTS_SPEC["operators"]["BUILD_STRING"]
 
         # Sink points
-        self._taint_sink_replace_any = self._merge_taint_sinks(
-            _ASPECTS_SPEC["taint_sinks"]["other"],
+        self._taint_sink_replace_any = self._merge_dicts(
             _ASPECTS_SPEC["taint_sinks"]["weak_randomness"],
             *[functions for module, functions in _ASPECTS_SPEC["taint_sinks"]["path_traversal"].items()],
         )
+        self._source_replace_any = self._merge_dicts(
+            *[functions for module, functions in _ASPECTS_SPEC["sources"]["io"].items()],
+        )
+
         self._taint_sink_replace_disabled = _ASPECTS_SPEC["taint_sinks"]["disabled"]
 
         self.update_location(filename, module_name)
@@ -219,7 +219,7 @@ class AstVisitor(ast.NodeTransformer):
             self.codetype = CODE_TYPE_STDLIB
 
     @staticmethod
-    def _merge_taint_sinks(*args_functions: Set[str]) -> Set[str]:
+    def _merge_dicts(*args_functions: Set[str]) -> Set[str]:
         merged_set = set()
 
         for functions in args_functions:
@@ -283,6 +283,11 @@ class AstVisitor(ast.NodeTransformer):
             return False
 
         return function_name in self._taint_sink_replace_any
+
+    def _should_replace_with_source(self, call_node: ast.Call, is_function: bool) -> bool:
+        function_name = self._get_function_name(call_node, is_function)
+
+        return function_name in self._source_replace_any
 
     def _add_original_function_as_arg(self, call_node: ast.Call, is_function: bool) -> Any:
         """
@@ -452,10 +457,24 @@ class AstVisitor(ast.NodeTransformer):
             ],
         )
         module_node.body.insert(insert_position, replacements_import)
+
+        definitions_module = self._source_spec["definitions_module"]
+        replacements_import = self._node(
+            ast.Import,
+            module_node,
+            names=[
+                ast.alias(
+                    lineno=1,
+                    col_offset=0,
+                    name=definitions_module,
+                    asname=self._source_spec["alias_module"],
+                )
+            ],
+        )
+        module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
-        self.generic_visit(module_node)
-        return module_node
+        return self.generic_visit(module_node)
 
     def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
@@ -519,11 +538,7 @@ class AstVisitor(ast.NodeTransformer):
                 # Substitute function call
                 call_node.func = self._attr_node(call_node, aspect)
                 self.ast_modified = call_modified = True
-            else:
-                sink_point = self._sinkpoints_functions.get(func_name_node)
-                if sink_point:
-                    call_node.func = self._attr_node(call_node, sink_point)
-                    self.ast_modified = call_modified = True
+
         # Call [attr] -> Attribute [value]-> Attribute [value]-> Attribute
         # a.b.c.method()
         # replaced_method(a.b.c)
@@ -593,6 +608,14 @@ class AstVisitor(ast.NodeTransformer):
                     # Create a new Name node for the replacement and set it as node.func
                     call_node.func = self._attr_node(call_node, aspect)
                     self.ast_modified = call_modified = True
+                else:
+                    aspect = self._should_replace_with_source(call_node, False)
+                    if aspect:
+                        # Send 0 as flag_added_args value
+                        call_node.args.insert(0, self._int_constant(call_node, 0))
+                        call_node.args = self._add_original_function_as_arg(call_node, False)
+                        call_node.func = self._attr_node(call_node, SOURCES_FUNCTION_REPLACEMENT)
+                        self.ast_modified = call_modified = True
 
         if self.codetype == CODE_TYPE_FIRST_PARTY:
             # Function replacement case

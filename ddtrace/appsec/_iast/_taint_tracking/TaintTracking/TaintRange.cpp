@@ -132,10 +132,10 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
             } else {
-                result_error_msg = "[IAST] Invalid or empty source_value";
+                result_error_msg = "iast::propagation::native::Invalid or empty source_value";
             }
         } else {
-            result_error_msg = "[IAST] Invalid or empty source_name";
+            result_error_msg = "[iast::propagation::native::Invalid or empty source_name";
         }
     }
     if (not result) {
@@ -223,13 +223,13 @@ are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_lis
 TaintRangePtr
 get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_ranges)
 {
-    if (not taint_ranges or taint_ranges->empty()) {
+    if (not taint_ranges or !taint_ranges.has_value() or taint_ranges->empty()) {
         return nullptr;
     }
-    // TODO: Replace this loop with a efficient function, vector.find() is O(n)
-    // too.
+    // TODO: Replace this loop with a efficient function, vector.find() is O(n) too.
     TaintRangePtr null_range = nullptr;
-    for (const auto& range : taint_ranges.value()) {
+    // taint_ranges.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
+    for (const auto& range : *taint_ranges) {
         if (range_hash == range->get_hash()) {
             return range;
         }

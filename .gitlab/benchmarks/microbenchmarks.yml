@@ -1,0 +1,201 @@
+stages:
+  - build
+  - test
+  - report
+
+variables:
+  BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
+  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  BENCHMARKING_BRANCH: dd-trace-py
+
+.benchmarks:
+  stage: test
+  when: on_success
+  tags: ["runner:apm-k8s-tweaked-metal"]
+  image: $MICROBENCHMARKS_CI_IMAGE
+  interruptible: true
+  timeout: 1h
+  dependencies: [ "baseline:build", "candidate" ]
+  script: |
+    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    capture-hardware-software-info.sh
+
+    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+    then
+      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+    else
+      run-benchmarks.sh
+    fi
+
+    analyze-results.sh
+
+    upload-results-to-s3.sh || :
+  artifacts:
+    name: "reports"
+    when: always
+    paths:
+      - reports/
+    expire_in: 3 months
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
+    CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+
+baseline:detect:
+  image: $GITHUB_CLI_IMAGE
+  tags: [ "arch:amd64" ]
+  stage: build
+  variables:
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+  script: |
+    if [ -z ${GH_TOKEN} ]
+    then
+      aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+      gh auth login --with-token < token
+      rm token
+    fi
+
+    # Needed to run `git describe`
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
+
+    # Determine baseline to test against and save env variables into `baseline.env`
+    .gitlab/benchmarks/steps/detect-baseline.sh
+  artifacts:
+    reports:
+      dotenv: baseline.env
+    paths:
+      - "baseline.env"
+
+baseline:build:
+  image: $PACKAGE_IMAGE
+  tags: [ "arch:amd64" ]
+  needs: [ "baseline:detect" ]
+  stage: build
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+  script: |
+    CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
+    if [ ! -f "${CACHED_WHL}" ];
+    then
+      .gitlab/benchmarks/steps/build-baseline.sh
+    else
+      echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
+    fi
+
+    echo "BASELINE_WHL=$(ls *.whl | head -n 1)" | tee -a baseline.env
+  cache:
+    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+      paths:
+        - "*.whl"
+  artifacts:
+    reports:
+      dotenv: baseline.env
+    paths:
+      - "*.whl"
+
+candidate:
+  image: $PACKAGE_IMAGE
+  stage: build
+  tags: [ "arch:amd64" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: download_ddtrace_artifacts
+  script: |
+    cp pywheels/*-cp39-cp39-manylinux_*_x86_64*.whl ./
+    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
+  artifacts:
+    reports:
+      dotenv: candidate.env
+    paths:
+      - "*.whl"
+
+microbenchmarks:
+  extends: .benchmarks
+  parallel:
+    matrix:
+      - SCENARIO:
+        - "span"
+        - "tracer"
+        - "sampling_rule_matches"
+        - "set_http_meta"
+        - "django_simple"
+        - "flask_simple"
+        - "flask_sqli"
+        - "core_api"
+        - "otel_span"
+        - "appsec_iast_aspects"
+        - "appsec_iast_django_startup"
+        - "appsec_iast_propagation"
+        # Flaky. Timeout errors
+        # - "encoder"
+        - "http_propagation_extract"
+        - "http_propagation_inject"
+        - "rate_limiter"
+        - "packages_update_imported_dependencies"
+        - "telemetry_add_metric"
+        - "startup"
+        - "ddtrace_run"
+
+benchmarks-pr-comment:
+  image: $MICROBENCHMARKS_CI_IMAGE
+  tags: ["arch:amd64"]
+  stage: report
+  when: always
+  script: |
+    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
+    post-pr-comment.sh || :
+  except:
+    - main
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+
+check-big-regressions:
+  stage: report
+  when: always
+  tags: ["arch:amd64"]
+  image: $MICROBENCHMARKS_CI_IMAGE
+  script: |
+    export ARTIFACTS_DIR="$(pwd)/reports/"
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    bp-runner /platform/bp-runner.fail-on-regression.yml --debug
+  variables:
+    # Gitlab and BP specific env vars. Do not modify.
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py

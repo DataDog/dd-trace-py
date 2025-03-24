@@ -10,6 +10,8 @@ except ImportError:
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.trace import Span
@@ -47,6 +49,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
+    if span._get_ctx_item(INTEGRATION):
+        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -168,10 +172,16 @@ def _expected_llmobs_non_llm_span_event(
 
 
 def _llmobs_base_span_event(
-    span, span_kind, tags=None, session_id=None, error=None, error_message=None, error_stack=None
+    span,
+    span_kind,
+    tags=None,
+    session_id=None,
+    error=None,
+    error_message=None,
+    error_stack=None,
 ):
     span_event = {
-        "trace_id": "{:x}".format(span.trace_id),
+        "trace_id": format_trace_id(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": _get_span_name(span),
@@ -181,6 +191,7 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
+        "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
     }
     if session_id:
         span_event["session_id"] = session_id
@@ -260,7 +271,7 @@ def _completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "ada",
@@ -291,7 +302,7 @@ def _chat_completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -329,7 +340,7 @@ def _chat_completion_event_with_unserializable_field():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -368,7 +379,7 @@ def _large_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -406,7 +417,7 @@ def _oversized_llm_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -444,7 +455,7 @@ def _oversized_workflow_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "workflow",
             "input": {"value": "A" * 700_000},
@@ -464,7 +475,7 @@ def _oversized_retrieval_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "retrieval",
             "input": {"documents": {"content": "A" * 700_000}},
@@ -568,6 +579,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -585,6 +597,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
     ]
 
@@ -612,6 +625,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -629,6 +643,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -646,6 +661,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -658,6 +674,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -675,6 +692,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -687,6 +705,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -703,6 +722,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
     ]
 
@@ -727,6 +747,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -744,6 +765,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -761,5 +783,14 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
         },
     ]
+
+
+def _expected_span_link(span_event, link_from, link_to):
+    return {
+        "trace_id": span_event["trace_id"],
+        "span_id": span_event["span_id"],
+        "attributes": {"from": link_from, "to": link_to},
+    }

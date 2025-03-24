@@ -30,12 +30,22 @@ else()
 endif(BUILD_MACOS)
 unset(BUILD_MACOS CACHE)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    message("Release mode: using abseil")
+# Check the DD_COMPILE_ABSEIL environment variable and build type
+if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
+                                                                                 "false"))
+    message("==============================================================")
+    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
+    message("==============================================================")
+    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message("=====================================")
+    message("WARNING: Debug mode: not using abseil")
+    message("=====================================")
+    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
+else()
+    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
     FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip")
     FetchContent_MakeAvailable(absl)
-else()
-    message("Debug mode: not using abseil")
 endif()
 
 include_directories(".")
@@ -75,13 +85,18 @@ if(NATIVE_TESTING)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 
 # target_link_libraries(_native PRIVATE ${ICU_LIBS})
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
+   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
+                                                                                          STREQUAL "false")))
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
 endif()
 

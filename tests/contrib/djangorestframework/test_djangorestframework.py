@@ -3,9 +3,13 @@ import os
 import django
 import pytest
 
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import USER_KEEP
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
@@ -38,6 +42,78 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert err_span.get_tag(ERROR_MSG) == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
     assert err_span.get_tag("component") == "django"
+
+
+@pytest.mark.parametrize(
+    "test_endpoint",
+    [
+        {"endpoint": "/users/", "status_code": "500", "resource_name": "GET ^users/$"},
+        {"endpoint": "/other", "status_code": "404", "resource_name": "GET 404"},
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
+def test_inferred_spans_api_gateway_default(client, test_spans, test_endpoint, inferred_proxy_enabled):
+    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+        # must be in this form to override headers
+        default_headers = {
+            "HTTP_X_DD_PROXY": "aws-apigateway",
+            "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+            "HTTP_X_DD_PROXY_PATH": "/",
+            "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+            "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+            "HTTP_X_DD_PROXY_STAGE": "stage",
+        }
+
+        distributed_headers = {
+            "HTTP_X_DD_PROXY": "aws-apigateway",
+            "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+            "HTTP_X_DD_PROXY_PATH": "/",
+            "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+            "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+            "HTTP_X_DD_PROXY_STAGE": "stage",
+            "HTTP_X_DATADOG_TRACE_ID": "1",
+            "HTTP_X_DATADOG_PARENT_ID": "2",
+            "HTTP_X_DATADOG_ORIGIN": "rum",
+            "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
+        }
+
+        for headers in [default_headers, distributed_headers]:
+            test_spans.reset()
+            client.get(test_endpoint["endpoint"], **headers)
+            traces = test_spans.spans
+            if inferred_proxy_enabled is False:
+                web_span = traces[0]
+                assert web_span._parent is None
+                if headers == distributed_headers:
+                    web_span.assert_matches(
+                        name="django.request",
+                        trace_id=1,
+                        parent_id=2,
+                        metrics={
+                            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+                        },
+                    )
+            else:
+                aws_gateway_span = traces[0]
+                web_span = traces[1]
+                assert_web_and_inferred_aws_api_gateway_span_data(
+                    aws_gateway_span,
+                    web_span,
+                    web_span_name="django.request",
+                    web_span_component="django",
+                    web_span_service_name="django",
+                    web_span_resource=test_endpoint["resource_name"],
+                    api_gateway_service_name="local",
+                    api_gateway_resource="GET /",
+                    method="GET",
+                    status_code=test_endpoint["status_code"],
+                    url="local/",
+                    start=1736973768,
+                    is_distributed=headers == distributed_headers,
+                    distributed_trace_id=1,
+                    distributed_parent_id=2,
+                    distributed_sampling_priority=USER_KEEP,
+                )
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")

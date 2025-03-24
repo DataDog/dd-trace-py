@@ -21,6 +21,7 @@ suites:
     paths:
       - '@ci_visibility'
       - '@ci'
+      - '@core'
       - '@coverage'
       - '@git'
       - '@pytest'

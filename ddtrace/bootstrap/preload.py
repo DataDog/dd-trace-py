@@ -84,7 +84,7 @@ if config._otel_enabled:
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
 
-    LLMObs.enable()
+    LLMObs.enable(_auto=True)
 
 if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
     from ddtrace._monkey import _patch_all

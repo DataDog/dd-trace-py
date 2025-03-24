@@ -105,23 +105,6 @@ def _get_tests_api_response(tests_body: t.Optional[t.Dict] = None):
     return Response(200, json.dumps(response))
 
 
-def _get_detailed_tests_api_response(modules: t.Dict):
-    response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"modules": []}}}
-
-    for module_id, suites in modules.items():
-        module = {"id": module_id, "suites": []}
-        response["data"]["attributes"]["modules"].append(module)
-
-        for suite_id, tests in suites.items():
-            suite = {"id": suite_id, "tests": []}
-            module["suites"].append(suite)
-
-            for test_id in tests:
-                suite["tests"].append({"id": test_id})
-
-    return Response(200, json.dumps(response))
-
-
 def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: str, parameters: t.Optional[str] = None):
     """An easy way to create a test id "from the bottom up"
 
@@ -176,7 +159,7 @@ class TestTestVisibilityAPIClientBase:
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
-    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
+    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
     default_configurations = {
         "os.architecture": "arm64",

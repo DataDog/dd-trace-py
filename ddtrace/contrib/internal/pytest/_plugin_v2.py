@@ -32,10 +32,13 @@ from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
+from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
@@ -55,11 +58,13 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -81,13 +86,17 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
+if _pytest_version_supports_attempt_to_fix():
+    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
+    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_handle_retries
+    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
+
 log = get_logger(__name__)
 
 
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
-USER_PROPERTY_QUARANTINED = "dd_quarantined"
 OUTCOME_QUARANTINED = "quarantined"
-SKIPPED_BY_QUARANTINE_REASON = "Skipped by Datadog Quarantine"
+DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -100,7 +109,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id)
+    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
 
     if InternalTestSuite.is_itr_skippable(suite_id):
         if item_is_unskippable:
@@ -116,17 +125,25 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
-def _handle_quarantine(item, test_id):
+def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
     """
     is_quarantined = InternalTest.is_quarantined_test(test_id)
-    if is_quarantined:
-        # We add this information to user_properties to have it available in pytest_runtest_makereport().
-        item.user_properties += [(USER_PROPERTY_QUARANTINED, True)]
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-        if InternalTestSession.should_skip_quarantined_tests():
-            item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_QUARANTINE_REASON))
+    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+        # For internal use: treat quarantined tests as disabled.
+        is_disabled = True
+
+    if is_disabled and not is_attempt_to_fix:
+        # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
+        # It should still have both disabled and quarantined event tags, though.
+        item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+    elif is_quarantined or (is_disabled and is_attempt_to_fix):
+        # We add this information to user_properties to have it available in pytest_runtest_makereport().
+        item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
@@ -246,6 +263,15 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     try:
         command = _get_session_command(session)
 
+        library_capabilities = LibraryCapabilities(
+            early_flake_detection="1" if _pytest_version_supports_efd() else None,
+            auto_test_retries="1" if _pytest_version_supports_atr() else None,
+            test_impact_analysis="1" if _pytest_version_supports_itr() else None,
+            test_management_quarantine="1",
+            test_management_disable="1",
+            test_management_attempt_to_fix="2" if _pytest_version_supports_attempt_to_fix() else None,
+        )
+
         InternalTestSession.discover(
             test_command=command,
             test_framework=FRAMEWORK,
@@ -256,6 +282,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_operation_name=dd_config.pytest.operation_name,
             reject_duplicates=False,
         )
+
+        InternalTestSession.set_library_capabilities(library_capabilities)
 
         InternalTestSession.start()
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
@@ -340,7 +368,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 
     InternalTest.start(test_id)
 
-    _handle_quarantine(item, test_id)
+    _handle_test_management(item, test_id)
     _handle_itr_should_skip(item, test_id)
 
     item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
@@ -478,6 +506,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_id = _get_test_id_from_item(item)
 
     is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     test_outcome = _process_result(item, call, original_result)
 
@@ -494,7 +524,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    if original_result.failed and is_quarantined:
+    if original_result.failed and (is_quarantined or is_disabled):
         # Ensure test doesn't count as failed for pytest's exit status logic
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
         original_result.outcome = OUTCOME_QUARANTINED
@@ -504,6 +534,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
+    if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+        return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
@@ -526,9 +558,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
 
 
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
-    # Before yield gives us a chance to show failure reports, but they have to be in terminalreporter.stats["failed"] to
-    # be shown. That, however, would make them count towards the final summary, so we add them temporarily, then restore
-    # terminalreporter.stats["failed"] to its original size after the yield.
+    # Before yield gives us a chance to show failure reports (with the stack trace of the failing test), but they have
+    # to be in terminalreporter.stats["failed"] to be shown. That, however, would make them count towards the final
+    # summary, so we add them temporarily, then restore terminalreporter.stats["failed"] to its original size after the
+    # yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
     if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
@@ -567,6 +600,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
         atr_pytest_terminal_summary_post_yield(terminalreporter)
 
     quarantine_pytest_terminal_summary_post_yield(terminalreporter)
+    attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
 
@@ -610,6 +644,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
     if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    if InternalTestSession.attempt_to_fix_has_failed_tests():
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
@@ -645,6 +681,11 @@ def pytest_report_teststatus(
     if not is_test_visibility_enabled():
         return
 
+    if _pytest_version_supports_attempt_to_fix():
+        test_status = attempt_to_fix_get_teststatus(report)
+        if test_status:
+            return test_status
+
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
         if test_status is not None:
@@ -656,7 +697,7 @@ def pytest_report_teststatus(
             return test_status
 
     user_properties = getattr(report, "user_properties", [])
-    is_quarantined = (USER_PROPERTY_QUARANTINED, True) in user_properties
+    is_quarantined = USER_PROPERTY_QUARANTINED in user_properties
     if is_quarantined:
         if report.when == "teardown":
             return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
