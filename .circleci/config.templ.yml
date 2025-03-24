@@ -67,6 +67,7 @@ commands:
     steps:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot==0.20.1
+      - run: echo 'export PIP_FIND_LINKS="${CI_PROJECT_DIR:-.}/.gitlab/deps/"' >> "$BASH_ENV"
 
   setup_rust:
     description: "Install rust toolchain"
