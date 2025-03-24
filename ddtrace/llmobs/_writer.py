@@ -76,20 +76,14 @@ def configure_agentless_enabled() -> None:
     if config._llmobs_agentless_enabled is not None:
         return
 
-    try:
-        conn = get_connection(agent.get_trace_url(), timeout=5.0)
-        conn.request("GET", "/info")
-        resp = conn.getresponse()
+    agent_info = agent.info()
 
-        if resp.status != 200:
-            config._llmobs_agentless_enabled = True
-            return
-
-        endpoints = json.loads(resp.read())["endpoints"]
-        config._llmobs_agentless_enabled = "/evp_proxy/v2" not in endpoints
-
-    except Exception:
+    if agent_info is None:
         config._llmobs_agentless_enabled = True
+        return
+
+    endpoints = agent_info["endpoints"]
+    config._llmobs_agentless_enabled = "/evp_proxy/v2/" not in endpoints
 
 
 class BaseLLMObsWriter(PeriodicService):
@@ -173,7 +167,7 @@ class BaseLLMObsWriter(PeriodicService):
 
     @property
     def _url(self) -> str:
-        return "%s/%s" % (self._get_base_url(), self._get_endpoint())
+        return "%s%s" % (self._get_base_url(), self._get_endpoint())
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
