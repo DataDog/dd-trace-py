@@ -7,6 +7,12 @@
     - ulimit -c unlimited
     - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+    # Fix for setuptools==78.0.1 turning deprecation into errors
+    # We solve by telling pip to ignore this version when building wheels
+    # https://setuptools.pypa.io/en/stable/history.html#v78-0-0
+    # https://github.com/pypa/setuptools/issues/4910
+    - echo "setuptools<78" > pip_constraints.txt
+    - export PIP_CONSTRAINT=pip_constraints.txt
   retry: 2
   artifacts:
     reports:
