@@ -378,7 +378,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
         client = pylibmc.Client(servers=[url])
         assert client.addresses[0] is url
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
@@ -393,7 +393,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
         client = pylibmc.Client([url])
         assert client.addresses[0] is url
-        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
