@@ -6,8 +6,8 @@ are checked.
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
 """
-from xml.etree import ElementTree
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
@@ -320,13 +320,17 @@ class PytestATRTestCase(PytestTestCaseBase):
 
     def test_pytest_atr_junit_xml(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
-        # self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
-        # self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
-        # self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
+        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
+        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
+        self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
-        # self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
+        self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         rec = self.inline_run("--ddtrace", "-v", "-s", "--junit-xml=out.xml")
+        assert rec.ret == 1
+
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
-        assert test_suite.attrib["tests"] == "7"
-        assert test_suite.attrib["failures"] == "3"
+        assert test_suite.attrib["tests"] == "16"
+        assert test_suite.attrib["failures"] == "4"
+        assert test_suite.attrib["skipped"] == "4"
+        assert test_suite.attrib["errors"] == "2"

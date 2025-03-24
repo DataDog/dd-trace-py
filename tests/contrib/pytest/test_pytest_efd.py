@@ -6,8 +6,8 @@ are checked.
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
 """
-from xml.etree import ElementTree
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
@@ -293,7 +293,9 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+
         rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+        assert rec.ret == 1
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
         assert test_suite.attrib["tests"] == "7"

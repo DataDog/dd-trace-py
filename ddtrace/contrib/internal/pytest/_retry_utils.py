@@ -139,8 +139,12 @@ class RetryTestReport(pytest_TestReport):
     """
 
     def __init__(self, *args, **kwargs):
-        if "longrepr" not in kwargs and "final_failed" in kwargs.get("outcome", ""):
-            kwargs["longrepr"] = "All retries failed"
+        if "longrepr" not in kwargs:
+            if "final_failed" in kwargs.get("outcome", ""):
+                kwargs["longrepr"] = "All retries failed"
+            else:
+                kwargs["longrepr"] = None
+
         super().__init__(*args, **kwargs)
 
     @property
