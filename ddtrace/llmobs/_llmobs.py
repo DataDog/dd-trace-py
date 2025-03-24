@@ -354,9 +354,8 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            config._llmobs_agentless_enabled = (
-                agentless_enabled if agentless_enabled is not None else config._llmobs_agentless_enabled
-            )
+            if agentless_enabled is not None:
+                config._llmobs_agentless_enabled = agentless_enabled
 
             configure_agentless_enabled()
 
