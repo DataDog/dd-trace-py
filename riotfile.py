@@ -122,7 +122,6 @@ venv = Venv(
             pkgs={
                 "ruamel.yaml": latest,
                 "lxml": latest,
-                "setuptools": "77.0.3",
             },
         ),
         Venv(
