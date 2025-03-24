@@ -37,7 +37,7 @@ _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
     EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
-    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
+    EFDTestStatus.ALL_FAIL: "failed", #_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
     EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
     EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
 }
@@ -90,8 +90,9 @@ def efd_handle_retries(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
+        user_properties=item.user_properties + [("dd_retry_reason", "efd")],
         when="call",
-        longrepr=None,
+        longrepr="ꙮ",
         outcome=_FINAL_OUTCOMES[efd_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
@@ -305,6 +306,8 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
 
 def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:
+    retry_reason = [value for (key, value) in report.user_properties if key == "dd_retry_reason"]
+
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED:
         return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
@@ -325,7 +328,7 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
         return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
+    if report.outcome == "failed" and retry_reason == ["efd"] : #_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
         return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
         return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
