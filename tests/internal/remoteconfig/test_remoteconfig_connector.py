@@ -21,7 +21,7 @@ def any_product(data):
 )
 def test_hash(data):
     connector = PublisherSubscriberConnector()
-    assert type(connector._hash_config(any_product(data))) is int
+    assert isinstance(connector._hash_config(any_product(data)), int)
 
 
 def test_connector():
