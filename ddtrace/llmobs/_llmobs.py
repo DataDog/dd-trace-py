@@ -69,7 +69,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._writer import configure_agentless_enabled
+from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -354,10 +354,11 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            if agentless_enabled is not None:
-                config._llmobs_agentless_enabled = agentless_enabled
-
-            configure_agentless_enabled()
+            config._llmobs_agentless_enabled = should_use_agentless(
+                user_defined_agentless_enabled=agentless_enabled
+                if agentless_enabled is not None
+                else config._llmobs_agentless_enabled
+            )
 
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs

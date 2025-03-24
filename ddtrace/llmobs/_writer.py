@@ -70,19 +70,18 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
-def configure_agentless_enabled() -> None:
-    """Configure whether to use agentless mode based on agent availability and capabilities."""
-    if config._llmobs_agentless_enabled is not None:
-        return
+def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
+    """Determine whether to use agentless mode based on agent availability and capabilities."""
+    if user_defined_agentless_enabled is not None:
+        return user_defined_agentless_enabled
 
     agent_info = agent.info()
 
     if agent_info is None:
-        config._llmobs_agentless_enabled = True
-        return
+        return True
 
     endpoints = agent_info["endpoints"]
-    config._llmobs_agentless_enabled = "/evp_proxy/v2/" not in endpoints
+    return "/evp_proxy/v2/" not in endpoints
 
 
 class BaseLLMObsWriter(PeriodicService):
