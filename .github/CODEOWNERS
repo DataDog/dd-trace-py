@@ -42,6 +42,7 @@ docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+scripts/bump_ddtrace.py             @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
