@@ -185,44 +185,48 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         current_span = pin.tracer.current_span()
         if current_span and current_span._get_ctx_item("openai.completion.with_raw_response"):
             create_span = False
-    if not create_span:
-        return
-    span = integration.trace(
-        pin,
-        endpoint_hook.OPERATION_ID,
-        base_url=base_url,
-    )
+    if create_span:
+        span = integration.trace(
+            pin,
+            endpoint_hook.OPERATION_ID,
+            base_url=base_url,
+        )
+    else:
+        span = None
 
     # set the context item to indicate that we're using with_raw_response
-    if endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook:
+    if endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook and span:
         span._set_ctx_item("openai.completion.with_raw_response", True)
     
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
-    if openai_api_key:
+    if openai_api_key and span:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
     try:
         # Start the hook
-        hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
-        hook.send(None)
+        if span:
+            hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
+            hook.send(None)
 
         resp, err = yield
 
         # Record any error information
-        if err is not None:
+        if err is not None and span:
             span.set_exc_info(*sys.exc_info())
 
         # Pass the response and the error to the hook
         try:
-            hook.send((resp, err))
+            if span:
+                hook.send((resp, err))
+            return resp
         except StopIteration as e:
             if err is None:
                 return e.value
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None:
+        if not kwargs.get("stream") or err is not None and span:
             span.finish()
 
 
