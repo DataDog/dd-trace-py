@@ -6,6 +6,7 @@ are checked.
 - The same known tests are used to override fetching of known tests.
 - The session object is patched to never be a faulty session, by default.
 """
+from xml.etree import ElementTree
 from unittest import mock
 
 import pytest
@@ -285,3 +286,15 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
         assert rec.ret == 1
         assert len(spans) == 7
+
+    def test_pytest_efd_junit_xml(self):
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "7"
+        assert test_suite.attrib["failures"] == "3"
