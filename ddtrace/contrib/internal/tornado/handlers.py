@@ -36,7 +36,7 @@ def execute(func, handler, args, kwargs):
             tags={},
             tracer=tracer,
             distributed_headers=handler.request.headers,
-            distributed_headers_config=config.tornado,
+            integration_config=config.tornado,
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
             # DEV: tornado is special case maintains separate configuration from config api

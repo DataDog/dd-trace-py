@@ -203,17 +203,17 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_config):
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
 
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
-    headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+    headers = ctx.get_item("headers", ctx.get_item("integration_config", None))
 
     # Inferred Proxy Spans
-    if distributed_headers_config and headers is not None:
+    if integration_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(
             ctx,
             headers=headers,
@@ -518,7 +518,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["distributed_headers_config"],
+        ctx["integration_config"],
         method=request.method,
         query=query,
         raw_uri=uri,

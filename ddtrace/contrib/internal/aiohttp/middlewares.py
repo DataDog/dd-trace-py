@@ -41,7 +41,7 @@ async def trace_middleware(app, handler):
             tags={},
             tracer=tracer,
             distributed_headers=request.headers,
-            distributed_headers_config=config.aiohttp,
+            integration_config=config.aiohttp,
             distributed_headers_config_override=app[CONFIG_KEY]["distributed_tracing_enabled"],
             headers_case_sensitive=True,
             analytics_enabled=analytics_enabled,

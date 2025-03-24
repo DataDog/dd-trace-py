@@ -110,7 +110,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             pin=pin,
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
-            distributed_headers_config=config.rq_worker,
+            integration_config=config.rq_worker,
             distributed_headers=job.meta,
             tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
         ) as ctx, ctx.span:
