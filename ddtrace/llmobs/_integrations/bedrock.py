@@ -165,18 +165,26 @@ class BedrockIntegration(BaseLLMIntegration):
         full list of output messages and tools. Uses contentBlockIndex to accurately
         track content blocks and tool calls.
         """
-        usage_metrics = {}  # type: Dict[str, int]
-        metadata = {}  # type: Dict[str, str]
-        messages = []  # type: List[Dict[str, Any]]
-        content_blocks = {}  # type: Dict[int, Dict[str, str | Dict[str, str]]]
+        usage_metrics: Dict[str, int] = {}
+        metadata: Dict[str, str] = {}
+        messages: List[Dict[str, Any]] = []
+
+        text_content_blocks: Dict[int, str] = {}
+        tool_content_blocks: Dict[int, Dict[str, Any]] = {}
+
+        current_message: Optional[Dict[str, Any]] = None
 
         try:
             for chunk in streamed_body:
                 if "metadata" in chunk:
                     if "usage" in chunk["metadata"]:
-                        usage_metrics["input_tokens"] = chunk["metadata"]["usage"].get("inputTokens")
-                        usage_metrics["output_tokens"] = chunk["metadata"]["usage"].get("outputTokens")
-                        usage_metrics["total_tokens"] = chunk["metadata"]["usage"].get("totalTokens")
+                        usage = chunk["metadata"]["usage"]
+                        if "inputTokens" in usage:
+                            usage_metrics["input_tokens"] = usage["inputTokens"]
+                        if "outputTokens" in usage:
+                            usage_metrics["output_tokens"] = usage["outputTokens"]
+                        if "totalTokens" in usage:
+                            usage_metrics["total_tokens"] = usage["totalTokens"]
 
                 if "messageStart" in chunk:
                     message_data = chunk["messageStart"]
@@ -185,57 +193,65 @@ class BedrockIntegration(BaseLLMIntegration):
                 if "contentBlockStart" in chunk:
                     block_start = chunk["contentBlockStart"]
                     index = block_start.get("contentBlockIndex")
-                    if index is not None:
-                        content_blocks[index] = {}
-                    if "start" in block_start and "toolUse" in block_start["start"]:
-                        content_blocks[index]["toolUse"] = block_start["start"]["toolUse"]
-                    current_message["context_block_indices"].append(index)
+                    if index is not None and current_message is not None:
+                        current_message["context_block_indices"].append(index)
+                        if "start" in block_start and "toolUse" in block_start["start"]:
+                            tool_content_blocks[index] = block_start["start"]["toolUse"]
 
                 if "contentBlockDelta" in chunk:
                     if current_message is None:
-                        current_message = {"role": "assistant", "content_blocks": []}
+                        current_message = {"role": "assistant", "context_block_indices": []}
 
                     delta = chunk["contentBlockDelta"]
                     index = delta.get("contentBlockIndex")
-                    if index not in content_blocks:
-                        content_blocks[index] = {}
-                        current_message["context_block_indices"].append(index)
+                    if index is not None and current_message is not None:
+                        if index not in current_message.get("context_block_indices", []):
+                            current_message["context_block_indices"].append(index)
 
-                    if "delta" in delta:
-                        delta_content = delta["delta"]
-                        if "text" in delta_content:
-                            if "text" not in content_blocks[index]:
-                                content_blocks[index]["text"] = ""
-                            content_blocks[index]["text"] += delta_content["text"]
-                        if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
-                            if "input" not in content_blocks[index]["toolUse"]:
-                                content_blocks[index]["toolUse"]["input"] = ""
-                            content_blocks[index]["toolUse"]["input"] += delta_content["toolUse"]["input"]
+                        if "delta" in delta:
+                            delta_content = delta["delta"]
+                            if "text" in delta_content:
+                                if index not in text_content_blocks:
+                                    text_content_blocks[index] = ""
+                                text_content_blocks[index] += delta_content["text"]
+
+                            if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
+                                if index not in tool_content_blocks:
+                                    tool_content_blocks[index] = {}
+                                tool_block = tool_content_blocks[index]
+                                if "input" not in tool_block:
+                                    tool_block["input"] = ""
+                                tool_block["input"] += delta_content["toolUse"]["input"]
 
                 if "messageStop" in chunk and current_message is not None:
-                    message_output = {"role": current_message["role"]}
+                    message_output: Dict[str, Any] = {"role": current_message["role"]}
 
-                    blocks = sorted(current_message["context_block_indices"])
-                    text_blocks = [
-                        content_blocks.get(b, {}).get("text") for b in blocks if content_blocks.get(b, {}).get("text")
-                    ]
-                    tool_blocks = [
-                        content_blocks.get(b, {}).get("toolUse")
-                        for b in blocks
-                        if content_blocks.get(b, {}).get("toolUse")
-                    ]
+                    # Get text blocks
+                    text_contents: List[str] = []
+                    for idx in sorted(current_message.get("context_block_indices", [])):
+                        if idx in text_content_blocks:
+                            text_contents.append(text_content_blocks[idx])
 
-                    if text_blocks:
-                        message_output["content"] = "".join(text_blocks)
-                    if tool_blocks:
+                    # Get tool blocks
+                    tool_call_blocks: List[Dict[str, Any]] = []
+                    for idx in sorted(current_message.get("context_block_indices", [])):
+                        if idx in tool_content_blocks:
+                            tool_call_blocks.append(tool_content_blocks[idx])
+
+                    if text_contents:
+                        message_output["content"] = "".join(text_contents)
+
+                    if tool_call_blocks:
                         tool_calls = []
-                        for tool_block in tool_blocks:
-                            tool_args = {}
+                        for tool_block in tool_call_blocks:
+                            tool_args: Dict[str, Any] = {}
                             if "input" in tool_block:
+                                input_text = tool_block["input"]
                                 try:
-                                    tool_args = json.loads(tool_block["input"])
+                                    tool_args = json.loads(input_text)
                                 except (json.JSONDecodeError, ValueError):
-                                    tool_args = {"input": tool_block["input"]}
+                                    tool_args = {"input": input_text}
+
                             tool_calls.append(
                                 {
                                     "name": tool_block.get("toolName", ""),
@@ -243,7 +259,9 @@ class BedrockIntegration(BaseLLMIntegration):
                                     "tool_id": tool_block.get("toolUseId", ""),
                                 }
                             )
+
                         message_output["tool_calls"] = tool_calls
+
                     messages.append(message_output)
                     # Reset current message
                     current_message = None
@@ -253,6 +271,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 "Unable to extract messages/tool data from converse stream response: %s. Defaulting to empty response.",
                 str(e),
             )
+
         if not messages:
             messages.append({"role": "assistant", "content": ""})
 
