@@ -25,7 +25,13 @@ def preapare_test_env(mypackage_example):
     cwd = os.getcwd()
     python_path = os.getenv("PYTHONPATH", None)
     try:
-        subprocess.check_output("pip install --target=" + envdir + " " + pkgfile, shell=True)
+        # Create pip constraints file
+        constraints_file = os.path.join(mypackage_example, "pip_constraints.txt")
+        with open(constraints_file, "w") as f:
+            f.write("setuptools<78")
+        os.environ["PIP_CONSTRAINT"] = constraints_file
+        
+        subprocess.check_output("pip install --target=" + envdir + " --constraint " + constraints_file + " " + pkgfile, shell=True)
         os.chdir(envdir)
         os.environ["PYTHONPATH"] = os.getenv("PYTHONPATH", "") + os.pathsep + envdir
         yield
@@ -33,6 +39,9 @@ def preapare_test_env(mypackage_example):
         os.chdir(cwd)
         if python_path is not None:
             os.environ["PYTHONPATH"] = python_path
+        # Clean up constraints file
+        if os.path.exists(constraints_file):
+            os.remove(constraints_file)
 
 
 @pytest.mark.usefixtures("preapare_test_env")
