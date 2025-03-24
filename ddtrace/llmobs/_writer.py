@@ -31,6 +31,7 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -79,7 +80,7 @@ def configure_agentless_enabled() -> None:
         conn = get_connection(agent.get_trace_url(), timeout=5.0)
         conn.request("GET", "/info")
         resp = conn.getresponse()
-        
+
         if resp.status != 200:
             config._llmobs_agentless_enabled = True
             return
@@ -94,7 +95,7 @@ def configure_agentless_enabled() -> None:
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
@@ -104,8 +105,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._endpoint = ""  # type: str
         self._site = site  # type: str
         self._intake = ""  # type: str
-        self._headers = {"DD-API-KEY": self._api_key, "Content-Type": "application/json"}
         self._event_type = ""  # type: str
+        self._is_agentless: bool = is_agentless
 
     def start(self, *args, **kwargs):
         super(BaseLLMObsWriter, self).start()
@@ -132,18 +133,13 @@ class BaseLLMObsWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
 
-        if not self._headers.get("DD-API-KEY"):
-            logger.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
-                "Ensure this configuration is set before running your application.",
-            )
-            return
-
         data = self._data(events)
         enc_llm_events = safe_json(data)
-        conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
+        conn = self._get_connection()
         try:
-            conn.request("POST", self._endpoint, enc_llm_events, self._headers)
+            endpoint = self._get_endpoint()
+            headers = self._get_headers()
+            conn.request("POST", endpoint, enc_llm_events, headers)
             resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
@@ -165,12 +161,37 @@ class BaseLLMObsWriter(PeriodicService):
         finally:
             conn.close()
 
+    def _get_base_url(self) -> str:
+        if self._is_agentless:
+            return "https://%s.%s" % (self._intake, self._site)
+        return agent.get_trace_url()
+
+    def _get_endpoint(self) -> str:
+        if self._is_agentless:
+            return self._endpoint
+        return "%s%s" % (EVP_PROXY_AGENT_BASE_PATH, self._endpoint)
+
     @property
     def _url(self) -> str:
-        return "https://%s%s" % (self._intake, self._endpoint)
+        return "%s/%s" % (self._get_base_url(), self._get_endpoint())
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
+
+    def _get_connection(self):
+        if self._is_agentless:
+            return httplib.HTTPSConnection("%s.%s" % (self._intake, self._site), 443, timeout=self._timeout)
+        return get_connection(agent.get_trace_url(), timeout=self._timeout)
+
+    def _get_headers(self):
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self._is_agentless:
+            headers["DD-API-KEY"] = self._api_key
+        else:
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = self._intake  # "api"
+        return headers
 
     def recreate(self) -> "BaseLLMObsWriter":
         return self.__class__(
@@ -184,12 +205,12 @@ class BaseLLMObsWriter(PeriodicService):
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool) -> None:
+        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/21/eval-metric"
-        self._intake = "api.%s" % self._site  # type: str
+        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
+        self._intake = "api"
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
         if not self._enqueue(event):
