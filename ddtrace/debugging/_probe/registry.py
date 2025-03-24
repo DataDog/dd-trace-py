@@ -119,7 +119,7 @@ class ProbeRegistry(dict):
             try:
                 entry = cast(ProbeRegistryEntry, self[probe.probe_id])
             except KeyError:
-                # The probe has likely been removed by remote  config but the
+                # The probe has likely been removed by remote config but the
                 # instrumentation has raced that thread from another thread.
                 # Since we can't get an entry from the registry for it we don't
                 # log the emitting state.
