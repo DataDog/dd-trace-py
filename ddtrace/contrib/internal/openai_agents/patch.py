@@ -14,8 +14,7 @@ from ddtrace.trace import Pin
 _span_processor = None
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         from agents import version
 

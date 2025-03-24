@@ -71,7 +71,7 @@ class BaseLLMIntegration:
         """
         span_name = kwargs.get("span_name")
         span = pin.tracer.trace(
-            span_name if span_name else "%s.request" % self._integration_name,
+            span_name or "%s.request" % self._integration_name,
             resource=operation_id,
             service=int_service(pin, self.integration_config),
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,

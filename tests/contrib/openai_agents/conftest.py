@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -133,15 +134,20 @@ def simple_agent():
 @pytest.fixture
 def agents():
     """The OpenAI Agents integration with patching and cleanup"""
-    import agents
+    with override_env(
+        {
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "<not-a-real-key>"),
+        }
+    ):
+        import agents
 
-    # remove default trace processor to avoid errors sending to OpenAI backend
-    from agents.tracing import set_trace_processors
+        # remove default trace processor to avoid errors sending to OpenAI backend
+        from agents.tracing import set_trace_processors
 
-    set_trace_processors([])
-    patch()
-    yield agents
-    unpatch()
+        set_trace_processors([])
+        patch()
+        yield agents
+        unpatch()
 
 
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
@@ -171,12 +177,7 @@ def llmobs_span_writer():
 def agents_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
-        {
-            "_dd_api_key": "<not-a-real-api_key>",
-            "_llmobs_ml_app": "<ml-app-name>",
-            "service": "tests.contrib.agents",
-            "OPENAI_API_KEY": "dummy",
-        }
+        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
     ):
         llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
