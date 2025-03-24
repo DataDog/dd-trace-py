@@ -2,6 +2,7 @@ import atexit
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 
@@ -11,6 +12,7 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 import http.client as httplib
+import json
 
 import ddtrace
 from ddtrace import config
@@ -20,6 +22,7 @@ from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs import _telemetry as telemetry
@@ -67,6 +70,33 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
+def configure_agentless_enabled() -> None:
+    if config._llmobs_agentless_enabled is not None:
+        return
+
+    conn = get_connection(agent.get_trace_url(), timeout=5.0)
+
+    try:
+        conn.request("GET", "/info")
+        resp = conn.getresponse()
+        agent_running = resp.status == 200
+    except Exception:
+        agent_running = False
+
+    should_use_agentless = False
+
+    if not agent_running:
+        should_use_agentless = True
+    else:
+        endpoints = json.loads(resp.read())["endpoints"]
+        if "/evp_proxy/v2" in endpoints:
+            should_use_agentless = False
+        else:
+            should_use_agentless = True
+
+    config._llmobs_agentless_enabled = should_use_agentless
+
+
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
@@ -91,15 +121,15 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
+    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> Optional[bool]:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
-                telemetry.record_dropped_eval_payload([event], error="buffer_full")
-                return
+                return False
             self._buffer.append(event)
+            return True
 
     def periodic(self) -> None:
         with self._lock:
@@ -164,11 +194,12 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
         self._event_type = "evaluation_metric"
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
+        self._endpoint = "/api/intake/llm-obs/21/eval-metric"
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
-        self._enqueue(event)
+        if not self._enqueue(event):
+            telemetry.record_dropped_eval_payload([event], error="buffer_full")
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
@@ -257,7 +288,7 @@ class LLMObsSpanWriter(HTTPWriter):
         reuse_connections=None,
     ):
         headers = {}
-        clients = []  # type: List[WriterClientBase]
+        clients: List[WriterClientBase] = []
         if is_agentless:
             if not agentless_url:
                 raise ValueError("agentless_url is required for agentless mode")

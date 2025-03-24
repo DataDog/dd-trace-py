@@ -69,6 +69,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import configure_agentless_enabled
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -108,6 +109,7 @@ class LLMObs(Service):
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=config._llmobs_agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
@@ -308,7 +310,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
-        agentless_enabled: bool = False,
+        agentless_enabled: Optional[bool] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -352,7 +354,12 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+            config._llmobs_agentless_enabled = (
+                agentless_enabled if agentless_enabled is not None else config._llmobs_agentless_enabled
+            )
+
+            configure_agentless_enabled()
+
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs
                 if not config._dd_api_key:
@@ -397,7 +404,9 @@ class LLMObs(Service):
 
             log.debug("%s enabled", cls.__name__)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
+            telemetry.record_llmobs_enabled(
+                error, config._llmobs_agentless_enabled is True, config._dd_site, start_ns, _auto
+            )
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
