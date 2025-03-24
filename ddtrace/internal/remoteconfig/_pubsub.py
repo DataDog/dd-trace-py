@@ -70,6 +70,7 @@ from typing import Any
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
 
@@ -105,10 +106,10 @@ class PubSub(ABC):
     def publish(self) -> None:
         self._publisher.dispatch(self)
 
-    def append_and_publish(self, config_content: Any, target: str, config_metadata: ConfigMetadata) -> None:
+    def append_and_publish(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         """Append data to publisher and send the data to subscriber. It's a shortcut for testing purposes"""
         self.append(config_content, target, config_metadata)
         self.publish()
 
-    def append(self, config_content: Any, target: str, config_metadata: ConfigMetadata) -> None:
+    def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         self._publisher.append(config_content, target, config_metadata)

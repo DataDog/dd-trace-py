@@ -7,6 +7,7 @@ from typing import List
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
+from ddtrace.internal.remoteconfig import PayloadType
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -46,7 +47,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
         self._config_and_metadata: List[Payload] = []
 
-    def append(self, config_content: Any, target: str, config_metadata: ConfigMetadata) -> None:
+    def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         self._config_and_metadata.append(Payload(config_metadata, target, config_content))
 
     def dispatch(self, pubsub_instance: "PubSub") -> None:

@@ -2,7 +2,6 @@ from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
-from typing import Any
 from typing import List
 from typing import Sequence
 from uuid import UUID
@@ -23,7 +22,7 @@ SharedDataType = List[Payload]
 
 
 class UUIDEncoder(json.JSONEncoder):
-    def default(self, o: Any) -> Any:
+    def default(self, o):
         if isinstance(o, UUID):
             # if the obj is uuid, we simply return the value of uuid
             return o.hex
@@ -48,7 +47,7 @@ class PublisherSubscriberConnector:
         result = 0
         for payload in payload_sequence:
             result ^= hash(payload.metadata)
-            if payload.content is False:
+            if payload.content is None:
                 result <<= 1
         return result
 

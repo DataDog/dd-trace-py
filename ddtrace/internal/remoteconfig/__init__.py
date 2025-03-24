@@ -1,5 +1,6 @@
 import dataclasses
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 
@@ -18,11 +19,15 @@ class ConfigMetadata:
     apply_error: Optional[str] = dataclasses.field(default=None, compare=False)
 
 
+# None means the configuration is deleted
+PayloadType = Optional[Dict[str, Any]]
+
+
 @dataclasses.dataclass
 class Payload:
     metadata: ConfigMetadata
     path: str
-    content: Any
+    content: PayloadType
 
     def __post_init__(self):
         if isinstance(self.metadata, dict):

@@ -116,7 +116,8 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[
     res: Dict[str, Dict[str, Optional[bool]]] = {}
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
-            if payload.content is False:
+            payload_content = payload.content
+            if payload_content is None:
                 if payload.path in cache:
                     if "asm" in cache[payload.path]:
                         res["asm"] = {"enabled": False}
@@ -124,8 +125,8 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[
                         res["auto_user_instrum"] = {"mode": None}
                 cache.pop(payload.path, None)
             else:
-                res.update(payload.content)
-                cache[payload.path] = payload.content
+                res.update(payload_content)
+                cache[payload.path] = payload_content
     return res
 
 
