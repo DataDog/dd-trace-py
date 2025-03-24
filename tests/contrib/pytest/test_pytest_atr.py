@@ -187,7 +187,6 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         rec = self.inline_run("--ddtrace", "-v")
-        breakpoint()
         assert rec.ret == 1
         spans = self.pop_spans()
         session_span = _get_spans_from_list(spans, "session")[0]
