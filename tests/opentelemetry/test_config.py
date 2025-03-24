@@ -224,7 +224,7 @@ def test_otel_metrics_exporter_configuration():
 def test_otel_metrics_exporter_configuration_unsupported_exporter():
     from ddtrace import config
 
-    assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
+    assert config._runtime_metrics_enabled, config._runtime_metrics_enabled
 
 
 @pytest.mark.subprocess(

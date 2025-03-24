@@ -248,10 +248,6 @@ def test_runtime_metrics_enabled_via_manual_start():
     from ddtrace.runtime import RuntimeMetrics
 
     f = debug.collect(ddtrace.tracer)
-    assert f.get("runtime_metrics_enabled") is False
-
-    RuntimeMetrics.enable()
-    f = debug.collect(ddtrace.tracer)
     assert f.get("runtime_metrics_enabled") is True
 
     RuntimeMetrics.disable()
@@ -259,7 +255,9 @@ def test_runtime_metrics_enabled_via_manual_start():
     assert f.get("runtime_metrics_enabled") is False
 
 
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_RUNTIME_METRICS_ENABLED": ["0", "true"]}, err=None)
+@pytest.mark.subprocess(
+    ddtrace_run=True, parametrize={"DD_RUNTIME_METRICS_ENABLED": ["0", "true", "false", "1"]}, err=None
+)
 def test_runtime_metrics_enabled_via_env_var_start():
     import os
 

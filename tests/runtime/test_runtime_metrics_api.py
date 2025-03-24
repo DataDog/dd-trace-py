@@ -96,21 +96,12 @@ telemetry_writer.periodic(force_flush=True)
     assert runtimemetrics_enabled[0]["origin"] == "code"
 
 
-def test_start_runtime_metrics_via_env_var(monkeypatch, ddtrace_run_python_code_in_subprocess):
+def test_start_runtime_metrics_via_env_var(ddtrace_run_python_code_in_subprocess):
     """
-    When running with ddtrace-run and DD_RUNTIME_METRICS_ENABLED is set
+    When running with ddtrace-run
         Runtime metrics worker starts and there are no errors
     """
 
-    _, _, status, _ = ddtrace_run_python_code_in_subprocess(
-        """
-from ddtrace.runtime import RuntimeMetrics
-assert not RuntimeMetrics._enabled
-"""
-    )
-    assert status == 0
-
-    monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
     _, _, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace.runtime import RuntimeMetrics
@@ -120,13 +111,12 @@ assert RuntimeMetrics._enabled
     assert status == 0
 
 
-def test_runtime_metrics_via_env_var_manual_start(monkeypatch, ddtrace_run_python_code_in_subprocess):
+def test_runtime_metrics_via_env_var_manual_start(ddtrace_run_python_code_in_subprocess):
     """
-    When running with ddtrace-run and DD_RUNTIME_METRICS_ENABLED is set and trying to start RuntimeMetrics manually
+    When running with ddtrace-run and RuntimeMetrics is started manually
         Runtime metrics worker starts and there are no errors
     """
 
-    monkeypatch.setenv("DD_RUNTIME_METRICS_ENABLED", "true")
     _, _, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace.runtime import RuntimeMetrics
