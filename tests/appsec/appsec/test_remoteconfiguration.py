@@ -188,7 +188,7 @@ def test_rc_activation_validate_client_id(tracer, remote_config_worker):
     ],
 )
 @pytest.mark.parametrize(
-    "enable_config, disable_config",
+    "enable_config_content, disable_config_content",
     [
         ({"asm": {"enabled": True}}, {"asm": {}}),
         (
@@ -202,7 +202,7 @@ def test_rc_activation_validate_client_id(tracer, remote_config_worker):
     ],
 )
 def test_rc_activation_check_asm_features_product_disables_rest_of_products(
-    tracer, remote_config_worker, env_rules, expected, enable_config, disable_config
+    tracer, remote_config_worker, env_rules, expected, enable_config_content, disable_config_content
 ):
     global_config = dict(_remote_config_enabled=True, _asm_enabled=True)
     global_config.update(env_rules)
@@ -210,8 +210,8 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
 
     rc_config.skip_shutdown = False
     empty_config = []
-    enable_config = [build_payload("ASM_FEATURES", enable_config, "config")]
-    disable_config = [build_payload("ASM_FEATURES", disable_config, "config")]
+    enable_config = [build_payload("ASM_FEATURES", enable_config_content, "config")]
+    disable_config = [build_payload("ASM_FEATURES", disable_config_content, "config")]
     with override_global_config(global_config):
         tracer._configure(appsec_enabled=True, api_version="v0.4")
         enable_appsec_rc(tracer)

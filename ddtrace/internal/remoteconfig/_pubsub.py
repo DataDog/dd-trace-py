@@ -66,7 +66,6 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 from abc import ABC
 from abc import abstractmethod
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -88,7 +87,7 @@ class PubSub(ABC):
     _subscriber = None  # type: RemoteConfigSubscriber
 
     @abstractmethod
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
     def start_subscriber(self):
