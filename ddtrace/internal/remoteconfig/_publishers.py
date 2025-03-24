@@ -1,7 +1,6 @@
 import abc
 import os
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any
 from typing import List
 
 from ddtrace.internal.logger import get_logger
@@ -33,7 +32,7 @@ class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
     def dispatch(self, pubsub_instance: "PubSub") -> None:
         raise NotImplementedError
 
-    def append(self, config_content: Any, target: str, config_metadata: ConfigMetadata) -> None:
+    def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         raise NotImplementedError
 
 
