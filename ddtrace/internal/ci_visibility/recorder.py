@@ -32,7 +32,6 @@ from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
-from ddtrace.internal.agent import get_connection
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
@@ -84,8 +83,6 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.http import verify_url
-from ddtrace.internal.writer.writer import Response
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -142,23 +139,6 @@ def _get_custom_configurations() -> Dict[str, str]:
             custom_configurations[tag.replace("%s." % CUSTOM_CONFIGURATIONS_PREFIX, "", 1)] = value
 
     return custom_configurations
-
-
-def _do_request(
-    method: str, url: str, payload: str, headers: Dict[str, str], timeout: int = DEFAULT_TIMEOUT
-) -> Response:
-    try:
-        parsed_url = verify_url(url)
-        url_path = parsed_url.path
-        conn = get_connection(url, timeout=timeout)
-        log.debug("Sending request: %s %s %s %s", method, url_path, payload, headers)
-        conn.request("POST", url_path, payload, headers)
-        resp = conn.getresponse()
-        log.debug("Response status: %s", resp.status)
-        result = Response.from_http_response(resp)
-    finally:
-        conn.close()
-    return result
 
 
 class CIVisibilityTracer(Tracer):
@@ -346,11 +326,7 @@ class CIVisibility(Service):
         return True
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
-        # DEV: Remove this ``if`` once ITR is in GA
         _error_return_value = TestVisibilityAPISettings()
-
-        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
-            return _error_return_value
 
         if not self._api_client:
             log.warning("API client not initialized, disabling coverage collection and test skipping")
@@ -1687,6 +1663,11 @@ def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
     return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
 
 
+@_requires_civisibility_enabled
+def _on_attempt_to_fix_session_has_failed_tests() -> bool:
+    return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
+
+
 def _register_attempt_to_fix_handlers() -> None:
     log.debug("Registering AttemptToFix handlers")
     core.on(
@@ -1695,6 +1676,11 @@ def _register_attempt_to_fix_handlers() -> None:
     core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
     core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
     core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
+    core.on(
+        "test_visibility.attempt_to_fix.session_has_failed_tests",
+        _on_attempt_to_fix_session_has_failed_tests,
+        "has_failed_tests",
+    )
     core.on(
         "test_visibility.attempt_to_fix.get_final_status",
         _on_attempt_to_fix_get_final_status,
