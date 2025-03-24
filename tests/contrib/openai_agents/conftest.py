@@ -171,7 +171,12 @@ def llmobs_span_writer():
 def agents_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
+        {
+            "_dd_api_key": "<not-a-real-api_key>",
+            "_llmobs_ml_app": "<ml-app-name>",
+            "service": "tests.contrib.agents",
+            "OPENAI_API_KEY": "dummy",
+        }
     ):
         llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer

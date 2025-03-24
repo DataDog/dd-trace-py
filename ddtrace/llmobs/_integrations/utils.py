@@ -290,34 +290,34 @@ class OaiSpanAdapter:
     """
 
     def __init__(self, oai_span):
-        self._span = oai_span  # openai span data type
+        self._raw_oai_span = oai_span  # openai span data type
 
     @property
     def span_id(self) -> str:
         """Get the span ID."""
-        return self._span.span_id
+        return self._raw_oai_span.span_id
 
     @property
     def trace_id(self) -> str:
         """Get the trace ID."""
-        return self._span.trace_id
+        return self._raw_oai_span.trace_id
 
     @property
     def name(self) -> str:
         """Get the span name."""
-        if hasattr(self._span, "span_data") and hasattr(self._span.span_data, "name"):
-            return self._span.span_data.name
+        if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "name"):
+            return self._raw_oai_span.span_data.name
         return "openai_agents.{}".format(self.span_type.lower())
 
     @property
     def span_type(self) -> str:
         """Get the span type."""
-        if hasattr(self._span, "span_data") and hasattr(self._span.span_data, "type"):
-            return self._span.span_data.type
+        if hasattr(self._raw_oai_span, "span_data") and hasattr(self._raw_oai_span.span_data, "type"):
+            return self._raw_oai_span.span_data.type
         return ""
 
     @property
-    def llmobs_span_kind(self) -> str:
+    def llmobs_span_kind(self) -> Optional[str]:
         kind_mapping = {
             "function": "tool",
             "agent": "agent",
@@ -326,63 +326,63 @@ class OaiSpanAdapter:
             "guardrail": "task",
             "custom": "task",
         }
-        return kind_mapping.get(self.span_type, "task")
+        return kind_mapping.get(self.span_type)
 
     @property
     def input(self) -> str | list[Any]:
         """Get the span data input."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return ""
-        return getattr(self._span.span_data, "input", "")
+        return getattr(self._raw_oai_span.span_data, "input", "")
 
     @property
     def output(self) -> Optional[str]:
         """Get the span data output."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
-        return getattr(self._span.span_data, "output", None)
+        return getattr(self._raw_oai_span.span_data, "output", None)
 
     @property
     def response(self) -> Optional[Any]:
         """Get the span data response."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
-        return getattr(self._span.span_data, "response", None)
+        return getattr(self._raw_oai_span.span_data, "response", None)
 
     @property
     def from_agent(self) -> str:
         """Get the span data from_agent."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return ""
-        return getattr(self._span.span_data, "from_agent", "")
+        return getattr(self._raw_oai_span.span_data, "from_agent", "")
 
     @property
     def to_agent(self) -> str:
         """Get the span data to_agent."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return ""
-        return getattr(self._span.span_data, "to_agent", "")
+        return getattr(self._raw_oai_span.span_data, "to_agent", "")
 
     @property
     def handoffs(self) -> Optional[List[str]]:
         """Get the span data handoffs."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
-        return getattr(self._span.span_data, "handoffs", None)
+        return getattr(self._raw_oai_span.span_data, "handoffs", None)
 
     @property
     def tools(self) -> Optional[List[str]]:
         """Get the span data tools."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
-        return getattr(self._span.span_data, "tools", None)
+        return getattr(self._raw_oai_span.span_data, "tools", None)
 
     @property
     def data(self) -> Any:
         """Get the span data for custom spans."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
-        return getattr(self._span.span_data, "data", None)
+        return getattr(self._raw_oai_span.span_data, "data", None)
 
     @property
     def formatted_custom_data(self) -> Dict[str, Any]:
@@ -402,7 +402,7 @@ class OaiSpanAdapter:
     @property
     def llmobs_model_name(self) -> Optional[str]:
         """Get the model name formatted for LLMObs."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
 
         if self.span_type == "response" and self.response:
@@ -413,7 +413,7 @@ class OaiSpanAdapter:
     @property
     def llmobs_metrics(self) -> Optional[Dict[str, Any]]:
         """Get metrics from the span data formatted for LLMObs."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
 
         metrics = {}
@@ -432,7 +432,7 @@ class OaiSpanAdapter:
     @property
     def llmobs_metadata(self) -> Optional[Dict[str, Any]]:
         """Get metadata from the span data formatted for LLMObs."""
-        if not hasattr(self._span, "span_data"):
+        if not hasattr(self._raw_oai_span, "span_data"):
             return None
 
         metadata = {}
@@ -461,8 +461,8 @@ class OaiSpanAdapter:
                 agent_metadata["tools"] = load_span_data_value(self.tools)
             metadata.update(agent_metadata)
 
-        if self.span_type == "custom" and hasattr(self._span.span_data, "data"):
-            custom_data = getattr(self._span.span_data, "data", None)
+        if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
+            custom_data = getattr(self._raw_oai_span.span_data, "data", None)
             if custom_data:
                 metadata.update(custom_data)
 
@@ -471,7 +471,7 @@ class OaiSpanAdapter:
     @property
     def error(self) -> Optional[Dict[str, Any]]:
         """Get span error if it exists."""
-        return self._span.error if hasattr(self._span, "error") else None
+        return self._raw_oai_span.error if hasattr(self._raw_oai_span, "error") else None
 
     def get_error_message(self) -> Optional[str]:
         """Get the error message if an error exists."""

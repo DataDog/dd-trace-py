@@ -138,6 +138,48 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
 
 
 @pytest.mark.asyncio
+async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+    from openai.types.responses import ResponseTextDeltaEvent
+
+    final_output = ""
+    """Test tracing with a simple agent with no tools or handoffs"""
+    with request_vcr.use_cassette("test_simple_agent_streamed.yaml"):
+        result = agents.Runner.run_streamed(simple_agent, "What is the capital of France?")
+        async for event in result.stream_events():
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                final_output += event.data.delta
+
+    spans = mock_tracer.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 3
+
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        input_value="What is the capital of France?",
+        output_value=final_output,
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+        span_links=True,
+    )
+    _assert_expected_agent_run(
+        spans[1:],
+        llmobs_events[1:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the capital of France?"}],
+                [{"role": "assistant", "content": result.final_output}],
+            )
+        ],
+        tool_calls=[],
+    )
+
+
+@pytest.mark.asyncio
 async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
