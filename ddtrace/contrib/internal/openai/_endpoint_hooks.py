@@ -276,7 +276,11 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
         return resp
+    
 
+class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
+    pass
+            
 
 class _EmbeddingHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")

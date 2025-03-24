@@ -95,10 +95,12 @@ def patch():
         wrap(openai, "_base_client.AsyncAPIClient._process_response", patched_convert(openai))
     else:
         wrap(openai, "_base_client.BaseClient._process_response", patched_convert(openai))
+
     wrap(openai, "OpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AsyncOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
+    wrap(openai, "resources.chat.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -133,6 +135,7 @@ def unpatch():
     unwrap(openai.AsyncOpenAI, "__init__")
     unwrap(openai.AzureOpenAI, "__init__")
     unwrap(openai.AsyncAzureOpenAI, "__init__")
+    unwrap(openai.resources.chat.CompletionsWithRawResponse, "__init__")
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -144,6 +147,16 @@ def unpatch():
             unwrap(async_resource, method_name)
 
     delattr(openai, "_datadog_integration")
+
+
+
+
+@with_traced_module
+def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
+    func(*args, **kwargs)
+    if hasattr(instance, "create"):
+        wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
+    return
 
 
 @with_traced_module
@@ -166,11 +179,24 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
 
+    # avoid creating a new span if we're streaming and with_raw_response is being used
+    create_span = True
+    if kwargs.get("stream"):
+        current_span = pin.tracer.current_span()
+        if current_span and current_span._get_ctx_item("openai.completion.with_raw_response"):
+            create_span = False
+    if not create_span:
+        return
     span = integration.trace(
         pin,
         endpoint_hook.OPERATION_ID,
         base_url=base_url,
     )
+
+    # set the context item to indicate that we're using with_raw_response
+    if endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook:
+        span._set_ctx_item("openai.completion.with_raw_response", True)
+    
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
     if openai_api_key:
