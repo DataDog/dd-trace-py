@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from ddtrace.appsec._iast._logs import iast_compiling_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
