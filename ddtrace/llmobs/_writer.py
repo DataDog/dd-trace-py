@@ -204,7 +204,9 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(safe_json(events))
+            event_size = len(safe_json(events))
+            self.buffer_size += event_size
+            telemetry.record_span_event_size(events[0], event_size)
 
     def encode(self):
         with self._lock:
@@ -306,7 +308,6 @@ class LLMObsSpanWriter(HTTPWriter):
                         self._flush_queue_with_client(client)
 
         telemetry.record_span_event_raw_size(event, raw_event_size)
-        telemetry.record_span_event_size(event, len(event), should_truncate)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface

@@ -29,7 +29,7 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
     metric_update = 0
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
-    assert len(generate_metrics) == 2 + is_updated, f"Expected {2 + is_updated} generate_metrics"
+    assert len(generate_metrics) == 3 + is_updated, f"Expected {2 + is_updated} generate_metrics"
     for _metric_id, metric in generate_metrics.items():
         if metric.name == "waf.requests":
             assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
@@ -51,6 +51,10 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert any("event_rules_version" in k for k, v in metric._tags)
             assert len(metric._tags) == 3
             metric_update += 1
+        elif metric.name == "api_security.missing_route":
+            assert len(metric._points) == 1
+            assert ("framework", "test") in metric._tags or ("framework", "flask") in metric._tags, metric._tags
+            assert len(metric._tags) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric.name))
     assert metric_update == is_updated
@@ -74,7 +78,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
     with override_global_config(dict(_asm_enabled=False)):
-        tracer._configure(api_version="v0.4", appsec_enabled=False)
+        tracer.configure(appsec_enabled=False)
         telemetry_writer._namespace.flush()
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(

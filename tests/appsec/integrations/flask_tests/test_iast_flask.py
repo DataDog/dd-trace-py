@@ -24,7 +24,6 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.contrib.flask import BaseFlaskTestCase
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -41,7 +40,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         self._caplog = caplog
 
     def setUp(self):
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        with override_global_config(
             dict(
                 _iast_enabled=True,
                 _iast_deduplication_enabled=False,
@@ -54,7 +53,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_xss_injection()
             patch_json()
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
-            self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
+            self.tracer.configure(iast_enabled=True)
             oce.reconfigure()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1836,7 +1835,8 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             )
         ):
             super(FlaskAppSecIASTDisabledTestCase, self).setUp()
-            self.tracer._configure(api_version="v0.4")
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer._recreate()
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_cookies_name(self):

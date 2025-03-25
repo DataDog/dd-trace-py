@@ -8,6 +8,7 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
@@ -39,12 +40,6 @@ from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -553,6 +548,12 @@ class Config(object):
 
         self._runtime_metrics_enabled = _get_config(
             "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
+        )
+        self._runtime_metrics_runtime_id_enabled = _get_config(
+            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
+        )
+        self._experimental_features_enabled = _get_config(
+            "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
 
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)

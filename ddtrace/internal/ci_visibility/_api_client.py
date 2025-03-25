@@ -60,6 +60,7 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
+DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
 _BASE_HEADERS: t.Dict[str, str] = {
     "Content-Type": "application/json",
@@ -95,6 +96,7 @@ class EarlyFlakeDetectionSettings:
 @dataclasses.dataclass(frozen=True)
 class TestManagementSettings:
     enabled: bool = False
+    attempt_to_fix_retries: int = DEFAULT_ATTEMPT_TO_FIX_RETRIES
 
     __test__ = False
 
@@ -397,9 +399,21 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
+            test_management_attributes = attributes.get("test_management", {})
+            test_management_enabled = test_management_attributes.get("enabled", False)
+            attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+            if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
+                attempt_to_fix_retries = int(attempt_to_fix_retries_env)
+                log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
+            else:
+                attempt_to_fix_retries = test_management_attributes.get(
+                    "attempt_to_fix_retries", DEFAULT_ATTEMPT_TO_FIX_RETRIES
+                )
+                log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
+
             test_management = TestManagementSettings(
-                enabled=attributes.get("test_management", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                attempt_to_fix_retries=attempt_to_fix_retries,
             )
 
         except KeyError:
@@ -573,6 +587,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "type": "ci_app_libraries_tests_request",
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
+                    "commit_message": self._git_data.commit_message,
                 },
             }
         }

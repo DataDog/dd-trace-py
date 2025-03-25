@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "web.reqUEst",
+    "service": "wEbServer",
+    "resource": "web.reqUEst",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65cd344600000000",
+      "language": "python",
+      "runtime-id": "9356e035b52344f6b4a7227820d797d5",
+      "test": "tag"
+    },
+    "metrics": {
+      "_dd.limit_psr": 1.0,
+      "_dd.rule_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 91633
+    },
+    "duration": 230000,
+    "start": 1707947078045612000
+  }]]
