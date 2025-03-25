@@ -325,7 +325,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        rec = self.inline_run("--ddtrace", "-v", "-s", "--junit-xml=out.xml")
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 1
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
