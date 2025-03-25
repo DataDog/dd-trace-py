@@ -332,12 +332,13 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     error_msgs = "\n".join([str(error) for error in errors])
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
-        locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
         attributes = {
             "message": error.message,
             "type": span.get_tag("error.type"),
-            "locations": locations,
         }
+        if error.locations:
+            locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
+            attributes["locations"] = locations
 
         if error.__traceback__:
             exc_type, exc_val, exc_tb = type(error), error, error.__traceback__

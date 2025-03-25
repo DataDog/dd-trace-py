@@ -4,7 +4,7 @@ default_resource_class: &default_resource_class medium
 ubuntu_base_image: &ubuntu_base_img ubuntu-2004:2023.04.2
 cimg_base_image: &cimg_base_image cimg/base:2022.08
 python310_image: &python310_image cimg/python:3.10.12
-ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
+ddtrace_dev_image: &ddtrace_dev_image ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 testagent_image: &testagent_image ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.21.0
 
