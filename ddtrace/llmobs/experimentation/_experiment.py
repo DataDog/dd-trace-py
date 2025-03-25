@@ -665,10 +665,8 @@ class Experiment:
         else:
             raise TypeError(f"Unsupported metric value type: {type(value)}. Must be int, float, bool, or str.")
 
-        # Create metric payload
         metric = {
-            "span_id": "0",  # Summary metrics don't need span/trace IDs
-            "trace_id": "0",
+            "metric_source": "summary",
             "metric_type": metric_type,
             "timestamp_ms": int(time.time() * 1000),
             "label": name,
@@ -676,7 +674,6 @@ class Experiment:
             "error": None,
         }
 
-        # Create request payload
         payload = {
             "data": {
                 "type": "experiments",
