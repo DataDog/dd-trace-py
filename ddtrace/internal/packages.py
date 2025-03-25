@@ -77,9 +77,10 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     pkgs = get_package_distributions()
     while names == []:
         try:
+            package = importlib_metadata.distribution(module_name)
             return (
-                module_name,
-                importlib_metadata.distribution(module_name).version,
+                package.name,
+                package.version,
             )
         except Exception:  # nosec
             pass
