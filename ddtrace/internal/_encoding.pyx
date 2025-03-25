@@ -112,6 +112,37 @@ cdef inline int pack_bool(msgpack_packer *pk, object n) except? -1:
         else:
             return msgpack_pack_false(pk)
 
+cdef inline int pack_map(msgpack_packer *pk, object n) except? -1:
+    if n is None:
+        return msgpack_pack_nil(pk)
+
+    for k, v in n.items():
+        ret = pack_text(pk, k)
+        if isinstance(v, str):
+            ret = pack_text(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, bool):
+            ret = pack_bool(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, (int, float)):
+            ret = pack_number(pk, v)
+            if ret != 0:
+                return ret
+        # pack a list.
+        elif isinstance(v, (list, tuple)):
+            ret = pack_list(pk, v)
+            if ret != 0:
+                return ret
+        else:
+            print(f"type(v) is not supported")
+            ret = msgpack_pack_nil(pk)
+            if ret != 0:
+                return ret
+    return ret
+
+
 cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
     if n is None:
         return msgpack_pack_nil(pk)
@@ -131,6 +162,11 @@ cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
                 return ret
         elif isinstance(v, bool):
             ret = pack_bool(pk, v)
+            if ret != 0:
+                return ret
+        elif isinstance(v, dict):
+            msgpack_pack_map(pk, len(v))
+            ret = pack_map(pk, v)
             if ret != 0:
                 return ret
         else:
@@ -658,52 +694,61 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
         for event in span_events:
             # get dict representation of span event
-            d = dict(event)
-            ret = msgpack_pack_map(&self.pk, len(d))
+            L = 2 + bool(event.attributes)
+            ret = msgpack_pack_map(&self.pk, L)
             if ret != 0:
                 return ret
 
-            for k, v in d.items():
-                # pack the name of a span event
-                ret = pack_text(&self.pk, k)
-                if ret != 0:
-                    return ret
-                if isinstance(v, (int, float)):
-                    ret = pack_number(&self.pk, v)
-                elif isinstance(v, str):
-                    ret = pack_text(&self.pk, v)
-                elif k == "attributes":
-                    # span events can contain attributes, this is analougous to span tags
-                    attributes = v.items()
-                    ret = msgpack_pack_map(&self.pk, len(attributes))
-                    for attr_k, attr_v in attributes:
-                        ret = pack_text(&self.pk, attr_k)
-                        if isinstance(attr_v, str):
-                            ret = pack_text(&self.pk, attr_v)
-                            if ret != 0:
-                                return ret
-                        elif isinstance(attr_v, bool):
-                            ret = pack_bool(&self.pk, attr_v)
-                            if ret != 0:
-                                return ret
-                        elif isinstance(attr_v, (int, float)):
-                            ret = pack_number(&self.pk, attr_v)
-                            if ret != 0:
-                                return ret
-                        # pack a list.
-                        elif isinstance(attr_v, (list, tuple)):
-                            ret = pack_list(&self.pk, attr_v)
-                            if ret != 0:
-                                return ret
-                        else:
-                            ret = msgpack_pack_nil(&self.pk)
-                            if ret != 0:
-                                return ret
+            ret = pack_bytes(&self.pk, <char*> b"name", 4)
+            if ret != 0:
+                return ret
 
-                else:
-                    raise ValueError(f"Failed to encode SpanEvent {k}={v} contains an unsupported type {type(v)}")
+            ret = pack_text(&self.pk, event.name)
+            if ret != 0:
+                return ret
+
+            ret = pack_bytes(&self.pk, <char*> b"time_unix_nano", 14)
+            if ret != 0:
+                return ret
+
+            ret = pack_number(&self.pk, event.time_unix_nano)
+            if ret != 0:
+                return ret
+
+            if event.attributes:
+                ret = pack_bytes(&self.pk, <char*> b"attributes", 10)
                 if ret != 0:
                     return ret
+                attributes = event.attributes.items()
+                new_attributes = remapSpanEventAttributes(attributes)
+                ret = msgpack_pack_map(&self.pk, len(new_attributes))
+                if ret != 0:
+                    return ret
+                for attr_k, attr_v in new_attributes.items():
+                    ret = pack_text(&self.pk, attr_k)
+                    if ret != 0:
+                        return ret
+                    if isinstance(attr_v, str):
+                        ret = pack_text(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                    elif isinstance(attr_v, bool):
+                        ret = pack_bool(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                    elif isinstance(attr_v, (int, float)):
+                        ret = pack_number(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                    # pack a list.
+                    elif isinstance(attr_v, (list, tuple)):
+                        ret = pack_list(&self.pk, attr_v)
+                        if ret != 0:
+                            return ret
+                    else:
+                        ret = msgpack_pack_nil(&self.pk)
+                        if ret != 0:
+                            return ret
         return 0
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
@@ -1227,3 +1272,62 @@ def packb(o, **kwargs):
     See :class:`Packer` for options.
     """
     return Packer(**kwargs).pack(o)
+
+
+def remapSpanEventAttributes(attributes):
+    new_attributes = {}
+    for k, v in attributes:
+        new_attribute_values = convertSpanEventAttributeValues(k, v)
+        for new_k, new_v in new_attribute_values.items():
+            new_attributes[new_k] = new_v
+
+    return new_attributes
+
+
+def convertSpanEventAttributeValues(key, value, int depth=0):
+    if isinstance(value, str):
+        return {
+            'type': 0,
+            'string_value': value
+        }
+
+    elif isinstance(value, bool):
+        return {
+            'type': 1,
+            'bool_value': value
+        }
+
+    elif isinstance(value, int):
+        return {
+            'type': 2,
+            'int_value': value
+        }
+
+    elif isinstance(value, float):
+        return {
+            'type': 3,
+            'double_value': value
+        }
+
+    elif isinstance(value, list):
+        if depth == 0:
+            converted_array = []
+            for val in value:
+                converted_val = convertSpanEventAttributeValues(key, val, 1)
+                if converted_val is not None:
+                    converted_array.append(converted_val)
+
+            if len(converted_array) > 0:
+                return {
+                    'type': 4,
+                    'array_value': converted_array
+                }
+            else:
+                return None
+        else:
+            print(f"Encountered nested array data type. Skipping key: {key}: with value: {type(value)}.")
+            return None
+
+    else:
+        print(f"Encountered unsupported data type, key: {key}: with value: {type(value)}. Skipping encoding of pair.")
+        return None
