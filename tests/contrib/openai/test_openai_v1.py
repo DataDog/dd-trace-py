@@ -182,6 +182,20 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+def test_completion_raw_response_stream(openai, openai_vcr, snapshot_tracer):
+    with snapshot_context(
+        token="tests.contrib.openai.test_openai.test_completion",
+        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+    ):
+        with openai_vcr.use_cassette("completion_streamed_tokens.yaml"):
+            client = openai.OpenAI()
+            client.completions.with_raw_response.create(
+                model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test", stream=True
+            )
+
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
@@ -284,6 +298,21 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 n=2,
                 user="ddtrace-test",
             )
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
+def test_chat_completion_raw_response_stream(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        client = openai.OpenAI()
+        client.chat.completions.with_raw_response.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        )
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])

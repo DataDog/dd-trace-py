@@ -101,6 +101,7 @@ def patch():
     wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "resources.chat.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
+    wrap(openai, "resources.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -154,7 +155,9 @@ def unpatch():
 @with_traced_module
 def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
-    if hasattr(instance, "create"):
+    if hasattr(instance, "create") and isinstance(instance, openai.resources.completions.CompletionsWithRawResponse):
+        wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._CompletionWithRawResponseHook))
+    elif hasattr(instance, "create"):
         wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
     return
 
@@ -181,10 +184,9 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
 
     # avoid creating a new span if we're streaming and with_raw_response is being used
     create_span = True
-    if kwargs.get("stream"):
-        current_span = pin.tracer.current_span()
-        if current_span and current_span._get_ctx_item("openai.completion.with_raw_response"):
-            create_span = False
+    current_span = pin.tracer.current_span()
+    if current_span and current_span._get_ctx_item("openai.completion.with_raw_response"):
+        create_span = False
     if create_span:
         span = integration.trace(
             pin,
@@ -195,7 +197,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         span = None
 
     # set the context item to indicate that we're using with_raw_response
-    if endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook and span:
+    if (endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook) and span:
         span._set_ctx_item("openai.completion.with_raw_response", True)
     
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
@@ -226,7 +228,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None and span:
+        if (not kwargs.get("stream") or err is not None) and span:
             span.finish()
 
 
