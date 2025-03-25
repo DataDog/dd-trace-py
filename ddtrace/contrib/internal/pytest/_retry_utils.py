@@ -140,18 +140,19 @@ class RetryTestReport(pytest_TestReport):
 
     @property
     def failed(self):
+        if self.longrepr is None:
+            return False
         return "final_failed" in self.outcome
 
     @property
     def passed(self):
         if self.longrepr is None:
-            # `longrepr` is initialized from the test's first attempt. If the first attempt was successful, `longrepr`
-            # is None, and the initial attempt was already reported as successful, so we don't count the final attempt
-            # as successful too.
             return False
 
         return "final_passed" in self.outcome or "final_flaky" in self.outcome
 
     @property
     def skipped(self):
+        if self.longrepr is None:
+            return False
         return "final_skipped" in self.outcome
