@@ -15,6 +15,7 @@ from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from tests.utils import remote_config_build_payload as build_payload
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
@@ -263,18 +264,12 @@ class TracerFlareSubscriberTests(TestCase):
 
     def generate_agent_config(self):
         with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = {
-                "metadata": [{"product_name": "AGENT_CONFIG"}],
-                "config": self.agent_config,
-            }
+            mock_pubsub_conn.return_value = [build_payload("AGENT_CONFIG", self.agent_config, "config")]
             self.tracer_flare_sub._get_data_from_connector_and_exec()
 
     def generate_agent_task(self):
         with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = {
-                "metadata": [{"product_name": "AGENT_TASK"}],
-                "config": self.agent_task,
-            }
+            mock_pubsub_conn.return_value = [build_payload("AGENT_TASK", self.agent_task, "task")]
             self.tracer_flare_sub._get_data_from_connector_and_exec()
 
     def test_process_flare_request_success(self):
