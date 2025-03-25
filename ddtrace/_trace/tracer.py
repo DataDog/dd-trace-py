@@ -72,9 +72,6 @@ from ddtrace.settings.peer_service import _ps_config
 log = get_logger(__name__)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
-
-
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
@@ -1102,10 +1099,6 @@ class Tracer(object):
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
         return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
-
-    @staticmethod
-    def _is_span_internal(span):
-        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
