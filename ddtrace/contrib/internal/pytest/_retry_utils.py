@@ -156,4 +156,6 @@ class RetryTestReport(pytest_TestReport):
 
     @property
     def skipped(self):
+        if self.longrepr is None:
+            return False
         return "final_skipped" in self.outcome
