@@ -75,12 +75,12 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
 
-    agent_info = agent.info()
+    agent_info: Optional[Dict[str, Any]] = agent.info()
 
     if agent_info is None:
         return True
 
-    endpoints = agent_info["endpoints"]
+    endpoints = agent_info.get("endpoints", [])
     return "/evp_proxy/v2/" not in endpoints
 
 
