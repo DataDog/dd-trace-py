@@ -238,7 +238,6 @@ def patch_all(**patch_modules: bool) -> None:
 
 
 def _patch_all(**patch_modules: bool) -> None:
-    # type: (bool) -> None
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables
