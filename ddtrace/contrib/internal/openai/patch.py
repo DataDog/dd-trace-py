@@ -182,11 +182,9 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     base_url = getattr(client, "_base_url", None) if client else None
 
     create_span = True
-    current_span = pin.tracer.current_span()
     # skip creating a new span if interaction is already being traced with with_raw_response or streaming and with_raw_response is being used
     if (
-        current_span
-        and current_span._get_ctx_item("openai.completion.with_raw_response")
+        integration._with_raw_response
         or (
             (
                 endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
@@ -196,6 +194,8 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         )
     ):
         create_span = False
+        # reset the with_raw_response flag to False
+        integration._with_raw_response = False
     if create_span:
         span = integration.trace(
             pin,
@@ -205,11 +205,11 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     else:
         span = None
     # set the context item to indicate that the span is being traced with with_raw_response
-    if span and (
+    if (
         endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
         or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook
     ):
-        span._set_ctx_item("openai.completion.with_raw_response", True)
+        integration._with_raw_response = True
 
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
