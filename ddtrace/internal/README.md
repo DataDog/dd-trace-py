@@ -1,4 +1,5 @@
 # Internal
+This internal module is used to define and document an internal only API for `ddtrace`.
 
 These modules are not intended to be used outside of `ddtrace`.
 
