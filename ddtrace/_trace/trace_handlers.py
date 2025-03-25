@@ -505,7 +505,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
