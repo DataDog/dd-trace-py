@@ -178,7 +178,7 @@ def test_poller_remove_probe():
         }
 
         adapter.append_and_publish(
-            False,
+            None,
             "",
             config_metadata("probe1"),
         )
@@ -252,7 +252,7 @@ def test_poller_remove_multiple_probe():
         }
 
         adapter.append_and_publish(
-            False,
+            None,
             "",
             config_metadata("probe2"),
         )
