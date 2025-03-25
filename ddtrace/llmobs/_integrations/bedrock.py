@@ -159,7 +159,7 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         Extract output messages from streamed converse responses.
 
-        Converse stream response comes in chunks, where each chunk is either.
+        Converse stream response comes in chunks. The chunks we care about are:
         - a message start/stop event, or
         - a content block start/stop event (for tool calls only currently)
         - a content block delta event (for chunks of text in a message or tool call arg)
