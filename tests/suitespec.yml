@@ -153,7 +153,7 @@ suites:
     runner: hatch
     snapshot: false
   ddtracerun:
-    parallelism: 6
+    parallelism: 3
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -175,7 +175,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -227,7 +227,7 @@ suites:
     runner: riot
     skip: true
   telemetry:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@contrib'

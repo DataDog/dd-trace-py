@@ -285,6 +285,7 @@ suites:
       - httpbin_local
     snapshot: true
   aiomysql:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -391,6 +392,7 @@ suites:
     runner: riot
     snapshot: true
   aws_lambda:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -402,7 +404,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -549,6 +551,7 @@ suites:
       - redis
     snapshot: true
   django_hosts:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -907,6 +910,7 @@ suites:
     runner: riot
     snapshot: true
   opentracer:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
