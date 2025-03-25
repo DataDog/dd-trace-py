@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
@@ -19,13 +20,6 @@ if TYPE_CHECKING:
 
     from ddtrace.trace import Span  # noqa:F401
 
-import sys
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
 DBM_PARENT_SERVICE_NAME_KEY: Literal["ddps"] = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY: Literal["dddbs"] = "dddbs"
