@@ -839,18 +839,18 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data, test_tracer=None):
+    def _handle_remoteconfig(self, data_list, test_tracer=None):
+        # data_list is a list of Payload objects
         # type: (Any, Any) -> None
-        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
-            log.warning("unexpected RC payload %r", data)
+
+        if len(data_list) == 0:
+            log.warning("unexpected number of RC payloads")
             return
-        if len(data["config"]) == 0:
-            log.warning("unexpected number of RC payloads %r", data)
-            return
+        data = [payload.content for payload in data_list]
 
         # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
         config = None
-        for config_item in data["config"]:
+        for config_item in data:
             if isinstance(config_item, Dict):
                 if "lib_config" in config_item:
                     config = config_item
