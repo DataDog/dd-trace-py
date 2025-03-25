@@ -63,44 +63,44 @@ Datadog::Profile::setup_samplers()
     };
 
     // Check which samplers were enabled by the user
-    if (0U != (type_mask & SampleType::CPU)) {
+    if (mask_has_type(type_mask, SampleType::CPU)) {
         val_idx.cpu_time = get_value_idx("cpu-time", "nanoseconds");
         val_idx.cpu_count = get_value_idx("cpu-samples", "count");
     }
-    if (0U != (type_mask & SampleType::Wall)) {
+    if (mask_has_type(type_mask, SampleType::Wall)) {
         val_idx.wall_time = get_value_idx("wall-time", "nanoseconds");
         val_idx.wall_count = get_value_idx("wall-samples", "count");
     }
-    if (0U != (type_mask & SampleType::Exception)) {
+    if (mask_has_type(type_mask, SampleType::Exception)) {
         val_idx.exception_count = get_value_idx("exception-samples", "count");
     }
-    if (0U != (type_mask & SampleType::LockAcquire)) {
+    if (mask_has_type(type_mask, SampleType::LockAcquire)) {
         val_idx.lock_acquire_time = get_value_idx("lock-acquire-wait", "nanoseconds");
         val_idx.lock_acquire_count = get_value_idx("lock-acquire", "count");
     }
-    if (0U != (type_mask & SampleType::LockRelease)) {
+    if (mask_has_type(type_mask, SampleType::LockRelease)) {
         val_idx.lock_release_time = get_value_idx("lock-release-hold", "nanoseconds");
         val_idx.lock_release_count = get_value_idx("lock-release", "count");
     }
-    if (0U != (type_mask & SampleType::Allocation)) {
+    if (mask_has_type(type_mask, SampleType::Allocation)) {
         val_idx.alloc_space = get_value_idx("alloc-space", "bytes");
         val_idx.alloc_count = get_value_idx("alloc-samples", "count");
     }
-    if (0U != (type_mask & SampleType::Heap)) {
+    if (mask_has_type(type_mask, SampleType::Heap)) {
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
-    if (0U != (type_mask & SampleType::GPUTime)) {
+    if (mask_has_type(type_mask, SampleType::GPUTime)) {
         val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
         val_idx.gpu_count = get_value_idx("gpu-samples", "count");
     }
-    if (0U != (type_mask & SampleType::GPUMemory)) {
+    if (mask_has_type(type_mask, SampleType::GPUMemory)) {
         // In the backend the unit is called 'gpu-space', but maybe for consistency
         // it should be gpu-alloc-space
         // gpu-alloc-samples may be unused, but it's passed along for scaling purposes
         val_idx.gpu_alloc_space = get_value_idx("gpu-space", "bytes");
         val_idx.gpu_alloc_count = get_value_idx("gpu-alloc-samples", "count");
     }
-    if (0U != (type_mask & SampleType::GPUFlops)) {
+    if (mask_has_type(type_mask, SampleType::GPUFlops)) {
         // Technically "FLOPS" is a unit, but we call it a 'count' because no
         // other profiler uses it as a unit.
         val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
@@ -145,6 +145,13 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
         return;
     }
 
+    return one_time_init_impl(type, _max_nframes);
+}
+
+void
+Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
+{
+
     // Threads need to serialize at this point
     const std::lock_guard<std::mutex> lock(profile_mtx);
 
@@ -152,14 +159,12 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     max_nframes = _max_nframes;
 
     // Set the type mask
-    const unsigned int mask_as_int = type & SampleType::All;
-    if (mask_as_int == 0) {
-        // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-        // TODO fix this
+    SampleType masked_type = type & SampleType::All;
+    if (masked_type == SampleType::Invalid) {
         std::cerr << "No valid sample types were enabled" << std::endl;
         return;
     }
-    type_mask = static_cast<SampleType>(mask_as_int);
+    type_mask = masked_type;
 
     // Setup the samplers
     setup_samplers();
