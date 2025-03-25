@@ -75,10 +75,8 @@ if __name__ == "__main__":
     # Profiling smoke test
     print("Running profiling smoke test...")
     profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
-    if (
-        # echion doesn't work on Windows
-        platform.system() == "Windows"
-    ):
+    # echion doesn't work on Windows
+    if platform.system() == "Windows":
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
         copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
