@@ -49,10 +49,10 @@ def run_llmobs_trace_filter(dummy_tracer):
     return dummy_tracer._writer.pop()
 
 
-def test_service_enable_proxy_default():
+def test_service_enable_proxy():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=False)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
@@ -74,6 +74,26 @@ def test_enable_agentless():
         assert run_llmobs_trace_filter(dummy_tracer) is not None
 
         llmobs_service.disable()
+
+
+def test_enable_agent_proxy_when_agent_is_available(agent):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
+
+
+def test_enable_agentless_when_agent_is_not_available():
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
 
 
 def test_service_disable():
