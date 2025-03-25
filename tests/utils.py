@@ -29,6 +29,7 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -591,9 +592,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
-        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
-
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
@@ -605,8 +603,7 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        if spans:
-            self._encoded = self._encoder._build_payload([spans])
+        self._encoded = self._encoder._build_payload()
 
 
 class DummyTracer(Tracer):
@@ -618,11 +615,7 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        # Ensure DummyTracer is always initialized with a DummyWriter
-        self._writer = DummyWriter(
-            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-        )
-        self._recreate()
+        self._configure(*args, **kwargs)
 
     @property
     def agent_url(self):
@@ -652,6 +645,22 @@ class DummyTracer(Tracer):
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
         return traces
+
+    def configure(self, *args, **kwargs):
+        self._configure(*args, **kwargs)
+
+    def _configure(self, *args, **kwargs):
+        assert isinstance(
+            kwargs.get("writer"), (DummyWriterMixin, type(None))
+        ), "cannot configure writer of DummyTracer"
+
+        if not kwargs.get("writer"):
+            # if no writer is present, check if test agent is running to determine if we
+            # should emit traces.
+            kwargs["writer"] = DummyWriter(
+                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+            )
+        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
@@ -1393,3 +1402,24 @@ def _build_env(env=None, file_path=FILE_PATH):
         for k, v in env.items():
             environ[k] = v
     return environ
+
+
+_ID = 0
+
+
+def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_content=False):
+    global _ID
+    if not id_based_on_content:
+        _ID += 1
+    hash_key = str(sha_hash or hash(str(data)))
+    return Payload(
+        {
+            "id": hash_key if id_based_on_content else _ID,
+            "product_name": product,
+            "sha256_hash": hash_key,
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )

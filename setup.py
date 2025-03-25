@@ -79,15 +79,11 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.22.0"
+LIBDDWAF_VERSION = "1.24.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
-
-# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
-if CURRENT_OS == "Darwin":
-    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 
 def interpose_sccache():
@@ -425,6 +421,8 @@ class CMakeBuild(build_ext):
                 cmake_args += [
                     "-DBUILD_MACOS=ON",
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.14",
                 ]
 
         if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
@@ -654,9 +652,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+    if (platform.system() == "Linux" or platform.system() == "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
