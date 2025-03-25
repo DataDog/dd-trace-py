@@ -80,6 +80,7 @@ def trace_tween_factory(handler, registry):
                 tracer=tracer,
                 distributed_headers=request.headers,
                 integration_config=config.pyramid,
+                activate_distributed_headers=True,
                 headers_case_sensitive=True,
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled=settings.get(SETTINGS_ANALYTICS_ENABLED),

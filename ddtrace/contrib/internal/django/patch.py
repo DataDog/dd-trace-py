@@ -484,6 +484,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
         integration_config=config.django,
         distributed_headers=request_headers,
+        activate_distributed_headers=True,
         pin=pin,
     ) as ctx, ctx.span:
         core.dispatch(

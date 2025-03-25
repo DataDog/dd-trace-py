@@ -31,6 +31,7 @@ class TraceMiddleware(object):
             tracer=self.tracer,
             distributed_headers=headers,
             integration_config=config.falcon,
+            activate_distributed_headers=True,
             headers_case_sensitive=True,
             analytics_sample_rate=config.falcon.get_analytics_sample_rate(use_global_config=True),
         ) as ctx:
