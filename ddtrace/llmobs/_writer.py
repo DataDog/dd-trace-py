@@ -214,7 +214,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        data = [{"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]} for event in events]
         try:
             enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
