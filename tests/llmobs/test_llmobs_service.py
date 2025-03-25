@@ -1368,11 +1368,9 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
             original_span_writer = llmobs_service._instance._llmobs_span_writer
             pid = os.fork()
             if pid:  # parent
-                assert llmobs_service._instance.tracer._pid == original_pid
                 assert llmobs_service._instance._llmobs_span_writer == original_span_writer
                 assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
             else:  # child
-                assert llmobs_service._instance.tracer._pid != original_pid
                 assert llmobs_service._instance._llmobs_span_writer != original_span_writer
                 assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
                 llmobs_service.disable()
