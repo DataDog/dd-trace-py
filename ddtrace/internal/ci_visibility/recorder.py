@@ -167,8 +167,8 @@ class CIVisibility(Service):
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    # url = parse.urlparse(env_agent_url)
-                    # self.tracer._configure(hostname=url.hostname, port=url.port)
+                    url = parse.urlparse(env_agent_url)
+                    self.tracer._configure(hostname=url.hostname, port=url.port)
                 self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
