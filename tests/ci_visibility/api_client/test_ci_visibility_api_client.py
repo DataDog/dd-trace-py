@@ -419,9 +419,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-        ), mock.patch("ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
-        ):
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ci_config",
+        ) as mock_ci_config:
+            mock_ci_config.agent_url = "http://patchedagenturl:6218"
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
                     itr_skipping_level=itr_skipping_level,
@@ -523,8 +524,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
-        ):
+            "ddtrace.internal.ci_visibility.recorder.ci_config",
+        ) as mock_ci_config:
+            mock_ci_config.agent_url = "http://patchedagenturl:6218"
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
                     itr_skipping_level=ITR_SKIPPING_LEVEL.TEST,

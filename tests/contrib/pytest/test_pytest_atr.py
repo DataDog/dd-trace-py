@@ -156,8 +156,11 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
-            rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ), mock.patch("ddtrace.internal.ci_visibility.recorder.test_opt_config.civisibility") as mock_civis_config:
+            mock_civis_config.flaky_retry_enabled = False
+            rec = self.inline_run("--ddtrace", "-s")
             rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) > 0
 
@@ -172,8 +175,11 @@ class PytestATRTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
-        ):
-            rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.test_opt_config.civisibility"
+        ) as mock_civis_config:
+            mock_civis_config.flaky_retry_enabled = True
+            rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) > 0
 
