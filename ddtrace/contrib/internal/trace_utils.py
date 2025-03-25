@@ -183,16 +183,16 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     :rtype: str
     """
     if headers_are_case_sensitive:
-        referrer = _get_header_value_case_insensitive(headers, "referer")
+        referrer = _get_header_value_case_insensitive(headers, http.REFERER_HEADER)
     else:
-        referrer = headers.get("referer")
+        referrer = headers.get(http.REFERER_HEADER)
     if referrer:
         try:
             parsed_url = parse.urlparse(referrer)
             if parsed_url.hostname:
                 return parsed_url.hostname
-        except (ValueError, AttributeError) as e:
-            log.debug("Failed to parse referer header value: %r", referrer, exc_info=e)
+        except (ValueError, AttributeError):
+            log.debug("Failed to parse referer value: %s", referrer)
     return ""
 
 
