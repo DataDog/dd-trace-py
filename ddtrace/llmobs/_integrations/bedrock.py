@@ -160,10 +160,11 @@ class BedrockIntegration(BaseLLMIntegration):
         """
         Extract output messages from streamed converse responses.
 
-        Converse stream response comes in chunks, where each chunk contains content blocks.
-        message start/stop and content block start/stop events are used to reconstruct the
-        full list of output messages and tools. Uses contentBlockIndex to accurately
-        track content blocks and tool calls.
+        Converse stream response comes in chunks, where each chunk is either.
+        - a message start/stop event, or
+        - a content block start/stop event (for tool calls only currently)
+        - a content block delta event (for chunks of text in a message or tool call arg)
+        - usage metric information
         """
         usage_metrics: Dict[str, int] = {}
         metadata: Dict[str, str] = {}
@@ -174,101 +175,103 @@ class BedrockIntegration(BaseLLMIntegration):
 
         current_message: Optional[Dict[str, Any]] = None
 
+        def process_message_end(current_message: Dict[str, Any]):
+            indices = sorted(current_message.get("context_block_indices", []))
+            message_output = {"role": current_message["role"]}
+
+            text_contents = [text_content_blocks[idx] for idx in indices if idx in text_content_blocks]
+            if text_contents:
+                message_output["content"] = "".join(text_contents)
+
+            tool_calls = []
+            for idx in indices:
+                if idx in tool_content_blocks:
+                    tool_block = tool_content_blocks[idx]
+                    tool_args = {}
+                    if "input" in tool_block:
+                        input_text = tool_block["input"]
+                        try:
+                            tool_args = json.loads(input_text)
+                        except (json.JSONDecodeError, ValueError):
+                            tool_args = {"input": input_text}
+
+                    tool_calls.append(
+                        {
+                            "name": tool_block.get("toolName", ""),
+                            "arguments": tool_args,
+                            "tool_id": tool_block.get("toolUseId", ""),
+                        }
+                    )
+
+            if tool_calls:
+                message_output["tool_calls"] = tool_calls
+
+            messages.append(message_output)
+
         try:
             for chunk in streamed_body:
-                if "metadata" in chunk:
-                    if "usage" in chunk["metadata"]:
-                        usage = chunk["metadata"]["usage"]
-                        if "inputTokens" in usage:
-                            usage_metrics["input_tokens"] = usage["inputTokens"]
-                        if "outputTokens" in usage:
-                            usage_metrics["output_tokens"] = usage["outputTokens"]
-                        if "totalTokens" in usage:
-                            usage_metrics["total_tokens"] = usage["totalTokens"]
+                # Process metadata and usage information
+                if "metadata" in chunk and "usage" in chunk["metadata"]:
+                    usage = chunk["metadata"]["usage"]
+                    if "inputTokens" in usage:
+                        usage_metrics["input_tokens"] = usage["inputTokens"]
+                    if "outputTokens" in usage:
+                        usage_metrics["output_tokens"] = usage["outputTokens"]
+                    if "totalTokens" in usage:
+                        usage_metrics["total_tokens"] = usage["totalTokens"]
 
+                # Handle message start event
                 if "messageStart" in chunk:
                     message_data = chunk["messageStart"]
                     current_message = {"role": message_data.get("role", "assistant"), "context_block_indices": []}
 
+                if current_message is None:
+                    current_message = {"role": "assistant", "context_block_indices": []}
+
+                # Handle content block start event
                 if "contentBlockStart" in chunk:
                     block_start = chunk["contentBlockStart"]
                     index = block_start.get("contentBlockIndex")
-                    if index is not None and current_message is not None:
+
+                    if index is not None:
                         current_message["context_block_indices"].append(index)
                         if "start" in block_start and "toolUse" in block_start["start"]:
                             tool_content_blocks[index] = block_start["start"]["toolUse"]
 
                 if "contentBlockDelta" in chunk:
-                    if current_message is None:
-                        current_message = {"role": "assistant", "context_block_indices": []}
-
                     delta = chunk["contentBlockDelta"]
                     index = delta.get("contentBlockIndex")
-                    if index is not None and current_message is not None:
+
+                    if index is not None and "delta" in delta:
                         if index not in current_message.get("context_block_indices", []):
                             current_message["context_block_indices"].append(index)
 
-                        if "delta" in delta:
-                            delta_content = delta["delta"]
-                            if "text" in delta_content:
-                                if index not in text_content_blocks:
-                                    text_content_blocks[index] = ""
-                                text_content_blocks[index] += delta_content["text"]
+                        delta_content = delta["delta"]
 
-                            if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
-                                if index not in tool_content_blocks:
-                                    tool_content_blocks[index] = {}
-                                tool_block = tool_content_blocks[index]
-                                if "input" not in tool_block:
-                                    tool_block["input"] = ""
-                                tool_block["input"] += delta_content["toolUse"]["input"]
+                        if "text" in delta_content:
+                            if index not in text_content_blocks:
+                                text_content_blocks[index] = ""
+                            text_content_blocks[index] += delta_content["text"]
 
-                if "messageStop" in chunk and current_message is not None:
-                    message_output: Dict[str, Any] = {"role": current_message["role"]}
+                        if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
+                            if index not in tool_content_blocks:
+                                tool_content_blocks[index] = {}
+                            tool_block = tool_content_blocks[index]
+                            if "input" not in tool_block:
+                                tool_block["input"] = ""
+                            tool_block["input"] += delta_content["toolUse"]["input"]
 
-                    # Get text blocks
-                    text_contents: List[str] = []
-                    for idx in sorted(current_message.get("context_block_indices", [])):
-                        if idx in text_content_blocks:
-                            text_contents.append(text_content_blocks[idx])
-
-                    # Get tool blocks
-                    tool_call_blocks: List[Dict[str, Any]] = []
-                    for idx in sorted(current_message.get("context_block_indices", [])):
-                        if idx in tool_content_blocks:
-                            tool_call_blocks.append(tool_content_blocks[idx])
-
-                    if text_contents:
-                        message_output["content"] = "".join(text_contents)
-
-                    if tool_call_blocks:
-                        tool_calls = []
-                        for tool_block in tool_call_blocks:
-                            tool_args: Dict[str, Any] = {}
-                            if "input" in tool_block:
-                                input_text = tool_block["input"]
-                                try:
-                                    tool_args = json.loads(input_text)
-                                except (json.JSONDecodeError, ValueError):
-                                    tool_args = {"input": input_text}
-
-                            tool_calls.append(
-                                {
-                                    "name": tool_block.get("toolName", ""),
-                                    "arguments": tool_args,
-                                    "tool_id": tool_block.get("toolUseId", ""),
-                                }
-                            )
-
-                        message_output["tool_calls"] = tool_calls
-
-                    messages.append(message_output)
-                    # Reset current message
+                if "messageStop" in chunk:
+                    process_message_end(current_message)
                     current_message = None
+
+            # Handle the case where we didn't receive an explicit message stop event
+            if current_message is not None:
+                process_message_end(current_message)
 
         except (IndexError, AttributeError, TypeError) as e:
             log.warning(
-                "Unable to extract messages/tool data from converse stream response: %s. Defaulting to empty response.",
+                "Error while extracting data from Converse stream response, span data may be incomplete: %s",
                 str(e),
             )
 
