@@ -1,10 +1,12 @@
+import json
 import re
-from typing import Optional
+from typing import Any, Dict, Optional
 from typing import Tuple
 from typing import Union
 from urllib.parse import urlparse
 
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace._trace.span import Span
+from ddtrace.llmobs._constants import INPUT_MESSAGES, INPUT_TOKENS_METRIC_KEY, METADATA, OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -270,3 +272,80 @@ def get_messages_from_converse_content(role: str, content: list):
     if message:
         messages.append(message)
     return messages
+
+
+def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
+    """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
+    prompt = kwargs.get("prompt", "")
+    if isinstance(prompt, str):
+        prompt = [prompt]
+    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash")}
+    output_messages = [{"content": ""}]
+    if not span.error and completions:
+        choices = getattr(completions, "choices", completions)
+        output_messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
+    span._set_ctx_items(
+        {
+            INPUT_MESSAGES: [{"content": str(p)} for p in prompt],
+            METADATA: parameters,
+            OUTPUT_MESSAGES: output_messages,
+        }
+    )
+
+def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+    """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
+    input_messages = []
+    for m in kwargs.get("messages", []):
+        input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
+    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash")}
+    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+    if span.error or not messages:
+        span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+        return
+    if isinstance(messages, list):  # streamed response
+        output_messages = []
+        for streamed_message in messages:
+            message = {"content": streamed_message["content"], "role": streamed_message["role"]}
+            tool_calls = streamed_message.get("tool_calls", [])
+            if tool_calls:
+                message["tool_calls"] = [
+                    {
+                        "name": tool_call.get("name", ""),
+                        "arguments": json.loads(tool_call.get("arguments", "")),
+                        "tool_id": tool_call.get("tool_id", ""),
+                        "type": tool_call.get("type", ""),
+                    }
+                    for tool_call in tool_calls
+                ]
+            output_messages.append(message)
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        return
+    choices = _get_attr(messages, "choices", [])
+    output_messages = []
+    for idx, choice in enumerate(choices):
+        tool_calls_info = []
+        choice_message = _get_attr(choice, "message", {})
+        role = _get_attr(choice_message, "role", "")
+        content = _get_attr(choice_message, "content", "") or ""
+        function_call = _get_attr(choice_message, "function_call", None)
+        if function_call:
+            function_name = _get_attr(function_call, "name", "")
+            arguments = json.loads(_get_attr(function_call, "arguments", ""))
+            function_call_info = {"name": function_name, "arguments": arguments}
+            output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
+            continue
+        tool_calls = _get_attr(choice_message, "tool_calls", []) or []
+        for tool_call in tool_calls:
+            tool_call_info = {
+                "name": getattr(tool_call.function, "name", ""),
+                "arguments": json.loads(getattr(tool_call.function, "arguments", "")),
+                "tool_id": getattr(tool_call, "id", ""),
+                "type": getattr(tool_call, "type", ""),
+            }
+            tool_calls_info.append(tool_call_info)
+        if tool_calls_info:
+            output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
+            continue
+        output_messages.append({"content": content, "role": role})
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
