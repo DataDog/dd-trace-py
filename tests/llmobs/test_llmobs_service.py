@@ -1358,6 +1358,7 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
         assert exit_code == 12
         llmobs_service.disable()
 
+
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
