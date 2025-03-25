@@ -75,10 +75,10 @@ if __name__ == "__main__":
     # Profiling smoke test
     print("Running profiling smoke test...")
     profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
-    if sys.version_info >= (3, 13, 0):
-        print("Skipping profiling smoke test for Python 3.13+ as it's not supported yet")
-    # echion doesn't work on Windows
-    elif platform.system() == "Windows":
+    if (
+        # echion doesn't work on Windows
+        platform.system() == "Windows"
+    ):
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
         copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
