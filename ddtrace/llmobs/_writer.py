@@ -168,7 +168,6 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         self._intake = "api.%s" % self._site  # type: str
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
-        print("enqueue", event)
         self._enqueue(event)
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
