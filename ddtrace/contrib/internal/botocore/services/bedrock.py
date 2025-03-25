@@ -177,7 +177,6 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
         for converse and converse_stream.
-    Also extracts tool configuration if present.
     """
     messages = params.get("messages", [])
     inference_config = params.get("inferenceConfig", {})
@@ -186,23 +185,13 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     if system_content_block:
         prompt.append({"role": "system", "content": system_content_block})
     prompt += messages
-
-    request_params = {
+    return {
         "prompt": prompt,
         "temperature": inference_config.get("temperature", ""),
         "top_p": inference_config.get("topP", ""),
         "max_tokens": inference_config.get("maxTokens", ""),
         "stop_sequences": inference_config.get("stopSequences", []),
     }
-
-    # Extract tool configuration if present
-    tool_config = params.get("toolConfig", {})
-    if tool_config:
-        tools = tool_config.get("tools", [])
-        if tools:
-            request_params["tools"] = tools
-
-    return request_params
 
 
 def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -455,7 +444,6 @@ def handle_bedrock_response(
         core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
         return result
     if ctx["resource"] == "ConverseStream":
-        # Wrap the stream with our TracedBotocoreConverseStream wrapper
         if "stream" in result:
             result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
         return result
