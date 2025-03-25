@@ -315,6 +315,7 @@ suites:
     services:
       - postgres
   algoliasearch:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -325,7 +326,7 @@ suites:
     runner: riot
     snapshot: true
   aredis:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -354,6 +355,7 @@ suites:
     runner: riot
     snapshot: true
   asyncpg:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -400,6 +402,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -411,7 +414,7 @@ suites:
     runner: riot
     snapshot: true
   botocore:
-    parallelism: 6
+    parallelism: 11
     paths:
       - '@bootstrap'
       - '@core'
@@ -430,6 +433,7 @@ suites:
     services:
       - localstack
   bottle:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -483,6 +487,7 @@ suites:
     runner: riot
     snapshot: true
   consul:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -504,7 +509,7 @@ suites:
       - tests/datastreams/*
     runner: riot
   dd_trace_api:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -558,6 +563,7 @@ suites:
     runner: riot
     snapshot: true
   djangorestframework:
+    parallelism: 2
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -588,7 +594,7 @@ suites:
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -690,6 +696,7 @@ suites:
     runner: riot
     snapshot: false
   graphene:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -700,7 +707,7 @@ suites:
     runner: riot
     snapshot: true
   graphql:
-    parallelism: 6
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -748,7 +755,7 @@ suites:
       - httpbin_local
     snapshot: true
   httpx:
-    parallelism: 6
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -762,6 +769,7 @@ suites:
       - httpbin_local
     snapshot: true
   jinja2:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -790,6 +798,7 @@ suites:
       - kafka
     snapshot: true
   kombu:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -803,6 +812,7 @@ suites:
       - rabbitmq
     snapshot: true
   logbook:
+    parallelism: 1
     paths:
       - '@core'
       - '@contrib'
@@ -812,6 +822,7 @@ suites:
     runner: riot
     snapshot: true
   loguru:
+    parallelism: 1
     paths:
       - '@core'
       - '@contrib'
@@ -821,6 +832,7 @@ suites:
     runner: riot
     snapshot: true
   mako:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -845,6 +857,7 @@ suites:
       - mariadb
     snapshot: true
   molten:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -902,7 +915,7 @@ suites:
       - tests/opentracer/*
     runner: riot
   protobuf:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -930,6 +943,7 @@ suites:
       - postgres
     snapshot: true
   pylibmc:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -942,6 +956,7 @@ suites:
       - memcached
     snapshot: true
   pymemcache:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -966,6 +981,7 @@ suites:
       - mongo
     snapshot: true
   pymysql:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -981,6 +997,7 @@ suites:
       - mysql
     snapshot: true
   pynamodb:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -991,6 +1008,7 @@ suites:
     runner: riot
     snapshot: true
   pyodbc:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1002,6 +1020,7 @@ suites:
     runner: riot
     snapshot: true
   pyramid:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1029,6 +1048,7 @@ suites:
       - redis
     snapshot: true
   rediscluster:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1043,6 +1063,7 @@ suites:
       - rediscluster
     snapshot: true
   requests:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1055,7 +1076,7 @@ suites:
       - httpbin_local
     snapshot: true
   rq:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1102,6 +1123,7 @@ suites:
       - tests/sourcecode/*
     runner: riot
   sqlalchemy:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1128,6 +1150,7 @@ suites:
     runner: riot
     snapshot: true
   stdlib:
+    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -1148,6 +1171,7 @@ suites:
     runner: riot
     snapshot: true
   structlog:
+    parallelism: 1
     paths:
       - '@core'
       - '@contrib'
@@ -1168,6 +1192,7 @@ suites:
       - tests/contrib/subprocess/*
     runner: riot
   test_logging:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1178,6 +1203,7 @@ suites:
     runner: riot
     snapshot: true
   tornado:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1189,6 +1215,7 @@ suites:
     runner: riot
     snapshot: true
   urllib3:
+    parallelism: 1
     env:
       TEST_HTTPBIN_HOST: httpbin-local
       TEST_HTTPBIN_PORT: '8001'
@@ -1205,6 +1232,7 @@ suites:
       - httpbin_local
     snapshot: true
   vertica:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1215,7 +1243,7 @@ suites:
     runner: riot
     skip: true # Vertica tests are flaky
   wsgi:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1229,6 +1257,7 @@ suites:
     runner: riot
     snapshot: true
   yaaredis:
+    parallelism: 1
     paths:
       - '@core'
       - '@bootstrap'
@@ -1243,7 +1272,7 @@ suites:
       - redis
     snapshot: true
   valkey:
-    parallelism: 5
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
