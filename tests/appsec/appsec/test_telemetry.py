@@ -69,7 +69,7 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
     for metric in distributions_metrics:
         if metric["metric"] in ["waf.duration", "waf.duration_ext"]:
             assert len(metric["points"]) >= 1
-            assert type(metric["points"][0]) is float
+            assert isinstance(metric["points"][0], float)
             assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
             assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
             assert f"waf_version:{version()}" in metric["tags"]
