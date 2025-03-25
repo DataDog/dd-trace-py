@@ -62,7 +62,7 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
         _appsec_callback([rc_config], tracer)
         assert tracer._appsec_processor
         assert _set_and_get_appsec_tags(tracer)
-        rc_config = build_payload("ASM_FEATURES", False, "config")
+        rc_config = build_payload("ASM_FEATURES", None, "config")
         _appsec_callback([rc_config], tracer)
         result = _set_and_get_appsec_tags(tracer)
         assert result is None

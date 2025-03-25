@@ -239,9 +239,9 @@ def test_remote_config_client_steps(mock_preprocess_results, mock_send_request, 
     asm_callback._poll_data()
 
     preprocess_calls = mock_preprocess_results.call_args
-    assert preprocess_calls[0][0][0].content is False
+    assert preprocess_calls[0][0][0].content is None
     callback_calls = mock_callback.call_args
-    assert callback_calls[0][0][0].content is False
+    assert callback_calls[0][0][0].content is None
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()

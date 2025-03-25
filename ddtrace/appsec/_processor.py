@@ -39,7 +39,7 @@ from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.internal.remoteconfiguration import PayloadType
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 

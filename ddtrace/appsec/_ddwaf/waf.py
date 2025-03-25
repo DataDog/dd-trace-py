@@ -31,7 +31,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 # from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfiguration import PayloadType
+from ddtrace.internal.remoteconfig import PayloadType
 
 
 LOGGER = get_logger(__name__)
