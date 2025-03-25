@@ -20,8 +20,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     try:
         return version("litellm")
     except Exception:
