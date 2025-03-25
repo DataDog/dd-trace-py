@@ -1,6 +1,7 @@
 """Tests Attempt-to-Fix functionality, and its interaction with Quarantine, Disabling, and Test Impact Analysis."""
 
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
@@ -244,6 +245,19 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
+    def test_pytest_atr_junit_xml(self):
+        self.testdir.makepyfile(test_active=_TEST_PASS)
+
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+        assert rec.ret == 0
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "1"
+        assert test_suite.attrib["failures"] == "0"
+        assert test_suite.attrib["skipped"] == "0"
+        assert test_suite.attrib["errors"] == "0"
+
+        breakpoint()
 
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")

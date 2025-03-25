@@ -333,3 +333,5 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert test_suite.attrib["failures"] == "4"
         assert test_suite.attrib["skipped"] == "4"
         assert test_suite.attrib["errors"] == "2"
+
+        breakpoint()
