@@ -300,4 +300,3 @@ class PytestEFDTestCase(PytestTestCaseBase):
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
         assert test_suite.attrib["tests"] == "7"
         assert test_suite.attrib["failures"] == "3"
-        breakpoint()

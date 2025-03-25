@@ -65,7 +65,7 @@ def attempt_to_fix_handle_retries(
         return
 
     retries_outcome = _do_retries(item, outcomes)
-    longrepr = InternalTest.stash_get(test_id, "failure_longrepr") if retries_outcome == TestStatus.FAIL else None
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
     final_report = RetryTestReport(
         nodeid=item.nodeid,

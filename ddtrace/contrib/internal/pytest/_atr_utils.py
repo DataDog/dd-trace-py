@@ -80,7 +80,7 @@ def atr_handle_retries(
         return
 
     atr_outcome = _atr_do_retries(item, outcomes)
-    longrepr = InternalTest.stash_get(test_id, "failure_longrepr") if atr_outcome == TestStatus.FAIL else None
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")  # if atr_outcome == TestStatus.FAIL else None
 
     final_report = RetryTestReport(
         nodeid=item.nodeid,

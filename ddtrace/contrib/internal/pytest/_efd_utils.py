@@ -86,7 +86,7 @@ def efd_handle_retries(
             InternalTest.mark_skip(test_id)
 
     efd_outcome = _efd_do_retries(item)
-    longrepr = InternalTest.stash_get(test_id, "failure_longrepr") if efd_outcome == EFDTestStatus.ALL_FAIL else None
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
     final_report = RetryTestReport(
         nodeid=item.nodeid,

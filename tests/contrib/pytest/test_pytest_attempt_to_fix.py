@@ -257,7 +257,6 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_suite.attrib["skipped"] == "0"
         assert test_suite.attrib["errors"] == "0"
 
-        breakpoint()
 
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
