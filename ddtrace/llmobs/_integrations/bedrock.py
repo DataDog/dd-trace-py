@@ -164,6 +164,9 @@ class BedrockIntegration(BaseLLMIntegration):
         - a content block start/stop event (for tool calls only currently)
         - a content block delta event (for chunks of text in a message or tool call arg)
         - usage metric information
+
+        For more info, see bedrock converse response stream response syntax:
+        https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html#API_runtime_ConverseStream_ResponseSyntax
         """
         usage_metrics: Dict[str, int] = {}
         metadata: Dict[str, str] = {}
