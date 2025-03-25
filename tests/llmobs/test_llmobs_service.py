@@ -1361,26 +1361,27 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
 
 def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=True)
-        original_pid = llmobs_service._instance.tracer._pid
-        original_span_writer = llmobs_service._instance._llmobs_span_writer
-        pid = os.fork()
-        if pid:  # parent
-            assert llmobs_service._instance.tracer._pid == original_pid
-            assert llmobs_service._instance._llmobs_span_writer == original_span_writer
-            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
-        else:  # child
-            assert llmobs_service._instance.tracer._pid != original_pid
-            assert llmobs_service._instance._llmobs_span_writer != original_span_writer
-            assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
-            llmobs_service.disable()
-            os._exit(12)
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+            llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=True)
+            original_pid = llmobs_service._instance.tracer._pid
+            original_span_writer = llmobs_service._instance._llmobs_span_writer
+            pid = os.fork()
+            if pid:  # parent
+                assert llmobs_service._instance.tracer._pid == original_pid
+                assert llmobs_service._instance._llmobs_span_writer == original_span_writer
+                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+            else:  # child
+                assert llmobs_service._instance.tracer._pid != original_pid
+                assert llmobs_service._instance._llmobs_span_writer != original_span_writer
+                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+                llmobs_service.disable()
+                os._exit(12)
 
-        _, status = os.waitpid(pid, 0)
-        exit_code = os.WEXITSTATUS(status)
-        assert exit_code == 12
-        llmobs_service.disable()
+            _, status = os.waitpid(pid, 0)
+            exit_code = os.WEXITSTATUS(status)
+            assert exit_code == 12
+            llmobs_service.disable()
 
 
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
