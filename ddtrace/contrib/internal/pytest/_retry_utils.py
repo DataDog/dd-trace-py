@@ -135,17 +135,8 @@ class RetryTestReport(pytest_TestReport):
     """
     A RetryTestReport behaves just like a normal pytest TestReport, except that the the failed/passed/skipped
     properties are aware of retry final states (dd_efd_final_*, etc). This affects the test counts in JUnit XML output,
-    for instance. It also ensures that failed states have a longrepr attribute (again used by JUnit XML output).
+    for instance.
     """
-
-    def __init__(self, *args, **kwargs):
-        if "longrepr" not in kwargs:
-            if "final_failed" in kwargs.get("outcome", ""):
-                kwargs["longrepr"] = "All retries failed"
-            else:
-                kwargs["longrepr"] = None
-
-        super().__init__(*args, **kwargs)
 
     @property
     def failed(self):

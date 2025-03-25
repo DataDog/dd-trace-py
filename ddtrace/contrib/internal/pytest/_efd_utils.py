@@ -86,12 +86,14 @@ def efd_handle_retries(
             InternalTest.mark_skip(test_id)
 
     efd_outcome = _efd_do_retries(item)
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr") if efd_outcome == EFDTestStatus.ALL_FAIL else None
 
     final_report = RetryTestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
         when="call",
+        longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)

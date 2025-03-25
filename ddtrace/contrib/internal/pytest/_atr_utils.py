@@ -80,12 +80,14 @@ def atr_handle_retries(
         return
 
     atr_outcome = _atr_do_retries(item, outcomes)
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr") if atr_outcome == TestStatus.FAIL else None
 
     final_report = RetryTestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
         when="call",
+        longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
