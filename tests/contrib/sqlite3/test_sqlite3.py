@@ -21,7 +21,6 @@ from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -205,47 +204,6 @@ class TestSQLite(TracerTestCase):
             )
             self.assertIsNone(fetchmany_span.get_tag("sql.query"))
             self.assertEqual(fetchmany_span.get_tag("db.system"), "sqlite")
-
-    def test_sqlite_ot(self):
-        """Ensure sqlite works with the opentracer."""
-        ot_tracer = init_tracer("sqlite_svc", self.tracer)
-
-        # Ensure we can run a query and it's correctly traced
-        q = "select * from sqlite_master"
-        with ot_tracer.start_active_span("sqlite_op"):
-            db = sqlite3.connect(":memory:")
-            pin = Pin.get_from(db)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(db)
-            cursor = db.execute(q)
-            rows = cursor.fetchall()
-        assert not rows
-
-        self.assert_structure(
-            dict(name="sqlite_op", service="sqlite_svc"),
-            (dict(name="sqlite.query", service="sqlite", span_type="sql", resource=q, error=0),),
-        )
-        assert_is_measured(self.get_spans()[1])
-        self.reset()
-
-        with self.override_config("sqlite", dict(trace_fetch_methods=True)):
-            with ot_tracer.start_active_span("sqlite_op"):
-                db = sqlite3.connect(":memory:")
-                pin = Pin.get_from(db)
-                assert pin
-                pin._clone(tracer=self.tracer).onto(db)
-                cursor = db.execute(q)
-                rows = cursor.fetchall()
-                assert not rows
-
-            self.assert_structure(
-                dict(name="sqlite_op", service="sqlite_svc"),
-                (
-                    dict(name="sqlite.query", span_type="sql", resource=q, error=0),
-                    dict(name="sqlite.query.fetchall", span_type="sql", resource=q, error=0),
-                ),
-            )
-            assert_is_measured(self.get_spans()[1])
 
     def test_commit(self):
         connection = self._given_a_traced_connection(self.tracer)

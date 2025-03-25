@@ -1,6 +1,3 @@
-import pytest
-import tornado
-
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -8,7 +5,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -384,46 +380,6 @@ class TestTornadoWeb(TornadoTestCase):
         assert 2 == request_span.get_metric(_SAMPLING_PRIORITY_KEY)
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
-
-    # Opentracing support depends on new AsyncioScopeManager
-    # See: https://github.com/opentracing/opentracing-python/pull/118
-    @pytest.mark.skipif(
-        tornado.version_info >= (5, 0), reason="Opentracing ScopeManager not available for Tornado >= 5"
-    )
-    def test_success_handler_ot(self):
-        """OpenTracing version of test_success_handler."""
-        from opentracing.scope_managers.tornado import TornadoScopeManager
-
-        ot_tracer = init_tracer("tornado_svc", self.tracer, scope_manager=TornadoScopeManager())
-
-        with ot_tracer.start_active_span("tornado_op"):
-            response = self.fetch("/success/")
-            assert 200 == response.code
-
-        traces = self.pop_traces()
-        assert 1 == len(traces)
-        assert 2 == len(traces[0])
-        # dd_span will start and stop before the ot_span finishes
-        ot_span, dd_span = traces[0]
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "tornado_op"
-        assert ot_span.service == "tornado_svc"
-
-        assert_is_measured(dd_span)
-        assert "tornado-web" == dd_span.service
-        assert "tornado.request" == dd_span.name
-        assert "web" == dd_span.span_type
-        assert "tests.contrib.tornado.web.app.SuccessHandler" == dd_span.resource
-        assert "GET" == dd_span.get_tag("http.method")
-        assert_span_http_status_code(dd_span, 200)
-        assert self.get_url("/success/") == dd_span.get_tag(http.URL)
-        assert 0 == dd_span.error
-        assert dd_span.get_tag("component") == "tornado"
-        assert dd_span.get_tag("span.kind") == "server"
 
 
 class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):

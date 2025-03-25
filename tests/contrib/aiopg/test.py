@@ -1,5 +1,3 @@
-import time
-
 import aiopg
 from psycopg2 import extras
 import pytest
@@ -12,9 +10,7 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.subprocesstest import run_in_subprocess
-from tests.utils import assert_is_measured
 
 
 TEST_PORT = POSTGRES_CONFIG["port"]
@@ -42,84 +38,6 @@ class AiopgTestCase(AsyncioTestCase):
         Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
-
-    @pytest.mark.asyncio
-    async def assert_conn_is_traced(self, tracer, db, service):
-        # ensure the trace aiopg client doesn't add non-standard
-        # methods
-        try:
-            await db.execute("select 'foobar'")
-        except AttributeError:
-            pass
-
-        # Ensure we can run a query and it's correctly traced
-        q = "select 'foobarblah'"
-        start = time.time()
-        cursor = await db.cursor()
-        await cursor.execute(q)
-        rows = await cursor.fetchall()
-        end = time.time()
-        assert rows == [("foobarblah",)]
-        assert rows
-        spans = self.pop_spans()
-        assert spans
-        assert len(spans) == 1
-        span = spans[0]
-        assert_is_measured(span)
-        assert span.name == "postgres.query"
-        assert span.resource == q
-        assert span.service == service
-        assert span.error == 0
-        assert span.span_type == "sql"
-        assert start <= span.start <= end
-        assert span.duration <= end - start
-        assert span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
-
-        # Ensure OpenTracing compatibility
-        ot_tracer = init_tracer("aiopg_svc", tracer)
-        with ot_tracer.start_active_span("aiopg_op"):
-            cursor = await db.cursor()
-            await cursor.execute(q)
-            rows = await cursor.fetchall()
-            assert rows == [("foobarblah",)]
-        spans = self.pop_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-        assert ot_span.name == "aiopg_op"
-        assert ot_span.service == "aiopg_svc"
-        assert dd_span.name == "postgres.query"
-        assert dd_span.resource == q
-        assert dd_span.service == service
-        assert dd_span.error == 0
-        assert dd_span.span_type == "sql"
-        assert dd_span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
-
-        # run a query with an error and ensure all is well
-        q = "select * from some_non_existant_table"
-        cur = await db.cursor()
-        try:
-            await cur.execute(q)
-        except Exception:
-            pass
-        else:
-            assert 0, "should have an error"
-        spans = self.pop_spans()
-        assert spans, spans
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "postgres.query"
-        assert span.resource == q
-        assert span.service == service
-        assert span.error == 1
-        assert span.get_metric("network.destination.port") == TEST_PORT
-        assert span.span_type == "sql"
-        assert span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
 
     @pytest.mark.asyncio
     async def test_async_generator(self):

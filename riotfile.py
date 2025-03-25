@@ -87,7 +87,6 @@ venv = Venv(
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
-        "opentracing": latest,
         "hypothesis": "<6.45.1",
     },
     env={

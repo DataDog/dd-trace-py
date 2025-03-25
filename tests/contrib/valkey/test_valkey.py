@@ -4,12 +4,10 @@ from unittest import mock
 import pytest
 import valkey
 
-import ddtrace
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -237,39 +235,6 @@ class TestValkeyPatch(TracerTestCase):
         spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
-
-    def test_opentracing(self):
-        """Ensure OpenTracing works with valkey."""
-        ot_tracer = init_tracer("valkey_svc", self.tracer)
-
-        with ot_tracer.start_active_span("valkey_get"):
-            us = self.r.get("cheese")
-            assert us is None
-
-        spans = self.get_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "valkey_get"
-        assert ot_span.service == "valkey_svc"
-
-        self.assert_is_measured(dd_span)
-        assert dd_span.service == "valkey"
-        assert dd_span.name == "valkey.command"
-        assert dd_span.span_type == "valkey"
-        assert dd_span.error == 0
-        assert dd_span.get_metric("out.valkey_db") == 0
-        assert dd_span.get_tag("out.host") == "localhost"
-        assert dd_span.get_tag("valkey.raw_command") == "GET cheese"
-        assert dd_span.get_tag("component") == "valkey"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.get_tag("db.system") == "valkey"
-        assert dd_span.get_metric("valkey.args_length") == 2
-        assert dd_span.resource == "GET"
 
     def test_valkey_rowcount_all_keys_valid(self):
         self.r.set("key1", "value1")
@@ -539,15 +504,6 @@ class TestValkeyPatchSnapshot(TracerTestCase):
         spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
-
-    @snapshot()
-    def test_opentracing(self):
-        """Ensure OpenTracing works with valkey."""
-        ot_tracer = init_tracer("valkey_svc", ddtrace.tracer)
-
-        with ot_tracer.start_active_span("valkey_get"):
-            us = self.r.get("cheese")
-            assert us is None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @snapshot()

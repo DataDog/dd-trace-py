@@ -13,7 +13,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import Pin
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import snapshot
@@ -148,47 +147,6 @@ class PsycopgCore(TracerTestCase):
 
         Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
-
-    def test_opentracing_propagation(self):
-        # ensure OpenTracing plays well with our integration
-        query = """SELECT 'tracing'"""
-
-        db = self._get_conn()
-        ot_tracer = init_tracer("psycopg-svc", self.tracer)
-
-        with ot_tracer.start_active_span("db.access"):
-            cursor = db.cursor()
-            cursor.execute(query)
-            rows = cursor.fetchall()
-
-        self.assertEqual(rows, [("tracing",)])
-
-        self.assert_structure(
-            dict(name="db.access", service="psycopg-svc"),
-            (dict(name="postgres.query", resource=query, service="postgres", error=0, span_type="sql"),),
-        )
-        assert_is_measured(self.get_spans()[1])
-        self.reset()
-
-        with self.override_config("psycopg", dict(trace_fetch_methods=True)):
-            db = self._get_conn()
-            ot_tracer = init_tracer("psycopg-svc", self.tracer)
-
-            with ot_tracer.start_active_span("db.access"):
-                cursor = db.cursor()
-                cursor.execute(query)
-                rows = cursor.fetchall()
-
-            self.assertEqual(rows, [("tracing",)])
-
-            self.assert_structure(
-                dict(name="db.access", service="psycopg-svc"),
-                (
-                    dict(name="postgres.query", resource=query, service="postgres", error=0, span_type="sql"),
-                    dict(name="postgres.query.fetchall", resource=query, service="postgres", error=0, span_type="sql"),
-                ),
-            )
-            assert_is_measured(self.get_spans()[1])
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), "context manager not available in psycopg2==2.4")
     def test_cursor_ctx_manager(self):

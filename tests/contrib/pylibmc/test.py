@@ -13,7 +13,6 @@ from ddtrace.ext import memcached
 # project
 from ddtrace.trace import Pin
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -77,33 +76,6 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get", "set", "incr", "decr"])
         resources = sorted(s.resource for s in spans)
-        assert expected_resources == resources
-
-    def test_incr_decr_ot(self):
-        """OpenTracing version of test_incr_decr."""
-        client, tracer = self.get_client()
-        ot_tracer = init_tracer("memcached", tracer)
-
-        start = time.time()
-        with ot_tracer.start_active_span("mc_ops"):
-            client.set("a", 1)
-            client.incr("a", 2)
-            client.decr("a", 1)
-            v = client.get("a")
-            assert v == 2
-        end = time.time()
-
-        # verify spans
-        spans = tracer.pop()
-        ot_span = spans[0]
-
-        assert ot_span.name == "mc_ops"
-
-        for s in spans[1:]:
-            assert s.parent_id == ot_span.span_id
-            self._verify_cache_span(s, start, end)
-        expected_resources = sorted(["get", "set", "incr", "decr"])
-        resources = sorted(s.resource for s in spans[1:])
         assert expected_resources == resources
 
     def test_clone(self):

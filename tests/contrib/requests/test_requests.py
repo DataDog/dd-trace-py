@@ -17,7 +17,6 @@ from ddtrace.contrib.internal.requests.patch import patch
 from ddtrace.contrib.internal.requests.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -534,35 +533,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert out.status_code == 200
         spans = self.pop_spans()
         assert spans[0].service == "override"
-
-    def test_200_ot(self):
-        """OpenTracing version of test_200."""
-
-        ot_tracer = init_tracer("requests_svc", self.tracer)
-
-        with ot_tracer.start_active_span("requests_get"):
-            out = self.session.get(URL_200)
-            assert out.status_code == 200
-
-        # validation
-        spans = self.pop_spans()
-        assert len(spans) == 2
-
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "requests_get"
-        assert ot_span.service == "requests_svc"
-
-        assert_is_measured(dd_span)
-        assert dd_span.get_tag(http.METHOD) == "GET"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.error == 0
-        assert dd_span.span_type == "http"
-        assert dd_span.resource == "GET /status/200"
 
     def test_request_and_response_headers(self):
         # Disabled when not configured

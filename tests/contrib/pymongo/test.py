@@ -11,7 +11,6 @@ from ddtrace.ext import SpanTypes
 
 # project
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -297,67 +296,6 @@ class PymongoCore(object):
         # confirm query tag find with query criteria on name
         assert spans[-1].resource == 'find teams {"name": "?"}'
         assert spans[-1].get_tag("mongodb.query") == '{"name": "?"}'
-
-    def test_update_ot(self):
-        """OpenTracing version of test_update."""
-        tracer, client = self.get_tracer_and_client()
-        ot_tracer = init_tracer("mongo_svc", tracer)
-
-        with ot_tracer.start_active_span("mongo_op"):
-            db = client["testdb"]
-            db.drop_collection("songs")
-            input_songs = [
-                {"name": "Powderfinger", "artist": "Neil"},
-                {"name": "Harvest", "artist": "Neil"},
-                {"name": "Suzanne", "artist": "Leonard"},
-                {"name": "Partisan", "artist": "Leonard"},
-            ]
-            db.songs.insert_many(input_songs)
-            result = db.songs.update_many(
-                {"artist": "Neil"},
-                {"$set": {"artist": "Shakey"}},
-            )
-
-            assert result.matched_count == 2
-            assert result.modified_count == 2
-
-        # ensure all is traced.
-        spans = tracer.pop()
-        assert spans, spans
-        assert len(spans) == 7
-
-        ot_span = spans[0]
-        assert ot_span.parent_id is None
-        assert ot_span.name == "mongo_op"
-        assert ot_span.service == "mongo_svc"
-
-        # remove pymongo.get_socket and pymongo.checkout spans
-        spans = [s for s in spans if s.name == "pymongo.cmd"]
-        assert len(spans) == 3
-        for span in spans:
-            # ensure all the of the common metadata is set
-            assert_is_measured(span)
-            assert span.service == "pymongo"
-            assert span.span_type == "mongodb"
-            assert span.get_tag("component") == "pymongo"
-            assert span.get_tag("span.kind") == "client"
-            assert span.get_tag("db.system") == "mongodb"
-            assert span.get_tag("mongodb.collection") == "songs"
-            assert span.get_tag("mongodb.db") == "testdb"
-            assert span.get_tag("out.host")
-            assert span.get_metric("network.destination.port")
-
-        expected_resources = set(
-            [
-                "drop songs",
-                'update songs {"artist": "?"}',
-                "insert songs",
-                "pymongo.get_socket",
-                "pymongo.checkout",
-            ]
-        )
-
-        assert {s.resource for s in spans[1:]}.issubset(expected_resources)
 
     def test_rowcount(self):
         tracer, client = self.get_tracer_and_client()

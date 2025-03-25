@@ -21,7 +21,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 
 # project
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -755,54 +754,3 @@ class BotoTest(TracerTestCase):
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.service, "test-boto-tracing.elasticache")
         self.assertEqual(span.resource, "elasticache")
-
-    @mock_ec2
-    def test_ec2_client_ot(self):
-        """OpenTracing compatibility check of the test_ec2_client test."""
-        ec2 = boto.ec2.connect_to_region("us-west-2")
-        ot_tracer = init_tracer("my_svc", self.tracer)
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(ec2)
-
-        with ot_tracer.start_active_span("ot_span"):
-            ec2.get_all_instances()
-        spans = self.pop_spans()
-        assert spans
-        self.assertEqual(len(spans), 2)
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        self.assertIsNone(ot_span.parent_id)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
-
-        self.assertEqual(ot_span.resource, "ot_span")
-        self.assertEqual(dd_span.get_tag("aws.operation"), "DescribeInstances")
-        self.assertEqual(dd_span.get_tag("component"), "boto")
-        self.assertEqual(dd_span.get_tag("span.kind"), "client")
-        assert_span_http_status_code(dd_span, 200)
-        self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
-        self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(dd_span.get_tag("region"), "us-west-2")
-
-        with ot_tracer.start_active_span("ot_span"):
-            ec2.run_instances(21)
-        spans = self.pop_spans()
-        assert spans
-        self.assertEqual(len(spans), 2)
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        self.assertIsNone(ot_span.parent_id)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
-
-        self.assertEqual(dd_span.get_tag("aws.operation"), "RunInstances")
-        assert_span_http_status_code(dd_span, 200)
-        self.assertEqual(dd_span.get_tag(http.METHOD), "POST")
-        self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(dd_span.get_tag("region"), "us-west-2")
-        self.assertEqual(dd_span.get_tag("component"), "boto")
-        self.assertEqual(dd_span.get_tag("span.kind"), "client")
-        self.assertEqual(dd_span.service, "test-boto-tracing.ec2")
-        self.assertEqual(dd_span.resource, "ec2.runinstances")
-        self.assertEqual(dd_span.name, "ec2.command")

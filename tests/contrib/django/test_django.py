@@ -36,7 +36,6 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
 from tests.utils import override_config
@@ -1949,38 +1948,6 @@ def test_template_name(test_spans):
     (span,) = spans
     assert span.get_tag("django.template.name") == "/my-template"
     assert span.resource == "/my-template"
-
-
-"""
-OpenTracing tests
-"""
-
-
-@pytest.mark.django_db
-def test_middleware_trace_request_ot(client, test_spans, tracer):
-    """OpenTracing version of test_middleware_trace_request."""
-    ot_tracer = init_tracer("my_svc", tracer)
-
-    # ensures that the internals are properly traced
-    with ot_tracer.start_active_span("ot_span"):
-        assert client.get("/users/").status_code == 200
-
-    # check for spans
-    spans = test_spans.get_spans()
-    ot_span = spans[0]
-    sp_request = spans[1]
-
-    # confirm parenting
-    assert ot_span.parent_id is None
-    assert sp_request.parent_id == ot_span.span_id
-
-    assert ot_span.resource == "ot_span"
-    assert ot_span.service == "my_svc"
-
-    assert sp_request.get_tag("http.status_code") == "200"
-    assert sp_request.get_tag(http.URL) == "http://testserver/users/"
-    assert sp_request.get_tag("django.user.is_authenticated") == "False"
-    assert sp_request.get_tag("http.method") == "GET"
 
 
 def test_collecting_requests_handles_improperly_configured_error(client, test_spans):

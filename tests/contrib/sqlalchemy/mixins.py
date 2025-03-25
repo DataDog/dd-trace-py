@@ -9,7 +9,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
-from tests.opentracer.utils import init_tracer
 
 
 Base = declarative_base()
@@ -166,36 +165,3 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert span.span_type == "sql"
         assert span.error == 0
         assert span.duration > 0
-
-    def test_opentracing(self):
-        """Ensure that sqlalchemy works with the opentracer."""
-        ot_tracer = init_tracer("sqlalch_svc", self.tracer)
-
-        with ot_tracer.start_active_span("sqlalch_op"):
-            with self.connection() as conn:
-                rows = conn.execute(text("SELECT * FROM players")).fetchall()
-                assert len(rows) == 0
-
-        traces = self.pop_traces()
-        # trace composition
-        assert len(traces) == 1
-        assert len(traces[0]) == 2
-        ot_span, dd_span = traces[0]
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "sqlalch_op"
-        assert ot_span.service == "sqlalch_svc"
-
-        # span fields
-        assert dd_span.name == "{}.query".format(self.VENDOR)
-        assert dd_span.service == self.SERVICE
-        assert dd_span.resource == "SELECT * FROM players"
-        assert dd_span.get_tag("sql.db") == self.SQL_DB
-        assert dd_span.get_tag("component") == "sqlalchemy"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.span_type == "sql"
-        assert dd_span.error == 0
-        assert dd_span.duration > 0

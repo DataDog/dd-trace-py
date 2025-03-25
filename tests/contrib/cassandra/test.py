@@ -20,7 +20,6 @@ from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.contrib.config import CASSANDRA_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -158,48 +157,6 @@ class CassandraBase(object):
             return session.execute(query)
 
         self._test_query_base(execute_fn)
-
-    def test_query_ot(self):
-        """Ensure that cassandra works with the opentracer."""
-
-        def execute_fn(session, query):
-            return session.execute(query)
-
-        session, tracer = self._traced_session()
-        ot_tracer = init_tracer("cass_svc", tracer)
-
-        with ot_tracer.start_active_span("cass_op"):
-            result = execute_fn(session, self.TEST_QUERY)
-            self._assert_result_correct(result)
-
-        spans = tracer.pop()
-        assert spans, spans
-
-        # another for the actual query
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "cass_op"
-        assert ot_span.service == "cass_svc"
-
-        assert dd_span.service == self.TEST_SERVICE
-        assert dd_span.resource == self.TEST_QUERY
-        assert dd_span.span_type == "cassandra"
-
-        assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert dd_span.get_metric("db.row_count") == 1
-        assert dd_span.get_metric("network.destination.port") == self.TEST_PORT
-        assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
-        assert dd_span.get_tag(cassx.PAGINATED) == "False"
-        assert dd_span.get_tag(net.TARGET_HOST) == "127.0.0.1"
-        assert dd_span.get_tag(net.SERVER_ADDRESS) == "127.0.0.1"
-        assert dd_span.get_tag("component") == "cassandra"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.get_tag("db.system") == "cassandra"
 
     def test_query_async(self):
         def execute_fn(session, query):

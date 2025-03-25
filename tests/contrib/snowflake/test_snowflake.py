@@ -9,8 +9,6 @@ import snowflake.connector
 from ddtrace.contrib.internal.snowflake.patch import patch
 from ddtrace.contrib.internal.snowflake.patch import unpatch
 from ddtrace.trace import Pin
-from ddtrace.trace import tracer
-from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 from tests.utils import snapshot
 
@@ -91,13 +89,6 @@ def _client():
 def client():
     with _client() as ctx:
         yield ctx
-
-
-@contextlib.contextmanager
-def ot_trace():
-    ot = init_tracer("snowflake_svc", tracer)
-    with ot.start_active_span("snowflake_op"):
-        yield
 
 
 @snapshot()
@@ -222,72 +213,6 @@ def test_snowflake_executemany_insert(client):
         )
         assert res == cur
         assert res.rowcount == 2
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_ot_fetchone(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
-    )
-    with ot_trace():
-        with client.cursor() as cur:
-            res = cur.execute("select current_version();")
-            assert res == cur
-            assert cur.fetchone() == ("4.30.2",)
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_ot_fetchall(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
-    )
-    with ot_trace():
-        with client.cursor() as cur:
-            res = cur.execute("select current_version();")
-            assert res == cur
-            assert cur.fetchall() == [("4.30.2",)]
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_ot_fetchall_multiple_rows(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT", "TEXT"],
-        rows=[("1a", "1b"), ("2a", "2b")],
-    )
-    with ot_trace():
-        with client.cursor() as cur:
-            res = cur.execute("select a, b from t;")
-            assert res == cur
-            assert cur.fetchall() == [
-                ("1a", "1b"),
-                ("2a", "2b"),
-            ]
-
-
-@snapshot()
-@req_mock.activate
-def test_snowflake_ot_executemany_insert(client):
-    add_snowflake_query_response(
-        rowtype=[],
-        rows=[],
-        total=2,
-    )
-    with ot_trace():
-        with client.cursor() as cur:
-            res = cur.executemany(
-                "insert into t (a, b) values (%s, %s);",
-                [
-                    ("1a", "1b"),
-                    ("2a", "2b"),
-                ],
-            )
-            assert res == cur
-            assert res.rowcount == 2
 
 
 @pytest.mark.snapshot()

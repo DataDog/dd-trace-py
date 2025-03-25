@@ -1,6 +1,5 @@
 import os
 
-from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 from ddtrace._trace.sampler import RateSampler
@@ -11,7 +10,6 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
-from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
@@ -529,22 +527,6 @@ async def test_parenting_200_dd(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
     with tracer.trace("aiohttp_op"):
-        request = await client.request("GET", "/")
-        assert 200 == request.status
-        text = await request.text()
-
-    assert "What's tracing?" == text
-    traces = tracer.pop_traces()
-    _assert_200_parenting(client, traces)
-
-
-async def test_parenting_200_ot(app_tracer, aiohttp_client):
-    """OpenTracing version of test_handler."""
-    app, tracer = app_tracer
-    client = await aiohttp_client(app)
-    ot_tracer = init_tracer("aiohttp_svc", tracer, scope_manager=AsyncioScopeManager())
-
-    with ot_tracer.start_active_span("aiohttp_op"):
         request = await client.request("GET", "/")
         assert 200 == request.status
         text = await request.text()

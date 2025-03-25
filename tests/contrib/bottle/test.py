@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -316,44 +315,6 @@ class TraceBottleTest(TracerTestCase):
         assert s.get_tag("component") == "bottle"
         assert s.get_tag("span.kind") == "server"
         assert s.get_tag("http.route") == "/home/"
-
-    def test_200_ot(self):
-        ot_tracer = init_tracer("my_svc", self.tracer)
-
-        # setup our test app
-        @self.app.route("/hi/<name>")
-        def hi(name):
-            return "hi %s" % name
-
-        self._trace_app(self.tracer)
-
-        # make a request
-        with ot_tracer.start_active_span("ot_span"):
-            resp = self.app.get("/hi/dougie")
-
-        assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
-        # validate it's traced
-        spans = self.pop_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.resource == "ot_span"
-
-        assert_is_measured(dd_span)
-        assert dd_span.name == "bottle.request"
-        assert dd_span.service == "bottle-app"
-        assert dd_span.resource == "GET /hi/<name>"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_tag("http.method") == "GET"
-        assert dd_span.get_tag(http.URL) == "http://localhost:80/hi/dougie"
-        assert dd_span.get_tag("component") == "bottle"
-        assert dd_span.get_tag("span.kind") == "server"
-        assert dd_span.get_tag("http.route") == "/hi/<name>"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default_schema(self):

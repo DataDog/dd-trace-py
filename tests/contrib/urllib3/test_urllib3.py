@@ -14,7 +14,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 from tests.contrib.config import HTTPBIN_CONFIG
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
@@ -398,34 +397,6 @@ class TestUrllib3(BaseUrllib3TestCase):
 
             assert s.error == 1
             assert s.service == "httpbin.org:8000"
-
-    def test_200_ot(self):
-        """OpenTracing version of test_200."""
-
-        ot_tracer = init_tracer("urllib3_svc", self.tracer)
-
-        with ot_tracer.start_active_span("urllib3_get"):
-            out = self.http.request("GET", URL_200)
-            assert out.status == 200
-
-        spans = self.pop_spans()
-        assert len(spans) == 2
-
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "urllib3_get"
-        assert ot_span.service == "urllib3_svc"
-
-        assert dd_span.get_tag(http.METHOD) == "GET"
-        assert dd_span.get_tag(http.STATUS_CODE) == "200"
-        assert dd_span.get_tag("component") == "urllib3"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.error == 0
-        assert dd_span.span_type == "http"
 
     def test_request_and_response_headers(self):
         """Tests the headers are added as tag when the headers are whitelisted"""

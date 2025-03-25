@@ -3,7 +3,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
-from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -224,36 +223,6 @@ class FalconTestCase(FalconTestMixin):
         assert span.error == 0
         assert span.get_tag("component") == "falcon"
         assert span.get_tag("span.kind") == "server"
-
-    def test_200_ot(self):
-        """OpenTracing version of test_200."""
-        writer = self.tracer._writer
-        ot_tracer = init_tracer("my_svc", self.tracer)
-        ot_tracer._dd_tracer._configure(writer=writer)
-
-        with ot_tracer.start_active_span("ot_span"):
-            out = self.make_test_call("/200", expected_status_code=200)
-        assert out.content.decode("utf-8") == "Success"
-
-        traces = self.tracer.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 2
-        ot_span, dd_span = traces[0]
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.service == "my_svc"
-        assert ot_span.resource == "ot_span"
-
-        assert_is_measured(dd_span)
-        assert dd_span.name == "falcon.request"
-        assert dd_span.service == self._service
-        assert dd_span.resource == "GET tests.contrib.falcon.app.resources.Resource200"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_tag(httpx.URL) == "http://falconframework.org/200"
-        assert dd_span.error == 0
 
     def test_falcon_request_hook(self):
         @config.falcon.hooks.on("request")

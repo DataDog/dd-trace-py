@@ -18,7 +18,6 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_tracer
@@ -528,37 +527,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.get_tag("component"), "httplib")
         self.assertEqual(span.get_tag("span.kind"), "client")
         self.assertEqual(span.get_tag("out.host"), "localhost")
-
-    def test_httplib_request_get_request_ot(self):
-        """OpenTracing version of test with same name."""
-        ot_tracer = init_tracer("my_svc", self.tracer)
-
-        with ot_tracer.start_active_span("ot_span"):
-            conn = self.get_http_connection(SOCKET)
-            with contextlib.closing(conn):
-                conn.request("GET", "/status/200")
-                resp = conn.getresponse()
-                self.assertEqual(self.to_str(resp.read()), "")
-                self.assertEqual(resp.status, 200)
-
-        spans = self.pop_spans()
-        self.assertEqual(len(spans), 2)
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        self.assertEqual(ot_span.parent_id, None)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
-
-        self.assertEqual(ot_span.service, "my_svc")
-        self.assertEqual(ot_span.name, "ot_span")
-
-        self.assert_is_not_measured(dd_span)
-        self.assertEqual(dd_span.span_type, "http")
-        self.assertEqual(dd_span.name, self.SPAN_NAME)
-        self.assertEqual(dd_span.error, 0)
-        assert dd_span.get_tag("http.method") == "GET"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_tag("http.url") == URL_200
 
     def test_httplib_bad_url(self):
         conn = self.get_http_connection("DNE", "80")

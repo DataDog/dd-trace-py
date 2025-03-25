@@ -15,7 +15,6 @@ import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 
 from ...utils import override_global_config
 from .base import CeleryBaseTestCase
@@ -598,55 +597,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_trace[0].name == "celery.run"
         assert run_trace[1].name == "test"
         assert run_trace[1].parent_id == run_trace[0].span_id
-
-    def test_fn_task_apply_async_ot(self):
-        """OpenTracing version of test_fn_task_apply_async."""
-        ot_tracer = init_tracer("celery_svc", self.tracer)
-
-        # it should execute a traced async task that has parameters
-        @self.app.task
-        def fn_task_parameters(user, force_logout=False):
-            return (user, force_logout)
-
-        with ot_tracer.start_active_span("celery_op"):
-            t = fn_task_parameters.apply_async(args=["user"], kwargs={"force_logout": True})
-            assert tuple(t.get(timeout=self.ASYNC_GET_TIMEOUT)) == ("user", True)
-
-        ot_span = self.find_span(name="celery_op")
-        assert ot_span.parent_id is None
-        assert ot_span.name == "celery_op"
-        assert ot_span.service == "celery_svc"
-
-        if self.ASYNC_USE_CELERY_FIXTURES:
-            async_span = self.find_span(name="celery.apply")
-            self.assert_is_measured(async_span)
-            assert async_span.error == 0
-
-            # confirm the parenting
-            assert async_span.parent_id == ot_span.span_id
-            assert async_span.name == "celery.apply"
-            assert async_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
-            assert async_span.service == "celery-producer"
-            assert async_span.get_tag("celery.id") == t.task_id
-            assert async_span.get_tag("celery.action") == "apply_async"
-            assert async_span.get_tag("celery.routing_key") == "celery"
-            assert async_span.get_tag("component") == "celery"
-            assert async_span.get_tag("span.kind") == "producer"
-            assert async_span.get_tag("out.host") == "memory://"
-
-        run_span = self.find_span(name="celery.run")
-        assert run_span.name == "celery.run"
-        assert run_span.parent_id is None
-        assert run_span.resource == "tests.contrib.celery.test_integration.fn_task_parameters"
-        assert run_span.service == "celery-worker"
-        assert run_span.get_tag("celery.id") == t.task_id
-        assert run_span.get_tag("celery.action") == "run"
-        assert run_span.get_tag("component") == "celery"
-        assert run_span.get_tag("span.kind") == "consumer"
-
-        traces = self.pop_traces()
-        assert len(traces) == 2
-        assert len(traces[0]) + len(traces[1]) == 3
 
     def test_beat_scheduler_tracing(self):
         @self.app.task

@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -140,34 +139,6 @@ class MongoEngineCore(object):
         assert span.get_tag("span.kind") == "client"
         assert span.get_tag("db.system") == "mongodb"
         _assert_timing(span, start, end)
-
-    def test_opentracing(self):
-        """Ensure the opentracer works with mongoengine."""
-        tracer = self.get_tracer_and_connect()
-        ot_tracer = init_tracer("my_svc", tracer)
-
-        with ot_tracer.start_active_span("ot_span"):
-            start = time.time()
-            Artist.drop_collection()
-            end = time.time()
-
-        # ensure we get a drop collection span
-        spans = tracer.pop()
-        assert len(spans) == 3
-        ot_span, dd_server_span, dd_cmd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_server_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "ot_span"
-        assert ot_span.service == "my_svc"
-
-        assert_is_measured(dd_cmd_span)
-        assert dd_cmd_span.resource == "drop artist"
-        assert dd_cmd_span.span_type == "mongodb"
-        assert dd_cmd_span.service == self.TEST_SERVICE
-        _assert_timing(dd_cmd_span, start, end)
 
 
 class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):

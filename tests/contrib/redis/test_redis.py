@@ -4,12 +4,10 @@ from unittest import mock
 import pytest
 import redis
 
-import ddtrace
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
@@ -237,39 +235,6 @@ class TestRedisPatch(TracerTestCase):
         spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
-
-    def test_opentracing(self):
-        """Ensure OpenTracing works with redis."""
-        ot_tracer = init_tracer("redis_svc", self.tracer)
-
-        with ot_tracer.start_active_span("redis_get"):
-            us = self.r.get("cheese")
-            assert us is None
-
-        spans = self.get_spans()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "redis_get"
-        assert ot_span.service == "redis_svc"
-
-        self.assert_is_measured(dd_span)
-        assert dd_span.service == "redis"
-        assert dd_span.name == "redis.command"
-        assert dd_span.span_type == "redis"
-        assert dd_span.error == 0
-        assert dd_span.get_metric("out.redis_db") == 0
-        assert dd_span.get_tag("out.host") == "localhost"
-        assert dd_span.get_tag("redis.raw_command") == "GET cheese"
-        assert dd_span.get_tag("component") == "redis"
-        assert dd_span.get_tag("span.kind") == "client"
-        assert dd_span.get_tag("db.system") == "redis"
-        assert dd_span.get_metric("redis.args_length") == 2
-        assert dd_span.resource == "GET"
 
     def test_redis_rowcount_all_keys_valid(self):
         self.r.set("key1", "value1")
@@ -539,19 +504,6 @@ class TestRedisPatchSnapshot(TracerTestCase):
         spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
-
-    @snapshot()
-    def test_opentracing(self):
-        """Ensure OpenTracing works with redis."""
-        writer = ddtrace.tracer._writer
-        ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
-        # FIXME: OpenTracing always overrides the hostname/port and creates a new
-        #        writer so we have to reconfigure with the previous one
-        ddtrace.tracer._configure(writer=writer)
-
-        with ot_tracer.start_active_span("redis_get"):
-            us = self.r.get("cheese")
-            assert us is None
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @snapshot()

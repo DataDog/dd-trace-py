@@ -47,7 +47,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.trace import Pin
-from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -2250,43 +2249,6 @@ class BotocoreTest(TracerTestCase):
         assert len(spans) == 1
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
         assert span.name == "aws.kms.request"
-
-    @mock_ec2
-    def test_traced_client_ot(self):
-        """OpenTracing version of test_traced_client."""
-        ot_tracer = init_tracer("ec2_svc", self.tracer)
-
-        with ot_tracer.start_active_span("ec2_op"):
-            ec2 = self.session.create_client("ec2", region_name="us-west-2")
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(ec2)
-            ec2.describe_instances()
-
-        spans = self.get_spans()
-        assert spans
-        assert len(spans) == 2
-
-        ot_span, dd_span = spans
-
-        # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
-
-        assert ot_span.name == "ec2_op"
-        assert ot_span.service == "ec2_svc"
-
-        assert dd_span.get_tag("aws.agent") == "botocore"
-        assert dd_span.get_tag("aws.region") == "us-west-2"
-        assert dd_span.get_tag("region") == "us-west-2"
-        assert dd_span.get_tag("aws.operation") == "DescribeInstances"
-        assert dd_span.get_tag("component") == "botocore"
-        assert dd_span.get_tag("span.kind"), "client"
-        assert_span_http_status_code(dd_span, 200)
-        assert dd_span.get_metric("retry_attempts") == 0
-        assert dd_span.service == "test-botocore-tracing.ec2"
-        assert dd_span.resource == "ec2.describeinstances"
-        assert dd_span.name == "ec2.command"
 
     @unittest.skipIf(BOTOCORE_VERSION < (1, 9, 0), "Skipping for older versions of botocore without Stubber")
     def test_stubber_no_response_metadata(self):
