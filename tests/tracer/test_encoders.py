@@ -523,7 +523,6 @@ def test_span_event_encoding_msgpack(version):
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
     data = encoder.encode()
-    breakpoint
     decoded_trace = decode(data[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
