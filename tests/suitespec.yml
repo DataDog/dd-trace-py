@@ -256,6 +256,7 @@ suites:
     retry: 2
     runner: riot
   vendor:
+    parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*

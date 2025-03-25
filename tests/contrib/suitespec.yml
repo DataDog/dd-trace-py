@@ -340,6 +340,7 @@ suites:
       - redis
     snapshot: true
   asgi:
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -367,7 +368,7 @@ suites:
     services:
       - postgres
   asynctest:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -377,6 +378,7 @@ suites:
     pattern: asynctest$
     runner: riot
   avro:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -493,6 +495,7 @@ suites:
     services:
       - consul
   datastreams:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -501,6 +504,7 @@ suites:
       - tests/datastreams/*
     runner: riot
   dd_trace_api:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -510,6 +514,7 @@ suites:
     runner: riot
     snapshot: true
   django:
+    parallelism: 6
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
@@ -719,7 +724,7 @@ suites:
     runner: riot
     snapshot: true
   gunicorn:
-    parallelism: 12
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -743,7 +748,7 @@ suites:
       - httpbin_local
     snapshot: true
   httpx:
-    parallelism: 2
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -770,7 +775,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 4
+    parallelism: 9
     paths:
       - '@bootstrap'
       - '@core'
@@ -897,6 +902,7 @@ suites:
       - tests/opentracer/*
     runner: riot
   protobuf:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1087,6 +1093,7 @@ suites:
     runner: riot
     snapshot: true
   sourcecode:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1150,6 +1157,7 @@ suites:
     runner: riot
     snapshot: true
   subprocess:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -1207,6 +1215,7 @@ suites:
     runner: riot
     skip: true # Vertica tests are flaky
   wsgi:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
