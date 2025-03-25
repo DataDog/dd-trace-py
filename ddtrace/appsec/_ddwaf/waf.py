@@ -31,6 +31,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 # from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfiguration import PayloadType
 
 
 LOGGER = get_logger(__name__)
@@ -111,11 +112,11 @@ class DDWaf(WAF):
     def info(self) -> DDWaf_info:
         return self._info
 
-    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
+    def update_rules(self, new_rules: List[Tuple[str, str, PayloadType]]) -> bool:
         """update the rules of the WAF instance. return False if an error occurs."""
         ok = True
         for product, path, rules in new_rules:
-            if rules is False:
+            if rules is None:
                 ok &= py_remove_config(self._builder, path)
                 if product == "ASM_DD":
                     self._asm_dd_cache.discard(path)

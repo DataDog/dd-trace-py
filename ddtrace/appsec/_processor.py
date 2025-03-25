@@ -39,6 +39,7 @@ from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.remoteconfiguration import PayloadType
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
@@ -196,7 +197,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
+    def _update_rules(self, new_rules: List[Tuple[str, str, PayloadType]]) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
         result = False

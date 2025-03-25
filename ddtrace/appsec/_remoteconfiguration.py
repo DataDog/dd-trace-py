@@ -11,6 +11,7 @@ from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -100,7 +101,7 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
 
     local_tracer = test_tracer or tracer
 
-    for_the_waf: List[tuple[str, str, Any]] = []
+    for_the_waf: List[tuple[str, str, PayloadType]] = []
     for_the_tracer: List[Payload] = []
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
