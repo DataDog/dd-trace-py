@@ -2,8 +2,8 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from ddtrace.trace import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.trace import Span
 
 
 class LiteLLMIntegration(BaseLLMIntegration):

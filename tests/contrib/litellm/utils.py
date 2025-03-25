@@ -1,5 +1,7 @@
-import vcr
 import os
+
+import vcr
+
 
 CASETTE_EXTENSION = ".yaml"
 
