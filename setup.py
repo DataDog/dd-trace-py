@@ -635,14 +635,21 @@ if not IS_PYSTON:
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._ast.iastpatch",
+                sources=[
+                    "ddtrace/appsec/_iast/_ast/iastpatch.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
         ext_modules.append(
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
@@ -666,14 +673,13 @@ if not IS_PYSTON:
             )
         )
 
-        if sys.version_info < (3, 13):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
 
 else:
     ext_modules = []

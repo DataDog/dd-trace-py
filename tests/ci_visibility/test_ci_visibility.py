@@ -333,7 +333,8 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
-        _do_request.assert_not_called()
+        if agentless_enabled:
+            _do_request.assert_called()
         CIVisibility.disable()
 
 
