@@ -4,7 +4,7 @@ import json
 import os
 import time
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Iterator, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Iterator, TYPE_CHECKING, Union
 
 import ddtrace
 
@@ -24,6 +24,82 @@ from .._llmobs import LLMObs
 if TYPE_CHECKING:
     import pandas as pd
 
+MODEL_SCHEMA = {
+    "name": str,
+    "provider": str,
+    "temperature": (int, float)  # allow both int and float for temperature
+}
+
+def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validates that a dictionary matches the Model schema.
+    All fields are optional, but must be of correct type if present.
+    
+    Args:
+        data: Dictionary containing model configuration
+        
+    Returns:
+        The validated model dictionary
+        
+    Raises:
+        TypeError: If data is not a dictionary or if provided fields have wrong types
+        ValueError: If temperature is outside valid range
+    """
+    if not isinstance(data, dict):
+        raise TypeError("Model must be a dictionary")
+        
+    for field, expected_type in MODEL_SCHEMA.items():
+        if field in data:
+            value = data[field]
+            if not isinstance(value, expected_type):
+                if field == "temperature" and isinstance(value, (int, float)):
+                    # Convert to float for consistency
+                    data[field] = float(value)
+                else:
+                    raise TypeError(f"Model field '{field}' must be of type {expected_type.__name__}, got {type(value).__name__}")
+    
+    return data
+
+def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Validates the config dictionary structure if provided.
+    Models are optional but must follow schema if present.
+    
+    Args:
+        config: Optional dictionary containing experiment configuration
+        
+    Returns:
+        The validated config dictionary or None
+        
+    Raises:
+        TypeError: If config is provided but not a dictionary, or if models is provided but not a list
+        ValueError: If models are provided but have invalid values
+    """
+    if config is None:
+        return None
+        
+    if not isinstance(config, dict):
+        raise TypeError("When provided, config must be a dictionary")
+    
+    if "models" not in config:
+        return config
+        
+    models = config["models"]
+    if not isinstance(models, list):
+        raise TypeError("When provided, config['models'] must be a list of model dictionaries (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
+    
+    validated_models = []
+    for i, model in enumerate(models):
+        try:
+            validated_model = validate_model(model)
+            validated_models.append(validated_model)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Invalid model at index {i}: {str(e)}")
+    
+    # Create new validated config
+    validated_config = dict(config)
+    validated_config["models"] = validated_models
+    return validated_config
 
 class Experiment:
     """
@@ -70,10 +146,11 @@ class Experiment:
             tags (List[str], optional): Tags for categorization of the experiment. Defaults to None.
             description (str, optional): Description of the experiment. Defaults to "".
             metadata (Dict[str, Any], optional): Additional metadata about the experiment. Defaults to None.
-            config (Dict[str, Any], optional): Configuration passed to the task, if it accepts 'config'. Defaults to None.
+            config (Dict[str, Any], optional): Configuration with required 'models' list. Defaults to None.
 
         Raises:
             TypeError: If either the task or any of the evaluators are not properly decorated.
+            ValueError: If config is provided but doesn't contain valid models configuration.
         """
         self.name = name
         self.task = task
@@ -83,7 +160,9 @@ class Experiment:
         self.project_name = get_project_name()
         self.description = description
         self.metadata = metadata if metadata is not None else {}
-        self.config = config
+        
+        # Validate config if provided
+        self.config = validate_config(config) if config is not None else None
 
         # Make sure the task is decorated with @task
         if not hasattr(self.task, "_is_task"):
@@ -167,10 +246,10 @@ class Experiment:
                     "dataset_id": self.dataset._datadog_dataset_id,
                     "project_id": project_id,
                     "dataset_version": self.dataset._datadog_dataset_version,
+                    "config": self.config,
                     "metadata": {
                         "tags": self.tags,
                         **(self.metadata or {}),
-                        "config": self.config,
                     },
                     "ensure_unique": True,
                 },
@@ -552,6 +631,69 @@ class Experiment:
 
         return "\n".join(info)
 
+    def push_summary_metric(self, name: str, value: Union[int, float, bool, str]) -> None:
+        """
+        Push a single summary metric to Datadog for this experiment.
+
+        This method allows pushing a single metric value that summarizes the experiment results,
+        such as an overall accuracy score, F1 score, or any other aggregate metric.
+
+        Args:
+            name (str): Name of the metric (e.g., "f1", "accuracy", etc.)
+            value (Union[int, float, bool, str]): Value of the metric. Can be numeric or categorical.
+
+        Raises:
+            ValueError: If the experiment is not yet created in Datadog.
+            TypeError: If the value type is not supported.
+        """
+        if not self._datadog_experiment_id:
+            raise ValueError(
+                "Experiment has not been created in Datadog. "
+                "Please call experiment.run() or create_in_datadog() first."
+            )
+
+        # Determine metric type and format value
+        if value is None:
+            metric_type = "categorical"
+            metric_value = None
+        elif isinstance(value, (bool, str)):
+            metric_type = "categorical"
+            metric_value = str(value).lower()
+        elif isinstance(value, (int, float)):
+            metric_type = "score"
+            metric_value = value
+        else:
+            raise TypeError(f"Unsupported metric value type: {type(value)}. Must be int, float, bool, or str.")
+
+        # Create metric payload
+        metric = {
+            "span_id": "0",  # Summary metrics don't need span/trace IDs
+            "trace_id": "0",
+            "metric_type": metric_type,
+            "timestamp_ms": int(time.time() * 1000),
+            "label": name,
+            "score_value" if metric_type == "score" else "categorical_value": metric_value,
+            "error": None,
+        }
+
+        # Create request payload
+        payload = {
+            "data": {
+                "type": "experiments",
+                "attributes": {
+                    "scope": "experiments",
+                    "metrics": [metric],
+                    "tags": self.tags + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + self._datadog_experiment_id],
+                },
+            }
+        }
+
+        # Send the request
+        url = f"/api/unstable/llm-obs/v1/experiments/{self._datadog_experiment_id}/events"
+        exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
+
+        print(f"{Color.GREEN}✓ Summary metric '{name}' pushed to Datadog{Color.RESET}")
+        print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}\n")
 
 class ExperimentResults:
     """

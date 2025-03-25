@@ -323,7 +323,7 @@ class Dataset:
         dataset._datadog_dataset_version = dataset_version
         return dataset
 
-    def _batch_update(self) -> None:
+    def _batch_update(self, overwrite: bool = False) -> None:
         """
         Send all tracked changes to Datadog using the batch update endpoint.
         This method is called by push() when there are pending changes.
@@ -342,6 +342,12 @@ class Dataset:
                 "attributes": {}
             }
         }
+
+        if overwrite:
+            print("Overwriting existing dataset")
+        else:
+            print("Pushing changes to existing dataset, new version will be created")
+
 
         # Add new records
         if self._changes['added']:
@@ -397,8 +403,12 @@ class Dataset:
                 delete_records.append(record["record_id"])
             payload["data"]["attributes"]["delete_records"] = delete_records
 
+        if overwrite:
+            payload["data"]["attributes"]["overwrite"] = True
+        
         # Send the batch update request
         url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
+        print(payload)
         resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
         # Sleep briefly to allow for processing
@@ -443,25 +453,19 @@ class Dataset:
             
             # If we have changes and we're not overwriting, use batch update
             has_changes = any(len(changes) > 0 for changes in self._changes.values())
-            if has_changes and not overwrite:
-                print("Pushing changes to existing dataset, new version will be created")
+            if has_changes:
                 self._datadog_dataset_id = dataset_id
                 self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
-                self._batch_update()
+                self._batch_update(overwrite=overwrite)
                 return
             
             if not has_changes:
                 print("Dataset exists but no changes to push")
                 return
             
-            if overwrite:
-                # TODO: Implement overwrite logic
-                pass
 
-        # If we reach here, either:
-        # 1. Dataset doesn't exist
-        # 2. We're overwriting an existing dataset
-        # 3. No changes to batch update
+        # If we reach here:
+        # Dataset doesn't exist
         # Use the original push logic...
         
         # Reasonable chunk size for batching requests
