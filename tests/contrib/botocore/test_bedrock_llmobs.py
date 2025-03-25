@@ -19,6 +19,7 @@ from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import bedrock_converse_request_with_system_and_tool_params
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -750,26 +751,7 @@ class TestLLMObsBedrock:
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse(cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events):
-        system_content = "You are an expert swe that is to use the tool fetch_concept"
-        user_content = "Explain the concept of distributed tracing in a simple way"
-        tools = [
-            {
-                "toolSpec": {
-                    "name": "fetch_concept",
-                    "description": "Fetch an expert explanation for a concept",
-                    "inputSchema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
-                            "required": ["concept"],
-                        }
-                    },
-                }
-            }
-        ]
-
-        request_params = create_bedrock_converse_request(user_message=user_content, tools=tools, system=system_content)
-
+        request_params = create_bedrock_converse_request(**bedrock_converse_request_with_system_and_tool_params)
         with request_vcr.use_cassette("bedrock_converse.yaml"):
             response = bedrock_client.converse(**request_params)
 
@@ -781,8 +763,8 @@ class TestLLMObsBedrock:
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
             input_messages=[
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content},
+                {"role": "system", "content": request_params.get("system")},
+                {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
             ],
             output_messages=[
                 {
@@ -846,27 +828,8 @@ class TestLLMObsBedrock:
     def test_llmobs_converse_stream(
         cls, bedrock_client, mock_llmobs_span_writer, request_vcr, mock_tracer, llmobs_events
     ):
-        system_content = "You are an expert swe that is to use the tool fetch_concept"
-        user_content = "Explain the concept of distributed tracing in a simple way"
-        tools = [
-            {
-                "toolSpec": {
-                    "name": "fetch_concept",
-                    "description": "Fetch an expert explanation for a concept",
-                    "inputSchema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
-                            "required": ["concept"],
-                        }
-                    },
-                }
-            }
-        ]
-
-        request_params = create_bedrock_converse_request(user_message=user_content, tools=tools, system=system_content)
-
         output_msg = ""
+        request_params = create_bedrock_converse_request(**bedrock_converse_request_with_system_and_tool_params)
         with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
             response = bedrock_client.converse_stream(**request_params)
             for chunk in response["stream"]:
@@ -882,8 +845,8 @@ class TestLLMObsBedrock:
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
             input_messages=[
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content},
+                {"role": "system", "content": request_params.get("system")},
+                {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
             ],
             output_messages=[
                 {
