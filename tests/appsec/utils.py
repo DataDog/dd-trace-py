@@ -7,6 +7,7 @@ import ddtrace.internal.core as core
 from ddtrace.trace import Span
 from ddtrace.trace import tracer as default_tracer
 from tests.utils import override_global_config
+from tests.utils import remote_config_build_payload as build_payload  # noqa: F401
 
 
 class Either:
