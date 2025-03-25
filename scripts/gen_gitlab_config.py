@@ -68,7 +68,7 @@ class JobSpec:
             for value in self.only:
                 lines.append(f"    - {value}")
 
-        if self.parallelism is not None:
+        if self.parallelism is not None and self.parallelism > 1:
             lines.append(f"  parallel: {self.parallelism}")
 
         if self.retry is not None:
