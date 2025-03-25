@@ -74,7 +74,6 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = request_params.get("prompt", "")
 
-        # Handle different resources appropriately
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
