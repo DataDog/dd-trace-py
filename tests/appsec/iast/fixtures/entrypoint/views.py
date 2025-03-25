@@ -24,7 +24,6 @@ def add_test():
 def create_app_patch_all():
     from ddtrace._monkey import _patch_all
 
-    _patch_all()
     app = Flask(__name__)
     return app
 
