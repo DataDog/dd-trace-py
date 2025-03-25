@@ -77,7 +77,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         .file = ddog_Vec_U8_as_slice(&encoded->buffer),
     };
 
-
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
     // DEV: This function is called with the profile_lock held, and the following
@@ -85,26 +84,26 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
     if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
         to_compress_files.push_back({
-            .name = to_slice("code-provenance.json"),
-            .file = to_byte_slice(json_str_opt.value()),
+          .name = to_slice("code-provenance.json"),
+          .file = to_byte_slice(json_str_opt.value()),
         });
     }
 
-    auto build_res =
-      ddog_prof_Exporter_Request_build(ddog_exporter.get(),
-                                       encoded->start,
-                                       encoded->end,
-                                       // files_to_compress_and_export
-                                       {
-                                        .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
-                                        .len = static_cast<uintptr_t>(to_compress_files.size()),
-                                       },
-                                       // files_to_export_unmodified
-                                       { .ptr = &pprof_file, .len = 1 },
-                                       nullptr,
-                                       encoded->endpoints_stats,
-                                       nullptr,
-                                       nullptr);
+    auto build_res = ddog_prof_Exporter_Request_build(
+      ddog_exporter.get(),
+      encoded->start,
+      encoded->end,
+      // files_to_compress_and_export
+      {
+        .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
+        .len = static_cast<uintptr_t>(to_compress_files.size()),
+      },
+      // files_to_export_unmodified
+      { .ptr = &pprof_file, .len = 1 },
+      nullptr,
+      encoded->endpoints_stats,
+      nullptr,
+      nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
