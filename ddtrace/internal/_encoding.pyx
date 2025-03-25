@@ -136,10 +136,7 @@ cdef inline int pack_map(msgpack_packer *pk, object n) except? -1:
             if ret != 0:
                 return ret
         else:
-            print(f"type(v) is not supported")
-            ret = msgpack_pack_nil(pk)
-            if ret != 0:
-                return ret
+            raise ValueError("Unsupported type {type(v)} for list, must be str, int, float, or bool")
     return ret
 
 
@@ -693,7 +690,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             return ret
 
         for event in span_events:
-            # get dict representation of span event
             L = 2 + bool(event.attributes)
             ret = msgpack_pack_map(&self.pk, L)
             if ret != 0:
@@ -724,31 +720,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = msgpack_pack_map(&self.pk, len(new_attributes))
                 if ret != 0:
                     return ret
-                for attr_k, attr_v in new_attributes.items():
-                    ret = pack_text(&self.pk, attr_k)
-                    if ret != 0:
-                        return ret
-                    if isinstance(attr_v, str):
-                        ret = pack_text(&self.pk, attr_v)
-                        if ret != 0:
-                            return ret
-                    elif isinstance(attr_v, bool):
-                        ret = pack_bool(&self.pk, attr_v)
-                        if ret != 0:
-                            return ret
-                    elif isinstance(attr_v, (int, float)):
-                        ret = pack_number(&self.pk, attr_v)
-                        if ret != 0:
-                            return ret
-                    # pack a list.
-                    elif isinstance(attr_v, (list, tuple)):
-                        ret = pack_list(&self.pk, attr_v)
-                        if ret != 0:
-                            return ret
-                    else:
-                        ret = msgpack_pack_nil(&self.pk)
-                        if ret != 0:
-                            return ret
+                ret = pack_map(&self.pk, new_attributes)
+                if ret != 0:
+                    return ret
         return 0
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
