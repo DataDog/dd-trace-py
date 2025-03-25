@@ -10,7 +10,7 @@ from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
-from tests.contrib.botocore.bedrock_utils import bedrock_converse_request_with_system_and_tool_params
+from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.subprocesstest import SubprocessTestCase
@@ -370,9 +370,7 @@ def test_cohere_embedding(bedrock_client, request_vcr):
 @pytest.mark.snapshot
 def test_converse(bedrock_client, request_vcr):
     with request_vcr.use_cassette("bedrock_converse.yaml"):
-        bedrock_client.converse(
-            **create_bedrock_converse_request(**bedrock_converse_request_with_system_and_tool_params)
-        )
+        bedrock_client.converse(**create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool))
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -380,7 +378,7 @@ def test_converse(bedrock_client, request_vcr):
 def test_converse_stream(bedrock_client, request_vcr):
     with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
         response = bedrock_client.converse_stream(
-            **create_bedrock_converse_request(**bedrock_converse_request_with_system_and_tool_params)
+            **create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
         )
         for chunk in response["stream"]:
             pass

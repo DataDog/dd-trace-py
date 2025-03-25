@@ -14,7 +14,7 @@ from ddtrace.internal.utils.version import parse_version
 
 BOTO_VERSION = parse_version(boto3.__version__)
 
-bedrock_converse_request_with_system_and_tool_params = {
+bedrock_converse_args_with_system_and_tool = {
     "system": "You are an expert swe that is to use the tool fetch_concept",
     "user_message": "Explain the concept of distributed tracing in a simple way",
     "tools": [
