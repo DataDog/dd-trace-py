@@ -22,7 +22,7 @@ def add_test():
 
 
 def create_app_patch_all():
-    from ddtrace._monkey import _patch_all
+    import ddtrace.auto
 
     app = Flask(__name__)
     return app
