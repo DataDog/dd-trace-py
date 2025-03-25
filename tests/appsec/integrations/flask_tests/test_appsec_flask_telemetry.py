@@ -18,7 +18,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        self.tracer._recreate()
+        self.tracer._configure(api_version="v0.4")
 
     def test_telemetry_metrics_block(self):
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):

@@ -7,6 +7,7 @@ import ddtrace.internal.core as core
 from ddtrace.trace import Span
 from ddtrace.trace import tracer as default_tracer
 from tests.utils import override_global_config
+from tests.utils import remote_config_build_payload as build_payload  # noqa: F401
 
 
 class Either:
@@ -35,9 +36,7 @@ def asm_context(
         if tracer is None:
             tracer = default_tracer
         if config:
-            # Hack: need to pass an argument to configure so that the processors are recreated
-            tracer._writer._api_version = "v0.4"
-            tracer._recreate()
+            tracer._configure(api_version="v0.4")
 
         with core.context_with_data(
             "test.asm",

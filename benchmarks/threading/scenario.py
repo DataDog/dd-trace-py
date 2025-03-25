@@ -2,16 +2,28 @@ import concurrent.futures
 import random
 from typing import Callable
 from typing import Generator
+from typing import List
+from typing import Optional
 
 import bm
 
-from ddtrace.trace import TraceFilter
-from ddtrace.trace import Tracer
+from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
+from ddtrace.internal.writer import TraceWriter
 
 
-class _DropTraces(TraceFilter):
-    def process_trace(self, trace):
-        return
+class NoopWriter(TraceWriter):
+    def recreate(self) -> TraceWriter:
+        return NoopWriter()
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        pass
+
+    def write(self, spans: Optional[List[Span]] = None) -> None:
+        pass
+
+    def flush_queue(self) -> None:
+        pass
 
 
 class Threading(bm.Scenario):
@@ -30,7 +42,7 @@ class Threading(bm.Scenario):
         from ddtrace.trace import tracer
 
         # configure global tracer to drop traces rather
-        tracer.configure(trace_processors=[_DropTraces()])
+        tracer.configure(writer=NoopWriter())
 
         def _(loops: int) -> None:
             for _ in range(loops):
