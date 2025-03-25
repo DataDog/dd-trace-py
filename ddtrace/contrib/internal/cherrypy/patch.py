@@ -84,6 +84,7 @@ class TraceTool(cherrypy.Tool):
             tracer=self._tracer,
             distributed_headers=cherrypy.request.headers,
             integration_config=config.cherrypy,
+            activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span
