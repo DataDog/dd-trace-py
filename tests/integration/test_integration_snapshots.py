@@ -54,13 +54,29 @@ def test_multiple_traces(tracer):
 
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess(
+    parametrize={"DD_WRITER_MODE": ["default", "sync"]},
     token="tests.integration.test_integration_snapshots.test_filters",
 )
 def test_filters():
-    from ddtrace.trace import TraceFilter
+    import os
+
+    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer
 
-    class FilterMutate(TraceFilter):
+    writer = os.environ.get("DD_WRITER_MODE", "default")
+
+    if writer == "sync":
+        writer = AgentWriter(
+            tracer.agent_trace_url,
+            sync_mode=True,
+        )
+        # Need to copy the headers which contain the test token to associate
+        # traces with this test case.
+        writer._headers = tracer._writer._headers
+    else:
+        writer = tracer._writer
+
+    class FilterMutate(object):
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -70,7 +86,7 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
+    tracer._configure(trace_processors=[FilterMutate("boop", "beep")], writer=writer)
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -88,8 +104,7 @@ def test_synchronous_writer():
     from ddtrace.trace import tracer
 
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer._writer = writer
-    tracer._recreate()
+    tracer._configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass

@@ -31,6 +31,7 @@ def mock_tracer(langchain):
     pin = Pin.get_from(langchain)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(langchain, tracer=mock_tracer)
+    pin.tracer._configure()
     yield mock_tracer
 
 

@@ -7,7 +7,7 @@ from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(trace_processors=[PingFilter()])
+tracer._configure(trace_processors=[PingFilter()])
 
 
 def hello_world(request):

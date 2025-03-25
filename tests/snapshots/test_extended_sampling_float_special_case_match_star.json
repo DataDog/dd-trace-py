@@ -1,7 +1,7 @@
 [[
   {
     "name": "should_send",
-    "service": "ddtrace_subprocess_dir",
+    "service": "tests.integration",
     "resource": "should_send",
     "trace_id": 0,
     "span_id": 1,
