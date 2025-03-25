@@ -85,10 +85,6 @@ LIBDDWAF_VERSION = "1.22.0"
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
 
-# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
-if CURRENT_OS == "Darwin":
-    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
-
 
 def interpose_sccache():
     """
@@ -425,6 +421,8 @@ class CMakeBuild(build_ext):
                 cmake_args += [
                     "-DBUILD_MACOS=ON",
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.14",
                 ]
 
         if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
