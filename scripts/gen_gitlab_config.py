@@ -49,11 +49,11 @@ class JobSpec:
         wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
-        if wait_for or self.runner == "riot":
-            lines.append("  before_script:")
-            lines.append(f"    - !reference [{base}, before_script]")
-            if self.runner == "riot":
-                lines.append("    - pip cache info")
+
+        lines.append("  before_script:")
+        lines.append(f"    - !reference [{base}, before_script]")
+        lines.append("    - pip cache info")
+        if wait_for:
             if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
@@ -62,14 +62,19 @@ class JobSpec:
             env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
 
+        suite_name = env["SUITE_NAME"]
+        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         if self.runner == "riot":
-            suite_name = env["SUITE_NAME"]
-            env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
             env["PIP_CACHE_KEY"] = (
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
             )
             lines.append("  cache:")
             lines.append("    key: v0-pip-${PIP_CACHE_KEY}-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
+        else:
+            lines.append("  cache:")
+            lines.append("    key: v0-${CI_JOB_NAME}-pip-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -145,11 +150,17 @@ def gen_build_docs() -> None:
             print("  extends: .testrunner", file=f)
             print("  stage: hatch", file=f)
             print("  needs: []", file=f)
+            print("  variables:", file=f)
+            print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  cache:", file=f)
+            print("    key: v1-build_docs-pip-cache", file=f)
+            print("    paths:", file=f)
+            print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
             print("      - '/tmp/docs'", file=f)
@@ -166,8 +177,15 @@ def gen_pre_checks() -> None:
                 print("  extends: .testrunner", file=f)
                 print("  stage: precheck", file=f)
                 print("  needs: []", file=f)
+                print("  variables:", file=f)
+                print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
                 print("  script:", file=f)
+                print("    - pip cache info", file=f)
                 print(f"    - {command}", file=f)
+                print("  cache:", file=f)
+                print("    key: v1-precheck-pip-cache", file=f)
+                print("    paths:", file=f)
+                print("      - .cache", file=f)
 
     check(
         name="Style",
