@@ -6,11 +6,11 @@ import pytest
     err=None,
 )
 def test_lock_acquire_events():
+    import asyncio
     import threading
 
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import threading as collector_threading
-    from tests.profiling.collector import _asyncio_compat
 
     async def _lock():
         lock = threading.Lock()
@@ -19,7 +19,7 @@ def test_lock_acquire_events():
     def asyncio_run():
         lock = threading.Lock()
         lock.acquire()
-        _asyncio_compat.run(_lock())
+        asyncio.run(_lock())
 
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
