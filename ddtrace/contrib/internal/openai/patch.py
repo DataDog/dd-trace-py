@@ -99,6 +99,10 @@ def patch():
     wrap(openai, "AsyncOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
+    wrap(
+        openai, "resources.chat.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
+    )
+    wrap(openai, "resources.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -133,7 +137,8 @@ def unpatch():
     unwrap(openai.AsyncOpenAI, "__init__")
     unwrap(openai.AzureOpenAI, "__init__")
     unwrap(openai.AsyncAzureOpenAI, "__init__")
-
+    unwrap(openai.resources.chat.CompletionsWithRawResponse, "__init__")
+    unwrap(openai.resources.CompletionsWithRawResponse, "__init__")
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
             continue
@@ -162,41 +167,80 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
     return
 
 
+@with_traced_module
+def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
+    func(*args, **kwargs)
+    if hasattr(instance, "create") and isinstance(instance, openai.resources.completions.CompletionsWithRawResponse):
+        wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._CompletionWithRawResponseHook))
+    elif hasattr(instance, "create"):
+        wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
+    return
+
+
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
 
-    span = integration.trace(
-        pin,
-        endpoint_hook.OPERATION_ID,
-        base_url=base_url,
-    )
+    create_span = True
+    current_span = pin.tracer.current_span()
+    # skip creating a new span if interaction is already being traced with with_raw_response or streaming and with_raw_response is being used
+    if (
+        current_span
+        and current_span._get_ctx_item("openai.completion.with_raw_response")
+        or (
+            (
+                endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
+                or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook
+            )
+            and kwargs.get("stream")
+        )
+    ):
+        create_span = False
+    if create_span:
+        span = integration.trace(
+            pin,
+            endpoint_hook.OPERATION_ID,
+            base_url=base_url,
+        )
+    else:
+        span = None
+    # set the context item to indicate that the span is being traced with with_raw_response
+    if span and (
+        endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
+        or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook
+    ):
+        span._set_ctx_item("openai.completion.with_raw_response", True)
+
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
-    if openai_api_key:
+    if openai_api_key and span:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
     try:
         # Start the hook
-        hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
-        hook.send(None)
+        if span:
+            hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
+            hook.send(None)
 
         resp, err = yield
 
         # Record any error information
-        if err is not None:
+        if err is not None and span:
             span.set_exc_info(*sys.exc_info())
 
         # Pass the response and the error to the hook
         try:
-            hook.send((resp, err))
+            if span:
+                hook.send((resp, err))
+            else:
+                return resp
         except StopIteration as e:
             if err is None:
                 return e.value
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None:
+        if (not kwargs.get("stream") or err is not None) and span:
             span.finish()
 
 
