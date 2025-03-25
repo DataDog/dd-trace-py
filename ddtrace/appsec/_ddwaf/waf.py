@@ -24,11 +24,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-
-# from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-
-# from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType

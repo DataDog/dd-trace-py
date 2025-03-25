@@ -184,7 +184,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.error("[DDAS-0005-00] WAF initialization failed")
+            log.warning("[DDAS-0005-00] WAF initialization failed")
 
         self._update_required()
 
