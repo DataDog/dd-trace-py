@@ -25,9 +25,9 @@ _RUN_LOCALLY = False
 # Derived values
 def get_api_base_url() -> str:
     """Get the base URL for API requests."""
-    if get_site() == "datadoghq.com":
-        return "https://api.datadoghq.com"
-    elif get_site() == "datad0g.com":
+    if get_site().endswith("datadoghq.com"):
+        return f"https://api.{get_site()}"
+    elif get_site().endswith("datad0g.com"):
         return "https://dd.datad0g.com"
 
 
@@ -35,6 +35,8 @@ def get_base_url() -> str:
     """Get the base URL for the LLM Observability UI."""
     if get_site() == "datadoghq.com":
         return "https://app.datadoghq.com"
+    elif get_site().endswith("datadoghq.com"):
+        return f"https://{get_site()}"
     elif get_site() == "datad0g.com":
         return "https://dd.datad0g.com"
 

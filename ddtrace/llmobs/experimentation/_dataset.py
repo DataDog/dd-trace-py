@@ -50,7 +50,6 @@ class Dataset:
         if data is None:
             print(f"No data provided, pulling dataset '{name}' from Datadog...")
             pulled_dataset = self.pull(name)
-            print(pulled_dataset._datadog_dataset_id)
             self._data = pulled_dataset._data
             self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
             self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
@@ -408,7 +407,6 @@ class Dataset:
         
         # Send the batch update request
         url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
-        print(payload)
         resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
         # Sleep briefly to allow for processing
@@ -446,7 +444,6 @@ class Dataset:
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
         resp = exp_http_request("GET", url)
         existing_dataset = resp.json().get("data", [])
-        print(existing_dataset)
 
         if existing_dataset:
             dataset_id = existing_dataset[0]["id"]
@@ -559,7 +556,7 @@ class Dataset:
                 if show_progress:
                     _print_progress_bar(i + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
-            time.sleep(1)  # Sleep to allow for processing after ingestion.
+            time.sleep(3)  # Sleep to allow for processing after ingestion.
             # Pull the dataset to get all record IDs and metadata
             pulled_dataset = self.pull(self.name)
             self._data = pulled_dataset._data

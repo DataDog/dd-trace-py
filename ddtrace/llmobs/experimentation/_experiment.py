@@ -30,6 +30,8 @@ MODEL_SCHEMA = {
     "temperature": (int, float)  # allow both int and float for temperature
 }
 
+FLUSH_EVERY = 1
+
 def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validates that a dictionary matches the Model schema.
@@ -46,7 +48,7 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
         ValueError: If temperature is outside valid range
     """
     if not isinstance(data, dict):
-        raise TypeError("Model must be a dictionary")
+        raise TypeError("Model must be a dictionary (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
         
     for field, expected_type in MODEL_SCHEMA.items():
         if field in data:
@@ -382,7 +384,7 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
-                    if idx % 5 == 0:
+                    if idx % FLUSH_EVERY == 0:
                         LLMObs.flush()
 
                     return {
@@ -416,7 +418,7 @@ class Experiment:
                     )
                     LLMObs._tag_expected_output(span, expected_output)
 
-                    if idx % 5 == 0:
+                    if idx % FLUSH_EVERY == 0:
                         LLMObs.flush()
 
                     return {
