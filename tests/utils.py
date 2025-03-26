@@ -29,6 +29,7 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -1401,3 +1402,24 @@ def _build_env(env=None, file_path=FILE_PATH):
         for k, v in env.items():
             environ[k] = v
     return environ
+
+
+_ID = 0
+
+
+def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_content=False):
+    global _ID
+    if not id_based_on_content:
+        _ID += 1
+    hash_key = str(sha_hash or hash(str(data)))
+    return Payload(
+        {
+            "id": hash_key if id_based_on_content else _ID,
+            "product_name": product,
+            "sha256_hash": hash_key,
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )

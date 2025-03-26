@@ -8,6 +8,7 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
@@ -40,12 +41,6 @@ from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -838,18 +833,18 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data, test_tracer=None):
+    def _handle_remoteconfig(self, data_list, test_tracer=None):
+        # data_list is a list of Payload objects
         # type: (Any, Any) -> None
-        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
-            log.warning("unexpected RC payload %r", data)
+
+        if len(data_list) == 0:
+            log.warning("unexpected number of RC payloads")
             return
-        if len(data["config"]) == 0:
-            log.warning("unexpected number of RC payloads %r", data)
-            return
+        data = [payload.content for payload in data_list]
 
         # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
         config = None
-        for config_item in data["config"]:
+        for config_item in data:
             if isinstance(config_item, Dict):
                 if "lib_config" in config_item:
                     config = config_item
