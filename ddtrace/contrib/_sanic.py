@@ -8,8 +8,7 @@ Enable Sanic tracing automatically via ``ddtrace-run``::
 
 Sanic tracing can also be enabled explicitly::
 
-    from ddtrace import patch_all
-    patch_all(sanic=True)
+    import ddtrace.auto
 
     from sanic import Sanic
     from sanic.response import text

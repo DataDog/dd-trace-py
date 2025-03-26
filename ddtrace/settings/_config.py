@@ -8,12 +8,14 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._trace.pin import Pin
@@ -32,19 +34,13 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
+from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -441,9 +437,8 @@ class Config(object):
 
     def __init__(self):
         # Must validate Otel configurations before creating the config object.
-        from ._telemetry import validate_otel_envs
-
         validate_otel_envs()
+
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
@@ -490,12 +485,6 @@ class Config(object):
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
-        # Report Telemetry for Agent Connection Configurations. We need to do this here to avoid circular imports
-        from ddtrace.internal.agent import config as agent_config
-
-        from ._telemetry import report_telemetry
-
-        report_telemetry(agent_config)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
@@ -844,18 +833,18 @@ class Config(object):
 
         return _GlobalConfigPubSub
 
-    def _handle_remoteconfig(self, data, test_tracer=None):
+    def _handle_remoteconfig(self, data_list, test_tracer=None):
+        # data_list is a list of Payload objects
         # type: (Any, Any) -> None
-        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
-            log.warning("unexpected RC payload %r", data)
+
+        if len(data_list) == 0:
+            log.warning("unexpected number of RC payloads")
             return
-        if len(data["config"]) == 0:
-            log.warning("unexpected number of RC payloads %r", data)
-            return
+        data = [payload.content for payload in data_list]
 
         # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
         config = None
-        for config_item in data["config"]:
+        for config_item in data:
             if isinstance(config_item, Dict):
                 if "lib_config" in config_item:
                     config = config_item
