@@ -171,6 +171,7 @@ def _send_telemetry(event):
         while p.poll() is None:
             if time.time() - start > 1:
                 p.kill()
+                break
             time.sleep(0.05)
 
 
