@@ -5,14 +5,14 @@ on:
   # we investigate the value of framework tests.
   # They will run nightly instead, and manual
   # workflow dispatch will be enabled
-  # push:
-  #   branches:
-  #     - main
-  #     - 'mq-working-branch**'
-  # pull_request:
-  workflow_dispatch: {}
-  schedule:
-    - cron: '0 5 * * *'
+  push:
+    branches:
+      - main
+      - 'mq-working-branch**'
+  pull_request:
+  # workflow_dispatch: {}
+  # schedule:
+  #   - cron: '0 5 * * *'
 
 
 concurrency:
@@ -256,18 +256,18 @@ jobs:
     strategy:
       matrix:
         include:
-          - suffix: Profiling
-            profiling: 1
-            iast: 0
-            appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
+          # - suffix: Profiling
+          #   profiling: 1
+          #   iast: 0
+          #   appsec: 0
+          # - suffix: IAST
+          #   profiling: 0
+          #   iast: 1
+          #   appsec: 0
+          # - suffix: APPSEC
+          #   profiling: 0
+          #   iast: 0
+          #   appsec: 1
           - suffix: Tracer only
             profiling: 0
             iast: 0
