@@ -100,10 +100,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def start_subscribers_by_product(self, products: Set[str]) -> None:
         self._client.start_products(products)
 
-    def _poll_data(self, test_tracer=None):
+    def _poll_data(self):
         """Force subscribers to poll new data. This function is only used in tests"""
         for pubsub in self._client.get_pubsubs():
-            pubsub._poll_data(test_tracer=test_tracer)
+            pubsub._poll_data()
 
     def stop_subscribers(self, join: bool = False) -> None:
         """

@@ -69,25 +69,12 @@ def get_oci_ddtrace_version():
 
 def build_installed_pkgs():
     installed_packages = {}
-    if sys.version_info >= (3, 8):
-        try:
-            from importlib import metadata as importlib_metadata
+    try:
+        from importlib import metadata as importlib_metadata
 
-            installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-        except Exception as e:
-            _log("Failed to build installed packages list: %s" % e, level="debug")
-    else:
-        try:
-            import pkg_resources
-
-            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
-        except Exception:
-            try:
-                import importlib_metadata
-
-                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-            except Exception as e:
-                _log("Failed to build installed packages list: %s" % e, level="debug")
+        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+    except Exception as e:
+        _log("Failed to build installed packages list: %s" % e, level="debug")
     return {key.lower(): value for key, value in installed_packages.items()}
 
 

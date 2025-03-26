@@ -391,12 +391,6 @@ pyexport_taintrange(py::module& m)
           "candidate_text"_a);
     m.def("set_fast_tainted_if_notinterned_unicode", &api_set_fast_tainted_if_unicode, "text"_a);
 
-    // TODO: check all the py::return_value_policy
-    m.def("are_all_text_all_ranges",
-          &are_all_text_all_ranges,
-          "candidate_text"_a,
-          "parameter_list"_a,
-          py::return_value_policy::move);
     m.def("are_all_text_all_ranges",
           &api_are_all_text_all_ranges,
           "candidate_text"_a,

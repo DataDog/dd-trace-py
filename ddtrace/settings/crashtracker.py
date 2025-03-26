@@ -1,8 +1,8 @@
 import typing as t
 
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 resolver_default = "full"
@@ -120,4 +120,4 @@ class CrashtrackingConfig(DDConfig):
 
 
 config = CrashtrackingConfig()
-_report_telemetry(config)
+report_configuration(config)

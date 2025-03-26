@@ -4,6 +4,16 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.4
+
+
+### Bug Fixes
+
+  - CI Visibility: This fix resolves an issue where ddtrace's own sys.monitoring coverage tool in Python 3.12+ would block other sys.monitoring tools such as pytest-cov from being used.
+
+
+---
+
 ## 3.2.0
 
 ### New Features
