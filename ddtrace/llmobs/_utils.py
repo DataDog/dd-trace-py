@@ -219,7 +219,6 @@ class HTTPResponse:
         if self._content is None:
             content = self._resp.read()
             if content is None:
-                # Return empty bytes if response content is None
                 return b""
             self._content = content
         return self._content
@@ -235,7 +234,6 @@ def http_request(
     method: str, url: str, headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None
 ) -> HTTPResponse:
     """Make an HTTP request and return an HTTPResponse object."""
-    # Create the request object
     req = urllib.request.Request(url, data=body, method=method)
     if headers:
         req.headers.update(headers)
@@ -243,5 +241,4 @@ def http_request(
         response = urllib.request.urlopen(req)
         return HTTPResponse(response)
     except HTTPError as e:
-        # Create an HTTPResponse object from the error response
         return HTTPResponse(e)
