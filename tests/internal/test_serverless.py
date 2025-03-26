@@ -123,14 +123,6 @@ def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # any of those modules are imported during the import of ddtrace.
     import os
 
-    os.environ.update(
-        {
-            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
-            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
-            "DD_API_SECURITY_ENABLED": "False",
-        }
-    )
-
     env = os.environ.copy()
     env.update(
         {
