@@ -309,3 +309,19 @@ def agent():
     patcher.start()
     yield
     patcher.stop()
+
+
+@pytest.fixture
+def agent_missing_proxy():
+    patcher = mock.patch("ddtrace.internal.agent.info", return_value={"endpoints": []})
+    patcher.start()
+    yield
+    patcher.stop()
+
+
+@pytest.fixture
+def no_agent():
+    patcher = mock.patch("ddtrace.internal.agent.info", return_value=None)
+    patcher.start()
+    yield
+    patcher.stop()
