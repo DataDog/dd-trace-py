@@ -266,6 +266,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
 
+      - name: Run DEBUGGER_SYMDB
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
+        run: ./run.sh DEBUGGER_SYMDB
+
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: always() && steps.docker_load.outcome == 'success'
