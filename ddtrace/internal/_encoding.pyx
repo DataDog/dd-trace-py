@@ -715,14 +715,24 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char*> b"attributes", 10)
                 if ret != 0:
                     return ret
-                attributes = event.attributes.items()
-                new_attributes = remapSpanEventAttributes(attributes)
-                ret = msgpack_pack_map(&self.pk, len(new_attributes))
+                print(event.attributes)
+                ret = msgpack_pack_map(&self.pk, len(event.attributes))
                 if ret != 0:
                     return ret
-                ret = pack_map(&self.pk, new_attributes)
-                if ret != 0:
-                    return ret
+                
+                for attr_k, attr_v in event.attributes.items():
+                    new_attribute_values = convertSpanEventAttributeValues(attr_k, attr_v)
+
+                    ret = pack_text(&self.pk, attr_k)
+                    if ret != 0:
+                        return ret
+
+                    ret = msgpack_pack_map(&self.pk, len(new_attribute_values))
+                    if ret != 0:
+                        return ret
+                    ret = pack_map(&self.pk, new_attribute_values)
+                    if ret != 0:
+                        return ret
         return 0
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
@@ -1246,16 +1256,6 @@ def packb(o, **kwargs):
     See :class:`Packer` for options.
     """
     return Packer(**kwargs).pack(o)
-
-
-def remapSpanEventAttributes(attributes):
-    new_attributes = {}
-    for k, v in attributes:
-        new_attribute_values = convertSpanEventAttributeValues(k, v)
-        for new_k, new_v in new_attribute_values.items():
-            new_attributes[new_k] = new_v
-
-    return new_attributes
 
 
 def convertSpanEventAttributeValues(key, value, int depth=0):

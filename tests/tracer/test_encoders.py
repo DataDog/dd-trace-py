@@ -542,54 +542,32 @@ def test_span_event_encoding_msgpack(version):
     else:
         encoded_span_meta = decoded_trace[0][0]
         assert b"span_events" in encoded_span_meta
+        breakpoint()
         assert encoded_span_meta[b"span_events"] == [
             {
                 b"name": b"Something went so wrong",
                 b"time_unix_nano": 1,
-                b"attributes": {b"type": 0, b"string_value": b"error"},
+                b"attributes": {b"type": {b"type": 0, b"string_value": b"error"}},
             },
             {
                 b"name": b"I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
                 b"time_unix_nano": 17353464354546,
                 b"attributes": {
-                    b"array_value": [
-                        {
-                            b"int_value": 1,
-                            b"type": 2,
-                        },
-                        {
-                            b"double_value": 9.5,
-                            b"type": 3,
-                        },
-                        {
-                            b"int_value": 1,
-                            b"type": 2,
-                        },
-                    ],
-                    b"bool_value": False,
-                    b"double_value": 9.8,
-                    b"string_value": b"happy",
-                    b"type": 1,
+                    b"emotion": {b"type": 0, b"string_value": b"happy"},
+                    b"rating": {b"type": 3, b"double_value": 9.8},
+                    b"other": {
+                        b"type": 4,
+                        b"array_value": [
+                            {b"type": 2, b"int_value": 1},
+                            {b"type": 3, b"double_value": 9.5},
+                            {b"type": 2, b"int_value": 1},
+                        ],
+                    },
+                    b"idol": {b"type": 1, b"bool_value": False},
                 },
             },
             {b"name": b"We are going to the moon", b"time_unix_nano": 2234567890123456},
         ]
-
-
-#  attributes: {
-#             emotion: { type: 0, string_value: 'happy' },
-#             idol: { type: 1, bool_value: false },
-#             happiness: { type: 2, int_value: 10 },
-#             rating: { type: 3, double_value: 9.8 },
-#             other: {
-#               type: 4,
-#               array_value: [
-#                 { type: 0, string_value: 'hi' },
-#                 { type: 1, bool_value: false },
-#                 { type: 2, int_value: 1 },
-#                 { type: 3, double_value: 1.2 }
-#               ]
-#             }
 
 
 def test_span_link_v05_encoding():
