@@ -654,6 +654,7 @@ def test_max_time_usage_over():
     with pytest.raises(ValueError):
         stack.StackCollector(None, max_time_usage_pct=200)
 
+
 @pytest.mark.parametrize(
     "stack_v2_enabled",
     [True, False],
