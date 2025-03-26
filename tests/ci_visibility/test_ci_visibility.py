@@ -646,7 +646,7 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.config.trace_agent_url",
+            "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://arandomhost:9126",
         ) as agent_url_mock, mock.patch(
@@ -691,7 +691,7 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.config.trace_agent_url",
+            "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://evpproxy.bar:1234",
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
@@ -714,7 +714,7 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.config.trace_agent_url",
+            "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(

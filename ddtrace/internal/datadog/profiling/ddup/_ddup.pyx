@@ -20,6 +20,7 @@ from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+from ddtrace.settings._agent import config as agent_config
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -409,7 +410,7 @@ def _get_endpoint(tracer)-> str:
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
     tracer_agent_url = tracer.agent_trace_url
-    endpoint = tracer_agent_url if tracer_agent_url else agent.config.trace_agent_url
+    endpoint = tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
     return endpoint
 
 

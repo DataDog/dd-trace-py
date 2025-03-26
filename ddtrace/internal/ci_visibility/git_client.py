@@ -24,9 +24,9 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import extract_workspace_path
-from ddtrace.internal.agent import config as agent_config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Tracer  # noqa: F401
 
 from .. import telemetry

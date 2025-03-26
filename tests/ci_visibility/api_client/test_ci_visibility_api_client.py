@@ -420,7 +420,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), mock.patch(
-            "ddtrace.internal.agent.config.trace_agent_url",
+            "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(
@@ -525,7 +525,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
-            "ddtrace.internal.agent.config.trace_agent_url",
+            "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(

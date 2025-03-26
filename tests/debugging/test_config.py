@@ -2,8 +2,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from ddtrace.internal.agent import config as agent_config
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.version import get_version
 from tests.utils import override_env

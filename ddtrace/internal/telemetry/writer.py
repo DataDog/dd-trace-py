@@ -16,11 +16,11 @@ import urllib.parse as parse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._telemetry import config
 
 from ...internal import atexit
 from ...internal import forksafe
-from ..agent import config as agent_config
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id

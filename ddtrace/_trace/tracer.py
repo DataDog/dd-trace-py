@@ -18,6 +18,7 @@ from urllib import parse
 
 from ddtrace import _hooks
 from ddtrace import config
+from ddtrace.settings._agent import config as agent_config
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -34,7 +35,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
@@ -224,7 +224,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        self._dogstatsd_url = agent.config.dogstatsd_url
+        self._dogstatsd_url = agent_config.dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -236,7 +236,7 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.config.trace_agent_url
+        self._agent_url: str = agent_config.trace_agent_url
         verify_url(self._agent_url)
 
         if self._use_log_writer():
