@@ -99,6 +99,7 @@ def test_enable_agentless_when_agent_is_not_available(no_agent):
 
         llmobs_service.disable()
 
+
 def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
