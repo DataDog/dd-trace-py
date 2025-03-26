@@ -84,7 +84,7 @@ def _taint_pyobject_multiranges(pyobject, elements):
         if source_origin is None:
             source_origin = OriginType.PARAMETER
         source = RangeSource(source_name, source_value, source_origin)
-        pyobject_range = TaintRange(start, len_range, source)
+        pyobject_range = TaintRange(start, len_range, source, [])
         pyobject_ranges.append(pyobject_range)
 
     set_ranges(pyobject_newid, pyobject_ranges)

@@ -518,6 +518,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                         start=tainted_start,
                         length=tainted_new_length,
                         source=tainted_range.source,
+                        secure_marks=tainted_range.secure_marks,
                     )
                 )
 
@@ -665,6 +666,7 @@ def _distribute_ranges_and_escape(
                 start=start - element_start,
                 length=end - element_start,
                 source=taint_range.source,
+                secure_marks=taint_range.secure_marks,
             )
             new_ranges[new_range] = taint_range
 

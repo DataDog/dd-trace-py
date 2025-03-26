@@ -56,9 +56,10 @@ TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
 {
     const auto new_length_to_use = new_length == -1 ? source_taint_range->length : new_length;
-    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
-                                                  new_length_to_use,                  // length
-                                                  source_taint_range->source);        // origin
+    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,
+                                                  new_length_to_use,
+                                                  source_taint_range->source,
+                                                  source_taint_range->secure_marks);
     return tptr;
 }
 
@@ -140,7 +141,7 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
             if (const string source_value = PyObjectToString(args[3]); not source_value.empty()) {
                 const auto source_origin = static_cast<OriginType>(PyLong_AsLong(args[4]));
                 const auto source = Source(source_name, source_value, source_origin);
-                const auto range = initializer->allocate_taint_range(0, len_pyobject, source);
+                const auto range = initializer->allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
                 result = set_ranges(pyobject_n, ranges, tx_map);
                 if (not result) {
