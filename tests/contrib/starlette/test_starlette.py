@@ -499,7 +499,7 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 import sqlalchemy
 
-from ddtrace import patch_all
+from ddtrace._monkey import _patch_all
 
 
 from tests.contrib.starlette.app import get_app
@@ -507,9 +507,9 @@ from tests.contrib.starlette.app import get_app
 engine = sqlalchemy.create_engine("sqlite:///test.db")
 app = get_app(engine)
 
-# Calling patch_all late
+# Calling _patch_all late
 # DEV: The test client uses `requests` so we want to ignore them for this scenario
-patch_all(requests=False, http=False)
+_patch_all(requests=False, http=False)
 with TestClient(app) as test_client:
     r = test_client.get("/200")
 

@@ -6,7 +6,7 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import Any
+from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -72,13 +72,13 @@ from ddtrace.settings.peer_service import _ps_config
 log = get_logger(__name__)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
-
-
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
+if TYPE_CHECKING:
+    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-def _start_appsec_processor() -> Optional[Any]:
+
+def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -109,7 +109,7 @@ def _default_span_processors_factory(
     agent_url: str,
     trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
+) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
@@ -194,12 +194,7 @@ class Tracer(object):
     SHUTDOWN_TIMEOUT = 5
     _instance = None
 
-    def __init__(
-        self,
-        url: Optional[str] = None,
-        dogstatsd_url: Optional[str] = None,
-        context_provider: Optional[BaseContextProvider] = None,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -228,8 +223,8 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
+        self._dogstatsd_url = agent.get_stats_url()
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -241,10 +236,10 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = agent.get_trace_url()
         verify_url(self._agent_url)
 
-        if self._use_log_writer() and url is None:
+        if self._use_log_writer():
             writer: TraceWriter = LogWriter()
         else:
             writer = AgentWriter(
@@ -701,13 +696,7 @@ class Tracer(object):
             # strong span reference (which will never be finished) is replaced
             # with a context representing the span.
             if isinstance(child_of, Span):
-                new_ctx = Context(
-                    sampling_priority=child_of.context.sampling_priority,
-                    span_id=child_of.span_id,
-                    trace_id=child_of.trace_id,
-                    is_remote=False,
-                )
-
+                new_ctx = child_of.context
                 # If the child_of span was active then activate the new context
                 # containing it so that the strong span referenced is removed
                 # from the execution.
@@ -1113,10 +1102,6 @@ class Tracer(object):
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
         return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
-
-    @staticmethod
-    def _is_span_internal(span):
-        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair

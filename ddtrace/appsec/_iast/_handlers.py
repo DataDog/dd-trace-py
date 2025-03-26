@@ -238,9 +238,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                         v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                     )
             except Exception:
-                iast_propagation_listener_log_log(
-                    "IAST: Unexpected exception while tainting path parameters", exc_info=True
-                )
+                iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
 
 def _custom_protobuf_getattribute(self, name):

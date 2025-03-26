@@ -11,7 +11,15 @@ log = get_logger(__name__)
 
 
 class AttemptToFixSessionMixin:
-    pass
+    @staticmethod
+    @_catch_and_log_exceptions
+    def attempt_to_fix_has_failed_tests() -> bool:
+        log.debug("Checking if session has failed tests for Attempt-to-Fix")
+        has_failed_tests = core.dispatch_with_results(
+            "test_visibility.attempt_to_fix.session_has_failed_tests"
+        ).has_failed_tests.value
+        log.debug("Session has Attempt-to-Fix failed tests: %s", has_failed_tests)
+        return has_failed_tests
 
 
 class AttemptToFixTestMixin:
@@ -58,7 +66,7 @@ class AttemptToFixTestMixin:
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
     ):
         log.debug(
-            "Finishing ATTEMPT_TO_FIX test retry %s for item %s, status: %s, skip_reason: %s, exc_info: %s",
+            "Finishing Attempt-to-Fix test retry %s for item %s, status: %s, skip_reason: %s, exc_info: %s",
             retry_number,
             item_id,
             status,
@@ -77,9 +85,9 @@ class AttemptToFixTestMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def attempt_to_fix_get_final_status(item_id: InternalTestId) -> ext_api.TestStatus:
-        log.debug("Getting final ATTEMPT_TO_FIX status for item %s", item_id)
+        log.debug("Getting final Attempt-to-Fix status for item %s", item_id)
         attempt_to_fix_final_status = core.dispatch_with_results(
             "test_visibility.attempt_to_fix.get_final_status", (item_id,)
         ).attempt_to_fix_final_status.value
-        log.debug("Final ATTEMPT_TO_FIX status for item %s: %s", item_id, attempt_to_fix_final_status)
+        log.debug("Final Attempt-to-Fix status for item %s: %s", item_id, attempt_to_fix_final_status)
         return attempt_to_fix_final_status

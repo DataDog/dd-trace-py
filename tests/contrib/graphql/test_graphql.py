@@ -195,6 +195,18 @@ def test_graphql_execute_sync_with_middlware_manager(
         assert res2.data == {"hello": "friend"}
 
 
+@snapshot(ignores=["meta.error.stack", "meta.events"])
+def test_regression_graphql_error_locations_none():
+    """
+    Ensure GraphQLError with `locations=None` does not cause patching issues.
+    """
+    error = graphql.GraphQLError(message="Test error with no locations")
+    error.locations = None
+    result = graphql.ExecutionResult(data=None, errors=[error])
+
+    assert result.errors[0].locations is None
+
+
 @pytest.mark.snapshot
 @pytest.mark.skipif(graphql_version < (3, 0), reason="graphql.graphql_sync is NOT supported in v2.0")
 @pytest.mark.parametrize(

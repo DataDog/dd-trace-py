@@ -1,26 +1,21 @@
-#!/usr/bin/env python3
-
 import ast
-import codecs
 import os
-from sys import builtin_module_names
 import textwrap
 from types import ModuleType
-from typing import Iterable
 from typing import Optional
-from typing import Set
 from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._python_info.stdlib import _stdlib_for_python_version
+from ddtrace.appsec._iast._ast import iastpatch
+from ddtrace.appsec._iast._logs import iast_ast_debug_log
+from ddtrace.appsec._iast._logs import iast_compiling_debug_log
+from ddtrace.appsec._iast._logs import iast_instrumentation_ast_patching_debug_log
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
-from ddtrace.internal.packages import get_package_distributions
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.asm import config as asm_config
 
-from .._logs import iast_ast_debug_log
-from .._logs import iast_compiling_debug_log
 from .visitor import AstVisitor
 
 
@@ -28,492 +23,135 @@ _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 
-# Prefixes for modules where IAST patching is allowed
-# Only packages that have the test_propagation=True in test_packages and are not in the denylist must be here
-IAST_ALLOWLIST: Tuple[Text, ...] = (
-    "attrs.",
-    "beautifulsoup4.",
-    "cachetools.",
-    "cryptography.",
-    "django.",
-    "docutils.",
-    "idna.",
-    "iniconfig.",
-    "jinja2.",
-    "lxml.",
-    "multidict.",
-    "platformdirs",
-    "pygments.",
-    "pynacl.",
-    "pyparsing.",
-    "multipart",
-    "sqlalchemy.",
-    "tomli",
-    "yarl.",
-)
-
-# NOTE: For testing reasons, don't add astunparse here, see test_ast_patching.py
-IAST_DENYLIST: Tuple[Text, ...] = (
-    "_psycopg.",  # PostgreSQL adapter for Python (v3)
-    "_pytest.",
-    "aiohttp._helpers.",
-    "aiohttp._http_parser.",
-    "aiohttp._http_writer.",
-    "aiohttp._websocket.",
-    "aiohttp.log.",
-    "aiohttp.tcp_helpers.",
-    "aioquic.",
-    "altgraph.",
-    "anyio.",
-    "api_pb2.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "api_pb2_grpc.",  # Patching crashes with these auto-generated modules, propagation is not needed
-    "asyncio.base_events.",
-    "asyncio.base_futures.",
-    "asyncio.base_subprocess.",
-    "asyncio.base_tasks.",
-    "asyncio.constants.",
-    "asyncio.coroutines.",
-    "asyncio.events.",
-    "asyncio.exceptions.",
-    "asyncio.futures.",
-    "asyncio.locks.",
-    "asyncio.log.",
-    "asyncio.protocols.",
-    "asyncio.queues.",
-    "asyncio.runners.",
-    "asyncio.selector_events.",
-    "asyncio.staggered.",
-    "asyncio.subprocess.",
-    "asyncio.tasks.",
-    "asyncio.threads.",
-    "asyncio.transports.",
-    "asyncio.trsock.",
-    "asyncio.unix_events.",
-    "asyncpg.pgproto.",
-    "attr._config.",
-    "attr._next_gen.",
-    "attr.filters.",
-    "attr.setters.",
-    "autopep8.",
-    "backports.",
-    "black.",
-    "blinker.",
-    "boto3.docs.docstring.",
-    "boto3.s3.",
-    "botocore.docs.bcdoc.",
-    "botocore.retries.",
-    "botocore.vendored.requests.",
-    "brotli.",
-    "brotlicffi.",
-    "bytecode.",
-    "cattrs.",
-    "cchardet.",
-    "certifi.",
-    "cffi.",
-    "chardet.big5freq.",
-    "chardet.big5prober.",
-    "chardet.charsetgroupprober.",
-    "chardet.cp949prober.",
-    "chardet.enums.",
-    "chardet.escsm.",
-    "chardet.eucjpprober.",
-    "chardet.euckrfreq.",
-    "chardet.euckrprober.",
-    "chardet.euctwfreq.",
-    "chardet.euctwprober.",
-    "chardet.gb2312freq.",
-    "chardet.gb2312prober.",
-    "chardet.hebrewprober.",
-    "chardet.jisfreq.",
-    "chardet.langbulgarianmodel.",
-    "chardet.langgreekmodel.",
-    "chardet.langhebrewmodel.",
-    "chardet.langrussianmodel.",
-    "chardet.langthaimodel.",
-    "chardet.langturkishmodel.",
-    "chardet.mbcsgroupprober.",
-    "chardet.mbcssm.",
-    "chardet.sbcharsetprober.",
-    "chardet.sbcsgroupprober.",
-    "charset_normalizer.",
-    "click.",
-    "cmath.",
-    "colorama.",
-    "concurrent.futures.",
-    "configparser.",
-    "contourpy.",
-    "coreschema.",
-    "crispy_forms.",
-    "crypto.",  # This module is patched by the IAST patch methods, propagation is not needed
-    "cx_logging.",
-    "cycler.",
-    "cython.",
-    "dateutil.",
-    "dateutil.",
-    "ddsketch.",
-    "ddtrace.",
-    "defusedxml.",
-    "deprecated.",
-    "difflib.",
-    "dill.info.",
-    "dill.settings.",
-    "dipy.",
-    "django.apps.config.",
-    "django.apps.registry.",
-    "django.conf.",
-    "django.contrib.admin.actions.",
-    "django.contrib.admin.admin.",
-    "django.contrib.admin.apps.",
-    "django.contrib.admin.checks.",
-    "django.contrib.admin.decorators.",
-    "django.contrib.admin.exceptions.",
-    "django.contrib.admin.helpers.",
-    "django.contrib.admin.image_formats.",
-    "django.contrib.admin.options.",
-    "django.contrib.admin.sites.",
-    "django.contrib.admin.templatetags.",
-    "django.contrib.admin.views.autocomplete.",
-    "django.contrib.admin.views.decorators.",
-    "django.contrib.admin.views.main.",
-    "django.contrib.admin.wagtail_hooks.",
-    "django.contrib.admin.widgets.",
-    "django.contrib.admindocs.utils.",
-    "django.contrib.admindocs.views.",
-    "django.contrib.auth.admin.",
-    "django.contrib.auth.apps.",
-    "django.contrib.auth.backends.",
-    "django.contrib.auth.base_user.",
-    "django.contrib.auth.checks.",
-    "django.contrib.auth.context_processors.",
-    "django.contrib.auth.decorators.",
-    "django.contrib.auth.hashers.",
-    "django.contrib.auth.image_formats.",
-    "django.contrib.auth.management.",
-    "django.contrib.auth.middleware.",
-    "django.contrib.auth.password_validation.",
-    "django.contrib.auth.signals.",
-    "django.contrib.auth.templatetags.",
-    "django.contrib.auth.validators.",
-    "django.contrib.auth.wagtail_hooks.",
-    "django.contrib.contenttypes.admin.",
-    "django.contrib.contenttypes.apps.",
-    "django.contrib.contenttypes.checks.",
-    "django.contrib.contenttypes.fields.",
-    "django.contrib.contenttypes.forms.",
-    "django.contrib.contenttypes.image_formats.",
-    "django.contrib.contenttypes.management.",
-    "django.contrib.contenttypes.models.",
-    "django.contrib.contenttypes.templatetags.",
-    "django.contrib.contenttypes.views.",
-    "django.contrib.contenttypes.wagtail_hooks.",
-    "django.contrib.humanize.templatetags.",
-    "django.contrib.messages.admin.",
-    "django.contrib.messages.api.",
-    "django.contrib.messages.apps.",
-    "django.contrib.messages.constants.",
-    "django.contrib.messages.context_processors.",
-    "django.contrib.messages.image_formats.",
-    "django.contrib.messages.middleware.",
-    "django.contrib.messages.storage.",
-    "django.contrib.messages.templatetags.",
-    "django.contrib.messages.utils.",
-    "django.contrib.messages.wagtail_hooks.",
-    "django.contrib.sessions.admin.",
-    "django.contrib.sessions.apps.",
-    "django.contrib.sessions.backends.",
-    "django.contrib.sessions.base_session.",
-    "django.contrib.sessions.exceptions.",
-    "django.contrib.sessions.image_formats.",
-    "django.contrib.sessions.middleware.",
-    "django.contrib.sessions.templatetags.",
-    "django.contrib.sessions.wagtail_hooks.",
-    "django.contrib.sites.",
-    "django.contrib.staticfiles.admin.",
-    "django.contrib.staticfiles.apps.",
-    "django.contrib.staticfiles.checks.",
-    "django.contrib.staticfiles.finders.",
-    "django.contrib.staticfiles.image_formats.",
-    "django.contrib.staticfiles.models.",
-    "django.contrib.staticfiles.storage.",
-    "django.contrib.staticfiles.templatetags.",
-    "django.contrib.staticfiles.utils.",
-    "django.contrib.staticfiles.wagtail_hooks.",
-    "django.core.cache.backends.",
-    "django.core.cache.utils.",
-    "django.core.checks.async_checks.",
-    "django.core.checks.caches.",
-    "django.core.checks.compatibility.",
-    "django.core.checks.compatibility.django_4_0.",
-    "django.core.checks.database.",
-    "django.core.checks.files.",
-    "django.core.checks.messages.",
-    "django.core.checks.model_checks.",
-    "django.core.checks.registry.",
-    "django.core.checks.security.",
-    "django.core.checks.security.base.",
-    "django.core.checks.security.csrf.",
-    "django.core.checks.security.sessions.",
-    "django.core.checks.templates.",
-    "django.core.checks.translation.",
-    "django.core.checks.urls",
-    "django.core.exceptions.",
-    "django.core.mail.",
-    "django.core.management.base.",
-    "django.core.management.color.",
-    "django.core.management.sql.",
-    "django.core.paginator.",
-    "django.core.signing.",
-    "django.core.validators.",
-    "django.dispatch.dispatcher.",
-    "django.template.autoreload.",
-    "django.template.backends.",
-    "django.template.base.",
-    "django.template.context.",
-    "django.template.context_processors.",
-    "django.template.defaultfilters.",
-    "django.template.defaulttags.",
-    "django.template.engine.",
-    "django.template.exceptions.",
-    "django.template.library.",
-    "django.template.loader.",
-    "django.template.loader_tags.",
-    "django.template.loaders.",
-    "django.template.response.",
-    "django.template.smartif.",
-    "django.template.utils.",
-    "django.templatetags.",
-    "django.test.",
-    "django.urls.base.",
-    "django.urls.conf.",
-    "django.urls.converters.",
-    "django.urls.exceptions.",
-    "django.urls.resolvers.",
-    "django.urls.utils.",
-    "django.utils.",
-    "django_filters.compat.",
-    "django_filters.conf.",
-    "django_filters.constants.",
-    "django_filters.exceptions.",
-    "django_filters.fields.",
-    "django_filters.filters.",
-    "django_filters.filterset.",
-    "django_filters.rest_framework.",
-    "django_filters.rest_framework.backends.",
-    "django_filters.rest_framework.filters.",
-    "django_filters.rest_framework.filterset.",
-    "django_filters.utils.",
-    "django_filters.widgets.",
-    "dnspython.",
-    "elasticdeform.",
-    "envier.",
-    "exceptiongroup.",
-    "flask.",
-    "fonttools.",
-    "freezegun.",  # Testing utilities for time manipulation
-    "google.auth.",
-    "googlecloudsdk.",
-    "gprof2dot.",
-    "h11.",
-    "h5py.",
-    "httpcore.",
-    "httptools.",
-    "httpx.",
-    "hypothesis.",  # Testing utilities
-    "imageio.",
-    "importlib_metadata.",
-    "inspect.",  # this package is used to get the stack frames, propagation is not needed
-    "itsdangerous.",
-    "kiwisolver.",
-    "matplotlib.",
-    "moto.",  # used for mocking AWS, propagation is not needed
-    "mypy.",
-    "mypy_extensions.",
-    "networkx.",
-    "nibabel.",
-    "nilearn.",
-    "numba.",
-    "numpy.",
-    "opentelemetry-api.",
-    "packaging.",
-    "pandas.",
-    "pdf2image.",
-    "pefile.",
-    "pil.",
-    "pip.",
-    "pkg_resources.",
-    "pluggy.",
-    "protobuf.",
-    "psycopg.",  # PostgreSQL adapter for Python (v3)
-    "psycopg2.",  # PostgreSQL adapter for Python (v2)
-    "pycodestyle.",
-    "pycparser.",  # this package is called when a module is imported, propagation is not needed
-    "pydicom.",
-    "pyinstaller.",
-    "pynndescent.",
-    "pystray.",
-    "pytest.",  # Testing framework
-    "pytz.",
-    "rich.",
-    "sanic.",
-    "scipy.",
-    "setuptools.",
-    "silk.",  # django-silk package
-    "skbase.",
-    "sklearn.",  # Machine learning library
-    "sniffio.",
-    "sqlalchemy.orm.interfaces.",  # Performance optimization
-    "threadpoolctl.",
-    "tifffile.",
-    "tqdm.",
-    "trx.",
-    "typing_extensions.",
-    "umap.",
-    "unittest.mock.",
-    "urlpatterns_reverse.tests.",  # assertRaises eat exceptions in native code, so we don't call the original function
-    "uvicorn.",
-    "uvloop.",
-    "wcwidth.",
-    "websocket.",
-    "websockets.",
-    "werkzeug.",
-    "win32ctypes.",
-    "wrapt.",
-    "xlib.",
-    "zipp.",
-)
-
-USER_ALLOWLIST = tuple(os.environ.get(IAST.PATCH_MODULES, "").split(IAST.SEP_MODULES))
-USER_DENYLIST = tuple(os.environ.get(IAST.DENY_MODULES, "").split(IAST.SEP_MODULES))
-
-ENCODING = ""
 
 log = get_logger(__name__)
 
 
-class _TrieNode:
-    __slots__ = ("children", "is_end")
+def initialize_iast_lists():
+    """Initialize IAST module lists safely from Python.
 
-    def __init__(self):
-        self.children = {}
-        self.is_end = False
+    This function initializes the user allowlist and denylist for IAST module patching.
+    It is critical that this initialization happens from Python rather than from C code
+    during module initialization for several reasons:
 
-    def __iter__(self):
-        if self.is_end:
-            yield ("", None)
-        else:
-            for k, v in self.children.items():
-                yield (k, dict(v))
+    1. Python GIL (Global Interpreter Lock) Management:
+       - During C module initialization, GIL handling can be problematic
+       - Python operations from C during initialization may not be fully thread-safe
+       - The interpreter state might not be fully ready for certain Python API calls
 
+    2. Module State:
+       - When called from Python, we ensure the module is fully initialized
+       - All required Python objects and state are properly set up
+       - Memory management is handled by Python's garbage collector
 
-def build_trie(words: Iterable[str]) -> _TrieNode:
-    root = _TrieNode()
-    for word in words:
-        node = root
-        for char in word:
-            if char not in node.children:
-                node.children[char] = _TrieNode()
-            node = node.children[char]
-        node.is_end = True
-    return root
+    3. Error Handling:
+       - Python-level initialization provides better error handling
+       - Exceptions can be properly caught and managed
+       - Prevents potential segmentation faults or undefined behavior
 
+    4. Thread Safety:
+       - Ensures thread-safe initialization of global lists
+       - Avoids race conditions during module loading
+       - Provides consistent state across all threads
 
-_TRIE_ALLOWLIST = build_trie(IAST_ALLOWLIST)
-_TRIE_DENYLIST = build_trie(IAST_DENYLIST)
-_TRIE_USER_ALLOWLIST = build_trie(USER_ALLOWLIST)
-_TRIE_USER_DENYLIST = build_trie(USER_DENYLIST)
+    The function specifically:
+    1. Builds the user allowlist from _DD_IAST_PATCH_MODULES environment variable
+    2. Builds the user denylist from _DD_IAST_DENY_MODULES environment variable
 
-
-def _trie_has_prefix_for(trie: _TrieNode, string: str) -> bool:
-    node = trie
-    for char in string:
-        node = node.children.get(char)
-        if not node:
-            return False
-
-        if node.is_end:
-            return True
-    return node.is_end
-
-
-def get_encoding(module_path: Text) -> Text:
+    This approach is safer than C-level initialization in init_globals() which can
+    lead to inconsistent state or crashes due to GIL-related issues.
     """
-    First tries to detect the encoding for the file,
-    otherwise, returns global encoding default
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
+
+
+def _should_iast_patch(module_name: str) -> bool:
+    """Determines whether a module should be patched by IAST instrumentation.
+
+    This function checks if a given module should be instrumented by the IAST (Interactive Application
+    Security Testing) system. It uses a series of rules to make this determination, including checking
+    against allowlists and denylists.
+
+    Performance characteristics:
+        - Without debug: 0.005-0.020s per call
+        - With debug: 0.017-0.024s per call (1.14x-3.08x slower)
+        - Standard library modules are checked fastest
+        - Third-party modules take longest to check
+
+    Args:
+        module_name (str): The fully qualified name of the module to check (e.g., "os.path", "requests")
+
+    Returns:
+        bool: True if the module should be patched, False otherwise.
+            Returns True when:
+            - Module is in the user allowlist
+            - Module is in the static allowlist
+            - Module is a first-party module
+            Returns False when:
+            - Module is in Python's stdlib
+            - Module is in the user denylist
+            - Module is in the static denylist
+            - Module is not found in any list
+
+    Note:
+        When asm_config._iast_debug is True, the function will log detailed information about
+        why a module was allowed or denied patching.
     """
-    global ENCODING
-    if not ENCODING:
-        try:
-            ENCODING = codecs.lookup("utf-8-sig").name
-        except LookupError:
-            ENCODING = codecs.lookup("utf-8").name
-    return ENCODING
-
-
-_NOT_PATCH_MODULE_NAMES = {i.lower() for i in _stdlib_for_python_version() | set(builtin_module_names)}
-
-_IMPORTLIB_PACKAGES: Set[str] = set()
-
-
-def _in_python_stdlib(module_name: str) -> bool:
-    return module_name.split(".")[0].lower() in _NOT_PATCH_MODULE_NAMES
-
-
-def _is_first_party(module_name: str):
-    global _IMPORTLIB_PACKAGES
-    if "vendor." in module_name or "vendored." in module_name:
-        return False
-
-    if not _IMPORTLIB_PACKAGES:
-        _IMPORTLIB_PACKAGES = set(get_package_distributions())
-
-    return module_name.split(".")[0] not in _IMPORTLIB_PACKAGES
-
-
-def _should_iast_patch(module_name: Text) -> bool:
-    """
-    select if module_name should be patch from the longest prefix that match in allow or deny list.
-    if a prefix is in both list, deny is selected.
-    """
-    # TODO: A better solution would be to migrate the original algorithm to C++:
-    # max_allow = max((len(prefix) for prefix in IAST_ALLOWLIST if module_name.startswith(prefix)), default=-1)
-    # max_deny = max((len(prefix) for prefix in IAST_DENYLIST if module_name.startswith(prefix)), default=-1)
-    # diff = max_allow - max_deny
-    # return diff > 0 or (diff == 0 and not _in_python_stdlib_or_third_party(module_name))
-    if _in_python_stdlib(module_name):
-        iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
-        return False
-
-    if _is_first_party(module_name):
-        iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
-        return True
-
-    # else: third party. Check that is in the allow list and not in the deny list
-    dotted_module_name = module_name.lower() + "."
-
-    # User allow or deny list set by env var have priority
-    if _trie_has_prefix_for(_TRIE_USER_ALLOWLIST, dotted_module_name):
-        iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
-        return True
-
-    if _trie_has_prefix_for(_TRIE_USER_DENYLIST, dotted_module_name):
-        iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
-        return False
-
-    if _trie_has_prefix_for(_TRIE_ALLOWLIST, dotted_module_name):
-        if _trie_has_prefix_for(_TRIE_DENYLIST, dotted_module_name):
-            iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
-            return False
-        iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
-        return True
-    iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
-    return False
+    result = False
+    try:
+        result = iastpatch.should_iast_patch(module_name)
+        if asm_config._iast_debug:
+            if result == iastpatch.DENIED_BUILTINS_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the python_stdlib")
+            elif result == iastpatch.ALLOWED_USER_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's in the USER_ALLOWLIST")
+            elif result == iastpatch.ALLOWED_STATIC_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's in the ALLOWLIST")
+            elif result == iastpatch.DENIED_USER_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the USER_DENYLIST")
+            elif result == iastpatch.DENIED_STATIC_DENYLIST:
+                iast_ast_debug_log(f"denying {module_name}. it's in the DENYLIST")
+            elif result == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST:
+                iast_ast_debug_log(f"allowing {module_name}. it's a first party module")
+            elif result == iastpatch.DENIED_NOT_FOUND:
+                iast_ast_debug_log(f"denying {module_name}. it's NOT in the ALLOWLIST")
+    except Exception as e:
+        iast_instrumentation_ast_patching_debug_log(
+            f"An error occurred while attempting to patch the {module_name} module. Error: {e}"
+        )
+    return result >= iastpatch.ALLOWED_USER_ALLOWLIST
 
 
 def visit_ast(
-    source_text: Text,
+    source_text: bytes,
     module_path: Text,
     module_name: Text = "",
 ) -> Optional[ast.Module]:
+    """Visits and modifies a module's AST for IAST instrumentation.
+
+    This function parses source code into an AST (Abstract Syntax Tree), visits each node
+    using the IAST visitor pattern, and applies necessary modifications for security
+    instrumentation. The visitor pattern is implemented by the AstVisitor class.
+
+    Args:
+        source_text (bytes): The raw source code of the module to be parsed and modified.
+        module_path (Text): The file system path to the module. Used for error reporting
+            and AST node location information.
+        module_name (Text, optional): The fully qualified name of the module. Used by the
+            visitor for context. Defaults to empty string.
+
+    Returns:
+        Optional[ast.Module]: The modified AST if changes were made, None if:
+            - No modifications were needed (ast_modified flag is False)
+            - The source couldn't be parsed
+            - The visitor didn't make any changes
+
+    Note:
+        - Uses the global _VISITOR instance of AstVisitor
+        - Automatically fixes source locations in the modified AST
+        - The visitor's ast_modified flag determines if any changes were made
+        - Returns None instead of unmodified AST to optimize memory usage
+    """
     parsed_ast = ast.parse(source_text, module_path)
     _VISITOR.update_location(filename=module_path, module_name=module_name)
     modified_ast = _VISITOR.visit(parsed_ast)
@@ -555,25 +193,60 @@ def {_PREFIX}set_dir_filter():
 {_PREFIX}set_dir_filter()
 
     """
-)
+).encode()
 
 
 def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
+    """Patches a Python module's AST for IAST instrumentation.
+
+    This function processes a Python module for IAST (Interactive Application Security Testing)
+    instrumentation by modifying its Abstract Syntax Tree (AST). It handles various edge cases
+    and module types while ensuring proper logging of the patching process.
+
+    The function performs the following steps:
+    1. Resolves the module's file path
+    2. Validates the file (size, extension, accessibility)
+    3. Reads and processes the source code
+    4. Optionally adds a __dir__ wrapper to hide IAST internals
+    5. Generates and returns the modified AST
+
+    Args:
+        module (ModuleType): The Python module to patch. Must be an imported module object.
+
+    Returns:
+        Tuple[str, Optional[ast.Module]]: A tuple containing:
+            - str: The module's file path if successful, empty string if failed
+            - Optional[ast.Module]: The modified AST if successful, None if:
+                - Module file cannot be found
+                - File is empty (e.g., __init__.py)
+                - File extension not supported (.dll, .so, etc.)
+                - File cannot be read or decoded
+                - AST modification was not needed
+
+    Note:
+        - Debug logging only occurs when asm_config._iast_debug is True
+        - Handles various file types (.py, .pyc, .pyo, .pyw)
+        - Skips binary/native modules
+        - Can be controlled via IAST.ENV_NO_DIR_PATCH environment variable to disable __dir__ wrapping
+    """
     module_name = module.__name__
 
     module_origin = origin(module)
     if module_origin is None:
-        iast_compiling_debug_log(f"could not find the module: {module_name}")
+        if asm_config._iast_debug:
+            iast_compiling_debug_log(f"could not find the module: {module_name}")
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            iast_compiling_debug_log(f"empty file: {module_path}")
+            if asm_config._iast_debug:
+                iast_compiling_debug_log(f"empty file: {module_path}")
             return "", None
     except OSError:
-        iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
+        if asm_config._iast_debug:
+            iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -583,22 +256,26 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
+        if asm_config._iast_debug:
+            iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
+            if asm_config._iast_debug:
+                iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
             return "", None
         except Exception:
-            iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
+            if asm_config._iast_debug:
+                iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        iast_compiling_debug_log(f"Empty file: {module_path}")
+        if asm_config._iast_debug:
+            iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
@@ -611,7 +288,11 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         module_name=module_name,
     )
     if new_ast is None:
-        iast_compiling_debug_log(f"file not ast patched: {module_path}")
+        if asm_config._iast_debug:
+            iast_compiling_debug_log(f"file not ast patched: {module_path}")
         return "", None
 
     return module_path, new_ast
+
+
+initialize_iast_lists()

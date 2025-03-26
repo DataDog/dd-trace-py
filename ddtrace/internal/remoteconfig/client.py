@@ -26,14 +26,15 @@ from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
+from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.time import parse_isoformat
+from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._core import DDConfig
-
-from ..utils.formats import parse_tags_str
-from ..utils.version import _pep440_to_semver
-from ._pubsub import PubSub  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -69,21 +70,6 @@ class RemoteConfigError(Exception):
     An error occurred during the configuration update procedure.
     The error is reported to the agent.
     """
-
-
-@dataclasses.dataclass
-class ConfigMetadata:
-    """
-    Configuration TUF target metadata
-    """
-
-    id: str
-    product_name: str
-    sha256_hash: Optional[str]
-    length: Optional[int]
-    tuf_version: Optional[int]
-    apply_state: Optional[int] = dataclasses.field(default=1, compare=False)
-    apply_error: Optional[str] = dataclasses.field(default=None, compare=False)
 
 
 @dataclasses.dataclass
@@ -422,7 +408,11 @@ class RemoteConfigClient:
 
     @staticmethod
     def _apply_callback(
-        list_callbacks: List[PubSub], callback: Any, config_content: Any, target: str, config_metadata: ConfigMetadata
+        list_callbacks: List[PubSub],
+        callback: PubSub,
+        config_content: PayloadType,
+        target: str,
+        config_metadata: ConfigMetadata,
     ) -> None:
         callback.append(config_content, target, config_metadata)
         if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
@@ -442,7 +432,7 @@ class RemoteConfigClient:
                 applied_configs[target] = config
                 continue
             elif target not in targets:
-                callback_action = False
+                callback_action = None
             else:
                 continue
 
