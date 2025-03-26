@@ -786,7 +786,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 9
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
