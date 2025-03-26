@@ -1124,7 +1124,9 @@ def test_civisibility_enable_respects_passed_in_tracer():
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         tracer = CIVisibilityTracer()
-        tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        tracer._partial_flush_enabled = False
+        tracer._partial_flush_min_spans = 100
+        tracer._recreate()
         CIVisibility.enable(tracer=tracer)
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
