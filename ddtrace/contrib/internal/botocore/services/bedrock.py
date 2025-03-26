@@ -391,7 +391,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
     request_params = (
         _extract_request_params_for_converse(ctx["params"])
-        if ctx["resource"] == "Converse" or ctx["resource"] == "ConverseStream"
+        if ctx["resource"] in ("Converse", "ConverseStream")
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
