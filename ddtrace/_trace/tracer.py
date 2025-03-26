@@ -35,6 +35,7 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import agent
+from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
@@ -278,6 +279,13 @@ class Tracer(object):
 
         self._hooks = _hooks.Hooks()
         forksafe.register_before_fork(self._sample_before_fork)
+
+        # Non-global tracers require that we still register these hooks, until
+        # their usage is fully deprecated. The global one will be managed by the
+        # product protocol.
+        if not isinstance(self, Tracer):
+            atexit.register(self._atexit)
+            forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -1055,8 +1063,13 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-
             forksafe.unregister_before_fork(self._sample_before_fork)
+            # Non-global tracers require that we still register these hooks, until
+            # their usage is fully deprecated. The global one will be managed by the
+            # product protocol.
+            if not isinstance(self, Tracer):
+                atexit.unregister(self._atexit)
+                forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
