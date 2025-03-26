@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: ``agentless_enabled`` now defaults to ``None``, and will be computed automatically. ``agentless_enabled`` can still be set explicitly to ``True`` or ``False``.
