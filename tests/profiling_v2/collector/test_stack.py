@@ -654,7 +654,6 @@ def test_max_time_usage_over():
     with pytest.raises(ValueError):
         stack.StackCollector(None, max_time_usage_pct=200)
 
-
 @pytest.mark.parametrize(
     "stack_v2_enabled",
     [True, False],
@@ -664,6 +663,9 @@ def test_max_time_usage_over():
     [True, False],
 )
 def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
+    if stack_v2_enabled:
+        pytest.xfail("Echion doesn't support ignore_profiler yet, and the test flakes")
+
     test_name = "test_ignore_profiler"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -695,7 +697,8 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
     # Echion by default does not track native threads that are not registered
     # after https://github.com/P403n1x87/echion/pull/83.
-    if stack_v2_enabled or ignore_profiler:
+    if ignore_profiler:
+        pass
         assert collector_worker_thread_id not in thread_ids
     else:
         assert collector_worker_thread_id in thread_ids
