@@ -529,6 +529,9 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
         original_result.outcome = OUTCOME_QUARANTINED
 
+    if original_result.failed or original_result.skipped:
+        InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
+
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
