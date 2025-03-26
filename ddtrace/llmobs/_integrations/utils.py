@@ -304,9 +304,12 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
     if isinstance(messages, list):  # streamed response
+        role = "" 
         output_messages = []
         for streamed_message in messages:
-            message = {"content": streamed_message["content"], "role": streamed_message["role"]}
+            # litellm roles appear only on the first choice, so store it to be used for all choices
+            role = streamed_message.get("role", "") or role 
+            message = {"content": streamed_message.get("content", ""), "role": role}
             tool_calls = streamed_message.get("tool_calls", [])
             if tool_calls:
                 message["tool_calls"] = [
