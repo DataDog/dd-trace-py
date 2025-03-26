@@ -38,3 +38,4 @@ gets extended to add support for additional features.
 | Attribute | Description |
 |-----------|-------------|
 | `requires: list[str]` | A list of other product names that the product depends on |
+| `config: DDConfig` | A configuration object; when an instance of `DDConfig`, configuration telemetry is automatically reported | 
