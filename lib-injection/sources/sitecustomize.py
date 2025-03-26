@@ -166,14 +166,12 @@ def _send_telemetry(event):
         if p.stdout:
             p.stdout.close()
 
-        # wait(timeout) was added in Python 3.3
-        try:
-            if sys.version_info >= (3, 3):
-                p.wait(1)
-            else:
-                p.wait()
-        except:
-            p.kill()
+        # backwards compatible `p.wait(1)`
+        start = time.time()
+        while p.poll() is None:
+            if time.time() - start > 1:
+                p.kill()
+            time.sleep(0.05)
 
 
 def send_telemetry(event):
