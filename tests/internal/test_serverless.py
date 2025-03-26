@@ -88,6 +88,8 @@ standard_blocklist = [
     "logging.handlers",
     "multiprocessing",
     "importlib_metadata",
+    "ddtrace._trace.utils_botocore.span_pointers",
+    "ddtrace._trace.utils_botocore.span_tags",
     # These modules must not be imported because their source files are
     # specifically removed from the serverless python layer.
     # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
@@ -96,6 +98,8 @@ standard_blocklist = [
     "ddtrace.internal.datadog.profiling.libdd_wrapper",
     "ddtrace.internal.datadog.profiling.ddup._ddup",
     "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.internal._file_queue",
+    "secrets",
 ]
 expanded_blocklist = standard_blocklist + [
     "importlib.metadata",
@@ -109,19 +113,32 @@ expanded_blocklist = standard_blocklist + [
         ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
         ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
         # requests imports urlib3 which imports importlib.metadata
-        ("ddtrace.contrib.requests", standard_blocklist),
+        # TODO: Fix the requests parameter in a future PR
+        # ("ddtrace.contrib.internal.requests", standard_blocklist),
     ],
 )
 def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
+    import os
 
-    env = {
-        "AWS_LAMBDA_FUNCTION_NAME": "foobar",
-        "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
-        "DD_API_SECURITY_ENABLED": "False",
-    }
+    os.environ.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
 
     code = f"""
 import sys

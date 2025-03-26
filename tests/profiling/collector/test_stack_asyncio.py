@@ -8,8 +8,6 @@ from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector.stack import StackCollector
 
-from . import _asyncio_compat
-
 
 def patch_stack_collector(stack_collector):
     """
@@ -37,8 +35,8 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
             await asyncio.sleep(sleep_time)
 
     async def hello(collector) -> None:
-        t1 = _asyncio_compat.create_task(stuff(collector), name="sleep 1")
-        t2 = _asyncio_compat.create_task(stuff(collector), name="sleep 2")
+        t1 = asyncio.create_task(stuff(collector), name="sleep 1")
+        t2 = asyncio.create_task(stuff(collector), name="sleep 2")
         await stuff(collector)
         return (t1, t2)
 
@@ -52,10 +50,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     p.start()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    if _asyncio_compat.PY38_AND_LATER:
-        maintask = loop.create_task(hello(stack_collector), name="main")
-    else:
-        maintask = loop.create_task(hello(stack_collector))
+    maintask = loop.create_task(hello(stack_collector), name="main")
 
     # Wait for the collector to run at least once on this thread, while it is doing something
     # 2.5+ seconds at times
@@ -108,9 +103,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
     assert main_thread_ran_test
 
-    if _asyncio_compat.PY38_AND_LATER:
-        # We don't know the name of this task for Python < 3.8
-        assert wall_time_ns["main"] > 0, (wall_time_ns, stack_sample_events)
+    assert wall_time_ns["main"] > 0, (wall_time_ns, stack_sample_events)
 
     assert wall_time_ns[t1_name] > 0
     assert wall_time_ns[t2_name] > 0

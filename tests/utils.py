@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import dataclasses
 import datetime as dt
+import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+from urllib import parse
 import urllib.parse
 
 import pytest
@@ -23,12 +25,11 @@ from ddtrace.ext import http
 from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -143,7 +144,6 @@ def override_global_config(values):
         "_sampling_rules_file",
         "_trace_rate_limit",
         "_trace_sampling_rules",
-        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -592,6 +592,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
+    def recreate(self):
+        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
@@ -603,7 +606,8 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        self._encoded = self._encoder._build_payload()
+        if spans:
+            self._encoded = self._encoder._build_payload([spans])
 
 
 class DummyTracer(Tracer):
@@ -615,7 +619,11 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self._configure(*args, **kwargs)
+        # Ensure DummyTracer is always initialized with a DummyWriter
+        self._writer = DummyWriter(
+            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+        )
+        self._recreate()
 
     @property
     def agent_url(self):
@@ -645,22 +653,6 @@ class DummyTracer(Tracer):
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
         return traces
-
-    def configure(self, *args, **kwargs):
-        self._configure(*args, **kwargs)
-
-    def _configure(self, *args, **kwargs):
-        assert isinstance(
-            kwargs.get("writer"), (DummyWriterMixin, type(None))
-        ), "cannot configure writer of DummyTracer"
-
-        if not kwargs.get("writer"):
-            # if no writer is present, check if test agent is running to determine if we
-            # should emit traces.
-            kwargs["writer"] = DummyWriter(
-                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-            )
-        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
@@ -850,7 +842,7 @@ class TestSpan(Span):
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._events) == count, "Span count {0} != {1}".format(len(self._events), count)
+        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -1366,9 +1358,7 @@ def _should_skip(until: int, condition=None):
     until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
 def flaky(until: int, condition: bool = None, reason: str = None):
@@ -1404,3 +1394,24 @@ def _build_env(env=None, file_path=FILE_PATH):
         for k, v in env.items():
             environ[k] = v
     return environ
+
+
+_ID = 0
+
+
+def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_content=False):
+    global _ID
+    if not id_based_on_content:
+        _ID += 1
+    hash_key = str(sha_hash or hash(str(data)))
+    return Payload(
+        {
+            "id": hash_key if id_based_on_content else _ID,
+            "product_name": product,
+            "sha256_hash": hash_key,
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )

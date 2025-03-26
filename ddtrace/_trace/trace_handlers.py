@@ -6,6 +6,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib import parse
 
 import wrapt
 
@@ -13,11 +14,6 @@ from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
-from ddtrace._trace.utils_botocore.span_tags import (
-    set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
-)
-from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -32,7 +28,6 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
@@ -580,8 +575,10 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_patched_api_call_span_tags
+
     span = ctx.span
-    set_patched_api_call_span_tags(
+    set_botocore_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
         ctx.get_item("args"),
@@ -598,6 +595,8 @@ def _on_botocore_patched_api_call_started(ctx):
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+
     span = ctx.span
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
@@ -610,11 +609,15 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+
     span = ctx.span
 
     set_botocore_response_metadata_tags(span, response)
 
     if config.botocore.add_span_pointers:
+        from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+
         for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
             dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
             endpoint_name=ctx.get_item("endpoint_name"),
@@ -680,7 +683,7 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
     if "embed" not in model_name:
-        integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]})
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
@@ -719,6 +722,19 @@ def _on_end_of_traced_method_in_fork(ctx):
     ctx["pin"].tracer.flush()
 
 
+def _on_botocore_bedrock_process_response_converse(
+    ctx: core.ExecutionContext,
+    result: List[Dict[str, Any]],
+):
+    ctx["bedrock_integration"].llmobs_set_tags(
+        ctx.span,
+        args=[ctx],
+        kwargs={},
+        response=result,
+    )
+    ctx.span.finish()
+
+
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
@@ -752,7 +768,7 @@ def _on_botocore_bedrock_process_response(
         span.set_tag_str(
             "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
         )
-    integration.llmobs_set_tags(span, args=[], kwargs={"prompt": ctx["prompt"]}, response=formatted_response)
+    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
 
@@ -896,6 +912,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)

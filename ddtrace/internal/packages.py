@@ -77,10 +77,12 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     pkgs = get_package_distributions()
     while names == []:
         try:
-            return (
-                module_name,
-                importlib_metadata.distribution(module_name).version,
-            )
+            package = importlib_metadata.distribution(module_name)
+            metadata = package.metadata
+            name = metadata["name"]
+            version = metadata["version"]
+            if name and version:
+                return (name, version)
         except Exception:  # nosec
             pass
         names = pkgs.get(module_name, [])
@@ -144,6 +146,13 @@ def _root_module(path: Path) -> str:
             return _effective_root(min_relative_path, t.cast(Path, max_parent_path))
         except IndexError:
             pass
+
+    # Bazel runfiles support: we assume that these paths look like
+    # /some/path.runfiles/.../site-packages/<root_module>/...
+    if any(p.suffix == ".runfiles" for p in path.parents):
+        for s in path.parents:
+            if s.parent.name == "site-packages":
+                return s.name
 
     msg = f"Could not find root module for path {path}"
     raise ValueError(msg)

@@ -2,6 +2,7 @@ from http.client import RemoteDisconnected
 import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict
 from typing import Optional  # noqa:F401
 
 import ddtrace
@@ -38,7 +39,6 @@ from .telemetry.payload import record_endpoint_payload_request_time
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
 
     from ddtrace.internal.utils.http import Response  # noqa:F401
@@ -59,10 +59,13 @@ class CIVisibilityEventClient(WriterClientBase):
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
 
-    def set_test_session_name(self, test_session_name: str) -> None:
+    def set_metadata(self, event_type: str, metadata: Dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
-            for event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
-                self.encoder.set_metadata(event_type, {TEST_SESSION_NAME: test_session_name})
+            self.encoder.set_metadata(event_type, metadata)
+
+    def set_test_session_name(self, test_session_name: str) -> None:
+        for event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
+            self.set_metadata(event_type, {TEST_SESSION_NAME: test_session_name})
 
 
 class CIVisibilityCoverageClient(WriterClientBase):
@@ -105,7 +108,6 @@ class CIVisibilityWriter(HTTPWriter):
         dogstatsd=None,  # type: Optional[DogStatsd]
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
-        api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         use_evp=False,  # type: bool
@@ -126,10 +128,13 @@ class CIVisibilityWriter(HTTPWriter):
         if not intake_url:
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
+        self._use_evp = use_evp
         clients = (
-            [CIVisibilityProxiedEventClient()] if use_evp else [CIVisibilityAgentlessEventClient()]
+            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
         )  # type: List[WriterClientBase]
-        if coverage_enabled:
+        self._coverage_enabled = coverage_enabled
+        self._itr_suite_skipping_mode = itr_suite_skipping_mode
+        if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
             clients.append(
@@ -151,6 +156,8 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=timeout,
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
+            # FIXME(munir): report_metrics is not used in the CI Visibility Writers
+            # self._report_metrics = report_metrics,
             reuse_connections=reuse_connections,
             headers=headers,
         )
@@ -167,6 +174,12 @@ class CIVisibilityWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
+            report_metrics=self._report_metrics,
+            reuse_connections=self._reuse_connections,
+            headers=self._headers,
+            use_evp=self._use_evp,
+            coverage_enabled=self._coverage_enabled,
+            itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 
     def _put(self, data, headers, client, no_trace):

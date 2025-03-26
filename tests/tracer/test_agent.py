@@ -4,6 +4,7 @@ import pytest
 from ddtrace.internal import agent
 from ddtrace.internal.agent import info
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.settings._agent import is_ipv6_hostname
 
 
 @pytest.mark.parametrize(
@@ -20,74 +21,116 @@ from ddtrace.internal.utils.http import verify_url
     ],
 )
 def test_is_ipv6_hostname(hostname, expected):
-    assert agent.is_ipv6_hostname(hostname) == expected
+    assert is_ipv6_hostname(hostname) == expected
 
 
-@pytest.mark.subprocess(parametrize={"DD_AGENT_HOST": ["host", "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF"]})
+@pytest.mark.subprocess(
+    parametrize={"DD_AGENT_HOST": ["host", "2001:db8:3333:4444:cccc:dddd:eeee:ffff"]},
+    env={"DD_TRACE_AGENT_HOST": None, "DD_TRACE_AGENT_URL": None, "DD_DOGSTATSD_URL": None, "DD_DOGSTATSD_HOST": None},
+)
 def test_hostname():
     import os
+    from urllib.parse import urlparse
 
-    from ddtrace import config
+    from ddtrace.internal.agent import config
 
-    assert config._trace_agent_hostname == os.environ["DD_AGENT_HOST"]
-    assert config._stats_agent_hostname == os.environ.get("DD_AGENT_HOST")
+    assert urlparse(config.trace_agent_url).hostname == os.environ.get("DD_AGENT_HOST")
+    assert urlparse(config.dogstatsd_url).hostname == os.environ.get("DD_AGENT_HOST"), urlparse(config.dogstatsd_url)
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": None})
+@pytest.mark.subprocess(
+    env={"DD_TRACE_AGENT_HOSTNAME": "monkey", "DD_AGENT_HOST": "baboon", "DD_TRACE_AGENT_URL": None}
+)
+def test_trace_hostname():
+    from urllib.parse import urlparse
+
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).hostname == "monkey"
+
+
+@pytest.mark.subprocess(env={"DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOSTNAME": None})
 def test_hostname_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_hostname is None
-    assert config._trace_agent_hostname is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).hostname == "localhost"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235", "DD_TRACE_AGENT_PORT": "9999"})
+@pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235", "DD_TRACE_AGENT_PORT": "9999", "DD_TRACE_AGENT_URL": None})
 def test_trace_port():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_port == "1235"
+    from ddtrace.internal.agent import config
 
-
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "9999"})
-def test_trace_port_legacy():
-    from ddtrace import config
-
-    assert config._trace_agent_port == "9999"
+    assert urlparse(config.trace_agent_url).port == 9999
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_PORT": None, "DD_TRACE_AGENT_PORT": None})
+@pytest.mark.subprocess(env={"DD_AGENT_PORT": "1235", "DD_TRACE_AGENT_PORT": None, "DD_TRACE_AGENT_URL": None})
+def test_agent_port():
+    from urllib.parse import urlparse
+
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).port == 1235
+
+
+@pytest.mark.subprocess(env={"DD_AGENT_PORT": None, "DD_TRACE_AGENT_PORT": None, "DD_TRACE_AGENT_URL": None})
 def test_trace_port_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._trace_agent_port is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.trace_agent_url).port == 8126
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235"})
+@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
 def test_stats_port():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_port == "1235"
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.dogstatsd_url).port == 1235
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": None})
+@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": None, "DD_AGENT_PORT": None, "DD_DOGSTATSD_URL": None})
 def test_stats_port_not_set():
-    from ddtrace import config
+    from urllib.parse import urlparse
 
-    assert config._stats_agent_port is None
+    from ddtrace.internal.agent import config
+
+    assert urlparse(config.dogstatsd_url).port == 8125
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_HOST": None,
+        "DD_TRACE_AGENT_PORT": None,
+        "DD_AGENT_HOST": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_trace_url_uds():
     # with nothing set by user, and the default UDS available, we choose UDS
     import mock
 
-    from ddtrace.internal import agent
-
     with mock.patch("os.path.exists", return_value=True):
+        from ddtrace.internal import agent
+
         assert agent.get_trace_url() == "unix:///var/run/datadog/apm.socket"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_HOST": None,
+        "DD_TRACE_AGENT_PORT": None,
+        "DD_AGENT_HOST": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_trace_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
     import mock
@@ -98,7 +141,9 @@ def test_trace_url_default():
         assert agent.get_trace_url() == "http://localhost:8126"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None, "DD_AGENT_HOST": None, "DD_TRACE_AGENT_HOST": None}
+)
 def test_trace_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -106,10 +151,19 @@ def test_trace_url_with_port():
     from ddtrace.internal import agent
 
     with mock.patch("os.path.exists", return_value=False):
-        assert agent.get_trace_url() == "http://localhost:1235"
+        url = agent.get_trace_url()
+        assert url == "http://localhost:1235", url
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENT_HOST": "mars",
+        "DD_TRACE_AGENT_HOST": None,
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_PORT": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_trace_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -120,7 +174,14 @@ def test_trace_url_with_host():
         assert agent.get_trace_url() == "http://mars:8126", agent.get_trace_url()
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENT_HOST": "mars",
+        "DD_TRACE_AGENT_PORT": "1235",
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_HOST": None,
+    }
+)
 def test_trace_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -131,7 +192,9 @@ def test_trace_url_with_host_and_port():
         assert agent.get_trace_url() == "http://mars:1235"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={"DD_TRACE_AGENT_PORT": "1235", "DD_TRACE_AGENT_URL": None, "DD_TRACE_AGENT_HOST": None, "DD_AGENT_HOST": None}
+)
 def test_trace_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
     import mock
@@ -142,7 +205,15 @@ def test_trace_url_with_uds_and_port():
         assert agent.get_trace_url() == "http://localhost:1235"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENT_HOST": "mars",
+        "DD_TRACE_AGENT_HOST": None,
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_PORT": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_trace_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
     import mock
@@ -153,7 +224,14 @@ def test_trace_url_with_uds_and_host():
         assert agent.get_trace_url() == "http://mars:8126"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_PORT": "1235", "DD_AGENT_HOST": "mars", "DD_TRACE_AGENT_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_AGENT_PORT": "1235",
+        "DD_AGENT_HOST": "mars",
+        "DD_TRACE_AGENT_URL": None,
+        "DD_TRACE_AGENT_HOST": None,
+    }
+)
 def test_trace_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
     import mock
@@ -190,7 +268,15 @@ def test_trace_url_with_url_host_and_port():
         assert agent.get_trace_url() == "http://saturn:1111"
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_DOGSTATSD_URL": None,
+        "DD_AGENT_HOST": None,
+        "DD_DOGSTATSD_PORT": None,
+        "DD_AGENT_PORT": None,
+        "DD_DOGSTATSD_HOST": None,
+    }
+)
 def test_stats_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
     import mock
@@ -201,7 +287,15 @@ def test_stats_url_default():
         assert agent.get_stats_url() == "udp://localhost:8125"
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_DOGSTATSD_PORT": "1235",
+        "DD_DOGSTATSD_URL": None,
+        "DD_DOGSTATSD_HOST": None,
+        "DD_AGENT_PORT": None,
+        "DD_AGENT_HOST": None,
+    }
+)
 def test_stats_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -212,7 +306,15 @@ def test_stats_url_with_port():
         assert agent.get_stats_url() == "udp://localhost:1235"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENT_HOST": "mars",
+        "DD_DOGSTATSD_HOST": None,
+        "DD_DOGSTATSD_URL": None,
+        "DD_DOGSTATSD_PORT": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_stats_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -223,7 +325,9 @@ def test_stats_url_with_host():
         assert agent.get_stats_url() == "udp://mars:8125"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None, "DD_DOGSTATSD_HOST": None}
+)
 def test_stats_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
     import mock
@@ -234,7 +338,15 @@ def test_stats_url_with_host_and_port():
         assert agent.get_stats_url() == "udp://mars:1235"
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_DOGSTATSD_PORT": "1235",
+        "DD_DOGSTATSD_URL": None,
+        "DD_DOGSTATSD_HOST": None,
+        "DD_AGENT_PORT": None,
+        "DD_AGENT_HOST": None,
+    }
+)
 def test_stats_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
     import mock
@@ -245,7 +357,15 @@ def test_stats_url_with_uds_and_port():
         assert agent.get_stats_url() == "udp://localhost:1235"
 
 
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENT_HOST": "mars",
+        "DD_DOGSTATSD_URL": None,
+        "DD_DOGSTATSD_HOST": None,
+        "DD_DOGSTATSD_PORT": None,
+        "DD_AGENT_PORT": None,
+    }
+)
 def test_stats_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
     import mock
@@ -256,7 +376,9 @@ def test_stats_url_with_uds_and_host():
         assert agent.get_stats_url() == "udp://mars:8125"
 
 
-@pytest.mark.subprocess(env={"DD_DOGSTATSD_PORT": "1235", "DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None})
+@pytest.mark.subprocess(
+    env={"DD_DOGSTATSD_PORT": "1235", "DD_AGENT_HOST": "mars", "DD_DOGSTATSD_URL": None, "DD_DOGSTATSD_HOST": None}
+)
 def test_stats_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
     import mock

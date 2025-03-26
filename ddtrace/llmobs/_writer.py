@@ -10,18 +10,19 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+import http.client as httplib
+
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
+from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -98,6 +99,7 @@ class BaseLLMObsWriter(PeriodicService):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_eval_payload([event], error="buffer_full")
                 return
             self._buffer.append(event)
 
@@ -120,7 +122,7 @@ class BaseLLMObsWriter(PeriodicService):
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_llm_events, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
@@ -130,9 +132,11 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.status,
                     resp.read(),
                 )
+                telemetry.record_dropped_eval_payload(events, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
         except Exception:
+            telemetry.record_dropped_eval_payload(events, error="connection_error")
             logger.error(
                 "failed to send %d LLMObs %s events to %s", len(events), self._event_type, self._intake, exc_info=True
             )
@@ -199,9 +203,12 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(safe_json(events))
+            event_size = len(safe_json(events))
+            self.buffer_size += event_size
+            telemetry.record_span_event_size(events[0], event_size)
 
     def encode(self):
         with self._lock:
@@ -220,6 +227,7 @@ class LLMObsSpanEncoder(BufferedEncoder):
 
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
+            telemetry.record_dropped_span_payload(events, error="encoding_error")
             return None, 0
         return enc_llm_events, len(events)
 
@@ -268,6 +276,8 @@ class LLMObsSpanWriter(HTTPWriter):
             intake_url = agent.get_trace_url()
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
+        self.agentless_url = agentless_url
+
         super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
@@ -289,21 +299,24 @@ class LLMObsSpanWriter(HTTPWriter):
             super(LLMObsSpanWriter, self).stop(timeout=timeout)
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
-        event_size = len(safe_json(event))
+        raw_event_size = len(safe_json(event))
+        should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
 
-        if event_size >= EVP_EVENT_SIZE_LIMIT:
+        if should_truncate:
             logger.warning(
                 "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
-                event_size,
+                raw_event_size,
             )
             event = _truncate_span_event(event)
 
         for client in self._clients:
             if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
                 with client.encoder._lock:
-                    if (client.encoder.buffer_size + event_size) > EVP_PAYLOAD_SIZE_LIMIT:
+                    if (client.encoder.buffer_size + raw_event_size) > EVP_PAYLOAD_SIZE_LIMIT:
                         logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
                         self._flush_queue_with_client(client)
+
+        telemetry.record_span_event_raw_size(event, raw_event_size)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface
@@ -316,6 +329,7 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url=self.agentless_url,
         )
 
 

@@ -54,29 +54,13 @@ def test_multiple_traces(tracer):
 
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess(
-    parametrize={"DD_WRITER_MODE": ["default", "sync"]},
     token="tests.integration.test_integration_snapshots.test_filters",
 )
 def test_filters():
-    import os
-
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import TraceFilter
     from ddtrace.trace import tracer
 
-    writer = os.environ.get("DD_WRITER_MODE", "default")
-
-    if writer == "sync":
-        writer = AgentWriter(
-            tracer.agent_trace_url,
-            sync_mode=True,
-        )
-        # Need to copy the headers which contain the test token to associate
-        # traces with this test case.
-        writer._headers = tracer._writer._headers
-    else:
-        writer = tracer._writer
-
-    class FilterMutate(object):
+    class FilterMutate(TraceFilter):
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -86,7 +70,7 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer._configure(trace_processors=[FilterMutate("boop", "beep")], writer=writer)
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -104,7 +88,8 @@ def test_synchronous_writer():
     from ddtrace.trace import tracer
 
     writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer._configure(writer=writer)
+    tracer._writer = writer
+    tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass
@@ -118,9 +103,7 @@ def test_synchronous_writer():
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child process.
     """
 
     def task(tracer):
@@ -140,9 +123,7 @@ def test_tracer_trace_across_popen():
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
-        The trace should be continued in the child processes. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child processes.
     """
 
     def task(tracer):

@@ -11,6 +11,7 @@ except ImportError:
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.trace import Span
@@ -48,6 +49,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
+    if span._get_ctx_item(INTEGRATION):
+        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -268,7 +271,7 @@ def _completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "ada",
@@ -299,7 +302,7 @@ def _chat_completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -337,7 +340,7 @@ def _chat_completion_event_with_unserializable_field():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -376,7 +379,7 @@ def _large_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -414,7 +417,7 @@ def _oversized_llm_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -452,7 +455,7 @@ def _oversized_workflow_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "workflow",
             "input": {"value": "A" * 700_000},
@@ -472,7 +475,7 @@ def _oversized_retrieval_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "retrieval",
             "input": {"documents": {"content": "A" * 700_000}},

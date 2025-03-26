@@ -8,7 +8,7 @@ from ._native import PyConfigurator
 
 def get_configuration_from_disk(
     debug_logs: bool = False,
-) -> Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, str]]]:
+) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Retrieves the tracer configuration from disk. Calls the PyConfigurator object
     to read the configuration from the disk using the libdatadog shared library
@@ -34,9 +34,9 @@ def get_configuration_from_disk(
             env = entry["name"]
             source = entry["source"]
             if source == "fleet_stable_config":
-                fleet_config[env] = entry
+                fleet_config[env] = entry["value"]
             elif source == "local_stable_config":
-                local_config[env] = entry
+                local_config[env] = entry["value"]
             else:
                 print(f"Unknown configuration source: {source}, for {env}")
     except Exception as e:

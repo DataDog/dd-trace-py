@@ -1,4 +1,6 @@
+import inspect
 import os
+import sys
 import threading
 
 import pytest
@@ -6,6 +8,9 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
+
+
+PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 
 
 def _allocate_1k():
@@ -127,3 +132,172 @@ def test_memory_collector_ignore_profiler(tmp_path):
         pprof_utils.parse_profile(output_filename)
     except AssertionError as e:
         assert "No samples found" in str(e)
+
+
+@pytest.mark.skip(reason="too slow")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
+)
+def test_heap_profiler_large_heap_overhead():
+    # TODO(nick): this test case used to crash due to integer arithmetic bugs.
+    # Now it doesn't crash, but it takes far too long to run to be useful in CI.
+    # Un-skip this test if/when we improve the worst-case performance of the
+    # heap profiler for large heaps
+    from ddtrace.profiling import Profiler
+    from tests.profiling_v2.collector.test_memalloc import one
+
+    p = Profiler()
+    p.start()
+
+    count = 100_000
+    thing_size = 32
+
+    junk = []
+    for i in range(count):
+        b1 = one(thing_size)
+        b2 = one(2 * thing_size)
+        b3 = one(3 * thing_size)
+        b4 = one(4 * thing_size)
+        t = (b1, b2, b3, b4)
+        junk.append(t)
+
+    del junk
+
+    p.stop()
+
+
+# one, two, three, and four exist to give us distinct things
+# we can find in the profile without depending on something
+# like the line number at which an allocation happens
+# Python 3.13 changed bytearray to use an allocation domain that we don't
+# currently profile, so we use None instead of bytearray to test.
+def one(size):
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def two(size):
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def three(size):
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def four(size):
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+class HeapInfo:
+    def __init__(self, count, size):
+        self.count = count
+        self.size = size
+
+
+def get_heap_info(heap, funcs):
+    got = {}
+    for (frames, _, _), size in heap:
+        func = frames[0].function_name
+        if func in funcs:
+            v = got.get(func, HeapInfo(0, 0))
+            v.count += 1
+            v.size += size
+            got[func] = v
+    return got
+
+
+def get_tracemalloc_stats_per_func(stats, funcs):
+    source_to_func = {}
+
+    for f in funcs:
+        file = inspect.getsourcefile(f)
+        line = inspect.getsourcelines(f)[1] + 1
+        source_to_func[str(file) + str(line)] = f.__name__
+
+    actual_sizes = {}
+    for stat in stats:
+        f = stat.traceback[0]
+        key = f.filename + str(f.lineno)
+        if key in source_to_func:
+            actual_sizes[source_to_func[key]] = stat.size
+    return actual_sizes
+
+
+# TODO: higher sampling intervals have a lot more variance and are flaky
+# but would be nice to test since our default is 1MiB
+@pytest.mark.parametrize("sample_interval", (8, 512, 1024))
+def test_heap_profiler_sampling_accuracy(sample_interval):
+    # tracemalloc lets us get ground truth on how many allocations there were
+    import tracemalloc
+
+    # TODO(nick): use Profiler instead of _memalloc
+    from ddtrace.profiling.collector import _memalloc
+
+    # We seed the RNG to reduce flakiness. This doesn't actually diminish the
+    # quality of the test much. A broken sampling implementation is unlikely to
+    # pass for an arbitrary seed.
+    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
+    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
+    _memalloc.start(32, 1000, sample_interval)
+    # Put the env var back in the state we found it
+    if old is not None:
+        os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
+    else:
+        del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
+
+    tracemalloc.start()
+
+    junk = []
+    for i in range(1000):
+        size = 256
+        junk.append(one(size))
+        junk.append(two(2 * size))
+        junk.append(three(3 * size))
+        junk.append(four(4 * size))
+
+    # TODO(nick): randomly remove things from junk to see if the profile is
+    # still accurate
+
+    # Stop tracemalloc before collecting the heap sample, since tracemalloc
+    # is _really_ slow when the _memalloc.heap() call does lots of allocs for
+    # lower sample intervals (i.e. more sampled allocations)
+    stats = tracemalloc.take_snapshot().statistics("traceback")
+    tracemalloc.stop()
+
+    heap = _memalloc.heap()
+    # Important: stop _memalloc _after_ tracemalloc. Need to remove allocator
+    # hooks in LIFO order.
+    _memalloc.stop()
+
+    actual_sizes = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
+    actual_total = sum(actual_sizes.values())
+
+    del junk
+
+    sizes = get_heap_info(heap, {"one", "two", "three", "four"})
+
+    total = sum(v.size for v in sizes.values())
+    print(f"observed total: {total} actual total: {actual_total} error: {abs(total - actual_total) / actual_total}")
+    # 20% error in actual size feels pretty generous
+    # TODO(nick): justify in terms of variance of sampling?
+    assert abs(1 - total / actual_total) <= 0.20
+
+    print("func\tcount\tsize\tactual\trel\tactual\tdiff")
+    for func in ("one", "two", "three", "four"):
+        got = sizes[func]
+        actual_size = actual_sizes[func]
+
+        # Relative portion of the bytes in the profile for this function
+        # out of the functions we're interested in
+        rel = got.size / total
+        actual_rel = actual_size / actual_total
+
+        print(
+            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{rel:.3f}\t{actual_rel:.3f}\t{abs(rel - actual_rel):.3f}"
+        )
+
+        # Assert that the reported portion of this function in the profile is
+        # pretty close to the actual portion. So, if it's actually ~20% of the
+        # profile then we'd accept anything between 10% and 30%, which is
+        # probably too generous for low sampling intervals but at least won't be
+        # flaky.
+        assert abs(rel - actual_rel) < 0.10

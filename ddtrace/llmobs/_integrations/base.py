@@ -11,9 +11,8 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
@@ -27,10 +26,6 @@ class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
         self.integration_config = integration_config
         self._span_pc_sampler = RateSampler(
             sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
@@ -79,17 +74,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
-        if submit_to_llmobs and self.llmobs_enabled:
-            LLMObs._instance._activate_llmobs_span(span)
-            telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_NAMESPACE.MLOBS,
-                name="span.start",
-                value=1,
-                tags=(
-                    ("integration", self._integration_name),
-                    ("autoinstrumented", "true"),
-                ),
-            )
+        if self.llmobs_enabled:
+            span._set_ctx_item(INTEGRATION, self._integration_name)
         return span
 
     def trunc(self, text: str) -> str:
