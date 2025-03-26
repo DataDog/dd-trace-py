@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    GraphQL: Fixes an issue in GraphQL patching that threw an error when locations (an `Optional` field) is `None`. This checks for locations before setting attributes.

@@ -2,20 +2,13 @@
 
 import os
 from re import Match
-import sys
+from typing import Any
+from typing import Iterator
+from typing import Literal  # noqa:F401
+from typing import Tuple
 
 from _io import BytesIO
 from _io import StringIO
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
-from typing import Any
-from typing import Iterator
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
