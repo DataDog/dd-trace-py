@@ -58,6 +58,7 @@ def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str
                     "sample_value",
                     OriginType.PARAMETER,
                 ),
+                [],
             )
         )
 
