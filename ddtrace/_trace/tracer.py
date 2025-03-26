@@ -210,7 +210,7 @@ class Tracer(object):
                 Tracer._instance = self
             else:
                 log.error(
-                    "Multiple Tracer instances can not be initialized. Use ``ddtrace.trace.tracer`` instead.",
+                    "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
         self._user_trace_processors: List[TraceProcessor] = []
