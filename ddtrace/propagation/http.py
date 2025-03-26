@@ -1153,6 +1153,9 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
+
+                    if config._baggage_headers_tags:
+                        context.set_tags(baggage_context.get_all_baggage_items())
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])

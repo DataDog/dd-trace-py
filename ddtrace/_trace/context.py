@@ -134,6 +134,13 @@ class Context(object):
             for metric in self._metrics:
                 span._metrics.setdefault(metric, self._metrics[metric])
 
+    def set_tags(self, tags: Dict[str, Any]) -> None:
+        """Set tags on the context without overriding existing entries."""
+        with self._lock:
+            for tag, value in tags.items():
+                if tag not in self._meta:
+                    self._meta[tag] = value
+
     @property
     def sampling_priority(self) -> Optional[NumericType]:
         """Return the context sampling priority for the trace."""
