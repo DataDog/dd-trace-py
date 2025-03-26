@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where multiple large spans generated within a 1 second interval were being dropped despite being under the 1 MB limit.

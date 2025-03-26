@@ -15,12 +15,14 @@ def test_encode_span(mock_writer_logs):
     encoder.put([span])
     encoded_llm_events, n_spans = encoder.encode()
 
-    expected_llm_events = {
-        "_dd.stage": "raw",
-        "_dd.tracer_version": ddtrace.__version__,
-        "event_type": "span",
-        "spans": [span],
-    }
+    expected_llm_events = [
+        {
+            "_dd.stage": "raw",
+            "_dd.tracer_version": ddtrace.__version__,
+            "event_type": "span",
+            "spans": [span],
+        }
+    ]
 
     assert n_spans == 1
     decoded_llm_events = json.loads(encoded_llm_events)
@@ -34,12 +36,20 @@ def test_encode_multiple_spans(mock_writer_logs):
     encoder.put(trace)
     encoded_llm_events, n_spans = encoder.encode()
 
-    expected_llm_events = {
-        "_dd.stage": "raw",
-        "_dd.tracer_version": ddtrace.__version__,
-        "event_type": "span",
-        "spans": trace,
-    }
+    expected_llm_events = [
+        {
+            "_dd.stage": "raw",
+            "_dd.tracer_version": ddtrace.__version__,
+            "event_type": "span",
+            "spans": [trace[0]],
+        },
+        {
+            "_dd.stage": "raw",
+            "_dd.tracer_version": ddtrace.__version__,
+            "event_type": "span",
+            "spans": [trace[1]],
+        },
+    ]
 
     assert n_spans == 2
     decoded_llm_events = json.loads(encoded_llm_events)
@@ -53,16 +63,18 @@ def test_encode_span_with_unserializable_fields():
     encoder.put([span])
     encoded_llm_events, n_spans = encoder.encode()
 
-    expected_llm_events = {
-        "_dd.stage": "raw",
-        "_dd.tracer_version": ddtrace.__version__,
-        "event_type": "span",
-        "spans": [mock.ANY],
-    }
+    expected_llm_events = [
+        {
+            "_dd.stage": "raw",
+            "_dd.tracer_version": ddtrace.__version__,
+            "event_type": "span",
+            "spans": [mock.ANY],
+        }
+    ]
 
     assert n_spans == 1
     decoded_llm_events = json.loads(encoded_llm_events)
     assert decoded_llm_events == expected_llm_events
-    decoded_llm_span = decoded_llm_events["spans"][0]
+    decoded_llm_span = decoded_llm_events[0]["spans"][0]
     assert decoded_llm_span["meta"]["metadata"]["unserializable"] is not None
     assert "<object object at 0x" in decoded_llm_span["meta"]["metadata"]["unserializable"]
