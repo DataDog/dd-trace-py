@@ -1364,7 +1364,6 @@ def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
         with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=True)
-            original_pid = llmobs_service._instance.tracer._pid
             original_span_writer = llmobs_service._instance._llmobs_span_writer
             pid = os.fork()
             if pid:  # parent
