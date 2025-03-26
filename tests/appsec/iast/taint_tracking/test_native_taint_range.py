@@ -24,6 +24,7 @@ from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_contexts
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -46,22 +47,22 @@ def test_source_origin_refcount():
     del s2
     assert sys.getrefcount(s1) - 1 == 2
     # TaintRange does not increase refcount but should keep it alive
-    tr_sub = TaintRange(0, 1, s1)
+    tr_sub = TaintRange(0, 1, s1, [])
     assert sys.getrefcount(s1) - 1 == 2
     del s1
     assert sys.getrefcount(s3) - 1 == 1
     assert sys.getrefcount(tr_sub.source) - 1 == 1
     del s3
     assert sys.getrefcount(tr_sub.source) - 1 == 1
-    _ = TaintRange(1, 2, tr_sub.source)
+    _ = TaintRange(1, 2, tr_sub.source, [])
     assert sys.getrefcount(tr_sub.source) - 1 == 1
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
 
-_RANGE1 = TaintRange(0, 2, _SOURCE1)
-_RANGE2 = TaintRange(1, 3, _SOURCE2)
+_RANGE1 = TaintRange(0, 2, _SOURCE1, [])
+_RANGE2 = TaintRange(1, 3, _SOURCE2, [])
 
 
 def test_unicode_fast_tainting():
@@ -346,17 +347,83 @@ def test_set_get_ranges_bytearray():
     assert not get_ranges(b2) == [_RANGE1, _RANGE2]
 
 
-def test_shift_taint_ranges():
-    r1 = TaintRange(0, 2, _SOURCE1)
+@pytest.mark.parametrize(
+    "source",
+    [
+        Source(name="name", value="value", origin=OriginType.PARAMETER_NAME),
+        Source(name="name", value="value", origin=OriginType.PARAMETER),
+        Source(name="name", value="value", origin=OriginType.HEADER_NAME),
+        Source(name="name", value="value", origin=OriginType.COOKIE),
+        Source(name="name", value="value", origin=OriginType.PATH),
+    ],
+)
+@pytest.mark.parametrize(
+    "vulnerability_type",
+    [
+        [],
+        [VulnerabilityType.CODE_INJECTION],
+        [VulnerabilityType.COMMAND_INJECTION],
+        [VulnerabilityType.HEADER_INJECTION],
+        [VulnerabilityType.NO_HTTPONLY_COOKIE],
+        [VulnerabilityType.NO_SAMESITE_COOKIE],
+        [VulnerabilityType.PATH_TRAVERSAL],
+        [VulnerabilityType.SQL_INJECTION],
+        [VulnerabilityType.SSRF],
+        [VulnerabilityType.CODE_INJECTION, VulnerabilityType.COMMAND_INJECTION],
+        [VulnerabilityType.CODE_INJECTION, VulnerabilityType.COMMAND_INJECTION, VulnerabilityType.HEADER_INJECTION],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+            VulnerabilityType.SQL_INJECTION,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+            VulnerabilityType.SQL_INJECTION,
+            VulnerabilityType.SSRF,
+        ],
+    ],
+)
+def test_shift_taint_ranges(source, vulnerability_type):
+    r1 = TaintRange(0, 2, source, vulnerability_type)
     r1_shifted = shift_taint_range(r1, 2)
-    assert r1_shifted == TaintRange(2, 2, _SOURCE1)
+    assert r1_shifted == TaintRange(2, 2, source, vulnerability_type)
     assert r1_shifted != r1
 
-    r2 = TaintRange(1, 3, _SOURCE1)
-    r3 = TaintRange(4, 6, _SOURCE2)
+    r2 = TaintRange(1, 3, _SOURCE1, [])
+    r3 = TaintRange(4, 6, _SOURCE2, [])
     r2_shifted, r3_shifted = shift_taint_ranges([r2, r3], 2)
-    assert r2_shifted == TaintRange(3, 3, _SOURCE1)
-    assert r3_shifted == TaintRange(6, 6, _SOURCE1)
+    assert r2_shifted == TaintRange(3, 3, source, vulnerability_type)
+    assert r3_shifted == TaintRange(6, 6, source, vulnerability_type)
 
 
 def test_are_all_text_all_ranges():
@@ -366,8 +433,8 @@ def test_are_all_text_all_ranges():
     num = 123456
     source3 = Source(name="name3", value="value3", origin=OriginType.COOKIE)
     source4 = Source(name="name4", value="value4", origin=OriginType.COOKIE)
-    range3 = TaintRange(2, 3, source3)
-    range4 = TaintRange(4, 5, source4)
+    range3 = TaintRange(2, 3, source3, [])
+    range4 = TaintRange(4, 5, source4, [])
     set_ranges(s1, [_RANGE1, _RANGE2])
     set_ranges(s2, [range3, _RANGE2])
     set_ranges(s3, [range4, _RANGE1])

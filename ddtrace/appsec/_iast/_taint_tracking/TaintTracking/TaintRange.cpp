@@ -8,6 +8,7 @@ void
 TaintRange::reset()
 {
     source.reset();
+    secure_marks.clear();
     start = 0;
     length = 0;
 };
@@ -36,6 +37,20 @@ TaintRange::get_hash() const
     const uint hsource = hash<uint>()(this->source.get_hash());
     return hstart ^ hlength ^ hsource;
 };
+
+void
+TaintRange::add_secure_mark(VulnerabilityType mark)
+{
+    if (has_secure_mark(mark)) {
+        secure_marks.push_back(mark);
+    }
+}
+
+bool
+TaintRange::has_secure_mark(VulnerabilityType mark)
+{
+    return std::find(secure_marks.begin(), secure_marks.end(), mark) != secure_marks.end();
+}
 
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
@@ -431,23 +446,44 @@ pyexport_taintrange(py::module& m)
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
       "taint_range",
-      [](const RANGE_START start, const RANGE_LENGTH length, const Source& source) {
-          return initializer->allocate_taint_range(start, length, source);
+      [](
+        const RANGE_START start, const RANGE_LENGTH length, const Source& source, const SecureMarksList& secure_marks) {
+          return initializer->allocate_taint_range(start, length, source, secure_marks);
       },
       "start"_a,
       "length"_a,
       "source"_a,
+      "secure_marks"_a,
       py::return_value_policy::move);
+
+    py::enum_<VulnerabilityType>(m, "VulnerabilityType")
+      .value("CODE_INJECTION", VulnerabilityType::CODE_INJECTION)
+      .value("COMMAND_INJECTION", VulnerabilityType::COMMAND_INJECTION)
+      .value("HEADER_INJECTION", VulnerabilityType::HEADER_INJECTION)
+      .value("INSECURE_COOKIE", VulnerabilityType::INSECURE_COOKIE)
+      .value("NO_HTTPONLY_COOKIE", VulnerabilityType::NO_HTTPONLY_COOKIE)
+      .value("NO_SAMESITE_COOKIE", VulnerabilityType::NO_SAMESITE_COOKIE)
+      .value("PATH_TRAVERSAL", VulnerabilityType::PATH_TRAVERSAL)
+      .value("SQL_INJECTION", VulnerabilityType::SQL_INJECTION)
+      .value("SSRF", VulnerabilityType::SSRF)
+      .value("STACKTRACE_LEAK", VulnerabilityType::STACKTRACE_LEAK)
+      .value("WEAK_CIPHER", VulnerabilityType::WEAK_CIPHER)
+      .value("WEAK_HASH", VulnerabilityType::WEAK_HASH)
+      .value("WEAK_RANDOMNESS", VulnerabilityType::WEAK_RANDOMNESS)
+      .value("XSS", VulnerabilityType::XSS)
+      .export_values();
 
     py::class_<TaintRange, shared_ptr<TaintRange>>(m, "TaintRange_")
       // Normal constructor disabled on the Python side, see above
       .def_readonly("start", &TaintRange::start)
       .def_readonly("length", &TaintRange::length)
       .def_readonly("source", &TaintRange::source)
+      .def_readonly("secure_marks", &TaintRange::secure_marks)
       .def("__str__", &TaintRange::toString)
       .def("__repr__", &TaintRange::toString)
       .def("__hash__", &TaintRange::get_hash)
       .def("get_hash", &TaintRange::get_hash)
+      .def("add_secure_mark", &TaintRange::add_secure_mark)
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

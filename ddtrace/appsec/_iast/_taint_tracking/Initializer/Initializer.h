@@ -143,7 +143,10 @@ class Initializer
     // FIXME: these should be static functions of TaintRange
     // IMPORTANT: if the returned object is not assigned to the map, you have
     // responsibility of calling release_taint_range on it or you'll have a leak.
-    TaintRangePtr allocate_taint_range(RANGE_START start, RANGE_LENGTH length, const Source& source);
+    TaintRangePtr allocate_taint_range(RANGE_START start,
+                                       RANGE_LENGTH length,
+                                       const Source& source,
+                                       const SecureMarksList& secure_marks = SecureMarksList());
 
     void release_taint_range(TaintRangePtr rangeptr);
 };

@@ -16,7 +16,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
 def _build_sample_range(start, end, name):  # type: (int, int) -> TaintRange
-    return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER))
+    return TaintRange(start, end, Source(name, "sample_value", OriginType.PARAMETER), [])
 
 
 def _test_replace_result(

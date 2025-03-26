@@ -64,7 +64,7 @@ def test_preprocess_lexer_input():
     result = mod._preprocess_lexer_input(string_input)
     assert result == "print('Hello, world!')\n"
     assert get_tainted_ranges(result) == [
-        TaintRange(0, 22, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER))
+        TaintRange(0, 22, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER), [])
     ]
 
 
@@ -77,9 +77,11 @@ def test_index_lower_add():
     assert result_url == "//localhost:8000/api/articles?param1=value1"
     assert result_scheme == "http"
 
-    assert get_tainted_ranges(result_scheme) == [TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))]
+    assert get_tainted_ranges(result_scheme) == [
+        TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER), [])
+    ]
     assert get_tainted_ranges(result_url) == [
-        TaintRange(0, 43, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER))
+        TaintRange(0, 43, Source("first_element", "print('Hello, world!')", OriginType.PARAMETER), [])
     ]
 
 
@@ -115,9 +117,13 @@ def test_urlib_parse_propagation():
     assert result.scheme == "http"
     assert result.netloc == "localhost:8000"
 
-    assert get_tainted_ranges(result.path) == [TaintRange(0, 13, Source("first_element", text, OriginType.PARAMETER))]
+    assert get_tainted_ranges(result.path) == [
+        TaintRange(0, 13, Source("first_element", text, OriginType.PARAMETER), [])
+    ]
     if sys.version_info > (3, 9):
         assert get_tainted_ranges(result.scheme) == [
-            TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER))
+            TaintRange(0, 4, Source("first_element", text, OriginType.PARAMETER), [])
         ]
-    assert get_tainted_ranges(result.netloc) == [TaintRange(0, 14, Source("first_element", text, OriginType.PARAMETER))]
+    assert get_tainted_ranges(result.netloc) == [
+        TaintRange(0, 14, Source("first_element", text, OriginType.PARAMETER), [])
+    ]

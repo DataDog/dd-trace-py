@@ -305,12 +305,19 @@ def zfill_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
 
         for r in ranges_orig:
             if not prefix or r.start > 0:
-                ranges_new_append(TaintRange(start=r.start + difflen, length=r.length, source=r.source))
+                ranges_new_append(
+                    TaintRange(start=r.start + difflen, length=r.length, source=r.source, secure_marks=r.secure_marks)
+                )
             else:
                 ranges_new_extend(
                     [
-                        TaintRange(start=0, length=1, source=r.source),
-                        TaintRange(start=r.start + difflen + 1, length=r.length - 1, source=r.source),
+                        TaintRange(start=0, length=1, source=r.source, secure_marks=r.secure_marks),
+                        TaintRange(
+                            start=r.start + difflen + 1,
+                            length=r.length - 1,
+                            source=r.source,
+                            secure_marks=r.secure_marks,
+                        ),
                     ]
                 )
         taint_pyobject_with_ranges(result, tuple(ranges_new))

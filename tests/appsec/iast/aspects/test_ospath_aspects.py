@@ -39,8 +39,8 @@ def test_ospathjoin_first_arg_nottainted_noslash():
     res = ospathjoin_aspect("root", tainted_foo, "nottainted", tainted_bar, "alsonottainted")
     assert res == "root/foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
-        TaintRange(5, 3, Source("test_ospath", "foo", OriginType.PARAMETER)),
-        TaintRange(20, 3, Source("test_ospath", "bar", OriginType.PARAMETER)),
+        TaintRange(5, 3, Source("test_ospath", "foo", OriginType.PARAMETER), []),
+        TaintRange(20, 3, Source("test_ospath", "bar", OriginType.PARAMETER), []),
     ]
 
 
@@ -62,7 +62,7 @@ def test_ospathjoin_later_arg_tainted_with_slash_then_ignore_previous():
     res = ospathjoin_aspect("ignored", ignored_tainted_foo, "ignored_nottainted", tainted_slashbar, "alsonottainted")
     assert res == "/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
-        TaintRange(0, 4, Source("test_ospath", "/bar", OriginType.PARAMETER)),
+        TaintRange(0, 4, Source("test_ospath", "/bar", OriginType.PARAMETER), []),
     ]
 
 
@@ -84,8 +84,8 @@ def test_ospathjoin_first_arg_tainted_no_slash():
     res = ospathjoin_aspect(tainted_foo, "nottainted", tainted_bar, "alsonottainted")
     assert res == "foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
-        TaintRange(0, 3, Source("test_ospath", "foo", OriginType.PARAMETER)),
-        TaintRange(15, 3, Source("test_ospath", "bar", OriginType.PARAMETER)),
+        TaintRange(0, 3, Source("test_ospath", "foo", OriginType.PARAMETER), []),
+        TaintRange(15, 3, Source("test_ospath", "bar", OriginType.PARAMETER), []),
     ]
 
 
@@ -107,8 +107,8 @@ def test_ospathjoin_first_arg_tainted_with_slash():
     res = ospathjoin_aspect(tainted_slashfoo, "nottainted", tainted_bar, "alsonottainted")
     assert res == "/foo/nottainted/bar/alsonottainted"
     assert get_tainted_ranges(res) == [
-        TaintRange(0, 4, Source("test_ospath", "/foo", OriginType.PARAMETER)),
-        TaintRange(16, 3, Source("test_ospath", "bar", OriginType.PARAMETER)),
+        TaintRange(0, 4, Source("test_ospath", "/foo", OriginType.PARAMETER), []),
+        TaintRange(16, 3, Source("test_ospath", "bar", OriginType.PARAMETER), []),
     ]
 
 
@@ -131,7 +131,7 @@ def test_ospathjoin_single_arg_tainted():
     )
     res = ospathjoin_aspect(tainted_foo)
     assert res == "foo"
-    assert get_tainted_ranges(res) == [TaintRange(0, 3, Source("test_ospath", "/foo", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res) == [TaintRange(0, 3, Source("test_ospath", "/foo", OriginType.PARAMETER), [])]
 
     tainted_slashfoo = taint_pyobject(
         pyobject="/foo",
@@ -141,7 +141,7 @@ def test_ospathjoin_single_arg_tainted():
     )
     res = ospathjoin_aspect(tainted_slashfoo)
     assert res == "/foo"
-    assert get_tainted_ranges(res) == [TaintRange(0, 4, Source("test_ospath", "/foo", OriginType.PARAMETER))]
+    assert get_tainted_ranges(res) == [TaintRange(0, 4, Source("test_ospath", "/foo", OriginType.PARAMETER), [])]
 
 
 def test_ospathjoin_last_slash_nottainted():

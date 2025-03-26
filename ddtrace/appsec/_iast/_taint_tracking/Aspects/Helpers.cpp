@@ -243,7 +243,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
                       get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                    ranges.emplace_back(initializer->allocate_taint_range(start, length, original_range->source));
+                    ranges.emplace_back(initializer->allocate_taint_range(
+                      start, length, original_range->source, original_range->secure_marks));
                 }
                 latest_end = end;
             }
@@ -274,7 +275,8 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
                   get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(initializer->allocate_taint_range(start, end - start, original_range->source));
+                ranges.emplace_back(initializer->allocate_taint_range(
+                  start, end - start, original_range->source, original_range->secure_marks));
             }
             latest_end = end;
         }
@@ -329,7 +331,8 @@ set_ranges_on_splitted(const py::object& source_str,
                 RANGE_START new_length = std::min(new_end - new_start, part_len);
 
                 if (new_length > 0) {
-                    item_ranges.emplace_back(initializer->allocate_taint_range(new_start, new_length, range->source));
+                    item_ranges.emplace_back(
+                      initializer->allocate_taint_range(new_start, new_length, range->source, range->secure_marks));
                 }
             }
         }

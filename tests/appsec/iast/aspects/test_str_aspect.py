@@ -506,7 +506,9 @@ def test_split_aspect_tainting(s, call, _args, should_be_tainted, result_list, r
         assert is_pyobject_tainted(result_item) == should_be_tainted
         if should_be_tainted:
             _range = get_tainted_ranges(result_item)[0]
-            assert _range == TaintRange(result_range[0], result_range[1], Source(_test_name, obj, OriginType.PARAMETER))
+            assert _range == TaintRange(
+                result_range[0], result_range[1], Source(_test_name, obj, OriginType.PARAMETER), []
+            )
 
 
 class TestOperatorsReplacement(BaseReplacement):
