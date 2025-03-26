@@ -1,7 +1,6 @@
 """Tests Attempt-to-Fix functionality, and its interaction with Quarantine, Disabling, and Test Impact Analysis."""
 
 from unittest import mock
-from xml.etree import ElementTree
 
 import pytest
 
