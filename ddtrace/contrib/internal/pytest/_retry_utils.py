@@ -138,7 +138,7 @@ class RetryTestReport(pytest_TestReport):
     for instance.
 
     The object should be initialized with the `longrepr` of the _initial_ test attempt. A `longrepr` set to `None` means
-    the initial attempt either succeded (which means it was already counted by pytest) or was quarantined (which means
+    the initial attempt either succeeded (which means it was already counted by pytest) or was quarantined (which means
     we should not count it at all), so we don't need to count it here.
     """
 
