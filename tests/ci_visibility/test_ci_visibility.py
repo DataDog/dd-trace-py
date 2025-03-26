@@ -710,10 +710,6 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch(
             "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
-        ), mock.patch(
-            "ddtrace.tracer", CIVisibilityTracer()
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", Config()
