@@ -31,7 +31,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        self.tracer._configure(api_version="v0.4")
+        self.tracer._recreate()
 
     def test_flask_ipblock_manually_json(self):
         # Most tests of flask blocking are in the test_flask_snapshot, this just

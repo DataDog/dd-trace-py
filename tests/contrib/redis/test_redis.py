@@ -547,7 +547,8 @@ class TestRedisPatchSnapshot(TracerTestCase):
         ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
         # FIXME: OpenTracing always overrides the hostname/port and creates a new
         #        writer so we have to reconfigure with the previous one
-        ddtrace.tracer._configure(writer=writer)
+        ddtrace.tracer._writer = writer
+        ddtrace.tracer._recreate()
 
         with ot_tracer.start_active_span("redis_get"):
             us = self.r.get("cheese")

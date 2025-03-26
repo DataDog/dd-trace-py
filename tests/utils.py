@@ -592,6 +592,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
+    def recreate(self):
+        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
@@ -603,7 +606,8 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        self._encoded = self._encoder._build_payload()
+        if spans:
+            self._encoded = self._encoder._build_payload([spans])
 
 
 class DummyTracer(Tracer):
@@ -615,7 +619,11 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self._configure(*args, **kwargs)
+        # Ensure DummyTracer is always initialized with a DummyWriter
+        self._writer = DummyWriter(
+            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+        )
+        self._recreate()
 
     @property
     def agent_url(self):
@@ -645,22 +653,6 @@ class DummyTracer(Tracer):
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
         return traces
-
-    def configure(self, *args, **kwargs):
-        self._configure(*args, **kwargs)
-
-    def _configure(self, *args, **kwargs):
-        assert isinstance(
-            kwargs.get("writer"), (DummyWriterMixin, type(None))
-        ), "cannot configure writer of DummyTracer"
-
-        if not kwargs.get("writer"):
-            # if no writer is present, check if test agent is running to determine if we
-            # should emit traces.
-            kwargs["writer"] = DummyWriter(
-                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-            )
-        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
