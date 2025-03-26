@@ -185,7 +185,7 @@ def _send_telemetry(event):
                 p.wait(1)
             else:
                 p.wait()
-        except:
+        except subprocess.TimeoutExpired:
             p.kill()
 
 
