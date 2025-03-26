@@ -80,7 +80,7 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         return True
 
     endpoints = agent_info.get("endpoints", [])
-    return EVP_PROXY_AGENT_BASE_PATH not in endpoints
+    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
 
 
 class BaseLLMObsWriter(PeriodicService):
