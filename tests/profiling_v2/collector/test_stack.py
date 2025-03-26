@@ -698,8 +698,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     # TODO(taegyunkim): update echion to support ignore_profiler and test with stack v2
     # Echion by default does not track native threads that are not registered
     # after https://github.com/P403n1x87/echion/pull/83.
-    if ignore_profiler:
-        pass
+    if stack_v2_enabled or ignore_profiler:
         assert collector_worker_thread_id not in thread_ids
     else:
         assert collector_worker_thread_id in thread_ids
