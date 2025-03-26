@@ -182,28 +182,26 @@ class BedrockIntegration(BaseLLMIntegration):
             message_output = {"role": current_message["role"]}
 
             text_contents = [text_content_blocks[idx] for idx in indices if idx in text_content_blocks]
-            if text_contents:
-                message_output["content"] = "".join(text_contents)
+            message_output.update({"content": "".join(text_contents)} if text_contents else {})
 
             tool_calls = []
             for idx in indices:
-                if idx in tool_content_blocks:
-                    tool_block = tool_content_blocks[idx]
+                tool_block = tool_content_blocks.get(idx)
+                if not tool_block:
+                    continue
+                tool_call = {
+                    "name": tool_block.get("toolName", ""),
+                    "tool_id": tool_block.get("toolUseId", ""),
+                }
+                tool_input = tool_block.get("input")
+                if tool_input is not None:
                     tool_args = {}
-                    if "input" in tool_block:
-                        input_text = tool_block["input"]
-                        try:
-                            tool_args = json.loads(input_text)
-                        except (json.JSONDecodeError, ValueError):
-                            tool_args = {"input": input_text}
-
-                    tool_calls.append(
-                        {
-                            "name": tool_block.get("toolName", ""),
-                            "arguments": tool_args,
-                            "tool_id": tool_block.get("toolUseId", ""),
-                        }
-                    )
+                    try:
+                        tool_args = json.loads(tool_input)
+                    except (json.JSONDecodeError, ValueError):
+                        tool_args = {"input": tool_input}
+                    tool_call.update({"arguments": tool_args} if tool_args else {})
+                tool_calls.append(tool_call)
 
             if tool_calls:
                 message_output["tool_calls"] = tool_calls
@@ -213,12 +211,9 @@ class BedrockIntegration(BaseLLMIntegration):
         for chunk in streamed_body:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
-                if "inputTokens" in usage:
-                    usage_metrics["input_tokens"] = usage["inputTokens"]
-                if "outputTokens" in usage:
-                    usage_metrics["output_tokens"] = usage["outputTokens"]
-                if "totalTokens" in usage:
-                    usage_metrics["total_tokens"] = usage["totalTokens"]
+                for token_type in ["input", "output", "total"]:
+                    if "{}Tokens".format(token_type) in usage:
+                        usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
 
             if "messageStart" in chunk:
                 message_data = chunk["messageStart"]
@@ -238,25 +233,21 @@ class BedrockIntegration(BaseLLMIntegration):
                         tool_content_blocks[index] = block_start["start"]["toolUse"]
 
             if "contentBlockDelta" in chunk:
-                delta = chunk["contentBlockDelta"]
-                index = delta.get("contentBlockIndex")
+                content_block_delta = chunk["contentBlockDelta"]
+                index = content_block_delta.get("contentBlockIndex")
 
-                if index is not None and "delta" in delta:
+                if index is not None and "delta" in content_block_delta:
                     if index not in current_message.get("context_block_indices", []):
                         current_message["context_block_indices"].append(index)
 
-                    delta_content = delta["delta"]
+                    delta_content = content_block_delta["delta"]
+                    text_content_blocks[index] = text_content_blocks.get(index, "") + delta_content.get("text", "")
 
-                    if "text" in delta_content:
-                        text_content_blocks[index] += delta_content["text"]
-
-                    if "toolUse" in delta_content and "input" in delta_content["toolUse"]:
-                        if index not in tool_content_blocks:
-                            tool_content_blocks[index] = {}
-                        tool_block = tool_content_blocks[index]
-                        if "input" not in tool_block:
-                            tool_block["input"] = ""
-                        tool_block["input"] += delta_content["toolUse"]["input"]
+                    if delta_content.get("toolUse", {}).get("input"):
+                        tool_content_blocks[index] = tool_content_blocks.get(index, {})
+                        tool_content_blocks[index]["input"] = (
+                            tool_content_blocks[index].get("input", "") + delta_content["toolUse"]["input"]
+                        )
 
             if "messageStop" in chunk:
                 process_message_end(current_message)
