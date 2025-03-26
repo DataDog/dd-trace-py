@@ -82,7 +82,8 @@ def test_civisibility_intake_payloads():
     from tests.utils import override_env
 
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        t._configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=True))
+        t._writer = CIVisibilityWriter(reuse_connections=True, coverage_enabled=True)
+        t._recreate()
         t._writer._conn = mock.MagicMock()
         with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response

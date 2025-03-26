@@ -157,12 +157,12 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
 
 def disable_asm(local_tracer: Tracer):
     if asm_config._asm_enabled:
-        local_tracer._configure(appsec_enabled=False)
+        local_tracer.configure(appsec_enabled=False)
 
 
 def enable_asm(local_tracer: Tracer):
     if not asm_config._asm_enabled:
-        local_tracer._configure(appsec_enabled=True)
+        local_tracer.configure(appsec_enabled=True)
 
 
 def _preprocess_results_appsec_1click_activation(
