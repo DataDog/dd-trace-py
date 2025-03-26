@@ -1,6 +1,7 @@
 """Tests Attempt-to-Fix functionality, and its interaction with Quarantine, Disabling, and Test Impact Analysis."""
 
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
@@ -243,6 +244,31 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
         assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
+
+    def test_pytest_attempt_to_fix_junit_xml_active(self):
+        self.testdir.makepyfile(test_active=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
+
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml", "-v", "-s")
+        assert rec.ret == 1
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "3"
+        assert test_suite.attrib["failures"] == "1"
+        assert test_suite.attrib["skipped"] == "1"
+        assert test_suite.attrib["errors"] == "0"
+
+    @pytest.mark.xfail(reason="JUnit XML miscounts quarantined tests")
+    def test_pytest_attempt_to_fix_junit_xml_quarantined(self):
+        self.testdir.makepyfile(test_quarantined=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
+
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml", "-v", "-s")
+        assert rec.ret == 0
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "3"  # we currently get "2"
+        assert test_suite.attrib["failures"] == "0"
+        assert test_suite.attrib["skipped"] == "1"
+        assert test_suite.attrib["errors"] == "0"
 
 
 class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
