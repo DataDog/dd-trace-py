@@ -2,8 +2,8 @@ import logging
 from os import path
 from typing import Optional
 
+from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings._core import get_config
 
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
