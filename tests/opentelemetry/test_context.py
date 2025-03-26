@@ -94,7 +94,7 @@ def _subprocess_task(parent_span_context, errors):
 
 @pytest.mark.snapshot(ignores=["meta.tracestate"])
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
-def test_otel_trace_across_fork(oteltracer):
+def test_otel_trace_across_fork():
     import multiprocessing
 
     from opentelemetry.trace import get_tracer
