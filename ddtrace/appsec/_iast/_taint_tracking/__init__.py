@@ -26,6 +26,7 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginTy
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_and_shift_ranges_from_strings  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_ranges_from_strings  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_range_by_hash  # noqa: F401
