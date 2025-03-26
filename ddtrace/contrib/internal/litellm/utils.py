@@ -123,7 +123,8 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
         else:
             formatted_completions = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
         operation = "completion" if is_completion else "chat"
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
+        if integration.is_pc_sampled_llmobs(span):
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
