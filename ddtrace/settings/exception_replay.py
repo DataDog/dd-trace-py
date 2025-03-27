@@ -1,5 +1,4 @@
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 class ExceptionReplayConfig(DDConfig):
@@ -23,4 +22,3 @@ class ExceptionReplayConfig(DDConfig):
 
 
 config = ExceptionReplayConfig()
-_report_telemetry(config)
