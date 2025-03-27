@@ -60,7 +60,7 @@ def traced_text_completion(litellm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs)
+    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, True)
 
 
 def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
@@ -117,8 +117,7 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model, custom_llm_provider, dynamic_api_key, api_base = func(*args, **kwargs)
     # Store the provider information in the integration
-    integration._provider_map[requested_model] = custom_llm_provider
-    integration._provider_map[model] = custom_llm_provider
+    integration._model_map[requested_model] = (model, custom_llm_provider)
     return model, custom_llm_provider, dynamic_api_key, api_base
 
 
@@ -152,5 +151,5 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.litellm.main, "get_llm_provider")
-    
+
     delattr(litellm, "_datadog_integration")

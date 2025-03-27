@@ -85,6 +85,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
+    "litellm": "litellm",
 }
 
 
