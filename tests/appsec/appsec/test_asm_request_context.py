@@ -128,7 +128,7 @@ def test_log_waf_callback():
     with mock.patch("logging.Logger.log") as mck, override_global_config({"_asm_enabled": True}):
         _asm_request_context.call_waf_callback()
     log_message = mck.call_args[0][1]
-    assert log_message.startswith("appsec::asm_context::warning::call_waf_callback::not_set")
-    assert __file__ in log_message
-    assert "test_log_waf_callback" in log_message
+    assert log_message.startswith("appsec::asm_context::warning::call_waf_callback::not_set"), log_message
+    assert __file__ in log_message, log_message
+    assert "test_log_waf_callback" in log_message, log_message
     # log message can end with anything here due to tests being instrumented by pytest or other tools
