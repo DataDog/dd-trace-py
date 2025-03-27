@@ -101,16 +101,19 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
 
     local_tracer = test_tracer or tracer
 
-    for_the_waf: List[tuple[str, str, PayloadType]] = []
+    for_the_waf_updates: List[tuple[str, str, PayloadType]] = []
+    for_the_waf_removals: List[tuple[str, str]] = []
     for_the_tracer: List[Payload] = []
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
             for_the_tracer.append(payload)
+        elif payload.content is None:
+            for_the_waf_removals.append((payload.metadata.product_name, payload.path))
         else:
-            for_the_waf.append((payload.metadata.product_name, payload.path, payload.content))
+            for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
     _process_asm_features(for_the_tracer, local_tracer)
     if local_tracer._appsec_processor is not None:
-        local_tracer._appsec_processor._update_rules(for_the_waf)
+        local_tracer._appsec_processor._update_rules(for_the_waf_removals, for_the_waf_updates)
 
 
 def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
@@ -157,12 +160,12 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
 
 def disable_asm(local_tracer: Tracer):
     if asm_config._asm_enabled:
-        local_tracer._configure(appsec_enabled=False)
+        local_tracer.configure(appsec_enabled=False)
 
 
 def enable_asm(local_tracer: Tracer):
     if not asm_config._asm_enabled:
-        local_tracer._configure(appsec_enabled=True)
+        local_tracer.configure(appsec_enabled=True)
 
 
 def _preprocess_results_appsec_1click_activation(
