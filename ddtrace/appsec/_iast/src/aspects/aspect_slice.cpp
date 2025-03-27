@@ -19,16 +19,16 @@ reduce_ranges_from_index_range_map(const TaintRangeRefs& index_range_map)
     for (index = 0; index < index_range_map.size(); ++index) {
         if (const auto& taint_range{ index_range_map.at(index) }; taint_range != current_range) {
             if (current_range) {
-                new_ranges.emplace_back(
-                  initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+                new_ranges.emplace_back(initializer->allocate_taint_range(
+                  current_start, index - current_start, current_range->source, current_range->secure_marks));
             }
             current_range = taint_range;
             current_start = index;
         }
     }
     if (current_range != nullptr) {
-        new_ranges.emplace_back(
-          initializer->allocate_taint_range(current_start, index - current_start, current_range->source));
+        new_ranges.emplace_back(initializer->allocate_taint_range(
+          current_start, index - current_start, current_range->source, current_range->secure_marks));
     }
     return new_ranges;
 }
