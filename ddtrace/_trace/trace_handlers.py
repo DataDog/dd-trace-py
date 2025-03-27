@@ -111,7 +111,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = ctx.get_item("activate_distributed_headers", False)
+    activate_distributed_headers = core.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
@@ -144,10 +144,6 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if config._inferred_proxy_services_enabled:
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
-
-    # Set to False so future calls, when referencing the parent context for activate_distributed_headers
-    # will not needlessly activate distributed headers.
-    ctx.set_item("activate_distributed_headers", False)
 
     return span
 
