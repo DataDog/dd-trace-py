@@ -145,7 +145,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
-    ctx.discard_item("integration_config")
+    # Set to False so future calls, when referencing the parent context for activate_distributed_headers
+    # will not needlessly activate distributed headers.
+    ctx.set_item("activate_distributed_headers", False)
 
     return span
 
