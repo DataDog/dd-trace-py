@@ -4,13 +4,14 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
 import ddtrace.appsec._ddwaf as ddwaf
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._logger import AppsecLogger
+from ddtrace.appsec._logger import TelemetryOption
 from ddtrace.internal import telemetry
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
-log = get_logger(__name__)
+logger = AppsecLogger(__name__, "appsec")
 
 DDWAF_VERSION = ddwaf.version()
 UNKNOWN_VERSION = "unknown"
@@ -20,13 +21,16 @@ bool_str = ("false", "true")
 
 @deduplication
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
-    tags = {
-        "waf_version": DDWAF_VERSION,
-        "event_rules_version": version or UNKNOWN_VERSION,
-        "lib_language": "python",
-    }
-    level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
-    telemetry.telemetry_writer.add_log(level, msg, tags=tags)
+    try:
+        tags = {
+            "waf_version": DDWAF_VERSION,
+            "event_rules_version": version or UNKNOWN_VERSION,
+            "lib_language": "python",
+        }
+        level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
+        telemetry.telemetry_writer.add_log(level, msg, tags=tags)
+    except Exception:
+        logger.log(TelemetryOption.LOGS, "waf_error", exc_info=True)
 
 
 def _set_waf_updates_metric(info, success: bool):
@@ -42,7 +46,7 @@ def _set_waf_updates_metric(info, success: bool):
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
-        log.warning("Error reporting ASM WAF updates metrics", exc_info=True)
+        logger.log(TelemetryOption.METRICS, "waf_updates", exc_info=True)
 
 
 def _set_waf_init_metric(info, success: bool):
@@ -58,7 +62,7 @@ def _set_waf_init_metric(info, success: bool):
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
-        log.warning("Error reporting ASM WAF init metrics", exc_info=True)
+        logger.log(TelemetryOption.METRICS, "waf_init", exc_info=True)
 
 
 _TYPES_AND_TAGS = {
@@ -100,7 +104,7 @@ def _report_waf_truncations(observator):
                 tags=(("truncation_reason", str(bitfield)),),
             )
     except Exception:
-        log.warning("Error reporting ASM WAF truncation metrics", exc_info=True)
+        logger.log(TelemetryOption.METRICS, "waf_truncation", exc_info=True)
 
 
 def _set_waf_request_metrics(*_args):
@@ -142,8 +146,9 @@ def _set_waf_request_metrics(*_args):
                                 ),
                             )
 
+        logger.log(TelemetryOption.METRICS, "waf_request_ok")
     except Exception:
-        log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
+        logger.log(TelemetryOption.METRICS, "waf_request", exc_info=True)
 
 
 def _report_api_security(route: bool, schemas: int) -> None:
@@ -159,4 +164,4 @@ def _report_api_security(route: bool, schemas: int) -> None:
                 TELEMETRY_NAMESPACE.APPSEC, "api_security.missing_route", 1, tags=(("framework", framework),)
             )
     except Exception:
-        log.warning("Error reporting API security metrics", exc_info=True)
+        logger.log(TelemetryOption.METRICS, "api_security", exc_info=True)
