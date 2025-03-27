@@ -22,9 +22,8 @@ allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range
     else
         length = source_taint_range->length;
 
-    auto tptr = initializer->allocate_taint_range(offset,                      // start
-                                                  length,                      // length
-                                                  source_taint_range->source); // source
+    auto tptr =
+      initializer->allocate_taint_range(offset, length, source_taint_range->source, source_taint_range->secure_marks);
     return tptr;
 }
 
@@ -36,9 +35,10 @@ allocate_limited_taint_range_with_offset(const TaintRangePtr& source_taint_range
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset)
 {
-    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset, // start
-                                                  source_taint_range->length,         // length
-                                                  source_taint_range->source);        // source
+    auto tptr = initializer->allocate_taint_range(source_taint_range->start + offset,
+                                                  source_taint_range->length,
+                                                  source_taint_range->source,
+                                                  source_taint_range->secure_marks);
     return tptr;
 }
 

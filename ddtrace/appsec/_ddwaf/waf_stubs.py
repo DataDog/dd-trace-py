@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Generic
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 from typing import Type
 from typing import TypeVar
@@ -14,6 +15,7 @@ from typing import Union
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig import PayloadType
 
 
 LOGGER = get_logger(__name__)
@@ -138,7 +140,9 @@ class WAF(ABC):
         pass
 
     @abstractmethod
-    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
+    def update_rules(
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+    ) -> bool:
         pass
 
     @abstractmethod

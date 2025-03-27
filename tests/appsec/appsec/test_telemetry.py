@@ -187,7 +187,7 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
 def test_log_metric_error_ddwaf_update(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules(invalid_rule_update)
+        span_processor._update_rules([], invalid_rule_update)
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
@@ -220,10 +220,10 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
     with override_global_config(dict(_asm_enabled=True)):
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules(invalid_rule_update)
+        span_processor._update_rules([], invalid_rule_update)
         telemetry_writer.reset_queues()
         span_processor = AppSecSpanProcessor()
-        span_processor._update_rules(invalid_rule_update)
+        span_processor._update_rules([], invalid_rule_update)
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 0
 
@@ -235,14 +235,14 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         with override_global_config(dict(_asm_enabled=True)):
             sleep(0.2)
             span_processor = AppSecSpanProcessor()
-            span_processor._update_rules(invalid_rule_update)
+            span_processor._update_rules([], invalid_rule_update)
             list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
             assert list_metrics_logs[0]["message"] == invalid_error
             telemetry_writer.reset_queues()
             sleep(0.2)
             span_processor = AppSecSpanProcessor()
-            span_processor._update_rules(invalid_rule_update)
+            span_processor._update_rules([], invalid_rule_update)
             list_metrics_logs = list(telemetry_writer._logs)
             assert len(list_metrics_logs) == 1
     finally:
