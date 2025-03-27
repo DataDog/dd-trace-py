@@ -132,6 +132,8 @@ cdef inline int pack_map(msgpack_packer *pk, object n) except? -1:
                 return ret
         # pack a list.
         elif isinstance(v, (list, tuple)):
+            ret = msgpack_pack_map(pk, 1)
+            ret = pack_text(pk, "values")
             ret = pack_list(pk, v)
             if ret != 0:
                 return ret

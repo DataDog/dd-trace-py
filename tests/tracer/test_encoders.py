@@ -557,11 +557,13 @@ def test_span_event_encoding_msgpack(version):
                     b"rating": {b"type": 3, b"double_value": 9.8},
                     b"other": {
                         b"type": 4,
-                        b"array_value": [
-                            {b"type": 2, b"int_value": 1},
-                            {b"type": 3, b"double_value": 9.5},
-                            {b"type": 2, b"int_value": 1},
-                        ],
+                        b"array_value": {
+                            b"values": [
+                                {b"type": 2, b"int_value": 1},
+                                {b"type": 3, b"double_value": 9.5},
+                                {b"type": 2, b"int_value": 1},
+                            ]
+                        },
                     },
                     b"idol": {b"type": 1, b"bool_value": False},
                 },
