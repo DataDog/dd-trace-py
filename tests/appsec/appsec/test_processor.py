@@ -224,6 +224,7 @@ def test_ip_not_block(tracer, ip):
 def test_ip_update_rules_and_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
         tracer._appsec_processor._update_rules(
+            [],
             [
                 (
                     "ASM",
@@ -240,7 +241,7 @@ def test_ip_update_rules_and_block(tracer):
                         ]
                     },
                 )
-            ]
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -255,6 +256,7 @@ def test_ip_update_rules_and_block(tracer):
 def test_ip_update_rules_expired_no_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
         tracer._appsec_processor._update_rules(
+            [],
             [
                 (
                     "ASM",
@@ -271,7 +273,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                         ]
                     },
                 )
-            ]
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -701,7 +703,7 @@ def test_required_addresses():
         "usr.id",
     }
 
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -727,7 +729,7 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         # first call must send all data to the waf
