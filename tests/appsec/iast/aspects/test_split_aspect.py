@@ -36,7 +36,7 @@ def test_aspect_split_simple():
     res = wrap_somesplit(_aspect_split, s)
     assert res == ["abc", "def"]
     assert get_ranges(res[0]) == [range1]
-    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER))]
 
 
 def test_aspect_rsplit_simple():
@@ -49,7 +49,7 @@ def test_aspect_rsplit_simple():
     res = wrap_somesplit(_aspect_rsplit, s)
     assert res == ["abc", "def"]
     assert get_ranges(res[0]) == [range1]
-    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER))]
 
 
 def test_aspect_split_with_separator():
@@ -62,7 +62,7 @@ def test_aspect_split_with_separator():
     res = wrap_somesplit(_aspect_split, s, ":")
     assert res == ["abc", "def"]
     assert get_ranges(res[0]) == [range1]
-    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(":def", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(":def", "sample_value", OriginType.PARAMETER))]
 
 
 def test_aspect_rsplit_with_separator():
@@ -75,7 +75,7 @@ def test_aspect_rsplit_with_separator():
     res = wrap_somesplit(_aspect_rsplit, s, ":")
     assert res == ["abc", "def"]
     assert get_ranges(res[0]) == [range1]
-    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(":def", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(":def", "sample_value", OriginType.PARAMETER))]
 
 
 def test_aspect_split_with_maxsplit():
@@ -90,15 +90,15 @@ def test_aspect_split_with_maxsplit():
     assert res == ["abc", "def ghi"]
     assert get_ranges(res[0]) == [range1]
     assert get_ranges(res[1]) == [
-        TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER), []),
-        TaintRange(3, 4, Source(" ghi", "sample_value", OriginType.PARAMETER), []),
+        TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER)),
+        TaintRange(3, 4, Source(" ghi", "sample_value", OriginType.PARAMETER)),
     ]
 
     res = wrap_somesplit(_aspect_split, s, maxsplit=2)
     assert res == ["abc", "def", "ghi"]
     assert get_ranges(res[0]) == [range1]
-    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER), [])]
-    assert get_ranges(res[2]) == [TaintRange(0, 3, Source(" ghi", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(res[1]) == [TaintRange(0, 3, Source(" def", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(res[2]) == [TaintRange(0, 3, Source(" ghi", "sample_value", OriginType.PARAMETER))]
 
     res = wrap_somesplit(_aspect_split, s, maxsplit=0)
     assert res == ["abc def ghi"]

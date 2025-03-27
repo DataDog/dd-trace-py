@@ -16,8 +16,8 @@ from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_t
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
 _SOURCE2 = Source(name="name2", value="value2", origin=OriginType.BODY)
 
-_RANGE1 = TaintRange(0, 2, _SOURCE1, [])
-_RANGE2 = TaintRange(1, 3, _SOURCE2, [])
+_RANGE1 = TaintRange(0, 2, _SOURCE1)
+_RANGE2 = TaintRange(1, 3, _SOURCE2)
 
 
 def test_common_replace_untainted():
@@ -73,7 +73,7 @@ def test_common_replace_tainted_bytearray():
 
 
 def _build_sample_range(start, length, name):  # type: (int, int) -> TaintRange
-    return TaintRange(start, length, Source(name, "sample_value", OriginType.PARAMETER), [])
+    return TaintRange(start, length, Source(name, "sample_value", OriginType.PARAMETER))
 
 
 def test_as_formatted_evidence():  # type: () -> None
@@ -120,8 +120,8 @@ def test_set_ranges_on_splitted_str() -> None:
 
     parts = s.split("|")
     assert set_ranges_on_splitted(s, ranges, parts)
-    assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER), [])]
-    assert get_ranges(parts[1]) == [TaintRange(0, 2, Source("second", "sample_value", OriginType.PARAMETER), [])]
+    assert get_ranges(parts[0]) == [TaintRange(0, 2, Source("first", "sample_value", OriginType.PARAMETER))]
+    assert get_ranges(parts[1]) == [TaintRange(0, 2, Source("second", "sample_value", OriginType.PARAMETER))]
 
 
 def test_set_ranges_on_splitted_rsplit() -> None:
@@ -137,11 +137,11 @@ def test_set_ranges_on_splitted_rsplit() -> None:
     assert parts == ["abc|efgh", "jkl"]
     assert set_ranges_on_splitted(s, ranges, parts)
     assert get_ranges(parts[0]) == [
-        TaintRange(0, 2, Source("ab", "sample_value", OriginType.PARAMETER), []),
-        TaintRange(4, 2, Source("ef", "sample_value", OriginType.PARAMETER), []),
+        TaintRange(0, 2, Source("ab", "sample_value", OriginType.PARAMETER)),
+        TaintRange(4, 2, Source("ef", "sample_value", OriginType.PARAMETER)),
     ]
     assert get_ranges(parts[1]) == [
-        TaintRange(0, 3, Source("jkl", "sample_value", OriginType.PARAMETER), []),
+        TaintRange(0, 3, Source("jkl", "sample_value", OriginType.PARAMETER)),
     ]
 
 

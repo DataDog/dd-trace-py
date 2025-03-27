@@ -75,7 +75,7 @@ def test_re_sub_aspect_tainted_string():
     assert res_str == "_polompos_pok_foo_bar_baz.jpg"
     assert get_tainted_ranges(res_str) == [
         TaintRange(
-            13, len(res_str), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER, [])
+            13, len(res_str), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)
         ),
     ]
 
@@ -110,7 +110,7 @@ def test_re_sub_aspect_tainted_repl():
     res_str = re_sub_aspect(None, 1, re_slash, tainted___, "foo/bar/baz")
     assert res_str == "foo___bar___baz"
     assert get_tainted_ranges(res_str) == [
-        TaintRange(0, len(res_str), Source("test_re_sub_aspect_tainted_repl", tainted___, OriginType.PARAMETER), []),
+        TaintRange(0, len(res_str), Source("test_re_sub_aspect_tainted_repl", tainted___, OriginType.PARAMETER)),
     ]
 
 
@@ -156,7 +156,7 @@ def test_re_subn_aspect_tainted_repl():
     assert res_str == "foo___bar___baz"
     assert number == 2
     assert get_tainted_ranges(res_str) == [
-        TaintRange(0, len(res_str), Source("test_re_subn_aspect_tainted_repl", tainted___, OriginType.PARAMETER), []),
+        TaintRange(0, len(res_str), Source("test_re_subn_aspect_tainted_repl", tainted___, OriginType.PARAMETER)),
     ]
 
 

@@ -52,8 +52,8 @@ class TestByteArrayExtendAspect(object):
         assert result == bytearray(b"123456")
         assert ba1 == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
-        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER), [])]
-        assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER), [])]
+        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
+        assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert not get_tainted_ranges(ba2)
 
     def test_extend_first_tainted_second_bytes(self):
@@ -65,8 +65,8 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
-        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER), [])]
-        assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER), [])]
+        assert ranges == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
+        assert get_tainted_ranges(ba1) == [TaintRange(0, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert not get_tainted_ranges(ba2)
 
     def test_extend_second_tainted(self):
@@ -77,7 +77,7 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
-        assert ranges == [TaintRange(3, 3, Source("test", "foo", OriginType.PARAMETER), [])]
+        assert ranges == [TaintRange(3, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert get_tainted_ranges(ba1) == ranges
 
     def test_extend_second_tainted_bytes(self):
@@ -88,7 +88,7 @@ class TestByteArrayExtendAspect(object):
         result = mod.do_bytearray_extend(ba1, ba2)
         assert result == bytearray(b"123456")
         ranges = get_tainted_ranges(result)
-        assert ranges == [TaintRange(3, 3, Source("test", "foo", OriginType.PARAMETER), [])]
+        assert ranges == [TaintRange(3, 3, Source("test", "foo", OriginType.PARAMETER))]
         assert get_tainted_ranges(ba1) == ranges
 
     def test_first_and_second_tainted(self):
@@ -103,11 +103,11 @@ class TestByteArrayExtendAspect(object):
         ranges = get_tainted_ranges(result)
         assert len(ranges) == 2
         assert ranges == [
-            TaintRange(0, 3, Source("test1", "foo", OriginType.PARAMETER), []),
-            TaintRange(3, 3, Source("test2", "bar", OriginType.BODY), []),
+            TaintRange(0, 3, Source("test1", "foo", OriginType.PARAMETER)),
+            TaintRange(3, 3, Source("test2", "bar", OriginType.BODY)),
         ]
         assert get_tainted_ranges(ba1) == ranges
-        assert get_tainted_ranges(ba2) == [TaintRange(0, 3, Source("test2", "bar", OriginType.BODY), [])]
+        assert get_tainted_ranges(ba2) == [TaintRange(0, 3, Source("test2", "bar", OriginType.BODY))]
 
 
 @pytest.mark.skip_iast_check_logs

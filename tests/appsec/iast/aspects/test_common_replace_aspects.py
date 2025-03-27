@@ -115,7 +115,7 @@ def test_common_replace_aspects(input_str, output_str, mod_function, check_range
     )
     res = mod_function(s_tainted)
     assert res == output_str
-    assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1, [])]
+    assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1)]
     assert not get_tainted_ranges(input_str)
 
 
@@ -135,7 +135,7 @@ def test_translate():
     )
     res = mod.do_translate(s_tainted, translate_dict)
     assert res == output_str
-    assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1, [])]
+    assert get_tainted_ranges(res) == [TaintRange(0, 6, _SOURCE1)]
     assert not get_tainted_ranges(input_str)
 
 
@@ -150,7 +150,7 @@ def test_upper_in_decorator():
 
     res = mod.do_add_and_uppercase(s, s_tainted)
     assert res == "FOOBARBARBAZ"
-    assert get_tainted_ranges(res) == [TaintRange(6, 6, _SOURCE1, [])]
+    assert get_tainted_ranges(res) == [TaintRange(6, 6, _SOURCE1)]
 
     res2 = mod.do_add_and_uppercase(s_tainted, s)
-    assert get_tainted_ranges(res2) == [TaintRange(0, 6, _SOURCE1, [])]
+    assert get_tainted_ranges(res2) == [TaintRange(0, 6, _SOURCE1)]
