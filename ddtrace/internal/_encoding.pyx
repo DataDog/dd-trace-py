@@ -23,7 +23,7 @@ from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
-from .agent import AgentConfig
+from ..settings._agent import AgentConfig
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5

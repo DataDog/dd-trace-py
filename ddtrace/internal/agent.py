@@ -16,7 +16,6 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 log = get_logger(__name__)
 
 
-
 def get_trace_url() -> str:
     """Return the Agent URL computed from the environment."""
     return config.trace_agent_url

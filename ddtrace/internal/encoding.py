@@ -6,10 +6,10 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ..settings._agent import AgentConfig  # noqa:F401
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
-from .agent import AgentConfig  # noqa:F401
 from .compat import ensure_text
 from .logger import get_logger
 
