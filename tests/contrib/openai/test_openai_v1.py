@@ -182,6 +182,7 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
 
+
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
@@ -295,6 +296,7 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 n=2,
                 user="ddtrace-test",
             )
+
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"

@@ -231,7 +231,10 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
 def _patched_endpoint(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
-        if patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook:
+        if (
+            patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
+            or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook
+        ):
             kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
             return func(*args, **kwargs)
         integration = openai._datadog_integration
