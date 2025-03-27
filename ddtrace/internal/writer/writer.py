@@ -16,7 +16,7 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.settings._agent import AgentConfig
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
@@ -470,7 +470,7 @@ class AgentWriter(HTTPWriter):
 
         self._api_version = api_version or config._trace_api or default_api_version
 
-        if AgentConfig.trace_native_span_events:
+        if agent_config.trace_native_span_events:
             self._api_version = "v0.4"
 
         if is_windows and self._api_version == "v0.5":

@@ -542,7 +542,6 @@ def test_span_event_encoding_msgpack(version):
     else:
         encoded_span_meta = decoded_trace[0][0]
         assert b"span_events" in encoded_span_meta
-        breakpoint()
         assert encoded_span_meta[b"span_events"] == [
             {
                 b"name": b"Something went so wrong",

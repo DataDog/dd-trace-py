@@ -196,7 +196,6 @@ class Span(object):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
-
         self.name = name
         self.service = service
         self._resource = [resource or name]
@@ -592,7 +591,6 @@ class Span(object):
             return
 
         self.error = 1
-
         tb = self._get_traceback(exc_type, exc_val, exc_tb, limit=limit)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)

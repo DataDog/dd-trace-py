@@ -23,7 +23,7 @@ from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
-from ..settings._agent import AgentConfig
+from ..settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -563,7 +563,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef bint top_level_span_event_encoding
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
-        self.top_level_span_event_encoding = AgentConfig.trace_native_span_events
+        self.top_level_span_event_encoding = agent_config.trace_native_span_events
 
     cpdef flush(self):
         with self._lock:
@@ -756,10 +756,10 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         # do not include in meta
         if self.top_level_span_event_encoding:
             has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
-            L = 7 + has_span_type + has_meta + has_metrics + 1 + has_parent_id + has_links + has_span_events \
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events \
                 + has_meta_struct
         else:
-            L = 7 + has_span_type + has_meta + has_metrics + 1 + has_parent_id + has_links + has_meta_struct
+            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -821,15 +821,13 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"error", 5)
-            if ret != 0:
-                return ret
             if has_error:
+                ret = pack_bytes(&self.pk, <char *> b"error", 5)
+                if ret != 0:
+                    return ret
                 ret = msgpack_pack_long(&self.pk, <long> 1)
-            else:
-                ret = msgpack_pack_long(&self.pk, <long> 0)
-            if ret != 0:
-                return ret
+                if ret != 0:
+                    return ret
 
             if has_span_type:
                 ret = pack_bytes(&self.pk, <char *> b"type", 4)
