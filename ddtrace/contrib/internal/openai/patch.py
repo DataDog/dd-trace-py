@@ -74,6 +74,8 @@ _RESOURCES = {
     },
 }
 
+OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
+
 
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
@@ -183,7 +185,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     base_url = getattr(client, "_base_url", None) if client else None
 
     # avoid creating a span if streaming with raw response
-    create_span = not (kwargs.pop("_dd.with_raw_response", False) and kwargs.get("stream", False))
+    create_span = not (kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False))
     if create_span:
         span = integration.trace(
             pin,
@@ -230,7 +232,7 @@ def _patched_endpoint(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
         if patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook:
-            kwargs["_dd.with_raw_response"] = True
+            kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
             return func(*args, **kwargs)
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
