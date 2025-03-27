@@ -28,26 +28,32 @@ using TaintRangeMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, Ta
 using TaintRangeMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
 #endif
 
+/**
+ * @brief Enumeration of vulnerability types that can be marked in taint ranges
+ * @details Each value represents a different type of security vulnerability that can be detected
+ *          and marked in tainted data ranges. The values are used as bit positions in the secure_marks
+ *          bitfield.
+ */
 enum class VulnerabilityType
 {
-    CODE_INJECTION = 0,
-    COMMAND_INJECTION,
-    HEADER_INJECTION,
-    INSECURE_COOKIE,
-    NO_HTTPONLY_COOKIE,
-    NO_SAMESITE_COOKIE,
-    PATH_TRAVERSAL,
-    SQL_INJECTION,
-    SSRF,
-    STACKTRACE_LEAK,
-    WEAK_CIPHER,
-    WEAK_HASH,
-    WEAK_RANDOMNESS,
-    XSS,
+    CODE_INJECTION = 1,    ///< Code injection vulnerability
+    COMMAND_INJECTION,     ///< Command injection vulnerability
+    HEADER_INJECTION,      ///< HTTP header injection vulnerability
+    INSECURE_COOKIE,       ///< Insecure cookie configuration
+    NO_HTTPONLY_COOKIE,    ///< Missing HttpOnly flag in cookie
+    NO_SAMESITE_COOKIE,    ///< Missing SameSite attribute in cookie
+    PATH_TRAVERSAL,        ///< Path traversal vulnerability
+    SQL_INJECTION,         ///< SQL injection vulnerability
+    SSRF,                  ///< Server-Side Request Forgery vulnerability
+    STACKTRACE_LEAK,       ///< Stack trace information leakage
+    WEAK_CIPHER,           ///< Weak cryptographic cipher usage
+    WEAK_HASH,             ///< Weak cryptographic hash function usage
+    WEAK_RANDOMNESS,       ///< Weak random number generation
+    XSS,                   ///< Cross-Site Scripting vulnerability
 };
 
 using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
-using SecureMarksList = std::vector<VulnerabilityType>;
+using SecureMarks = uint64_t;
 
 /**
  * @brief Represents a range of tainted data with associated security marks
@@ -59,20 +65,20 @@ struct TaintRange
     RANGE_START start = 0;
     RANGE_LENGTH length = 0;
     Source source;
-    SecureMarksList secure_marks;
+    SecureMarks secure_marks;
 
     TaintRange()
       : start(0)
       , length(0)
       , source()
-      , secure_marks()
+      , secure_marks(0)
     {
     }
 
     TaintRange(const RANGE_START start,
                const RANGE_LENGTH length,
                Source source,
-               const SecureMarksList& secure_marks = SecureMarksList())
+               const SecureMarks& secure_marks = 0)
       : start(start)
       , length(length)
       , source(std::move(source))
@@ -86,7 +92,7 @@ struct TaintRange
     inline void set_values(const RANGE_START start_,
                            const RANGE_LENGTH length_,
                            Source source_,
-                           SecureMarksList secure_marks_) noexcept
+                           SecureMarks secure_marks_) noexcept
     {
         if (length_ <= 0) {
             throw std::invalid_argument("Error: Length cannot be set to 0.");
@@ -94,14 +100,26 @@ struct TaintRange
         start = start_;
         length = length_;
         source = std::move(source_);
-        secure_marks = std::move(secure_marks_);
+        secure_marks = secure_marks_;
     }
 
     void reset();
     string toString() const;
     uint get_hash() const;
+    /**
+     * @brief Adds a security vulnerability mark to the taint range
+     * @param mark The type of vulnerability to mark
+     * @details Sets the corresponding bit in the secure_marks bitfield based on the vulnerability type.
+     *          The mark is stored efficiently using bit operations.
+     */
     void add_secure_mark(VulnerabilityType mark);
-    bool has_secure_mark(VulnerabilityType mark);
+    /**
+     * @brief Checks if a specific vulnerability mark is set in the taint range
+     * @param mark The type of vulnerability to check for
+     * @return true if the vulnerability mark is set, false otherwise
+     * @details Checks the corresponding bit in the secure_marks bitfield using bit operations.
+     */
+    bool has_secure_mark(VulnerabilityType mark) const;
     explicit operator std::string() const;
 };
 
