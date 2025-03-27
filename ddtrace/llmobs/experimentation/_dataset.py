@@ -276,7 +276,7 @@ class Dataset:
                 dataset_version = version
             except ValueError as e:
                 if "404" in str(e):
-                    raise ValueError(f"Dataset '{name}' not found") from e
+                    raise ValueError(f"Dataset '{name}' not found with version {version}") from e
                 raise
 
         # Get dataset records
@@ -343,10 +343,9 @@ class Dataset:
         }
 
         if overwrite:
-            print("Overwriting existing dataset")
+            print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}' using batch update{Color.RESET}")
         else:
             print("Pushing changes to existing dataset, new version will be created")
-
 
         # Add new records
         if self._changes['added']:
@@ -410,7 +409,7 @@ class Dataset:
         resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
         # Sleep briefly to allow for processing
-        time.sleep(1)
+        time.sleep(3)
 
         # Pull the dataset to get all record IDs and latest version
         pulled_dataset = self.pull(self.name)
@@ -422,149 +421,187 @@ class Dataset:
         self._clear_changes()
         self._synced = True
 
-    def push(self, overwrite: bool = False) -> None:
+    def push(self, overwrite: bool = False, new_version: bool = False) -> None:
         """
-        Push the dataset to Datadog, optionally overwriting an existing dataset.
+        Push the dataset to Datadog, optionally overwriting an existing dataset or creating a new version.
         
-        If there are pending changes and the dataset exists in Datadog, it will use
-        the batch update endpoint to apply the changes. Otherwise, it will create
-        a new dataset or overwrite the existing one completely.
+        This is the high-level method that handles:
+        1. Checking for an existing dataset on Datadog by name.
+        2. If dataset exists remotely:
+           - For local datasets (not synced):
+             * If overwrite=True: overwrite the remote dataset
+             * If new_version=True: create a new version
+             * If neither: show warning and return
+           - For synced datasets with changes, use batch_update
+        3. If dataset doesn't exist, create new
 
         Args:
-            overwrite (bool, optional): If True, overwrite the existing dataset if found instead
-                of creating a new version. Defaults to False.
-
-        Raises:
-            ValueError: If environment is not initialized or any other HTTP error occurs during push.
+            overwrite (bool, optional): If True, overwrite the existing dataset if found. Defaults to False.
+            new_version (bool, optional): If True and dataset exists, create a new version. Defaults to False.
         """
+        if overwrite and new_version:
+            raise ValueError("Cannot specify both overwrite=True and new_version=True")
+
         _validate_init()
 
-        # Check if dataset exists
+        # Check for an existing dataset with the same name
         encoded_name = quote(self.name)
         url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
         resp = exp_http_request("GET", url)
         existing_dataset = resp.json().get("data", [])
+
+        # Detect if we have any local changes
+        has_changes = any(len(changes) > 0 for changes in self._changes.values())
 
         if existing_dataset:
-            dataset_id = existing_dataset[0]["id"]
+            remote_id = existing_dataset[0]["id"]
             
-            # If we have changes and we're not overwriting, use batch update
-            has_changes = any(len(changes) > 0 for changes in self._changes.values())
-            if has_changes:
-                self._datadog_dataset_id = dataset_id
-                self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
-                self._batch_update(overwrite=overwrite)
-                return
-            
-            if not has_changes:
-                print("Dataset exists but no changes to push")
-                return
-            
+            # Case 1: We have a local dataset (not synced) with same name as remote
+            if not self._datadog_dataset_id:
+                if overwrite:
+                    # If overwrite=True, proceed with overwrite
+                    self._datadog_dataset_id = remote_id
+                    self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
+                    self._push_entire_dataset(overwrite=True)
+                    return
+                elif new_version:
+                    # If new_version=True, create new version via push
+                    self._datadog_dataset_id = remote_id
+                    self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
+                    self._push_entire_dataset(overwrite=False)  # Push will create new version
+                    return
+                else:
+                    print(f"{Color.YELLOW}Dataset '{self.name}' already exists in Datadog. "
+                          f"Use push(overwrite=True) to overwrite the remote dataset "
+                          f"or push(new_version=True) to create a new version.{Color.RESET}")
+                    return
 
-        # If we reach here:
-        # Dataset doesn't exist
-        # Use the original push logic...
-        
-        # Reasonable chunk size for batching requests
-        chunk_size: int = DEFAULT_CHUNK_SIZE
+            # Case 2: We have a synced dataset
+            if self._datadog_dataset_id == remote_id:
+                if has_changes:
+                    if overwrite:
+                        # If we have changes and overwrite=True, use push to overwrite
+                        self._push_entire_dataset(overwrite=True)
+                    elif new_version:
+                        # If we have changes and new_version=True, use push to create new version
+                        self._push_entire_dataset(overwrite=False)
+                    else:
+                        # If we have changes but no overwrite/new_version, use batch_update
+                        self._batch_update(overwrite=False)
+                    return
+                else:
+                    print("Dataset is already synced and has no changes.")
+                    return
 
-        # First check if dataset exists
-        encoded_name = quote(self.name)
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-        resp = exp_http_request("GET", url)
-        existing_dataset = resp.json().get("data", [])
-
-        if existing_dataset and overwrite:
-            # Use existing dataset ID
-            dataset_id = existing_dataset[0]["id"]
-            self._datadog_dataset_id = dataset_id
-            self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
-
-            # Get existing records to map record IDs
-            url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-            resp = exp_http_request("GET", url)
-            existing_records = resp.json().get("data", [])
-
-            # Update records in chunks
-            total_records = len(self._data)
-            chunks = [self._data[i : i + chunk_size] for i in range(0, total_records, chunk_size)]
-            total_chunks = len(chunks)
-
-            show_progress = total_records > chunk_size
-            if show_progress:
-                _print_progress_bar(0, total_chunks, prefix="Updating:", suffix="Complete")
-
-            for i, chunk in enumerate(chunks):
-                for record, existing in zip(chunk, existing_records[i * chunk_size : (i + 1) * chunk_size]):
-                    record_id = existing["id"]
-                    payload = {
-                        "data": {
-                            "type": "datasets",
-                            "attributes": {
-                                "input": record["input"],
-                                "expected_output": record["expected_output"],
-                                "metadata": {
-                                    k: v
-                                    for k, v in record.items()
-                                    if k not in ["input", "expected_output", "record_id"]
-                                },
-                            },
-                        }
-                    }
-                    url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/{record_id}"
-                    resp = exp_http_request("PATCH", url, body=json.dumps(payload).encode("utf-8"))
-
-                if show_progress:
-                    _print_progress_bar(i + 1, total_chunks, prefix="Updating:", suffix="Complete")
+            # Case 3: We have a synced dataset but with different ID (shouldn't happen)
+            raise ValueError(f"Dataset '{self.name}' exists but with different ID. This shouldn't happen.")
 
         else:
-            # Create new dataset
+            # No dataset found on Datadog; create new
+            if self._datadog_dataset_id:
+                # We thought we were synced but the remote dataset is gone
+                print(f"{Color.YELLOW}Warning: Remote dataset no longer exists. Creating new dataset.{Color.RESET}")
+                self._datadog_dataset_id = None
+                self._datadog_dataset_version = 0
+            
+            self._push_entire_dataset(overwrite=False)
+
+    def _push_entire_dataset(self, overwrite: bool) -> None:
+        """
+        Internal helper to create or overwrite a dataset.
+        
+        If self._datadog_dataset_id is set, it will update that dataset (potentially
+        overwriting it). If no dataset_id is present, it will:
+        1. First create a new dataset
+        2. Then add all records using the /push endpoint
+        """
+        if overwrite:
+            print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}' using push{Color.RESET}")
+
+        # If we don't have a dataset_id, create the dataset first
+        if not self._datadog_dataset_id:
+            # Create new dataset (metadata only)
             dataset_payload = {
                 "data": {
                     "type": "datasets",
                     "attributes": {
                         "name": self.name,
                         "description": self.description,
-                    },
+                    }
                 }
             }
             resp = exp_http_request(
-                "POST", "/api/unstable/llm-obs/v1/datasets", body=json.dumps(dataset_payload).encode("utf-8")
+                "POST", "/api/unstable/llm-obs/v1/datasets", 
+                body=json.dumps(dataset_payload).encode("utf-8")
             )
             response_data = resp.json()
-            dataset_id = response_data["data"]["id"]
-            self._datadog_dataset_id = dataset_id
+            self._datadog_dataset_id = response_data["data"]["id"]
             self._datadog_dataset_version = 0
 
-            # Split records into chunks and upload
-            total_records = len(self._data)
-            chunks = [self._data[i : i + chunk_size] for i in range(0, total_records, chunk_size)]
-            total_chunks = len(chunks)
+        # Now that we have a dataset_id (either from creation or existing),
+        # prepare the records to push
+        records_list = []
+        for record in self._data:
+            record_payload = {}
+            # If this record was previously pulled from Datadog, preserve its ID
+            if "record_id" in record:
+                record_payload["id"] = record["record_id"]
 
-            # Only show progress bar for large datasets
-            show_progress = total_records > chunk_size
-            if show_progress:
-                _print_progress_bar(0, total_chunks, prefix="Uploading:", suffix="Complete")
+            # Always include input and expected_output
+            record_payload["input"] = record["input"]
+            if "expected_output" in record:
+                record_payload["expected_output"] = record["expected_output"]
 
-            for i, chunk in enumerate(chunks):
-                records_payload = {
-                    "data": {"type": "datasets", "attributes": {"records": chunk}}
+            # Gather any other keys as metadata
+            metadata = {
+                k: v
+                for k, v in record.items()
+                if k not in ["input", "expected_output", "record_id"]
+            }
+            if metadata:
+                record_payload["metadata"] = metadata
+
+            records_list.append(record_payload)
+
+        # Split records into chunks if needed (e.g., if there are many records)
+        chunk_size = DEFAULT_CHUNK_SIZE
+        chunks = [records_list[i:i + chunk_size] for i in range(0, len(records_list), chunk_size)]
+
+        # Show progress bar for large datasets
+        show_progress = len(chunks) > 1
+        if show_progress:
+            _print_progress_bar(0, len(chunks), prefix="Pushing records:", suffix="Complete")
+
+        # Push each chunk of records
+        for i, chunk in enumerate(chunks):
+            push_payload = {
+                "data": {
+                    "type": "datasets",
+                    "attributes": {
+                        "records": chunk,
+                        "overwrite": overwrite if i == 0 else False  # Only overwrite on first chunk
+                    }
                 }
-                url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-                resp = exp_http_request("POST", url, body=json.dumps(records_payload).encode("utf-8"))
+            }
 
-                if show_progress:
-                    _print_progress_bar(i + 1, total_chunks, prefix="Uploading:", suffix="Complete")
+            url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/push"
+            resp = exp_http_request("POST", url, body=json.dumps(push_payload).encode("utf-8"))
 
-            time.sleep(3)  # Sleep to allow for processing after ingestion.
-            # Pull the dataset to get all record IDs and metadata
-            pulled_dataset = self.pull(self.name)
-            self._data = pulled_dataset._data
-            self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
-            self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
+            if show_progress:
+                _print_progress_bar(i + 1, len(chunks), prefix="Pushing records:", suffix="Complete")
 
-            # Print url to the dataset in Datadog
-            print(f"\nDataset '{self.name}' created: {get_base_url()}/llm/testing/datasets/{dataset_id}\n")
+        # Sleep briefly to allow processing
+        time.sleep(3)
+
+        # Pull the dataset to get all record IDs and latest version
+        pulled_dataset = self.pull(self.name)
+        self._data = pulled_dataset._data
+        self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
+        self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
+
+        # Clear local changes and mark as synced
+        self._clear_changes()
+        self._synced = True
 
     @classmethod
     def from_csv(
@@ -784,7 +821,10 @@ class Dataset:
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
 
-        dd_url = (f"\n  URL: {Color.BLUE}{get_base_url()}/llm/testing/datasets/{self._datadog_dataset_id}{Color.RESET}"
+        panel_config = json.dumps([{"t": "datasetDetailPanel", "datasetId": self._datadog_dataset_id}])
+        dd_url = (f"\n  URL: {Color.BLUE}https://app.datadoghq.com/llm/testing/datasets"
+                 f"?llmPanels={quote(panel_config)}"
+                 f"&openApplicationConfig=false{Color.RESET}"
                  if getattr(self, "_datadog_dataset_id", None) else "")
 
         # Build the representation

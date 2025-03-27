@@ -17,6 +17,7 @@ from ._config import (
     DEFAULT_CONCURRENT_JOBS,
     DEFAULT_CHUNK_SIZE,
     get_base_url,
+    FLUSH_EVERY,
 )
 from .utils._ui import Color, ProgressReporter, _print_progress_bar
 from .._llmobs import LLMObs
@@ -24,13 +25,6 @@ from .._llmobs import LLMObs
 if TYPE_CHECKING:
     import pandas as pd
 
-MODEL_SCHEMA = {
-    "name": str,
-    "provider": str,
-    "temperature": (int, float)  # allow both int and float for temperature
-}
-
-FLUSH_EVERY = 1
 
 def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -49,7 +43,13 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     if not isinstance(data, dict):
         raise TypeError("Model must be a dictionary (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
-        
+
+    MODEL_SCHEMA = {
+        "name": str,
+        "provider": str,
+        "temperature": (int, float)  # allow both int and float for temperature
+    }
+
     for field, expected_type in MODEL_SCHEMA.items():
         if field in data:
             value = data[field]
