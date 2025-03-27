@@ -112,8 +112,8 @@ exclude = '''
   | ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
-  | ddtrace/appsec/_iast/src/_vendor/
-  | ddtrace/appsec/_iast/src/cmake-build-debug/
+  | ddtrace/appsec/_iast/_taint_tracking/_vendor/
+  | ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/
   | ddtrace/_version.py
   | \.eggs
   | \.git
@@ -187,7 +187,7 @@ targets = ["ddtrace/"]
 # TODO: Remove excludes
 exclude_dirs = [
   "ddtrace/vendor/",
-  "ddtrace/appsec/_iast/src/_vendor/",
+  "ddtrace/appsec/_iast/_taint_tracking/_vendor/",
   "ddtrace/commands/ddtrace_run.py",
   "ddtrace/ext/git.py",
   "ddtrace/ext/test.py",
@@ -212,7 +212,7 @@ exclude = [
     "build",
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",
-    "ddtrace/appsec/_iast/src/_vendor/*",
+    "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
     "ddtrace/profiling/exporter/pprof_*pb2.py",
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",

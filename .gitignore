@@ -146,21 +146,21 @@ ddtrace/_version.py
 artifacts/
 
 # IAST cpp
-ddtrace/appsec/_iast/src/cmake_install.cmake
-ddtrace/appsec/_iast/src/CMakeCache.txt
-ddtrace/appsec/_iast/src/Makefile
-ddtrace/appsec/_iast/src/cmake-build-debug/*
-ddtrace/appsec/_iast/src/_deps/*
-ddtrace/appsec/_iast/src/CMakeFiles/*
-ddtrace/appsec/_iast/src/tests/CMakeFiles/*
-ddtrace/appsec/_iast/src/tests/cmake_install.cmake
-ddtrace/appsec/_iast/src/tests/CMakeCache.txt
-ddtrace/appsec/_iast/src/tests/Makefile
-ddtrace/appsec/_iast/src/tests/CTestTestfile.cmake
-ddtrace/appsec/_iast/src/tests/native_tests*
-ddtrace/appsec/_iast/src/_vendor/pybind11/Makefile
-ddtrace/appsec/_iast/src/_vendor/pybind11/CMakeFiles/*
-ddtrace/appsec/_iast/src/_vendor/pybind11/cmake_install.cmake
+ddtrace/appsec/_iast/_taint_tracking/cmake_install.cmake
+ddtrace/appsec/_iast/_taint_tracking/CMakeCache.txt
+ddtrace/appsec/_iast/_taint_tracking/Makefile
+ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/*
+ddtrace/appsec/_iast/_taint_tracking/_deps/*
+ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
+ddtrace/appsec/_iast/_taint_tracking/tests/CMakeFiles/*
+ddtrace/appsec/_iast/_taint_tracking/tests/cmake_install.cmake
+ddtrace/appsec/_iast/_taint_tracking/tests/CMakeCache.txt
+ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
+ddtrace/appsec/_iast/_taint_tracking/tests/CTestTestfile.cmake
+ddtrace/appsec/_iast/_taint_tracking/tests/native_tests*
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/Makefile
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
+ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
 # Those folders are required for tests/appsec/iast_packages/test_packages.py
 template_venv/
 cloned_venvs/
