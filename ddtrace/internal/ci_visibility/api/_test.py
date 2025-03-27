@@ -131,6 +131,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
 
+    def _set_known_test_tag(self) -> None:
+        if self._is_known_test_enabled and self.is_new():
+            self.set_tag(TEST_IS_NEW, self._is_new)
+
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
@@ -144,9 +148,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # 2. When is_known_test_enabled is False:
         #    We only mark tests as new if EFD is enabled and the session is not faulty
         session = self.get_session()
-        if self.is_new() and session is not None:
-            if self._is_known_test_enabled or (not self._is_known_test_enabled and not session.efd_is_faulty_session()):
-                self.set_tag(TEST_IS_NEW, self._is_new)
+        if self.is_new() and session is not None and not session.efd_is_faulty_session():
+            self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
