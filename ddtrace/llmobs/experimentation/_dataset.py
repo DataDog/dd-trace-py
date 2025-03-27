@@ -84,20 +84,24 @@ class Dataset:
         """
         return len(self._data)
 
-    def __getitem__(self, index: int) -> Dict[str, Union[str, Dict[str, Any]]]:
+    def __getitem__(self, index: Union[int, slice]) -> Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
         """
-        Retrieve a specific dataset record by index.
+        Retrieve one or more dataset records by index or slice.
 
         Args:
-            index (int): Index of the record to retrieve.
+            index (Union[int, slice]): Index or slice of records to retrieve.
 
         Returns:
-            Dict[str, Union[str, Dict[str, Any]]]: A copy of the dataset record at the given index.
+            Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]: 
+                A copy of the dataset record(s) at the given index/slice.
         """
-        record = self._data[index].copy()
-        # Remove the record_id from the record
-        record.pop("record_id", None)
-        return record
+        if isinstance(index, slice):
+            records = self._data[index]
+            return [{k: v for k, v in record.copy().items() if k != "record_id"} for record in records]
+        else:
+            record = self._data[index].copy()
+            record.pop("record_id", None)
+            return record
 
     def __delitem__(self, index: int) -> None:
         """
