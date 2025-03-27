@@ -27,19 +27,27 @@ class AppsecOption(LogOption, enum.Enum):
     ASM_CONTEXT_DEBUG = ("asm_context", logging.DEBUG)
 
 
-def get_time(message: LogOption, info: str, _cache: typing.Dict[typing.Tuple[str, str], float] = {}) -> bool:
+class TimeCounter:
+    def __init__(self, monotonic_timestamp: float, counter: int = 1) -> None:
+        self._timestamp = monotonic_timestamp
+        self.counter = counter
+
+
+def get_time(message: LogOption, info: str, _cache: typing.Dict[typing.Tuple[str, str], TimeCounter] = {}) -> int:
     if message._duration == 0.0:
-        return True
+        return 1
     key = message._name, info
     if key not in _cache:
-        _cache[key] = time.monotonic()
-        return True
+        _cache[key] = TimeCounter(time.monotonic())
+        return 1
     previous = _cache[key]
     now = time.monotonic()
-    if now - previous > message._duration:
-        _cache[key] = now
-        return True
-    return False
+    if now - previous._timestamp > message._duration:
+        _cache[key] = TimeCounter(now)
+        return previous.counter
+    else:
+        previous.counter += 1
+    return 0
 
 
 class AppsecLogger:
@@ -48,13 +56,13 @@ class AppsecLogger:
         self._product = product
 
     def log(self, message: LogOption, info: str, more_info: str = "", context: bool = False, exc_info: bool = False):
-        if get_time(message, info):
+        if counter := get_time(message, info):
             if context:
                 filename, line_number, function_name, _stack_info = self._logger.findCaller(False, 3)
                 string = (
-                    f"{self._product}::{message._name}::{info}{more_info}"
+                    f"{self._product}::{message._name}::{info}[{counter}]{more_info}"
                     f" [{filename}, line {line_number}, in {function_name}]"
                 )
             else:
-                string = f"{self._product}::{message._name}::{info}{more_info}"
+                string = f"{self._product}::{message._name}::{info}[{counter}]{more_info}"
             self._logger.log(message._level, string, exc_info=exc_info)
