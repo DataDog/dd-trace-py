@@ -27,7 +27,7 @@ class AppsecOption(LogOption, enum.Enum):
     ASM_CONTEXT_DEBUG = ("asm_context", logging.DEBUG)
 
 
-def get_time(message: LogOption, info: str, _cache: typing.Dict[tuple[str, str], float] = {}) -> bool:
+def get_time(message: LogOption, info: str, _cache: typing.Dict[typing.Tuple[str, str], float] = {}) -> bool:
     if message._duration == 0.0:
         return True
     key = message._name, info
