@@ -1,7 +1,7 @@
 [[
   {
     "name": "should_not_send",
-    "service": "tests.integration",
+    "service": "ddtrace_subprocess_dir",
     "resource": "should_not_send",
     "trace_id": 0,
     "span_id": 1,
@@ -27,7 +27,7 @@
 [
   {
     "name": "should_send",
-    "service": "tests.integration",
+    "service": "ddtrace_subprocess_dir",
     "resource": "should_send",
     "trace_id": 1,
     "span_id": 1,

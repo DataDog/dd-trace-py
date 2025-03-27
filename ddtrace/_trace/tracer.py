@@ -6,7 +6,7 @@ import os
 from os import environ
 from os import getpid
 from threading import RLock
-from typing import Any
+from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -14,7 +14,6 @@ from typing import Optional
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
-from urllib import parse
 
 from ddtrace import _hooks
 from ddtrace import config
@@ -64,7 +63,7 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -72,13 +71,13 @@ from ddtrace.settings.peer_service import _ps_config
 log = get_logger(__name__)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
-
-
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
+if TYPE_CHECKING:
+    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-def _start_appsec_processor() -> Optional[Any]:
+
+def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -109,7 +108,7 @@ def _default_span_processors_factory(
     agent_url: str,
     trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
+) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
@@ -194,12 +193,7 @@ class Tracer(object):
     SHUTDOWN_TIMEOUT = 5
     _instance = None
 
-    def __init__(
-        self,
-        url: Optional[str] = None,
-        dogstatsd_url: Optional[str] = None,
-        context_provider: Optional[BaseContextProvider] = None,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -228,8 +222,8 @@ class Tracer(object):
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = context_provider or DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
+        self._dogstatsd_url = agent.get_stats_url()
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -241,10 +235,10 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = agent.get_trace_url()
         verify_url(self._agent_url)
 
-        if self._use_log_writer() and url is None:
+        if self._use_log_writer():
             writer: TraceWriter = LogWriter()
         else:
             writer = AgentWriter(
@@ -419,48 +413,6 @@ class Tracer(object):
         :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
-        return self._configure(
-            context_provider=context_provider,
-            trace_processors=trace_processors,
-            compute_stats_enabled=compute_stats_enabled,
-            appsec_enabled=appsec_enabled,
-            iast_enabled=iast_enabled,
-            apm_tracing_disabled=apm_tracing_disabled,
-        )
-
-    def _configure(
-        self,
-        enabled: Optional[bool] = None,
-        hostname: Optional[str] = None,
-        port: Optional[int] = None,
-        uds_path: Optional[str] = None,
-        https: Optional[bool] = None,
-        sampler: Optional[DatadogSampler] = None,
-        context_provider: Optional[BaseContextProvider] = None,
-        wrap_executor: Optional[Callable] = None,
-        priority_sampling: Optional[bool] = None,
-        trace_processors: Optional[List[TraceProcessor]] = None,
-        dogstatsd_url: Optional[str] = None,
-        writer: Optional[TraceWriter] = None,
-        partial_flush_enabled: Optional[bool] = None,
-        partial_flush_min_spans: Optional[int] = None,
-        api_version: Optional[str] = None,
-        compute_stats_enabled: Optional[bool] = None,
-        appsec_enabled: Optional[bool] = None,
-        iast_enabled: Optional[bool] = None,
-        apm_tracing_disabled: Optional[bool] = None,
-    ) -> None:
-        if enabled is not None:
-            self.enabled = enabled
-
-        if trace_processors is not None:
-            self._user_trace_processors = trace_processors
-
-        if partial_flush_enabled is not None:
-            self._partial_flush_enabled = partial_flush_enabled
-
-        if partial_flush_min_spans is not None:
-            self._partial_flush_min_spans = partial_flush_min_spans
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
@@ -476,113 +428,33 @@ class Tracer(object):
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
-            if sampler is not None:
-                sampler._rate_limit_always_on = True
-                sampler.limiter.rate_limit = 1
-                sampler.limiter.time_window = 60e9
-            else:
-                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
-
-        if sampler is not None:
-            self._sampler = sampler
-
-        if dogstatsd_url is not None:
-            self._dogstatsd_url = dogstatsd_url
-
-        if any(x is not None for x in [hostname, port, uds_path, https]):
-            # If any of the parts of the URL have updated, merge them with
-            # the previous writer values.
-            prev_url_parsed = parse.urlparse(self._agent_url)
-
-            if uds_path is not None:
-                if hostname is None and prev_url_parsed.scheme == "unix":
-                    hostname = prev_url_parsed.hostname
-                new_url = "unix://%s%s" % (hostname or "", uds_path)
-            else:
-                if https is None:
-                    https = prev_url_parsed.scheme == "https"
-                if hostname is None:
-                    hostname = prev_url_parsed.hostname or ""
-                if port is None:
-                    port = prev_url_parsed.port
-                scheme = "https" if https else "http"
-                new_url = "%s://%s:%s" % (scheme, hostname, port)
-            verify_url(new_url)
-            self._agent_url = new_url
-        else:
-            new_url = None
 
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled
 
-        try:
-            self._writer.stop()
-        except ServiceStatusError:
-            # It's possible the writer never got started
-            pass
-
-        if writer is not None:
-            self._writer = writer
-        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
-            if asm_config._asm_enabled:
-                api_version = "v0.4"
-            self._writer = AgentWriter(
-                self._agent_url,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                sync_mode=self._use_sync_mode(),
-                api_version=api_version,
-                # if apm opt out, neither agent or tracer should compute the stats
-                headers=(
-                    {"Datadog-Client-Computed-Stats": "yes"}
-                    if (compute_stats_enabled or asm_config._apm_opt_out)
-                    else {}
-                ),
-                report_metrics=not asm_config._apm_opt_out,
-                response_callback=self._agent_response_callback,
-            )
-        elif writer is None and isinstance(self._writer, LogWriter):
-            # No need to do anything for the LogWriter.
-            pass
         if isinstance(self._writer, AgentWriter):
+            if appsec_enabled:
+                self._writer._api_version = "v0.4"
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+
+        if trace_processors:
+            self._user_trace_processors = trace_processors
 
         if any(
             x is not None
             for x in [
-                partial_flush_min_spans,
-                partial_flush_enabled,
-                writer,
-                dogstatsd_url,
-                hostname,
-                port,
-                https,
-                uds_path,
-                api_version,
-                sampler,
                 trace_processors,
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
             ]
         ):
-            self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-                self._user_trace_processors,
-                self._writer,
-                self._partial_flush_enabled,
-                self._partial_flush_min_spans,
-                self._compute_stats,
-                self._single_span_sampling_rules,
-                self._agent_url,
-                self._sampler,
-                self._endpoint_call_counter_span_processor,
-            )
+            self._recreate()
 
         if context_provider is not None:
             self.context_provider = context_provider
-
-        if wrap_executor is not None:
-            self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
 
@@ -619,8 +491,22 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
+        self._recreate()
+        self._new_process = True
+
+    def _recreate(self):
+        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+        # Stop the writer.
+        # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
+        try:
+            self._writer.stop()
+        except ServiceStatusError:
+            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
+            # the writer before that point will raise a ServiceStatusError.
+            pass
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
+        # Recreate the trace and span processors
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
             self._user_trace_processors,
             self._writer,
@@ -632,8 +518,6 @@ class Tracer(object):
             self._sampler,
             self._endpoint_call_counter_span_processor,
         )
-
-        self._new_process = True
 
     def _start_span_after_shutdown(
         self,
@@ -1107,10 +991,6 @@ class Tracer(object):
           Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
         """
         return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
-
-    @staticmethod
-    def _is_span_internal(span):
-        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
 
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair

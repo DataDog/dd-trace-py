@@ -33,6 +33,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
+from ddtrace.settings._config import Config
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -671,7 +672,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
         return_value=TestVisibilityAPISettings(False, False, False, False),
     ), mock.patch(
-        "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        "ddtrace.internal.ci_visibility.writer.config", Config()
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
@@ -692,7 +693,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), _dummy_noop_git_client(), mock.patch(
-            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+            "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -711,7 +712,7 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+            "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
@@ -1107,7 +1108,7 @@ def test_civisibility_enable_tracer_uses_partial_traces():
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         CIVisibility.enable()
         assert CIVisibility._instance.tracer._partial_flush_enabled is True
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
@@ -1121,9 +1122,11 @@ def test_civisibility_enable_respects_passed_in_tracer():
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         tracer = CIVisibilityTracer()
-        tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        tracer._partial_flush_enabled = False
+        tracer._partial_flush_min_spans = 100
+        tracer._recreate()
         CIVisibility.enable(tracer=tracer)
         assert CIVisibility._instance.tracer._partial_flush_enabled is False
         assert CIVisibility._instance.tracer._partial_flush_min_spans == 100

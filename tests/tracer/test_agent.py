@@ -4,6 +4,7 @@ import pytest
 from ddtrace.internal import agent
 from ddtrace.internal.agent import info
 from ddtrace.internal.utils.http import verify_url
+from ddtrace.settings._agent import is_ipv6_hostname
 
 
 @pytest.mark.parametrize(
@@ -20,7 +21,7 @@ from ddtrace.internal.utils.http import verify_url
     ],
 )
 def test_is_ipv6_hostname(hostname, expected):
-    assert agent.is_ipv6_hostname(hostname) == expected
+    assert is_ipv6_hostname(hostname) == expected
 
 
 @pytest.mark.subprocess(

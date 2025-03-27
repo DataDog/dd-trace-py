@@ -1,8 +1,8 @@
 [[
   {
-    "name": "trace5",
-    "service": "tests.integration",
-    "resource": "trace5",
+    "name": "trace1",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "trace1",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -11,26 +11,26 @@
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
-      "runtime-id": "9d1cfdf7026e45dea46fc4c83768cc7b"
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 9723
+      "process_id": 19794
     },
-    "duration": 71105,
-    "start": 1692390478003298156
+    "duration": 86588,
+    "start": 1691163616713154842
   },
      {
        "name": "child",
-       "service": "tests.integration",
+       "service": "ddtrace_subprocess_dir",
        "resource": "child",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 11067,
-       "start": 1692390478003347011
+       "duration": 10853,
+       "start": 1691163616713219858
      }]]
