@@ -194,6 +194,17 @@ def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
 
     assert len(mock_tracer.pop_traces()) == 0
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+async def test_acompletion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        client = openai.AsyncOpenAI()
+        resp = await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+
+    assert len(mock_tracer.pop_traces()) == 0
+
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
@@ -306,6 +317,25 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.OpenAI()
         client.chat.completions.with_raw_response.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        )
+
+    assert len(mock_tracer.pop_traces()) == 0
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.chat.completions.with_raw_response.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": "Who won the world series in 2020?"},
