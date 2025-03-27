@@ -12,7 +12,7 @@ opt-level = 3
 pyo3 = { version = "0.24", features = ["extension-module"] }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "a6d0f841ab96d45e44b041bf73ba821cc2ae7e3d" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "0eb4b8911d9efb3a507a080c636d3cc9dd469c72" }
 
 [build-dependencies]
 pyo3-build-config = "0.24"
