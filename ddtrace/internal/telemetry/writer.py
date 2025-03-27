@@ -584,7 +584,7 @@ class TelemetryWriter(PeriodicService):
         self._app_started()
         self._app_product_change()
 
-        namespace_metrics = self._namespace.flush(self.interval)
+        namespace_metrics = self._namespace.flush(float(self.interval))
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
 

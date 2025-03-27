@@ -29,7 +29,7 @@ cdef class MetricNamespace:
         self._metrics_data = {}
 
     def flush(self, interval: float = None):
-        cdef float _interval = interval or 1.0
+        cdef float _interval = float(interval or 1.0)
         cdef int now
         cdef dict data
         cdef tuple _tags
