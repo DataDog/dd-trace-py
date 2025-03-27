@@ -2,12 +2,12 @@ import os
 from typing import Callable
 from typing import Sequence
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._connectors import SharedDataType
-from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 
 
 log = get_logger(__name__)
@@ -17,7 +17,7 @@ class RemoteConfigSubscriber(PeriodicService):
     def __init__(
         self, data_connector: PublisherSubscriberConnector, callback: Callable[[Sequence[Payload]], None], name: str
     ) -> None:
-        super().__init__(get_poll_interval_seconds() / 2)
+        super().__init__(config._remote_config_poll_interval / 2)
 
         self._data_connector = data_connector
         self._callback = callback
