@@ -28,28 +28,65 @@ using TaintRangeMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, Ta
 using TaintRangeMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
 #endif
 
-using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
-// using TaintRangeMapTypePtr = TaintRangeMapType*;
+enum class VulnerabilityType
+{
+    CODE_INJECTION = 0,
+    COMMAND_INJECTION,
+    HEADER_INJECTION,
+    INSECURE_COOKIE,
+    NO_HTTPONLY_COOKIE,
+    NO_SAMESITE_COOKIE,
+    PATH_TRAVERSAL,
+    SQL_INJECTION,
+    SSRF,
+    STACKTRACE_LEAK,
+    WEAK_CIPHER,
+    WEAK_HASH,
+    WEAK_RANDOMNESS,
+    XSS,
+};
 
+using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
+using SecureMarksList = std::vector<VulnerabilityType>;
+
+/**
+ * @brief Represents a range of tainted data with associated security marks
+ * @details This class manages a range of tainted data with its source and security marks.
+ *          It provides methods for manipulation and validation of taint ranges.
+ */
 struct TaintRange
 {
     RANGE_START start = 0;
     RANGE_LENGTH length = 0;
     Source source;
+    SecureMarksList secure_marks;
 
-    TaintRange() = default;
+    TaintRange()
+      : start(0)
+      , length(0)
+      , source()
+      , secure_marks()
+    {
+    }
 
-    TaintRange(const RANGE_START start, const RANGE_LENGTH length, Source source)
+    TaintRange(const RANGE_START start,
+               const RANGE_LENGTH length,
+               Source source,
+               const SecureMarksList& secure_marks = SecureMarksList())
       : start(start)
       , length(length)
       , source(std::move(source))
+      , secure_marks(secure_marks)
     {
         if (length <= 0) {
             throw std::invalid_argument("Error: Length cannot be set to 0.");
         }
     }
 
-    inline void set_values(const RANGE_START start_, const RANGE_LENGTH length_, Source source_)
+    inline void set_values(const RANGE_START start_,
+                           const RANGE_LENGTH length_,
+                           Source source_,
+                           SecureMarksList secure_marks_) noexcept
     {
         if (length_ <= 0) {
             throw std::invalid_argument("Error: Length cannot be set to 0.");
@@ -57,14 +94,14 @@ struct TaintRange
         start = start_;
         length = length_;
         source = std::move(source_);
+        secure_marks = std::move(secure_marks_);
     }
 
     void reset();
-
-    [[nodiscard]] string toString() const;
-
-    [[nodiscard]] uint get_hash() const;
-
+    string toString() const;
+    uint get_hash() const;
+    void add_secure_mark(VulnerabilityType mark);
+    bool has_secure_mark(VulnerabilityType mark);
     explicit operator std::string() const;
 };
 
