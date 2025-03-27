@@ -38,7 +38,7 @@ def get_parametrize(vuln_type, ignore_list=None):
             if evidence_input:
                 sources_expected = element["expected"]["sources"][0]
                 vulnerabilities_expected = element["expected"]["vulnerabilities"][0]
-                parameters = element.get("parameters")
+                parameters = element.get("parameters", [])
                 if parameters:
                     for replace, values in parameters.items():
                         for value in values:
