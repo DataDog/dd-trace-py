@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
+import weakref
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -39,24 +40,37 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
     def __init__(self, integration_config):
         super().__init__(integration_config)
-        self.oai_to_llmobs_span = {}  # type: dict[str, Span]
-        self.llmobs_traces = {}  # type: dict[str, LLMObsTraceInfo]
+        # a map of openai span ids to the corresponding llm obs span
+        self.oai_to_llmobs_span: Dict[str, Span] = weakref.WeakValueDictionary()
+        # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
+        # used to set attributes on the root span of the trace.
+        self.llmobs_traces: Dict[str, LLMObsTraceInfo] = {}
         self.tool_tracker = ToolCallTracker()
 
-    def start_span_from_oai_trace(
+    def trace(
         self,
         pin: Pin,
+        operation_id: str = "",
+        submit_to_llmobs: bool = False,
         **kwargs,
-    ) -> Optional[Span]:
-        oai_trace = kwargs.get("oai_trace")
-        if not isinstance(oai_trace, OaiTraceAdapter):
-            logger.warning("Expected OaiTraceAdapter but got %s", type(oai_trace))
-            return None
+    ) -> Span:
+        # NOTE: we will always call super().trace() with submit_to_llmobs=True
+        if kwargs.get("oai_trace"):
+            return self._start_span_from_oai_trace(pin, kwargs["oai_trace"], submit_to_llmobs, **kwargs)
+        if kwargs.get("oai_span"):
+            return self._start_span_from_oai_span(pin, kwargs["oai_span"], submit_to_llmobs, **kwargs)
+        return super().trace(pin, "openai_agents.request", submit_to_llmobs, **kwargs)
 
+    def _start_span_from_oai_trace(
+        self,
+        pin: Pin,
+        oai_trace: OaiTraceAdapter,
+        submit_to_llmobs: bool,
+    ) -> Span:
         llmobs_span = super().trace(
             pin,
             operation_id=oai_trace.name,
-            submit_to_llmobs=True,
+            submit_to_llmobs=submit_to_llmobs,
             span_name=oai_trace.name,
         )
 
@@ -74,21 +88,17 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         return llmobs_span
 
-    def start_span_from_oai_span(
+    def _start_span_from_oai_span(
         self,
         pin: Pin,
-        **kwargs,
-    ) -> Optional[Span]:
-        oai_span = kwargs.get("oai_span")
-        if not oai_span or not isinstance(oai_span, OaiSpanAdapter):
-            return None
+        oai_span: OaiSpanAdapter,
+        submit_to_llmobs: bool,
+    ) -> Span:
+        llmobs_span = super().trace(
+            pin, operation_id=oai_span.name, submit_to_llmobs=submit_to_llmobs, span_name=oai_span.name
+        )
 
         span_kind = oai_span.llmobs_span_kind
-        if not span_kind:
-            return None
-
-        llmobs_span = super().trace(pin, operation_id=oai_span.name, submit_to_llmobs=True, span_name=oai_span.name)
-
         llmobs_span._set_ctx_item(SPAN_KIND, span_kind)
         self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
 
@@ -297,7 +307,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if oai_span.llmobs_metadata:
             span._set_ctx_item(METADATA, oai_span.llmobs_metadata)
 
-    def get_trace_info(self, oai_trace_or_span) -> Optional[LLMObsTraceInfo]:
+    def get_trace_info(self, oai_trace_or_span: Union[OaiSpanAdapter, OaiTraceAdapter]) -> Optional[LLMObsTraceInfo]:
         """Get trace info for a span safely.
 
         Args:

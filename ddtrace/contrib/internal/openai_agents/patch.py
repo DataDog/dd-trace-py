@@ -1,6 +1,3 @@
-"""
-Patch module for the OpenAI Agents SDK.
-"""
 import agents
 from agents.tracing import add_trace_processor
 
@@ -10,6 +7,8 @@ from ddtrace.contrib.internal.openai_agents.processor import NoOpTraceProcessor
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import Pin
 
+
+config._add("openai_agents", {})
 
 _span_processor = None
 
@@ -21,9 +20,6 @@ def get_version() -> str:
         return getattr(version, "__version__", "")
     except ImportError:
         return ""
-
-
-config._add("openai_agents", {})
 
 
 def patch():
