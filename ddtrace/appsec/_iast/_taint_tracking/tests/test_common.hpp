@@ -1,6 +1,6 @@
 #pragma once
 #include <gtest/gtest.h>
-#include <initializer/Initializer.h>
+#include <initializer/initializer.h>
 #include <pybind11/embed.h>
 
 namespace py = pybind11;
