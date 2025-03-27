@@ -36,20 +36,20 @@ using TaintRangeMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, Tai
  */
 enum class VulnerabilityType
 {
-    CODE_INJECTION = 1,    ///< Code injection vulnerability
-    COMMAND_INJECTION,     ///< Command injection vulnerability
-    HEADER_INJECTION,      ///< HTTP header injection vulnerability
-    INSECURE_COOKIE,       ///< Insecure cookie configuration
-    NO_HTTPONLY_COOKIE,    ///< Missing HttpOnly flag in cookie
-    NO_SAMESITE_COOKIE,    ///< Missing SameSite attribute in cookie
-    PATH_TRAVERSAL,        ///< Path traversal vulnerability
-    SQL_INJECTION,         ///< SQL injection vulnerability
-    SSRF,                  ///< Server-Side Request Forgery vulnerability
-    STACKTRACE_LEAK,       ///< Stack trace information leakage
-    WEAK_CIPHER,           ///< Weak cryptographic cipher usage
-    WEAK_HASH,             ///< Weak cryptographic hash function usage
-    WEAK_RANDOMNESS,       ///< Weak random number generation
-    XSS,                   ///< Cross-Site Scripting vulnerability
+    CODE_INJECTION = 1, ///< Code injection vulnerability
+    COMMAND_INJECTION,  ///< Command injection vulnerability
+    HEADER_INJECTION,   ///< HTTP header injection vulnerability
+    INSECURE_COOKIE,    ///< Insecure cookie configuration
+    NO_HTTPONLY_COOKIE, ///< Missing HttpOnly flag in cookie
+    NO_SAMESITE_COOKIE, ///< Missing SameSite attribute in cookie
+    PATH_TRAVERSAL,     ///< Path traversal vulnerability
+    SQL_INJECTION,      ///< SQL injection vulnerability
+    SSRF,               ///< Server-Side Request Forgery vulnerability
+    STACKTRACE_LEAK,    ///< Stack trace information leakage
+    WEAK_CIPHER,        ///< Weak cryptographic cipher usage
+    WEAK_HASH,          ///< Weak cryptographic hash function usage
+    WEAK_RANDOMNESS,    ///< Weak random number generation
+    XSS,                ///< Cross-Site Scripting vulnerability
 };
 
 using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
@@ -75,10 +75,7 @@ struct TaintRange
     {
     }
 
-    TaintRange(const RANGE_START start,
-               const RANGE_LENGTH length,
-               Source source,
-               const SecureMarks& secure_marks = 0)
+    TaintRange(const RANGE_START start, const RANGE_LENGTH length, Source source, const SecureMarks& secure_marks = 0)
       : start(start)
       , length(length)
       , source(std::move(source))
