@@ -21,7 +21,33 @@ def get_request_vcr():
 # Get the name of the cassette to use for a given test
 # All LiteLLM requests that use Open AI get routed to the chat completions endpoint,
 # so we can reuse the same cassette for each combination of stream and n
-def get_cassette_name(stream, n):
+def get_cassette_name(stream, n, include_usage=True):
     stream_suffix = "_stream" if stream else ""
     choice_suffix = "_multiple_choices" if n > 1 else ""
-    return "completion" + stream_suffix + choice_suffix + CASETTE_EXTENSION
+    # include_usage only affects streamed responses
+    if stream and not include_usage:
+        usage_suffix = "_exclude_usage"
+    else:
+        usage_suffix = ""
+    return "completion" + stream_suffix + choice_suffix + usage_suffix + CASETTE_EXTENSION
+
+
+def consume_stream(resp, n):
+    output_messages = [{"content": "", "role": ""} for _ in range(n)]
+    token_metrics = {}
+    role = None
+    for chunk in resp:
+        for choice in chunk["choices"]:
+            content = choice["delta"]["content"] or ""
+            output_messages[choice.index]["content"] += content
+            if not output_messages[choice.index]["role"]:
+                role = choice["delta"]["role"] or role
+                output_messages[choice.index]["role"] = role
+
+        if "usage" in chunk:
+            token_metrics = {
+                "input_tokens": chunk["usage"]["prompt_tokens"],
+                "output_tokens": chunk["usage"]["completion_tokens"],
+                "total_tokens": chunk["usage"]["total_tokens"],
+            }
+    return output_messages, token_metrics

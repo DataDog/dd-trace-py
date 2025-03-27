@@ -36,7 +36,6 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
         exception_raised = False
         try:
             for chunk in self._generator:
-                self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
@@ -49,23 +48,6 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
-    
-    def _extract_token_chunk(self, chunk):
-        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        choices = getattr(chunk, "choices")
-        if not choices:
-            return
-        choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
-            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
-            return
-        try:
-            # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
-            # so we consume it and extract the token usage metadata before it reaches the user.
-            usage_chunk = self._generator.__next__()
-            self._streamed_chunks[0].insert(0, usage_chunk)
-        except (StopIteration, GeneratorExit):
-            return
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
     async def __aenter__(self):
@@ -79,7 +61,6 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
         exception_raised = False
         try:
             async for chunk in self._generator:
-                self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
@@ -92,19 +73,6 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
-    
-    async def _extract_token_chunk(self, chunk):
-        choices = getattr(chunk, "choices")
-        if not choices:
-            return
-        choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
-            return
-        try:
-            usage_chunk = await self._generator.__anext__()
-            self._streamed_chunks[0].insert(0, usage_chunk)
-        except (StopAsyncIteration, GeneratorExit):
-            return
 
 def _loop_handler(chunk, streamed_chunks):
     """Appends the chunk to the correct index in the streamed_chunks list.

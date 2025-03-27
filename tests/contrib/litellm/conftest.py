@@ -1,5 +1,5 @@
 import os
-from typing import Generator
+import mock
 
 import pytest
 from ddtrace.contrib.internal.litellm.patch import patch
@@ -11,6 +11,7 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.contrib.litellm.utils import get_request_vcr
+from ddtrace.llmobs import LLMObs
 
 
 def default_global_config():
@@ -26,6 +27,17 @@ def ddtrace_global_config():
 def ddtrace_config_litellm():
     return {}
 
+
+@pytest.fixture()
+def mock_llmobs_writer():
+    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
+    try:
+        LLMObsSpanWriterMock = patcher.start()
+        m = mock.MagicMock()
+        LLMObsSpanWriterMock.return_value = m
+        yield m
+    finally:
+        patcher.stop()
 
 @pytest.fixture
 def litellm(ddtrace_global_config, ddtrace_config_litellm):
@@ -44,14 +56,21 @@ def litellm(ddtrace_global_config, ddtrace_config_litellm):
                 yield litellm
                 unpatch()
 
-
 @pytest.fixture
-def mock_tracer(litellm):
+def mock_tracer(litellm, ddtrace_global_config):
     pin = Pin.get_from(litellm)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(litellm, tracer=mock_tracer)
     pin.tracer._configure()
+
+    if ddtrace_global_config.get("_llmobs_enabled", False):
+        # Have to disable and re-enable LLMObs to use to mock tracer.
+        LLMObs.disable()
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+
     yield mock_tracer
+
+    LLMObs.disable()
 
 
 @pytest.fixture
