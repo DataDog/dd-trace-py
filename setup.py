@@ -648,7 +648,9 @@ if not IS_PYSTON:
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False))
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+        )
 
     if (platform.system() == "Linux" or platform.system() == "Darwin") and is_64_bit_python():
         ext_modules.append(
