@@ -113,65 +113,6 @@ cdef inline int pack_bool(msgpack_packer *pk, object n) except? -1:
         else:
             return msgpack_pack_false(pk)
 
-cdef inline int pack_map(msgpack_packer *pk, object n) except? -1:
-    if n is None:
-        return msgpack_pack_nil(pk)
-
-    for k, v in n.items():
-        ret = pack_text(pk, k)
-        if isinstance(v, str):
-            ret = pack_text(pk, v)
-            if ret != 0:
-                return ret
-        elif isinstance(v, bool):
-            ret = pack_bool(pk, v)
-            if ret != 0:
-                return ret
-        elif isinstance(v, (int, float)):
-            ret = pack_number(pk, v)
-            if ret != 0:
-                return ret
-        # pack a list.
-        elif isinstance(v, (list, tuple)):
-            ret = msgpack_pack_map(pk, 1)
-            ret = pack_text(pk, "values")
-            ret = pack_list(pk, v)
-            if ret != 0:
-                return ret
-        else:
-            raise ValueError("Unsupported type {type(v)} for list, must be str, int, float, or bool")
-    return ret
-
-
-cdef inline int pack_list(msgpack_packer *pk, object n) except? -1:
-    if n is None:
-        return msgpack_pack_nil(pk)
-
-    ret = msgpack_pack_array(pk, len(n))
-    if ret != 0:
-        return ret
-
-    for v in n:
-        if isinstance(v, str):
-            ret = pack_text(pk, v)
-            if ret != 0:
-                return ret
-        elif isinstance(v, (int, float)):
-            ret = pack_number(pk, v)
-            if ret != 0:
-                return ret
-        elif isinstance(v, bool):
-            ret = pack_bool(pk, v)
-            if ret != 0:
-                return ret
-        elif isinstance(v, dict):
-            msgpack_pack_map(pk, len(v))
-            ret = pack_map(pk, v)
-            if ret != 0:
-                return ret
-        else:
-            raise ValueError("Unsupported type {type(v)} for list: must be str, int, float, bool")
-    return ret
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
@@ -690,6 +631,9 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef inline int _pack_span_events(self, list span_events):
         cdef int ret
         cdef int L
+        cdef str attr_k
+        cdef object attr_v
+        cdef object event
         ret = msgpack_pack_array(&self.pk, len(span_events))
         if ret != 0:
             return ret
@@ -720,23 +664,17 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_bytes(&self.pk, <char*> b"attributes", 10)
                 if ret != 0:
                     return ret
-                print(event.attributes)
+
                 ret = msgpack_pack_map(&self.pk, len(event.attributes))
                 if ret != 0:
                     return ret
-                
+
                 for attr_k, attr_v in event.attributes.items():
                     ret = pack_text(&self.pk, attr_k)
                     if ret != 0:
                         return ret
 
-                    ret = msgpack_pack_map(&self.pk, 2)
-                    if ret != 0:
-                        return ret
-                    ret = pack_bytes(&self.pk, <char*> b"type", 4)
-                    if ret != 0:
-                        return ret
-                    ret = self.pack_attributes(attr_v)
+                    ret = self.pack_span_event_attributes(attr_v)
                     if ret != 0:
                         return ret
         return 0
@@ -798,79 +736,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             return ret
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
-
-    cdef int pack_attributes(self, attr_v, depth=0) except ? -1:
-        if isinstance(attr_v, str):
-            ret = msgpack_pack_uint8(&self.pk, 0)
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"string_value", 12)
-            if ret != 0:
-                return ret
-            ret = pack_text(&self.pk, attr_v)
-            if ret != 0:
-                return ret
-        elif isinstance(attr_v, bool):
-            ret = msgpack_pack_uint8(&self.pk, 1) 
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"bool_value", 10)
-            if ret != 0:
-                return ret
-            ret = pack_bool(&self.pk, attr_v)
-            if ret != 0:
-                return ret
-        elif isinstance(attr_v, int):
-            ret = msgpack_pack_uint8(&self.pk, 2)
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"int_value", 9)
-            if ret != 0:
-                return ret
-            ret = pack_number(&self.pk, attr_v)
-            if ret != 0:
-                return ret
-        elif isinstance(attr_v, float):
-            ret = msgpack_pack_uint8(&self.pk, 3)
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"double_value", 12)
-            if ret != 0:
-                return ret
-            ret = pack_number(&self.pk, attr_v)
-            if ret != 0:
-                return ret
-        elif isinstance(attr_v, list):
-            if depth != 0:
-                raise ValueError("Nested list found; cannot encode")
-            ret = msgpack_pack_uint8(&self.pk, 4)
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"array_value", 11)
-            if ret != 0:
-                return ret
-            ret = msgpack_pack_map(&self.pk, 1)
-            if ret != 0:
-                return ret
-            ret = pack_bytes(&self.pk, <char*> b"values", 6)
-            if ret != 0:
-                return ret
-            ret = msgpack_pack_array(&self.pk, len(attr_v))
-            
-            for elt in attr_v:
-                ret = msgpack_pack_map(&self.pk, 2)
-                if ret != 0:
-                    return ret
-                ret = pack_bytes(&self.pk, <char*> b"type", 4)
-                if ret != 0:
-                    return ret
-                ret = self.pack_attributes(elt, depth+1)
-                if ret != 0:
-                    return ret
-        else:
-            raise ValueError("Unsupported type(attr_v)")
-            
-        return ret
 
     cdef int pack_span(self, object span, void *dd_origin) except? -1:
         cdef int ret
@@ -1029,6 +894,84 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
         return ret
 
+    cdef int pack_span_event_attributes(self, object attr, int depth=0) except ? -1:
+        cdef int ret
+        cdef object elt
+
+        ret = msgpack_pack_map(&self.pk, 2)
+        if ret != 0:
+            return ret
+        ret = pack_bytes(&self.pk, <char*> b"type", 4)
+        if ret != 0:
+            return ret
+
+        if isinstance(attr, str):
+            ret = msgpack_pack_uint8(&self.pk, 0)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"string_value", 12)
+            if ret != 0:
+                return ret
+            ret = pack_text(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, bool):
+            ret = msgpack_pack_uint8(&self.pk, 1)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"bool_value", 10)
+            if ret != 0:
+                return ret
+            ret = pack_bool(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, int):
+            ret = msgpack_pack_uint8(&self.pk, 2)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"int_value", 9)
+            if ret != 0:
+                return ret
+            ret = pack_number(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, float):
+            ret = msgpack_pack_uint8(&self.pk, 3)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"double_value", 12)
+            if ret != 0:
+                return ret
+            ret = pack_number(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, list):
+            if depth != 0:
+                raise ValueError("Nested list found; cannot encode")
+            ret = msgpack_pack_uint8(&self.pk, 4)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"array_value", 11)
+            if ret != 0:
+                return ret
+            ret = msgpack_pack_map(&self.pk, 1)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"values", 6)
+            if ret != 0:
+                return ret
+            ret = msgpack_pack_array(&self.pk, len(attr))
+            if ret != 0:
+                return ret
+
+            for elt in attr:
+                ret = self.pack_span_event_attributes(elt, depth+1)
+                if ret != 0:
+                    return ret
+        else:
+            raise ValueError(f"Unsupported type for SpanEvent attribute: {type(attr)}")
+
+        return ret
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
@@ -1335,52 +1278,3 @@ def packb(o, **kwargs):
     See :class:`Packer` for options.
     """
     return Packer(**kwargs).pack(o)
-
-
-def convertSpanEventAttributeValues(key, value, int depth=0):
-    if isinstance(value, str):
-        return {
-            'type': 0,
-            'string_value': value
-        }
-
-    elif isinstance(value, bool):
-        return {
-            'type': 1,
-            'bool_value': value
-        }
-
-    elif isinstance(value, int):
-        return {
-            'type': 2,
-            'int_value': value
-        }
-
-    elif isinstance(value, float):
-        return {
-            'type': 3,
-            'double_value': value
-        }
-
-    elif isinstance(value, list):
-        if depth == 0:
-            converted_array = []
-            for val in value:
-                converted_val = convertSpanEventAttributeValues(key, val, 1)
-                if converted_val is not None:
-                    converted_array.append(converted_val)
-
-            if len(converted_array) > 0:
-                return {
-                    'type': 4,
-                    'array_value': converted_array
-                }
-            else:
-                return None
-        else:
-            print(f"Encountered nested array data type. Skipping key: {key}: with value: {type(value)}.")
-            return None
-
-    else:
-        print(f"Encountered unsupported data type, key: {key}: with value: {type(value)}. Skipping encoding of pair.")
-        return None
