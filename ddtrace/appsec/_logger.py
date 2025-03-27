@@ -50,7 +50,7 @@ class AppsecLogger:
     def log(self, message: LogOption, info: str, more_info: str = "", context: bool = False, exc_info: bool = False):
         if get_time(message, info):
             if context:
-                filename, line_number, function_name, _stack_info = self._logger.findCaller(False, 4)
+                filename, line_number, function_name, _stack_info = self._logger.findCaller(False, 3)
                 string = (
                     f"{self._product}::{message._name}::{info}{more_info}"
                     f" [{filename}, line {line_number}, in {function_name}]"
