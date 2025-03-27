@@ -14,7 +14,6 @@ import ddtrace
 import platform
 from .._types import StringType
 from ..util import sanitize_string
-from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
