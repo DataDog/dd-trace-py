@@ -70,7 +70,7 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 IS_EDITABLE = False  # Set to True if the package is being installed in editable mode
 
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
-IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
+IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "src"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
@@ -648,9 +648,7 @@ if not IS_PYSTON:
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-        ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
-        )
+        ext_modules.append(CMakeExtension("ddtrace.appsec._iast.src._native", source_dir=IAST_DIR, optional=False))
 
     if (platform.system() == "Linux" or platform.system() == "Darwin") and is_64_bit_python():
         ext_modules.append(
@@ -688,7 +686,7 @@ setup(
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec._iast._taint_tracking": ["CMakeLists.txt"],
+        "ddtrace.appsec._iast.src": ["CMakeLists.txt"],
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),

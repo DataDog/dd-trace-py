@@ -11,14 +11,14 @@ trap clean EXIT
 exclude_patterns() {
     local patterns=(
         '^ddtrace/vendor/'
-        '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'
+        '^ddtrace/appsec/_iast/src/_vendor/'
         '.eggs/'
         'dd-trace-py/build/'
         '_taint_tracking/CMakeFiles'
         '_taint_tracking/_deps/'
         '.riot/'
         '_taint_tracking/_vendor/'
-        'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
+        'ddtrace/appsec/_iast/src/cmake-build-debug/'
     )
 
     # Join all patterns with '|'

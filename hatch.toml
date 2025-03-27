@@ -360,9 +360,9 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
 test = [
-    "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
-    "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests",
-    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests"
+    "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/src -B ddtrace/appsec/_iast/src",
+    "make -f ddtrace/appsec/_iast/src/tests/Makefile native_tests",
+    "ddtrace/appsec/_iast/src/tests/native_tests"
 ]
 
 [[envs.appsec_iast_native.matrix]]
