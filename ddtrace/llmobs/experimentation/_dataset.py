@@ -334,194 +334,177 @@ class Dataset:
         if not self._datadog_dataset_id:
             raise ValueError("Dataset must be synced with Datadog before performing batch updates")
 
-        # Prepare the payload
-        payload = {
-            "data": {
-                "type": "datasets",
-                "attributes": {}
-            }
-        }
-
         if overwrite:
             print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}' using batch update{Color.RESET}")
         else:
             print("Pushing changes to existing dataset, new version will be created")
 
-        # Add new records
-        if self._changes['added']:
-            insert_records = []
-            for record in self._changes['added']:
-                new_record = {
-                    "input": record["input"],
-                    "expected_output": record["expected_output"]
-                }
-                # Add metadata if present
-                metadata = {k: v for k, v in record.items() 
-                          if k not in ["input", "expected_output", "record_id"]}
-                if metadata:
-                    new_record["metadata"] = metadata
-                insert_records.append(new_record)
-            payload["data"]["attributes"]["insert_records"] = insert_records
+        # Prepare the payload by gathering insert, update, and delete records
+        payload = self._prepare_batch_payload(overwrite=overwrite)
 
-        # Add updated records
-        if self._changes['updated']:
-            update_records = []
-            for _, old_record, new_record in self._changes['updated']:
-                # We need the record_id from the old record
-                if "record_id" not in old_record:
-                    raise ValueError("Cannot update record: missing record_id")
-                
-                update_record = {"id": old_record["record_id"]}
-                
-                # Only include fields that have changed
-                if new_record.get("input") != old_record.get("input"):
-                    update_record["input"] = new_record["input"]
-                if new_record.get("expected_output") != old_record.get("expected_output"):
-                    update_record["expected_output"] = new_record["expected_output"]
-                
-                # Handle metadata changes
-                old_metadata = {k: v for k, v in old_record.items() 
-                              if k not in ["input", "expected_output", "record_id"]}
-                new_metadata = {k: v for k, v in new_record.items() 
-                              if k not in ["input", "expected_output", "record_id"]}
-                if old_metadata != new_metadata:
-                    update_record["metadata"] = new_metadata
-                
-                if len(update_record) > 1:  # Only add if there are actual changes (more than just id)
-                    update_records.append(update_record)
-            if update_records:
-                payload["data"]["attributes"]["update_records"] = update_records
-
-        # Add deleted records
-        if self._changes['deleted']:
-            delete_records = []
-            for _, record in self._changes['deleted']:
-                if "record_id" not in record:
-                    raise ValueError("Cannot delete record: missing record_id")
-                delete_records.append(record["record_id"])
-            payload["data"]["attributes"]["delete_records"] = delete_records
-
-        if overwrite:
-            payload["data"]["attributes"]["overwrite"] = True
-        
         # Send the batch update request
         url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
-        resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
+        exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
         # Sleep briefly to allow for processing
         time.sleep(3)
 
-        # Pull the dataset to get all record IDs and latest version
+        # Pull the dataset to get all record IDs and latest version, then clear changes
+        self._refresh_from_remote()
+
+    def _prepare_batch_payload(self, overwrite: bool) -> Dict[str, Any]:
+        """
+        Build the JSON payload for batch updating. This includes newly added, updated, and deleted records.
+        """
+        payload_data = {"type": "datasets", "attributes": {}}
+
+        # Insert records
+        if self._changes['added']:
+            insert_records = []
+            for record in self._changes['added']:
+                new_record = {"input": record["input"], "expected_output": record["expected_output"]}
+                metadata = {k: v for k, v in record.items() if k not in ["input", "expected_output", "record_id"]}
+                if metadata:
+                    new_record["metadata"] = metadata
+                insert_records.append(new_record)
+            payload_data["attributes"]["insert_records"] = insert_records
+
+        # Update records
+        if self._changes['updated']:
+            update_records = []
+            for _, old_record, new_record in self._changes['updated']:
+                if "record_id" not in old_record:
+                    raise ValueError("Cannot update record: missing record_id")
+                upd = {"id": old_record["record_id"]}
+
+                if new_record.get("input") != old_record.get("input"):
+                    upd["input"] = new_record["input"]
+                if new_record.get("expected_output") != old_record.get("expected_output"):
+                    upd["expected_output"] = new_record["expected_output"]
+
+                old_metadata = {k: v for k, v in old_record.items() if k not in ["input", "expected_output", "record_id"]}
+                new_metadata = {k: v for k, v in new_record.items() if k not in ["input", "expected_output", "record_id"]}
+                if old_metadata != new_metadata:
+                    upd["metadata"] = new_metadata
+
+                if len(upd) > 1:
+                    update_records.append(upd)
+
+            if update_records:
+                payload_data["attributes"]["update_records"] = update_records
+
+        # Delete records
+        if self._changes['deleted']:
+            delete_ids = []
+            for _, record in self._changes['deleted']:
+                if "record_id" not in record:
+                    raise ValueError("Cannot delete record: missing record_id")
+                delete_ids.append(record["record_id"])
+            payload_data["attributes"]["delete_records"] = delete_ids
+
+        if overwrite:
+            payload_data["attributes"]["overwrite"] = True
+
+        return {"data": payload_data}
+
+    def _refresh_from_remote(self) -> None:
+        """Pull the dataset from Datadog to refresh all data and mark it as synced."""
         pulled_dataset = self.pull(self.name)
         self._data = pulled_dataset._data
         self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
         self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
-
-        # Clear changes and mark as synced
         self._clear_changes()
         self._synced = True
 
     def push(self, overwrite: bool = False, new_version: bool = False) -> None:
         """
         Push the dataset to Datadog, optionally overwriting an existing dataset or creating a new version.
-        
-        This is the high-level method that handles:
-        1. Checking for an existing dataset on Datadog by name.
-        2. If dataset exists remotely:
-           - For local datasets (not synced):
-             * If overwrite=True: overwrite the remote dataset
-             * If new_version=True: create a new version
-             * If neither: show warning and return
-           - For synced datasets with changes, use batch_update
-        3. If dataset doesn't exist, create new
 
-        Args:
-            overwrite (bool, optional): If True, overwrite the existing dataset if found. Defaults to False.
-            new_version (bool, optional): If True and dataset exists, create a new version. Defaults to False.
+        1. Checks if a dataset with the same name exists on Datadog.
+        2. If it exists:
+           - For local datasets (not synced):
+             * overwrite=True => Overwrite remote dataset
+             * new_version=True => Create a new version
+             * else => Warn
+           - For a synced dataset with changes => either batch update, overwrite, or new version
+           - For a synced dataset with no changes => do nothing
+        3. If it doesn't exist, create a new dataset.
         """
         if overwrite and new_version:
             raise ValueError("Cannot specify both overwrite=True and new_version=True")
 
         _validate_init()
 
-        # Check for an existing dataset with the same name
-        encoded_name = quote(self.name)
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
-        resp = exp_http_request("GET", url)
-        existing_dataset = resp.json().get("data", [])
+        # Check for matching dataset
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(self.name)}"
+        existing_dataset = exp_http_request("GET", url).json().get("data", [])
 
-        # Detect if we have any local changes
-        has_changes = any(len(changes) > 0 for changes in self._changes.values())
+        has_changes = any(len(chg) > 0 for chg in self._changes.values())
 
+        # If remote dataset found
         if existing_dataset:
             remote_id = existing_dataset[0]["id"]
-            
-            # Case 1: We have a local dataset (not synced) with same name as remote
+            current_version = existing_dataset[0]["attributes"]["current_version"]
+
+            # Local dataset not yet synced
             if not self._datadog_dataset_id:
                 if overwrite:
-                    # If overwrite=True, proceed with overwrite
                     self._datadog_dataset_id = remote_id
-                    self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
+                    self._datadog_dataset_version = current_version
                     self._push_entire_dataset(overwrite=True)
-                    return
                 elif new_version:
-                    # If new_version=True, create new version via push
                     self._datadog_dataset_id = remote_id
-                    self._datadog_dataset_version = existing_dataset[0]["attributes"]["current_version"]
-                    self._push_entire_dataset(overwrite=False)  # Push will create new version
-                    return
+                    self._datadog_dataset_version = current_version
+                    self._push_entire_dataset(overwrite=False)
                 else:
-                    print(f"{Color.YELLOW}Dataset '{self.name}' already exists in Datadog. "
-                          f"Use push(overwrite=True) to overwrite the remote dataset "
-                          f"or push(new_version=True) to create a new version.{Color.RESET}")
-                    return
+                    print(
+                        f"{Color.YELLOW}Dataset '{self.name}' already exists. "
+                        "Use push(overwrite=True) to overwrite "
+                        "or push(new_version=True) to create a new version."
+                        f"{Color.RESET}"
+                    )
+                return
 
-            # Case 2: We have a synced dataset
+            # Local dataset synced
             if self._datadog_dataset_id == remote_id:
                 if has_changes:
                     if overwrite:
-                        # If we have changes and overwrite=True, use push to overwrite
                         self._push_entire_dataset(overwrite=True)
                     elif new_version:
-                        # If we have changes and new_version=True, use push to create new version
                         self._push_entire_dataset(overwrite=False)
                     else:
-                        # If we have changes but no overwrite/new_version, use batch_update
                         self._batch_update(overwrite=False)
-                    return
                 else:
                     print("Dataset is already synced and has no changes.")
-                    return
+                return
 
-            # Case 3: We have a synced dataset but with different ID (shouldn't happen)
-            raise ValueError(f"Dataset '{self.name}' exists but with different ID. This shouldn't happen.")
+            # Dataset found but ID doesn't match
+            raise ValueError(f"Dataset '{self.name}' exists but with a different ID. This shouldn't happen.")
 
         else:
-            # No dataset found on Datadog; create new
+            # No remote dataset with this name
             if self._datadog_dataset_id:
-                # We thought we were synced but the remote dataset is gone
-                print(f"{Color.YELLOW}Warning: Remote dataset no longer exists. Creating new dataset.{Color.RESET}")
+                print(
+                    f"{Color.YELLOW}Warning: Remote dataset no longer exists. "
+                    f"Creating a new one.{Color.RESET}"
+                )
                 self._datadog_dataset_id = None
                 self._datadog_dataset_version = 0
-            
+
             self._push_entire_dataset(overwrite=False)
 
     def _push_entire_dataset(self, overwrite: bool) -> None:
         """
         Internal helper to create or overwrite a dataset.
-        
-        If self._datadog_dataset_id is set, it will update that dataset (potentially
-        overwriting it). If no dataset_id is present, it will:
-        1. First create a new dataset
-        2. Then add all records using the /push endpoint
+        If there is no self._datadog_dataset_id, a new dataset is created first.
+        Then all records are pushed using /push. Finally, we refresh from remote.
         """
         if overwrite:
             print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}' using push{Color.RESET}")
 
-        # If we don't have a dataset_id, create the dataset first
+        # Create dataset if needed
         if not self._datadog_dataset_id:
-            # Create new dataset (metadata only)
-            dataset_payload = {
+            payload = {
                 "data": {
                     "type": "datasets",
                     "attributes": {
@@ -530,78 +513,52 @@ class Dataset:
                     }
                 }
             }
-            resp = exp_http_request(
-                "POST", "/api/unstable/llm-obs/v1/datasets", 
-                body=json.dumps(dataset_payload).encode("utf-8")
-            )
+            resp = exp_http_request("POST", "/api/unstable/llm-obs/v1/datasets", body=json.dumps(payload).encode("utf-8"))
             response_data = resp.json()
             self._datadog_dataset_id = response_data["data"]["id"]
             self._datadog_dataset_version = 0
 
-        # Now that we have a dataset_id (either from creation or existing),
-        # prepare the records to push
+        # Prepare records for pushing
         records_list = []
         for record in self._data:
-            record_payload = {}
-            # If this record was previously pulled from Datadog, preserve its ID
+            rec_payload = {}
             if "record_id" in record:
-                record_payload["id"] = record["record_id"]
-
-            # Always include input and expected_output
-            record_payload["input"] = record["input"]
+                rec_payload["id"] = record["record_id"]
+            rec_payload["input"] = record["input"]
             if "expected_output" in record:
-                record_payload["expected_output"] = record["expected_output"]
-
-            # Gather any other keys as metadata
-            metadata = {
-                k: v
-                for k, v in record.items()
-                if k not in ["input", "expected_output", "record_id"]
-            }
+                rec_payload["expected_output"] = record["expected_output"]
+            metadata = {k: v for k, v in record.items() if k not in ["input", "expected_output", "record_id"]}
             if metadata:
-                record_payload["metadata"] = metadata
+                rec_payload["metadata"] = metadata
+            records_list.append(rec_payload)
 
-            records_list.append(record_payload)
-
-        # Split records into chunks if needed (e.g., if there are many records)
+        # Send records in chunks if needed
         chunk_size = DEFAULT_CHUNK_SIZE
-        chunks = [records_list[i:i + chunk_size] for i in range(0, len(records_list), chunk_size)]
+        chunks = [records_list[i : i + chunk_size] for i in range(0, len(records_list), chunk_size)]
 
-        # Show progress bar for large datasets
         show_progress = len(chunks) > 1
         if show_progress:
             _print_progress_bar(0, len(chunks), prefix="Pushing records:", suffix="Complete")
 
-        # Push each chunk of records
         for i, chunk in enumerate(chunks):
             push_payload = {
                 "data": {
                     "type": "datasets",
                     "attributes": {
                         "records": chunk,
-                        "overwrite": overwrite if i == 0 else False  # Only overwrite on first chunk
-                    }
+                        "overwrite": overwrite if i == 0 else False,
+                    },
                 }
             }
-
             url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/push"
-            resp = exp_http_request("POST", url, body=json.dumps(push_payload).encode("utf-8"))
+            exp_http_request("POST", url, body=json.dumps(push_payload).encode("utf-8"))
 
             if show_progress:
                 _print_progress_bar(i + 1, len(chunks), prefix="Pushing records:", suffix="Complete")
 
-        # Sleep briefly to allow processing
+        # Give Datadog time to process, then refresh local data
         time.sleep(3)
-
-        # Pull the dataset to get all record IDs and latest version
-        pulled_dataset = self.pull(self.name)
-        self._data = pulled_dataset._data
-        self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
-        self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
-
-        # Clear local changes and mark as synced
-        self._clear_changes()
-        self._synced = True
+        self._refresh_from_remote()
 
     @classmethod
     def from_csv(
