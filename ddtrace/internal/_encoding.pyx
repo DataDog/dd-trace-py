@@ -756,10 +756,10 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         # do not include in meta
         if self.top_level_span_event_encoding:
             has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
-            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events \
+            L = 7 + has_span_type + has_meta + has_metrics + 1 + has_parent_id + has_links + has_span_events \
                 + has_meta_struct
         else:
-            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+            L = 7 + has_span_type + has_meta + has_metrics + 1 + has_parent_id + has_links + has_meta_struct
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -821,13 +821,15 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
+            ret = pack_bytes(&self.pk, <char *> b"error", 5)
+            if ret != 0:
+                return ret
             if has_error:
-                ret = pack_bytes(&self.pk, <char *> b"error", 5)
-                if ret != 0:
-                    return ret
                 ret = msgpack_pack_long(&self.pk, <long> 1)
-                if ret != 0:
-                    return ret
+            else:
+                ret = msgpack_pack_long(&self.pk, <long> 0)
+            if ret != 0:
+                return ret
 
             if has_span_type:
                 ret = pack_bytes(&self.pk, <char *> b"type", 4)
