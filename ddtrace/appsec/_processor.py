@@ -9,6 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -197,13 +198,15 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_rules(self, new_rules: List[Tuple[str, str, PayloadType]]) -> bool:
+    def _update_rules(
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+    ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        result = self._ddwaf.update_rules(new_rules)
+        result = self._ddwaf.update_rules(removals, updates)
         self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
