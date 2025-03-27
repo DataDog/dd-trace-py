@@ -2,6 +2,7 @@ import atexit
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 
@@ -20,6 +21,7 @@ from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs import _telemetry as telemetry
@@ -28,6 +30,7 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -67,10 +70,24 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
+def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
+    """Determine whether to use agentless mode based on agent availability and capabilities."""
+    if user_defined_agentless_enabled is not None:
+        return user_defined_agentless_enabled
+
+    agent_info: Optional[Dict[str, Any]] = agent.info()
+
+    if agent_info is None:
+        return True
+
+    endpoints = agent_info.get("endpoints", [])
+    return "/evp_proxy/v2/" not in endpoints
+
+
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
@@ -80,8 +97,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._endpoint = ""  # type: str
         self._site = site  # type: str
         self._intake = ""  # type: str
-        self._headers = {"DD-API-KEY": self._api_key, "Content-Type": "application/json"}
         self._event_type = ""  # type: str
+        self._is_agentless: bool = is_agentless
 
     def start(self, *args, **kwargs):
         super(BaseLLMObsWriter, self).start()
@@ -91,15 +108,15 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
+    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> Optional[bool]:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
-                telemetry.record_dropped_eval_payload([event], error="buffer_full")
-                return
+                return False
             self._buffer.append(event)
+            return True
 
     def periodic(self) -> None:
         with self._lock:
@@ -108,18 +125,13 @@ class BaseLLMObsWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
 
-        if not self._headers.get("DD-API-KEY"):
-            logger.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
-                "Ensure this configuration is set before running your application.",
-            )
-            return
-
         data = self._data(events)
         enc_llm_events = safe_json(data)
-        conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
+        conn = self._get_connection()
         try:
-            conn.request("POST", self._endpoint, enc_llm_events, self._headers)
+            endpoint = self._get_endpoint()
+            headers = self._get_headers()
+            conn.request("POST", endpoint, enc_llm_events, headers)
             resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
@@ -141,12 +153,37 @@ class BaseLLMObsWriter(PeriodicService):
         finally:
             conn.close()
 
+    def _get_base_url(self) -> str:
+        if self._is_agentless:
+            return "https://%s.%s" % (self._intake, self._site)
+        return agent.config.trace_agent_url
+
+    def _get_endpoint(self) -> str:
+        if self._is_agentless:
+            return self._endpoint
+        return "%s%s" % (EVP_PROXY_AGENT_BASE_PATH, self._endpoint)
+
     @property
     def _url(self) -> str:
-        return "https://%s%s" % (self._intake, self._endpoint)
+        return "%s%s" % (self._get_base_url(), self._get_endpoint())
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
+
+    def _get_connection(self):
+        if self._is_agentless:
+            return httplib.HTTPSConnection("%s.%s" % (self._intake, self._site), 443, timeout=self._timeout)
+        return get_connection(agent.config.trace_agent_url, timeout=self._timeout)
+
+    def _get_headers(self):
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self._is_agentless:
+            headers["DD-API-KEY"] = self._api_key
+        else:
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = self._intake  # "api"
+        return headers
 
     def recreate(self) -> "BaseLLMObsWriter":
         return self.__class__(
@@ -154,21 +191,23 @@ class BaseLLMObsWriter(PeriodicService):
             api_key=self._api_key,
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=self._is_agentless,
         )
 
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool) -> None:
+        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
         self._event_type = "evaluation_metric"
         self._buffer = []
         self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
-        self._intake = "api.%s" % self._site  # type: str
+        self._intake = "api"
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
-        self._enqueue(event)
+        if not self._enqueue(event):
+            telemetry.record_dropped_eval_payload([event], error="buffer_full")
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
@@ -257,7 +296,7 @@ class LLMObsSpanWriter(HTTPWriter):
         reuse_connections=None,
     ):
         headers = {}
-        clients = []  # type: List[WriterClientBase]
+        clients: List[WriterClientBase] = []
         if is_agentless:
             if not agentless_url:
                 raise ValueError("agentless_url is required for agentless mode")
@@ -266,7 +305,7 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent.config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
         self.agentless_url = agentless_url
