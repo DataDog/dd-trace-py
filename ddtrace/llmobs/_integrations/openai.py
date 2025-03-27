@@ -30,7 +30,6 @@ from ddtrace.trace import Span
 
 class OpenAIIntegration(BaseLLMIntegration):
     _integration_name = "openai"
-    _with_raw_response = False
 
     def __init__(self, integration_config, openai):
         # FIXME: this currently does not consider if the tracer is configured to

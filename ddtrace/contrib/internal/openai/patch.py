@@ -178,24 +178,12 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
+
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
 
-    create_span = True
-    # skip creating a new span if interaction is already being traced with with_raw_response or streaming and with_raw_response is being used
-    if (
-        integration._with_raw_response
-        or (
-            (
-                endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
-                or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook
-            )
-            and kwargs.get("stream")
-        )
-    ):
-        create_span = False
-        # reset the with_raw_response flag to False
-        integration._with_raw_response = False
+    # avoid creating a span if streaming with raw response
+    create_span = not (kwargs.pop("_dd.with_raw_response", False) and kwargs.get("stream", False))
     if create_span:
         span = integration.trace(
             pin,
@@ -204,12 +192,6 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         )
     else:
         span = None
-    # set the context item to indicate that the span is being traced with with_raw_response
-    if (
-        endpoint_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
-        or endpoint_hook is _endpoint_hooks._CompletionWithRawResponseHook
-    ):
-        integration._with_raw_response = True
 
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
@@ -247,6 +229,9 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
 def _patched_endpoint(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
+        if patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook:
+            kwargs["_dd.with_raw_response"] = True
+            return func(*args, **kwargs)
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
