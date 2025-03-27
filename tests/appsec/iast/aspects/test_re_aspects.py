@@ -43,9 +43,7 @@ def test_re_findall_aspect_tainted_string():
     assert res_list == ["/polompos", "/pok", ".jpeg", "/foo", "/bar", "/baaz", ".jpeg"]
     for i in res_list:
         assert get_tainted_ranges(i) == [
-            TaintRange(
-                0, len(i), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER), []
-            ),
+            TaintRange(0, len(i), Source("test_re_sub_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER)),
         ]
 
 
@@ -208,7 +206,6 @@ def test_re_split_aspect_tainted_string_re_object():
                     0,
                     len(res_str),
                     Source("test_re_split_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER),
-                    [],
                 ),
             ]
         else:
@@ -232,7 +229,6 @@ def test_re_split_aspect_tainted_string_re_module():
                     0,
                     len(res_str),
                     Source("test_re_split_aspect_tainted_string", tainted_foobarbaz, OriginType.PARAMETER),
-                    [],
                 ),
             ]
         else:
@@ -273,7 +269,6 @@ def test_re_match_aspect_tainted_string_re_object():
                     0,
                     len(res_str),
                     Source("test_re_match_groups_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-                    [],
                 ),
             ]
         else:
@@ -299,7 +294,6 @@ def test_re_match_expand_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
 
@@ -333,7 +327,6 @@ def test_re_match_expand_aspect_tainted_template_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_template, OriginType.PARAMETER),
-            [],
         ),
     ]
 
@@ -367,7 +360,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 2)
@@ -377,7 +369,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 3)
@@ -387,7 +378,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 4)
@@ -397,7 +387,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 5)
@@ -407,7 +396,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 6)
@@ -417,7 +405,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
     result = re_group_aspect(None, 1, re_match, 7)
@@ -427,7 +414,6 @@ def test_re_match_group_aspect_tainted_string_re_object():
             0,
             len(result),
             Source("test_re_match_group_aspect_tainted_string", tainted_isaac_newton, OriginType.PARAMETER),
-            [],
         ),
     ]
 

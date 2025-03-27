@@ -58,7 +58,6 @@ def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str
                     "sample_value",
                     OriginType.PARAMETER,
                 ),
-                [],
             )
         )
 
@@ -106,7 +105,6 @@ class BaseReplacement(object):
                                 start,
                                 end - start,
                                 Source(name=id_evidence, value=new_text[start:], origin=OriginType.PARAMETER),
-                                [],
                             )
                         )
         set_ranges(new_text, tuple(ranges))

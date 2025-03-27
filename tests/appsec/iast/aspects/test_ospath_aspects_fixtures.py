@@ -25,7 +25,7 @@ def test_ospathjoin_tainted():
     )
     result = mod.do_os_path_join(string_input, "bar")
     assert result == "foo/bar"
-    assert get_tainted_ranges(result) == [TaintRange(0, 3, Source("first_element", "foo", OriginType.PARAMETER), [])]
+    assert get_tainted_ranges(result) == [TaintRange(0, 3, Source("first_element", "foo", OriginType.PARAMETER))]
 
 
 def test_ospathnormcase_tainted():
