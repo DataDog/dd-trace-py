@@ -36,8 +36,8 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Bugfixes are released on the most recent General Availability minor release line. New features are released periodically
-       as minor version changes. Critical security fixes are backported to the three most recent minor release lines.
+     - Bug fixes are released on the most recent General Availability minor release line. New features are released periodically
+       as minor version changes. Critical fixes are backported to the three most recent minor release lines.
 
        .. _versioning_support_maintenance:
    * - Maintenance
