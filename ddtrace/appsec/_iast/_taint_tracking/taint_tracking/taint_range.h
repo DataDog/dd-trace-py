@@ -91,9 +91,6 @@ struct TaintRange
                            Source source_,
                            SecureMarks secure_marks_) noexcept
     {
-        if (length_ <= 0) {
-            throw std::invalid_argument("Error: Length cannot be set to 0.");
-        }
         start = start_;
         length = length_;
         source = std::move(source_);

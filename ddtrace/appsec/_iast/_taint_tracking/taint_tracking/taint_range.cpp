@@ -452,7 +452,7 @@ pyexport_taintrange(py::module& m)
       "start"_a,
       "length"_a,
       "source"_a,
-      "secure_marks"_a,
+      "secure_marks"_a = 0,
       py::return_value_policy::move);
 
     py::enum_<VulnerabilityType>(m, "VulnerabilityType")
