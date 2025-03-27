@@ -145,6 +145,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
+    ctx.discard_item("integration_config")
+
     return span
 
 
