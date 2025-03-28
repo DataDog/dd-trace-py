@@ -197,9 +197,6 @@ class Tracer(object):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
-
-        :param url: The Datadog agent URL.
-        :param dogstatsd_url: The DogStatsD URL.
         """
 
         # Do not set self._instance if this is a subclass of Tracer. Here we only want
