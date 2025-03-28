@@ -13,7 +13,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
-    parallelism: 6
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
