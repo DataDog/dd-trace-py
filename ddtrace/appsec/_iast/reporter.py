@@ -19,6 +19,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -237,11 +238,9 @@ class IastSpanReporter(NotNoneDictable):
         return sources, tainted_ranges_to_dict
 
     def add_ranges_to_evidence_and_extract_sources(self, vuln):
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] add_ranges_to_evidence_and_extract_sources. "
+                "iast::propagation::context::add_ranges_to_evidence_and_extract_sources. "
                 "No request quota or this vulnerability is outside the context"
             )
             return
@@ -258,11 +257,10 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] build_and_scrub_value_parts. No request quota or this vulnerability is outside the context"
+                "iast::propagation::context::build_and_scrub_value_parts. "
+                "No request quota or this vulnerability is outside the context"
             )
             return {}
         for vuln in self.vulnerabilities:

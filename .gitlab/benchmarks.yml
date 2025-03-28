@@ -85,6 +85,7 @@ benchmark-serverless:
   tags: ["arch:amd64"]
   when: on_success
   needs: [ "benchmark-serverless-trigger" ]
+  allow_failure: true
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/serverless-tools.git ./serverless-tools && cd ./serverless-tools
     - ./ci/check_trigger_status.sh

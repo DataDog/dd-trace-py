@@ -1,7 +1,7 @@
 import os
 from time import sleep
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context

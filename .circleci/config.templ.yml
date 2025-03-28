@@ -394,7 +394,14 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY"
+          command: |
+            if [ "$CIRCLE_BRANCH" = "main" ]; then
+              export DD_FAST_BUILD=0
+            else
+              export DD_FAST_BUILD=1
+            fi
+            echo "DD_FAST_BUILD is set to $DD_FAST_BUILD"
+            riot list -i tracer | circleci tests split | xargs -I PY riot -P -v generate --python=PY
           environment:
             CMAKE_BUILD_PARALLEL_LEVEL: 12
             PIP_VERBOSE: 1
