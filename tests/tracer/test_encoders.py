@@ -522,6 +522,7 @@ def test_span_event_encoding_msgpack(version):
         span._add_event("We are going to the moon")
 
     if version == "v0.4":
+        # test top level span event encoding
         agent_config.trace_native_span_events = True
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
@@ -573,59 +574,6 @@ def test_span_event_encoding_msgpack(version):
             },
             {b"name": b"We are going to the moon", b"time_unix_nano": 2234567890123456},
         ]
-
-
-@pytest.mark.subprocess(env=dict(DD_TRACE_NATIVE_SPAN_EVENTS="True"))
-@pytest.mark.parametrize("version", ["v0.4", "v0.5"])
-def test_top_level_span_event_encoding_msgpack(version):
-    span = Span("s1")
-    span._add_event("Something went so wrong", {"type": "error"}, 1)
-    span._add_event(
-        "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-        {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
-        17353464354546,
-    )
-    with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
-        span._add_event("We are going to the moon")
-
-    encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
-    encoder.put([span])
-    data = encoder.encode()
-    decoded_trace = decode(data[0])
-    # ensure one trace was decoded
-    assert len(decoded_trace) == 1
-    # ensure trace has one span
-    assert len(decoded_trace[0]) == 1
-
-    encoded_span_meta = decoded_trace[0][0]
-    assert b"span_events" in encoded_span_meta
-    assert encoded_span_meta[b"span_events"] == [
-        {
-            b"name": b"Something went so wrong",
-            b"time_unix_nano": 1,
-            b"attributes": {b"type": {b"type": 0, b"string_value": b"error"}},
-        },
-        {
-            b"name": b"I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
-            b"time_unix_nano": 17353464354546,
-            b"attributes": {
-                b"emotion": {b"type": 0, b"string_value": b"happy"},
-                b"rating": {b"type": 3, b"double_value": 9.8},
-                b"other": {
-                    b"type": 4,
-                    b"array_value": {
-                        b"values": [
-                            {b"type": 2, b"int_value": 1},
-                            {b"type": 3, b"double_value": 9.5},
-                            {b"type": 2, b"int_value": 1},
-                        ]
-                    },
-                },
-                b"idol": {b"type": 1, b"bool_value": False},
-            },
-        },
-        {b"name": b"We are going to the moon", b"time_unix_nano": 2234567890123456},
-    ]
 
 
 def test_span_link_v05_encoding():
