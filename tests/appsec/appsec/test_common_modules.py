@@ -5,7 +5,6 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import DataDogFunctionWrapper
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
@@ -30,9 +29,9 @@ def test_patch_read_enabled():
         patch_common_modules()
         copy_open = copy.deepcopy(open)
 
-        assert type(open) == DataDogFunctionWrapper
-        assert isinstance(copy_open, DataDogFunctionWrapper)
-        assert isinstance(open, DataDogFunctionWrapper)
+        assert type(open) == FunctionWrapper
+        assert isinstance(copy_open, FunctionWrapper)
+        assert isinstance(open, FunctionWrapper)
         assert hasattr(open, "__wrapped__")
         assert open.__wrapped__ is original_open
     finally:
@@ -125,9 +124,9 @@ def test_other_builtin_functions(builtin_function_name):
         original_func = getattr(builtins, builtin_function_name)
         copy_func = copy.deepcopy(original_func)
 
-        assert type(original_func) == DataDogFunctionWrapper
-        assert isinstance(copy_func, DataDogFunctionWrapper)
-        assert isinstance(original_func, DataDogFunctionWrapper)
+        assert type(original_func) == FunctionWrapper
+        assert isinstance(copy_func, FunctionWrapper)
+        assert isinstance(original_func, FunctionWrapper)
         assert hasattr(original_func, "__wrapped__")
     finally:
         try_unwrap("builtins", builtin_function_name)
