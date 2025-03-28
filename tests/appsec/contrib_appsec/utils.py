@@ -241,10 +241,10 @@ class Contrib_TestClass_For_Threats:
                 if "truncated" in args[2] or args[2] == "waf.requests"
             ]
             assert args_list == [
-                ("distribution", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
-                ("distribution", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
-                ("distribution", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
                 ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
                 (
                     "count",
