@@ -38,6 +38,7 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
             "_default_service": "default_test_visibility_service",
             "itr_skipping_level": itr_skipping_level,
             "_itr_skipping_ignore_parameters": False,
+            "_early_flake_detection_enabled": True,
         },
     )
     return new_ddconfig

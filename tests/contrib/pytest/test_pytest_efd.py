@@ -30,10 +30,10 @@ pytestmark = pytest.mark.skipif(
 
 _KNOWN_TEST_IDS = _make_fqdn_test_ids(
     [
-        ("", "test_known_pass.py", "test_known_passes_01"),
-        ("", "test_known_pass.py", "test_known_passes_02"),
-        ("", "test_known_fail.py", "test_known_fails_01"),
-        ("", "test_known_fail.py", "test_known_fails_02"),
+        ("test_known_pass", "test_known_pass.py", "test_known_passes_01"),
+        ("test_known_pass", "test_known_pass.py", "test_known_passes_02"),
+        ("test_known_fail", "test_known_fail.py", "test_known_fails_01"),
+        ("test_known_fail", "test_known_fail.py", "test_known_fails_02"),
     ]
 )
 
@@ -107,14 +107,26 @@ def test_fails_teardown_01(fails_teardown):
 class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
+        ddconfig = _get_default_civisibility_ddconfig()
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
             return_value=_KNOWN_TEST_IDS,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90)
+                early_flake_detection=EarlyFlakeDetectionSettings(
+                    enabled=True,
+                    slow_test_retries_5s=10,
+                    slow_test_retries_10s=5,
+                    slow_test_retries_30s=3,
+                    slow_test_retries_5m=2,
+                    faulty_session_threshold=90,
+                ),
+                known_tests_enabled=True
             ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            ddconfig,
         ):
             yield
 
@@ -301,15 +313,14 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert test_suite.attrib["tests"] == "7"
         assert test_suite.attrib["failures"] == "3"
 
-    def test_pytest_efd_known_tests_enabled(self):
-        """Tests that when is_known_tests_enabled is True, we mark unknown tests with is_new tag regardless of EFD"""
+    def test_pytest_efd_known_tests_enabled_with_efd_disabled(self):
+        """Tests that when is_known_tests_enabled=True and EFD disabled, we mark unknown tests with is_new tag"""
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
 
-        # Test with is_known_tests_enabled=True and EFD disabled
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
@@ -317,7 +328,13 @@ class PytestEFDTestCase(PytestTestCaseBase):
             ),
         ):
             rec = self.inline_run("--ddtrace")
-            rec.assertoutcome(passed=4, failed=3)
+            # When EFD is disabled, we just get normal test reports
+            reports = rec.getreports("pytest_runtest_logreport")
+            call_reports = [r for r in reports if r.when == "call"]
+            passed = len([r for r in call_reports if r.outcome == "passed"])
+            failed = len([r for r in call_reports if r.outcome == "failed"])
+            assert passed == 4
+            assert failed == 3
             spans = self.pop_spans()
 
             # Verify that new tests are marked with is_new tag
@@ -325,59 +342,122 @@ class PytestEFDTestCase(PytestTestCaseBase):
             new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
             assert len(new_test_spans) == 3  # test_new_pass, test_new_fail, test_new_flaky
 
-        # Test with is_known_tests_enabled=False and EFD enabled
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True), known_tests_enabled=False
-            ),
-        ):
-            rec = self.inline_run("--ddtrace")
-            rec.assertoutcome(passed=4, failed=3)
-            spans = self.pop_spans()
+            # Verify no retries occurred since EFD is disabled
+            new_fail_spans = [span for span in test_spans if span.get_tag("test.name") == "test_new_fails_01"]
+            assert len(new_fail_spans) == 1  # Only the original run, no retries
 
-            # Verify that new tests are marked with is_new tag
-            test_spans = [span for span in spans if span.get_tag("test.type") == "test"]
-            new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
-            assert len(new_test_spans) == 3  # test_new_pass, test_new_fail, test_new_flaky
-
-        # Test with is_known_tests_enabled=False and EFD disabled
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False), known_tests_enabled=False
-            ),
-        ):
-            rec = self.inline_run("--ddtrace")
-            rec.assertoutcome(passed=4, failed=3)
-            spans = self.pop_spans()
-
-            # Verify that no tests are marked with is_new tag
-            test_spans = [span for span in spans if span.get_tag("test.type") == "test"]
-            new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
-            assert len(new_test_spans) == 0
-
-    def test_pytest_known_tests_no_new_tests_does_not_retry(self):
-        """Tests that no retries will happen if the session is faulty because all tests appear new"""
+    def test_pytest_efd_known_tests_disabled_with_efd_enabled(self):
+        """Tests that when is_known_tests_enabled=False, EFD is disabled regardless of early_flake_detection.enabled"""
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_skip=_TEST_NEW_SKIP_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
-            side_effect=_fetch_known_tests_side_effect(set()),
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
                 early_flake_detection=EarlyFlakeDetectionSettings(enabled=True), known_tests_enabled=False
             ),
         ):
-            rec = self.inline_run("--ddtrace")
-            rec.assertoutcome(passed=4, failed=3)
+            rec = self.inline_run("--ddtrace", "-v")
+            assert rec.ret == 1
             spans = self.pop_spans()
 
-            # Verify that new tests are marked with is_new tag
+            # Verify session and module spans
+            session_span = _get_spans_from_list(spans, "session")[0]
+            assert session_span.get_tag("test.status") == "fail"
+
+            module_span = _get_spans_from_list(spans, "module", "")[0]
+            assert module_span.get_tag("test.status") == "fail"
+
+            # Verify suite spans
+            suite_spans = _get_spans_from_list(spans, "suite")
+            assert len(suite_spans) == 6
+            for suite_span in suite_spans:
+                suite_name = suite_span.get_tag("test.suite")
+                if suite_name in ("test_new_fail.py", "test_known_fail.py"):
+                    assert suite_span.get_tag("test.status") == "fail"
+                elif suite_name == "test_new_skip.py":
+                    assert suite_span.get_tag("test.status") == "skip"
+                else:
+                    assert suite_span.get_tag("test.status") == "pass"
+
+            # Verify that tests are not marked as new since known_tests_enabled is False
+            new_fail_spans = _get_spans_from_list(spans, "test", "test_new_fails_01")
+            assert len(new_fail_spans) == 1  # No retries since EFD is effectively disabled
+            assert new_fail_spans[0].get_tag("test.is_new") is None
+            assert new_fail_spans[0].get_tag("test.is_retry") is None
+
+            new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+            assert len(new_flaky_spans) == 1  # No retries since EFD is effectively disabled
+            assert new_flaky_spans[0].get_tag("test.is_new") is None
+            assert new_flaky_spans[0].get_tag("test.is_retry") is None
+
+            new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+            assert len(new_passes_spans) == 1  # No retries since EFD is effectively disabled
+            assert new_passes_spans[0].get_tag("test.is_new") is None
+            assert new_passes_spans[0].get_tag("test.is_retry") is None
+
+            # Verify skipped tests
+            new_skips_01_spans = _get_spans_from_list(spans, "test", "test_new_skips_01")
+            assert len(new_skips_01_spans) == 1  # No retries since EFD is effectively disabled
+            assert new_skips_01_spans[0].get_tag("test.is_new") is None
+            assert new_skips_01_spans[0].get_tag("test.is_retry") is None
+
+            new_skips_02_spans = _get_spans_from_list(spans, "test", "test_new_skips_02")
+            assert len(new_skips_02_spans) == 1  # No retries since EFD is effectively disabled
+            assert new_skips_02_spans[0].get_tag("test.is_new") is None
+            assert new_skips_02_spans[0].get_tag("test.is_retry") is None
+
+            # Verify total span count (no retries)
+            assert len(spans) == 17  # 1 session + 1 module + 6 suites + 9 tests
+
+    def test_pytest_efd_known_tests_disabled_with_efd_disabled(self):
+        """Tests that when both known_tests_enabled and efd.enabled are False, no tests are marked as new and no retries occur"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_skip=_TEST_NEW_SKIP_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+                known_tests_enabled=False
+            ),
+        ):
+            rec = self.inline_run("--ddtrace", "-v")
+            assert rec.ret == 1
+            spans = self.pop_spans()
+
+            # Verify session and module spans
+            session_span = _get_spans_from_list(spans, "session")[0]
+            assert session_span.get_tag("test.status") == "fail"
+
+            module_span = _get_spans_from_list(spans, "module", "")[0]
+            assert module_span.get_tag("test.status") == "fail"
+
+            # Verify suite spans
+            suite_spans = _get_spans_from_list(spans, "suite")
+            assert len(suite_spans) == 6
+            for suite_span in suite_spans:
+                suite_name = suite_span.get_tag("test.suite")
+                if suite_name in ("test_new_fail.py", "test_known_fail.py"):
+                    assert suite_span.get_tag("test.status") == "fail"
+                elif suite_name == "test_new_skip.py":
+                    assert suite_span.get_tag("test.status") == "skip"
+                else:
+                    assert suite_span.get_tag("test.status") == "pass"
+
+            # Verify that no tests are marked as new since both flags are False
             test_spans = [span for span in spans if span.get_tag("test.type") == "test"]
-            new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
-            assert len(new_test_spans) == 7  # test_new_pass, test_new_fail, test_new_flaky
+            for test_span in test_spans:
+                assert test_span.get_tag("test.is_new") is None
+                assert test_span.get_tag("test.is_retry") is None
+
+            # Verify total span count (no retries)
+            assert len(spans) == 17  # 1 session + 1 module + 6 suites + 9 tests

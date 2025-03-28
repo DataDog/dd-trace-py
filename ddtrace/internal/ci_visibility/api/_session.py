@@ -116,8 +116,13 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
     #
     # EFD (Early Flake Detection) functionality
     #
-    def efd_is_enabled(self):
-        return self._session_settings.efd_settings.enabled
+    def efd_is_enabled(self) -> bool:
+        """Returns whether Early Flake Detection is enabled for this session.
+
+        EFD is disabled if known_tests_enabled is False, regardless of the efd_settings.enabled value.
+        This is because EFD requires known tests to be enabled to function properly.
+        """
+        return self._session_settings.known_tests_enabled and self._session_settings.efd_settings.enabled
 
     def set_efd_abort_reason(self, abort_reason: str):
         self._efd_abort_reason = abort_reason

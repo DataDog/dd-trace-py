@@ -450,10 +450,16 @@ class CIVisibility(Service):
 
     @classmethod
     def is_efd_enabled(cls) -> bool:
+        """Returns whether Early Flake Detection is enabled.
+
+        EFD is disabled if known_tests_enabled is False, regardless of the efd_settings.enabled value.
+        This is because EFD requires known tests to be enabled to function properly.
+        """
         if cls._instance is None:
             return False
         return (
-            cls._instance._api_settings.early_flake_detection.enabled
+            cls._instance._api_settings.known_tests_enabled
+            and cls._instance._api_settings.early_flake_detection.enabled
             and ddconfig._test_visibility_early_flake_detection_enabled
         )
 

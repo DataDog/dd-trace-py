@@ -189,11 +189,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             session.efd_is_faulty_session() if session else None,
         )
         if self.is_new() and session is not None:
-            if self._is_known_tests_enabled or (
-                not self._is_known_tests_enabled and not session.efd_is_faulty_session()
-            ):
+            # If known tests are enabled, mark unknown tests regardless of EFD
+            if self._is_known_tests_enabled:
                 self.set_tag(TEST_IS_NEW, self._is_new)
-                log.info("Set TEST_IS_NEW tag for test %s to %s", self.name, self._is_new)
+                log.info("Set TEST_IS_NEW tag for test %s to %s (known tests enabled)", self.name, self._is_new)
+            # If known tests are disabled but EFD is enabled, mark unknown tests regardless of session faultiness
+            elif session._session_settings.efd_settings.enabled:
+                self.set_tag(TEST_IS_NEW, self._is_new)
+                log.info("Set TEST_IS_NEW tag for test %s to %s (EFD enabled)", self.name, self._is_new)
             else:
                 log.info(
                     "Did not set TEST_IS_NEW tag for test %s (is_known_tests_enabled=%s, session_faulty=%s)",
