@@ -1838,7 +1838,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
         assert tracer._sampler.limiter.rate_limit == 1
         assert tracer._sampler.limiter.time_window == 60e9
 
-        assert tracer._compute_stats is False
+        assert tracer._span_aggregagtor.sampling_processor._compute_stats_enabled is False
 
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):

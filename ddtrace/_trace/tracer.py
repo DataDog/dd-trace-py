@@ -23,7 +23,6 @@ from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.constants import _HOSTNAME_KEY
@@ -87,7 +86,6 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
 
 def _default_span_processors_factory(
     trace_filters: List[TraceProcessor],
-    compute_stats_enabled: bool,
     writer: Optional[TraceWriter],
     partial_flush_enabled: bool,
     partial_flush_min_spans: int,
@@ -127,7 +125,7 @@ def _default_span_processors_factory(
 
         span_processors.append(AppSecIastSpanProcessor())
 
-    if compute_stats_enabled:
+    if config._trace_compute_stats:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
         from ddtrace.internal.processor.stats import SpanStatsProcessorV06
@@ -190,7 +188,6 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        self._compute_stats = config._trace_compute_stats
 
         if asm_config._apm_opt_out:
             self.enabled = False
@@ -200,7 +197,6 @@ class Tracer(object):
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
-            self._compute_stats,
             None,
             config._partial_flush_enabled,
             config._partial_flush_min_spans,
@@ -361,14 +357,12 @@ class Tracer(object):
             config._tracing_enabled = self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
-            # Update the rate limiter to 1 trace per minute when tracing is disabled
-            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
         elif asm_config._apm_tracing_enabled:
             config._tracing_enabled = self.enabled = True
 
         if compute_stats_enabled is not None:
-            self._compute_stats = compute_stats_enabled
+            config._trace_compute_stats = compute_stats_enabled
 
         if isinstance(self._span_aggregagtor.writer, AgentWriter):
             if appsec_enabled:
@@ -432,7 +426,6 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
             self._user_trace_processors,
-            self._compute_stats,
             self._span_aggregagtor.writer,
             self._span_aggregagtor.partial_flush_enabled,
             self._span_aggregagtor.partial_flush_min_spans,
