@@ -66,8 +66,22 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         is_quarantined: bool = False,
         is_disabled: bool = False,
         is_attempt_to_fix: bool = False,
-        is_known_test_enabled: bool = False,
+        is_known_tests_enabled: bool = False,
     ):
+        log.info(
+            "Creating TestVisibilityTest instance for %s: is_new=%s, is_known_tests_enabled=%s,"
+            " is_efd_retry=%s, is_atr_retry=%s, is_attempt_to_fix_retry=%s, is_quarantined=%s,"
+            " is_disabled=%s, is_attempt_to_fix=%s",
+            name,
+            is_new,
+            is_known_tests_enabled,
+            is_efd_retry,
+            is_atr_retry,
+            is_attempt_to_fix_retry,
+            is_quarantined,
+            is_disabled,
+            is_attempt_to_fix,
+        )
         self._parameters = parameters
         super().__init__(
             name,
@@ -76,6 +90,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             initial_tags,
             resource=resource if resource is not None else name,
         )
+        log.info("TestVisibilityTest instance created with name=%s, resource=%s", name, self._resource)
         self._codeowners = codeowners
         self._source_file_info = source_file_info
         self._original_test: Optional[TestVisibilityTest] = None
@@ -84,16 +99,26 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         if self._parameters is not None:
             self.set_tag(test.PARAMETERS, parameters)
+            log.info("Set parameters tag for test %s: %s", name, parameters)
 
         self._is_new = is_new
         self._is_quarantined = is_quarantined
         self._is_disabled = is_disabled
         self._is_attempt_to_fix = is_attempt_to_fix
-        self._is_known_test_enabled = is_known_test_enabled
+        self._is_known_tests_enabled = is_known_tests_enabled
+        log.info(
+            "Test %s flags set: is_new=%s, is_known_tests_enabled=%s, is_quarantined=%s,"
+            " is_disabled=%s, is_attempt_to_fix=%s",
+            name,
+            self._is_new,
+            self._is_known_tests_enabled,
+            self._is_quarantined,
+            self._is_disabled,
+            self._is_attempt_to_fix,
+        )
 
-        # self._retry_reason = None
-        # if is_efd_retry or is_atr_retry:
-        #     self._retry_reason = "efd" if is_efd_retry else "atr"
+        # Set all item tags after flags are set
+        log.info("Setting item tags for test %s", name)
 
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
@@ -125,15 +150,57 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
     def _set_item_tags(self) -> None:
         """Overrides parent tags for cases where they need to be modified"""
+        log.info(
+            "Setting item tags for test %s: is_new=%s, is_known_tests_enabled=%s, is_efd_enabled=%s,"
+            " is_atr_enabled=%s, is_test_management_enabled=%s",
+            self.name,
+            self._is_new,
+            self._is_known_tests_enabled,
+            self._session_settings.efd_settings.enabled if self._session_settings else None,
+            self._session_settings.atr_settings.enabled if self._session_settings else None,
+            self._session_settings.test_management_settings.enabled if self._session_settings else None,
+        )
         if self._is_benchmark:
             self.set_tag(test.TYPE, BENCHMARK)
+            log.info("Set benchmark tag for test %s", self.name)
 
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
+            log.info("Set overwritten suite name tag for test %s", self.name)
+
+        # Set the known test tag
+        log.info("Setting known test tag for test %s", self.name)
+        self._set_known_test_tag()
 
     def _set_known_test_tag(self) -> None:
-        if self._is_known_test_enabled and self.is_new():
-            self.set_tag(TEST_IS_NEW, self._is_new)
+        if self._efd_abort_reason is not None:
+            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
+
+        # NOTE: The is_new tag is set in two contexts:
+        # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
+        # 2. When is_known_tests_enabled is False:
+        #    We only mark tests as new if EFD is enabled and the session is not faulty
+        session = self.get_session()
+        log.info(
+            "Setting known test tag for test %s: is_new=%s, is_known_tests_enabled=%s, session_faulty=%s",
+            self.name,
+            self.is_new(),
+            self._is_known_tests_enabled,
+            session.efd_is_faulty_session() if session else None,
+        )
+        if self.is_new() and session is not None:
+            if self._is_known_tests_enabled or (
+                not self._is_known_tests_enabled and not session.efd_is_faulty_session()
+            ):
+                self.set_tag(TEST_IS_NEW, self._is_new)
+                log.info("Set TEST_IS_NEW tag for test %s to %s", self.name, self._is_new)
+            else:
+                log.info(
+                    "Did not set TEST_IS_NEW tag for test %s (is_known_tests_enabled=%s, session_faulty=%s)",
+                    self.name,
+                    self._is_known_tests_enabled,
+                    session.efd_is_faulty_session(),
+                )
 
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
@@ -144,12 +211,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
         # NOTE: The is_new tag is set in two contexts:
-        # 1. When is_known_test_enabled is True (from settings API), we mark unknown tests regardless of EFD
-        # 2. When is_known_test_enabled is False:
+        # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
+        # 2. When is_known_tests_enabled is False:
         #    We only mark tests as new if EFD is enabled and the session is not faulty
         session = self.get_session()
-        if self.is_new() and session is not None and not session.efd_is_faulty_session():
-            self.set_tag(TEST_IS_NEW, self._is_new)
+        if self.is_new() and session is not None:
+            if self._is_known_tests_enabled or (
+                not self._is_known_tests_enabled and not session.efd_is_faulty_session()
+            ):
+                self.set_tag(TEST_IS_NEW, self._is_new)
+                log.info("Set TEST_IS_NEW tag for test %s to %s", self.name, self._is_new)
+            else:
+                log.info(
+                    "Did not set TEST_IS_NEW tag for test %s (is_known_tests_enabled=%s, session_faulty=%s)",
+                    self.name,
+                    self._is_known_tests_enabled,
+                    session.efd_is_faulty_session(),
+                )
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:

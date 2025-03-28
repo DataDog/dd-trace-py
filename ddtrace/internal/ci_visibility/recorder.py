@@ -658,6 +658,8 @@ class CIVisibility(Service):
                 self._test_properties = test_properties
 
     def _stop_service(self) -> None:
+        """Stop the CI Visibility service."""
+        log.debug("Stopping CI Visibility service")
         if self._should_upload_git_metadata and not self._git_client.metadata_upload_finished():
             log.debug("git metadata upload still in progress, waiting before shutting down")
             try:
@@ -1242,15 +1244,37 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
-    # New tests are currently only considered for EFD:
-    # - if known tests were fetched properly (enforced by is_known_test)
-    # - if they have no parameters
-    if CIVisibility.is_known_tests_enabled() or (
-        CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None
-    ):
+    # New tests are considered in two contexts:
+    # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
+    # 2. When is_known_tests_enabled is False:
+    #    We only mark tests as new if EFD is enabled and the test has no parameters
+    is_known_tests_enabled = CIVisibility.is_known_tests_enabled()
+    is_efd_enabled = CIVisibility.is_efd_enabled()
+    has_parameters = discover_args.test_id.parameters is not None
+
+    log.info(
+        "Test discovery conditions for %s: is_known_tests_enabled=%s, is_efd_enabled=%s, has_parameters=%s",
+        discover_args.test_id,
+        is_known_tests_enabled,
+        is_efd_enabled,
+        has_parameters,
+    )
+
+    if is_known_tests_enabled:
         is_new = not CIVisibility.is_known_test(discover_args.test_id)
+        log.info("Known tests enabled: test %s is_new=%s", discover_args.test_id, is_new)
+    elif is_efd_enabled and not has_parameters:
+        is_new = not CIVisibility.is_known_test(discover_args.test_id)
+        log.info("EFD enabled and no parameters: test %s is_new=%s", discover_args.test_id, is_new)
     else:
         is_new = False
+        log.info(
+            "Test %s marked as not new (is_known_tests_enabled=%s, is_efd_enabled=%s, has_parameters=%s)",
+            discover_args.test_id,
+            is_known_tests_enabled,
+            is_efd_enabled,
+            has_parameters,
+        )
 
     test_properties = None
     if CIVisibility.is_test_management_enabled():
@@ -1272,7 +1296,14 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
             is_quarantined=test_properties.quarantined,
             is_disabled=test_properties.disabled,
             is_attempt_to_fix=test_properties.attempt_to_fix,
+            is_known_tests_enabled=is_known_tests_enabled,
         ),
+    )
+    log.info(
+        "Created TestVisibilityTest for %s with is_new=%s, is_known_tests_enabled=%s",
+        discover_args.test_id,
+        is_new,
+        is_known_tests_enabled,
     )
 
 

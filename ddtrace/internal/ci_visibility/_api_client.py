@@ -106,6 +106,7 @@ class TestProperties:
     quarantined: bool = False
     disabled: bool = False
     attempt_to_fix: bool = False
+    is_new: bool = False
 
     __test__ = False
 
@@ -628,6 +629,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                             quarantined=properties.get("quarantined", False),
                             disabled=properties.get("disabled", False),
                             attempt_to_fix=properties.get("attempt_to_fix", False),
+                            is_new=properties.get("is_new", False),
                         )
 
         except Exception:  # noqa: E722

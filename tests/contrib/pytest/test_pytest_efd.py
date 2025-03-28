@@ -302,14 +302,14 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert test_suite.attrib["failures"] == "3"
 
     def test_pytest_efd_known_tests_enabled(self):
-        """Tests that when is_known_test_enabled is True, we mark unknown tests with is_new tag regardless of EFD"""
+        """Tests that when is_known_tests_enabled is True, we mark unknown tests with is_new tag regardless of EFD"""
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
 
-        # Test with is_known_test_enabled=True and EFD disabled
+        # Test with is_known_tests_enabled=True and EFD disabled
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
@@ -325,7 +325,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
             new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
             assert len(new_test_spans) == 3  # test_new_pass, test_new_fail, test_new_flaky
 
-        # Test with is_known_test_enabled=False and EFD enabled
+        # Test with is_known_tests_enabled=False and EFD enabled
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
@@ -341,7 +341,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
             new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
             assert len(new_test_spans) == 3  # test_new_pass, test_new_fail, test_new_flaky
 
-        # Test with is_known_test_enabled=False and EFD disabled
+        # Test with is_known_tests_enabled=False and EFD disabled
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
@@ -356,3 +356,28 @@ class PytestEFDTestCase(PytestTestCaseBase):
             test_spans = [span for span in spans if span.get_tag("test.type") == "test"]
             new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
             assert len(new_test_spans) == 0
+
+    def test_pytest_known_tests_no_new_tests_does_not_retry(self):
+        """Tests that no retries will happen if the session is faulty because all tests appear new"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            side_effect=_fetch_known_tests_side_effect(set()),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True), known_tests_enabled=False
+            ),
+        ):
+            rec = self.inline_run("--ddtrace")
+            rec.assertoutcome(passed=4, failed=3)
+            spans = self.pop_spans()
+
+            # Verify that new tests are marked with is_new tag
+            test_spans = [span for span in spans if span.get_tag("test.type") == "test"]
+            new_test_spans = [span for span in test_spans if span.get_tag("test.is_new") == "true"]
+            assert len(new_test_spans) == 7  # test_new_pass, test_new_fail, test_new_flaky
