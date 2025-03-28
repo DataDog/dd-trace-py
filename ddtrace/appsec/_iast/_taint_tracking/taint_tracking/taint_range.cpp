@@ -445,14 +445,24 @@ pyexport_taintrange(py::module& m)
     // Fake constructor, used to force calling allocate_taint_range for performance reasons
     m.def(
       "taint_range",
-      [](
-        const RANGE_START start, const RANGE_LENGTH length, const Source& source, const SecureMarks& secure_marks = 0) {
-          return initializer->allocate_taint_range(start, length, source, secure_marks);
+      [](const RANGE_START start,
+         const RANGE_LENGTH length,
+         const Source& source,
+         const py::object& secure_marks = py::none()) {
+          uint64_t marks = 0;
+          if (secure_marks.is_none()) {
+              marks = 0;
+          } else if (py::isinstance<py::int_>(secure_marks)) {
+              marks = secure_marks.cast<uint64_t>();
+          } else if (py::hasattr(secure_marks, "value")) {
+              marks = secure_marks.attr("value").cast<uint64_t>();
+          }
+          return initializer->allocate_taint_range(start, length, source, marks);
       },
       "start"_a,
       "length"_a,
       "source"_a,
-      "secure_marks"_a = 0,
+      "secure_marks"_a = py::none(),
       py::return_value_policy::move);
 
     py::enum_<VulnerabilityType>(m, "VulnerabilityType")
