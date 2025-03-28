@@ -3,9 +3,9 @@ import typing as t
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import DDConfig
 from ddtrace.version import get_version
 
@@ -47,7 +47,7 @@ class DynamicInstrumentationConfig(DDConfig):
     __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    _intake_url = DDConfig.d(str, lambda _: get_trace_url())
+    _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
     max_probes = DDConfig.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
