@@ -30,10 +30,10 @@ pytestmark = pytest.mark.skipif(
 
 _KNOWN_TEST_IDS = _make_fqdn_test_ids(
     [
-        ("test_known_pass", "test_known_pass.py", "test_known_passes_01"),
-        ("test_known_pass", "test_known_pass.py", "test_known_passes_02"),
-        ("test_known_fail", "test_known_fail.py", "test_known_fails_01"),
-        ("test_known_fail", "test_known_fail.py", "test_known_fails_02"),
+        ("", "test_known_pass.py", "test_known_passes_01"),
+        ("", "test_known_pass.py", "test_known_passes_02"),
+        ("", "test_known_fail.py", "test_known_fails_01"),
+        ("", "test_known_fail.py", "test_known_fails_02"),
     ]
 )
 
@@ -107,7 +107,6 @@ def test_fails_teardown_01(fails_teardown):
 class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
-        ddconfig = _get_default_civisibility_ddconfig()
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
             return_value=_KNOWN_TEST_IDS,
@@ -116,17 +115,10 @@ class PytestEFDTestCase(PytestTestCaseBase):
             return_value=TestVisibilityAPISettings(
                 early_flake_detection=EarlyFlakeDetectionSettings(
                     enabled=True,
-                    slow_test_retries_5s=10,
-                    slow_test_retries_10s=5,
-                    slow_test_retries_30s=3,
-                    slow_test_retries_5m=2,
                     faulty_session_threshold=90,
                 ),
-                known_tests_enabled=True
+                known_tests_enabled=True,
             ),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            ddconfig,
         ):
             yield
 
