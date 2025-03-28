@@ -1895,5 +1895,5 @@ def test_multiple_tracer_instances():
     with mock.patch("ddtrace._trace.tracer.log") as log:
         ddtrace.trace.Tracer()
     log.error.assert_called_once_with(
-        "Multiple Tracer instances can not be initialized. " "Use ``ddtrace.trace.tracer`` instead."
+        "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
     )

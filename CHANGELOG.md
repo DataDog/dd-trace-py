@@ -4,6 +4,18 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.2
+
+
+### Bug Fixes
+
+- single-step instrumentation: Removes `boto3` from the minimum versions list to avoid blocking SSI on `boto3` version.
+- internal: Fix performance overhead of Python distribution parsing for internal telemetry.
+- ASM: This fix resolves an issue where blocking mechanism could partially fail with a 500 error on fastapi with python\>=3.11 with a custom middleware.
+
+
+---
+
 ## 3.3.0
 
 ### New Features
