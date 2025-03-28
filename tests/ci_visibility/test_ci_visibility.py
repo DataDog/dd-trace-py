@@ -1443,7 +1443,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
             )
 
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregagtor.writer._clients[0].encoder._build_payload([[Span("foo")]])
         )
         assert payload["metadata"]["test"] == {
             "_dd.library_capabilities.early_flake_detection": "1",
