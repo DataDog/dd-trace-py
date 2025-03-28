@@ -6,6 +6,7 @@ from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 
+from ddtrace.settings._agent import config as agent_config
 
 _Span = Span
 
@@ -17,7 +18,6 @@ try:
     # the introduction of the buffered encoder changed the internal api
     # see https://github.com/DataDog/dd-trace-py/pull/2422
     from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
-
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
         return MSGPACK_ENCODERS[encoding](max_size, max_item_size)
 
@@ -39,7 +39,6 @@ def gen_traces(config):
     random.seed(1)
 
     traces = []
-
     # choose from a set of randomly generated span attributes
     span_names = _random_values(256, 16)
     resources = _random_values(256, 16)
@@ -47,6 +46,9 @@ def gen_traces(config):
     tag_keys = _random_values(config.ntags, 16)
     metric_keys = _random_values(config.nmetrics, 16)
     dd_origin_values = ["synthetics", "ciapp-test"]
+
+    if config.top_level_span_events and hasattr(agent_config, "trace_native_span_events"):
+        agent_config.trace_native_span_events = True
 
     for _ in range(config.ntraces):
         trace = []
@@ -73,6 +75,8 @@ def gen_traces(config):
                             )
                         )
                     )
+                if config.span_events:
+                    span._add_event(name="test", attributes={"foo": "foo", "test-key": 1, "bar": True})
                 trace.append(span)
         traces.append(trace)
     return traces

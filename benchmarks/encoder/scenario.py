@@ -10,6 +10,8 @@ class Encoder(bm.Scenario):
     nmetrics: int
     encoding: str
     dd_origin: bool
+    span_events: bool
+    top_level_span_events: bool
 
     def run(self):
         encoder = utils.init_encoder(self.encoding)
