@@ -1,5 +1,7 @@
+cmake_minimum_required(VERSION 3.19)
+
 include(FetchContent)
-FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/release-1.11.0.zip)
+FetchContent_Declare(googletest URL https://github.com/google/googletest/archive/refs/tags/release-1.16.0.zip)
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
