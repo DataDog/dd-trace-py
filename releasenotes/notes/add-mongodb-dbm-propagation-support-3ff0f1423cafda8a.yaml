@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    Support for Database Monitoring (DBM) propagation in pymongo. Two propagation modes are supported:
+    
+    - Full mode: Injects both service information and trace context, allowing complete correlation between traces and database monitoring samples.
+    - Service mode: Injects only service information, enabling service-level correlation without trace-specific details.
+    
+    This feature can be controlled using the `DD_DBM_PROPAGATION_MODE` environment variable with values `full`, `service`, or `disabled`.
+    
+    Example of enabling full or service propagation mode:
+    ```
+    DD_DBM_PROPAGATION_MODE=full|service
+    ```
+
+    Note that this feature requires PyMongo 3.9 or higher.
