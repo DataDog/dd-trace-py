@@ -209,8 +209,8 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
 
-        elif self._session_settings.known_tests_enabled:
-            self._set_known_test_tag()
+        # elif self._session_settings.known_tests_enabled:
+        #     self._set_known_test_tag()
 
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
