@@ -5,7 +5,6 @@ from typing import Tuple
 import mock
 import pytest
 
-from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
@@ -28,10 +27,8 @@ def _assert_expected_agent_run(
     tools: List[str] = None,
     llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
     tool_calls: List[dict] = None,
-    previous_tool_events: List[dict] = None,
-) -> List[dict]:
+) -> None:
     """Assert expected LLMObs events matches actual events for an agent run
-    Return previous tool events for span linking assertions across agent runs
 
     Args:
         spans: List of spans from the mock tracer
@@ -41,7 +38,6 @@ def _assert_expected_agent_run(
         tools: List of tool names
         llm_calls: List of (input_messages, output_messages) for each LLM call
         tool_calls: List of information about tool calls
-        previous_tool_events: List of previous tool events for span linking assertions across agent runs
     """
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
@@ -49,8 +45,6 @@ def _assert_expected_agent_run(
         metadata={"handoffs": handoffs, "tools": tools},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
-    if not previous_tool_events:
-        previous_tool_events = []
     for i, event in enumerate(llmobs_events[1:]):
         if i % 2 == 0:
             assert event == _expected_llmobs_llm_span_event(
@@ -67,10 +61,7 @@ def _assert_expected_agent_run(
                 model_name="gpt-4o-2024-08-06",
                 model_provider="openai",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-                span_links=True,
             )
-            for tool in previous_tool_events:
-                _assert_span_link(tool, event, "output", "input")
         else:
             tool_call = tool_calls[i // 2]
             error_args = (
@@ -91,14 +82,9 @@ def _assert_expected_agent_run(
                 spans[i + 1],
                 span_kind="tool",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-                span_links=True,
                 **io_args,
                 **error_args,
             )
-            # assert tool is linked to the previous LLM call
-            _assert_span_link(llmobs_events[i], event, "output", "input")
-            previous_tool_events.append(event)
-    return previous_tool_events
 
 
 @pytest.mark.asyncio
@@ -120,7 +106,6 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
         output_value=result.final_output,
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
     _assert_expected_agent_run(
         spans[1:],
@@ -162,7 +147,6 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
         output_value=final_output,
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
     _assert_expected_agent_run(
         spans[1:],
@@ -203,7 +187,6 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
         output_value=result.final_output,
         metadata={"foo": "bar"},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
         spans[1],
@@ -246,7 +229,6 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         output_value=result.final_output,
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
     _assert_expected_agent_run(
         spans[1:],
@@ -312,9 +294,8 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         output_value=result.final_output,
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
-    previous_tool_events = _assert_expected_agent_run(
+    _assert_expected_agent_run(
         spans[1:6],
         llmobs_events[1:6],
         handoffs=["Summarizer"],
@@ -387,7 +368,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             )
         ],
         tool_calls=[],
-        previous_tool_events=previous_tool_events,
     )
 
 
@@ -410,7 +390,6 @@ async def test_llmobs_single_agent_with_tool_errors(
         output_value=result.final_output,
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
-        span_links=True,
     )
     _assert_expected_agent_run(
         spans[1:],

@@ -485,24 +485,22 @@ class OaiSpanAdapter:
             return None
         return self.error.get("data")
 
-    def llmobs_input_messages(self) -> Tuple[List[Dict[str, Any]], List[str]]:
+    def llmobs_input_messages(self) -> List[Dict[str, Any]]:
         """Returns processed input messages for LLM Obs LLM spans.
 
         Returns:
-            A tuple of (processed_messages, tool_call_ids)
+            A list of processed messages
         """
         messages = self.input
-        processed = []  # type: List[Any]
+        processed: List[Dict[str, Any]] = []
         if not messages:
-            return processed, []
+            return processed
 
         if isinstance(messages, str):
-            return [{"content": messages, "role": "user"}], []
-
-        tool_call_ids = []
+            return [{"content": messages, "role": "user"}]
 
         for item in messages:
-            processed_item = {}  # type: Dict[str, Union[str, List[Dict[str, str]]]]
+            processed_item: Dict[str, Union[str, List[Dict[str, str]]]] = {}
             # Handle regular message
             if "content" in item and "role" in item:
                 processed_item_content = ""
@@ -541,8 +539,6 @@ class OaiSpanAdapter:
                 """
                 output = item["output"]
 
-                # a tool call id was used as input
-                tool_call_ids.append(item["call_id"])
                 if isinstance(output, str):
                     try:
                         output = json.loads(output)
@@ -557,26 +553,25 @@ class OaiSpanAdapter:
             if processed_item:
                 processed.append(processed_item)
 
-        return processed, tool_call_ids
+        return processed
 
-    def llmobs_output_messages(self) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str]]]:
+    def llmobs_output_messages(self) -> List[Dict[str, Any]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
-            A tuple of (processed_messages, tool_call_outputs)
+            A list of processed messages
         """
         if not self.response or not self.response.output:
-            return [], []
+            return []
 
-        messages = self.response.output  # type: List[Any]
-        processed = []  # type: List[Dict[str, Any]]
+        messages: List[Any] = self.response.output
+        processed: List[Dict[str, Any]] = []
         if not messages:
-            return processed, []
+            return processed
 
         if not isinstance(messages, list):
             messages = [messages]
 
-        tool_call_ids = []
         for item in messages:
             message = {}
             # Handle content-based messages
@@ -592,7 +587,6 @@ class OaiSpanAdapter:
                 message.update({"role": getattr(item, "role", "assistant"), "content": text})
             # Handle tool calls
             elif hasattr(item, "call_id") and hasattr(item, "arguments"):
-                tool_call_ids.append((item.call_id, item.name, item.arguments if item.arguments else "{}"))
                 message.update(
                     {
                         "tool_calls": [
@@ -611,7 +605,7 @@ class OaiSpanAdapter:
                 message.update({"content": str(item)})
             processed.append(message)
 
-        return processed, tool_call_ids
+        return processed
 
     def llmobs_trace_input(self) -> Optional[str]:
         """Converts Response span data to an input value for top level trace.
@@ -623,7 +617,7 @@ class OaiSpanAdapter:
             return None
 
         try:
-            messages, _ = self.llmobs_input_messages()
+            messages = self.llmobs_input_messages()
             if messages and len(messages) > 0:
                 return messages[0].get("content")
         except (AttributeError, IndexError):
@@ -698,55 +692,3 @@ class LLMObsTraceInfo:
     current_top_level_agent_span_id: Optional[str] = None
     input_oai_span: Optional[OaiSpanAdapter] = None
     output_oai_span: Optional[OaiSpanAdapter] = None
-
-
-@dataclass
-class ToolCall:
-    """Tool call and its associated llmobs spans."""
-
-    tool_id: str
-    tool_name: str
-    arguments: str
-    llm_span_id: Optional[str] = None  # ID of the LLM span that initiated this tool call
-    tool_span_id: Optional[str] = None  # ID of the tool span that executed this call
-    tool_kind: Optional[str] = None  # one of "function", "handoff"
-    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
-
-
-class ToolCallTracker:
-    """Used to track tool data and their associated llm/tool spans for span linking."""
-
-    def __init__(self):
-        self._tool_calls: Dict[str, ToolCall] = {}  # tool_id -> ToolCall
-        self._input_lookup: Dict[Tuple[str, str], str] = {}  # (name, args) -> tool_id
-
-    def register_llm_tool_call(self, tool_id: str, tool_name: str, arguments: str, llm_span_id: str) -> None:
-        tool_call = ToolCall(
-            tool_id=tool_id,
-            tool_name=tool_name,
-            arguments=arguments,
-            llm_span_id=llm_span_id,
-        )
-        self._tool_calls[tool_id] = tool_call
-        self._input_lookup[(tool_name, arguments)] = tool_id
-
-    def register_tool_execution(self, tool_id: str, tool_span_id: str, tool_kind: str) -> None:
-        if tool_id in self._tool_calls:
-            self._tool_calls[tool_id].tool_span_id = tool_span_id
-            self._tool_calls[tool_id].tool_kind = tool_kind
-
-    def mark_handoff_completed(self, tool_id: str) -> None:
-        # we need to mark when a hand-off is completed since we only want to link the output of a
-        # handoff tool span to the FIRST llm call that has that hand-off as input.
-        if tool_id in self._tool_calls:
-            self._tool_calls[tool_id].is_handoff_completed = True
-
-    def find_by_input(self, tool_name: str, arguments: str) -> Optional[ToolCall]:
-        tool_id = self._input_lookup.get((tool_name, arguments))
-        return self._tool_calls.get(tool_id) if tool_id else None
-
-    def find_by_id(self, tool_id: str) -> Optional[ToolCall]:
-        return self._tool_calls.get(tool_id)
-
-    def cleanup_input(self, tool_name: str, arguments: str) -> None:
-        self._input_lookup.pop((tool_name, arguments), None)

@@ -16,7 +16,6 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.trace import Span
 
@@ -198,17 +197,3 @@ def safe_json(obj, ensure_ascii=True):
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
-
-
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = span._get_ctx_item(SPAN_LINKS)
-    if current_span_links is None:
-        current_span_links = []
-    current_span_links.append(
-        {
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
-        }
-    )
-    span._set_ctx_item(SPAN_LINKS, current_span_links)

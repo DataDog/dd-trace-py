@@ -24,10 +24,8 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
-from ddtrace.llmobs._integrations.utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import add_span_link
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
@@ -45,7 +43,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: Dict[str, LLMObsTraceInfo] = {}
-        self.tool_tracker = ToolCallTracker()
 
     def trace(
         self,
@@ -56,10 +53,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     ) -> Span:
         # NOTE: we will always call super().trace() with submit_to_llmobs=True
         if kwargs.get("oai_trace"):
-            return self._start_span_from_oai_trace(pin, kwargs["oai_trace"], submit_to_llmobs, **kwargs)
+            return self._start_span_from_oai_trace(pin, kwargs["oai_trace"], submit_to_llmobs)
         if kwargs.get("oai_span"):
-            return self._start_span_from_oai_span(pin, kwargs["oai_span"], submit_to_llmobs, **kwargs)
-        return super().trace(pin, "openai_agents.request", submit_to_llmobs, **kwargs)
+            return self._start_span_from_oai_span(pin, kwargs["oai_span"], submit_to_llmobs)
+        return super().trace(pin, "openai_agents.request", submit_to_llmobs)
 
     def _start_span_from_oai_trace(
         self,
@@ -118,13 +115,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # the entire trace
         if trace_info and span_kind == "llm" and not trace_info.input_oai_span:
             trace_info.input_oai_span = oai_span
-            add_span_link(
-                llmobs_span,
-                trace_info.span_id,
-                trace_info.trace_id,
-                "input",
-                "input",
-            )
 
         return llmobs_span
 
@@ -142,14 +132,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             output_oai_span = trace_info.output_oai_span
             if output_oai_span:
                 span._set_ctx_item(OUTPUT_VALUE, output_oai_span.response_output_text)
-                llmobs_output_span = self.oai_to_llmobs_span[output_oai_span.span_id]
-                add_span_link(
-                    span,
-                    str(llmobs_output_span.span_id),
-                    format_trace_id(llmobs_output_span.trace_id),
-                    "output",
-                    "output",
-                )
 
         metadata = oai_trace.metadata
         if metadata:
@@ -214,37 +196,12 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         # Process input messages
         if oai_span.input:
-            messages, tool_call_ids = oai_span.llmobs_input_messages()
-
-            for tool_id in tool_call_ids:
-                tool_call = self.tool_tracker.find_by_id(tool_id)
-                if not tool_call or not tool_call.tool_span_id or tool_call.is_handoff_completed:
-                    continue
-
-                if tool_call.tool_kind == "handoff":
-                    self.tool_tracker.mark_handoff_completed(tool_id)
-
-                add_span_link(
-                    span,
-                    tool_call.tool_span_id,
-                    format_trace_id(span.trace_id),
-                    "output",
-                    "input",
-                )
-
+            messages = oai_span.llmobs_input_messages()
             span._set_ctx_item(INPUT_MESSAGES, messages)
 
         # Process output messages
         if oai_span.response and oai_span.response.output:
-            messages, tool_call_outputs = oai_span.llmobs_output_messages()
-            for tool_id, tool_name, tool_args in tool_call_outputs:
-                self.tool_tracker.register_llm_tool_call(
-                    tool_id=tool_id,
-                    tool_name=tool_name,
-                    arguments=tool_args,
-                    llm_span_id=str(span.span_id),
-                )
-
+            messages = oai_span.llmobs_output_messages()
             span._set_ctx_item(OUTPUT_MESSAGES, messages)
 
         # Set metadata and metrics
@@ -261,43 +218,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
 
-        tool_call = self.tool_tracker.find_by_input(oai_span.name, oai_span.input)
-        if tool_call and tool_call.llm_span_id:
-            add_span_link(
-                span,
-                tool_call.llm_span_id,
-                format_trace_id(span.trace_id),
-                "output",
-                "input",
-            )
-
-            self.tool_tracker.register_tool_execution(
-                tool_id=tool_call.tool_id,
-                tool_span_id=str(span.span_id),
-                tool_kind="function",
-            )
-            self.tool_tracker.cleanup_input(oai_span.name, oai_span.input)
-
     def _set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         """Sets attributes for handoff type spans."""
-        handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
-        span.name = handoff_tool_name
-
-        tool_call = self.tool_tracker.find_by_input(handoff_tool_name, "{}")
-        if tool_call and tool_call.llm_span_id:
-            add_span_link(
-                span,
-                tool_call.llm_span_id,
-                format_trace_id(span.trace_id),
-                "output",
-                "input",
-            )
-            self.tool_tracker.register_tool_execution(
-                tool_id=tool_call.tool_id,
-                tool_span_id=str(span.span_id),
-                tool_kind="handoff",
-            )
-
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
 
@@ -354,4 +276,3 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
-        self.tool_tracker = ToolCallTracker()
