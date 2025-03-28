@@ -16,18 +16,8 @@ ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 log = get_logger(__name__)
 
 
-def get_trace_url() -> str:
-    """Return the Agent URL computed from the environment."""
-    return config.trace_agent_url
-
-
-def get_stats_url() -> str:
-    """Return the DogStatsD URL computed from the environment."""
-    return config.dogstatsd_url
-
-
 def info(url=None):
-    agent_url = get_trace_url() if url is None else url
+    agent_url = config.trace_agent_url if url is None else url
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
     try:
