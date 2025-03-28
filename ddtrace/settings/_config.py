@@ -106,6 +106,7 @@ INTEGRATION_CONFIGS = frozenset(
         "unittest",
         "falcon",
         "langgraph",
+        "litellm",
         "aioredis",
         "test_visibility",
         "redis",
