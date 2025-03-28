@@ -23,7 +23,10 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
+from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SAMPLING_HASH_MODULO as _SAMPLING_HASH_MODULO
+from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR as _SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
@@ -44,10 +47,6 @@ except ImportError:
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.context import Context  # noqa:F401
     from ddtrace._trace.span import Span  # noqa:F401
-
-# Big prime number to make hashing better distributed
-KNUTH_FACTOR = 1111111111111111111
-MAX_SPAN_ID = 2**64
 
 
 class PriorityCategory(object):
@@ -117,7 +116,7 @@ class SpanSamplingRule:
         name: Optional[str] = None,
     ):
         self._sample_rate = sample_rate
-        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
+        self._sampling_id_threshold = self._sample_rate * _MAX_UINT_64BITS
 
         self._max_per_second = max_per_second
         self._limiter = RateLimiter(max_per_second)
@@ -141,7 +140,7 @@ class SpanSamplingRule:
         elif self._sample_rate == 0:
             return False
 
-        return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
+        return ((span.span_id * _SAMPLING_KNUTH_FACTOR) % _SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
     def match(self, span):
         # type: (Span) -> bool
