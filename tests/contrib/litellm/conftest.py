@@ -39,6 +39,7 @@ def mock_llmobs_writer():
     finally:
         patcher.stop()
 
+
 @pytest.fixture
 def litellm(ddtrace_global_config, ddtrace_config_litellm):
     global_config = default_global_config()
@@ -55,6 +56,7 @@ def litellm(ddtrace_global_config, ddtrace_config_litellm):
 
                 yield litellm
                 unpatch()
+
 
 @pytest.fixture
 def mock_tracer(litellm, ddtrace_global_config):

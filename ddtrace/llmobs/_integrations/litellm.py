@@ -3,11 +3,20 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY, METRICS, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import (
+    INPUT_TOKENS_METRIC_KEY,
+    METRICS,
+    OUTPUT_TOKENS_METRIC_KEY,
+    TOTAL_TOKENS_METRIC_KEY,
+)
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags, openai_set_meta_tags_from_chat, openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import (
+    get_llmobs_metrics_tags,
+    openai_set_meta_tags_from_chat,
+    openai_set_meta_tags_from_completion,
+)
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -18,9 +27,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
     # maps requested model name to parsed model name and provider
     _model_map = {}
 
-    def _set_base_span_tags(
-        self, span: Span, model: Optional[str] = None, **kwargs: Dict[str, Any]
-    ) -> None:
+    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
         if model is not None:
             span.set_tag_str("litellm.request.model", model)
 

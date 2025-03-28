@@ -33,7 +33,7 @@ def test_global_tags(ddtrace_config_litellm, litellm, request_vcr, mock_tracer):
 def test_litellm_completion(litellm, request_vcr, stream, n):
     with request_vcr.use_cassette(get_cassette_name(stream, n)):
         messages = [{"content": "Hey, what is up?", "role": "user"}]
-        resp =litellm.completion(
+        resp = litellm.completion(
             model="gpt-3.5-turbo",
             messages=messages,
             stream=stream,
@@ -58,9 +58,6 @@ async def test_litellm_acompletion(litellm, request_vcr, stream, n):
         if stream:
             async for _ in resp:
                 pass
-
-
-
 
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])

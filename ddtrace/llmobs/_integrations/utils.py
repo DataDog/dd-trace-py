@@ -279,7 +279,9 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash")}
+    parameters = {
+        k: v for k, v in kwargs.items() if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash")
+    }
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -292,23 +294,28 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
         }
     )
 
+
 def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash")}
+    parameters = {
+        k: v
+        for k, v in kwargs.items()
+        if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash")
+    }
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
     if isinstance(messages, list):  # streamed response
-        role = "" 
+        role = ""
         output_messages = []
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
-            role = streamed_message.get("role", "") or role 
+            role = streamed_message.get("role", "") or role
             message = {"content": streamed_message.get("content", ""), "role": role}
             tool_calls = streamed_message.get("tool_calls", [])
             if tool_calls:
@@ -352,6 +359,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
             continue
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
 
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""

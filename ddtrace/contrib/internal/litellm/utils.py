@@ -4,13 +4,18 @@ from typing import Dict
 from typing import List
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks, openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import (
+    openai_construct_completion_from_streamed_chunks,
+    openai_construct_message_from_streamed_chunks,
+)
 
 log = get_logger(__name__)
+
 
 def tag_request(span, kwargs):
     if "metadata" in kwargs and "headers" in kwargs["metadata"] and "host" in kwargs["metadata"]["headers"]:
         span.set_tag_str("litellm.request.host", kwargs["metadata"]["headers"]["host"])
+
 
 class BaseTracedLiteLLMStream:
     def __init__(self, generator, integration, span, args, kwargs, is_completion=False):
@@ -49,6 +54,7 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 )
             self._dd_span.finish()
 
+
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
     async def __aenter__(self):
         await self._generator.__aenter__()
@@ -74,6 +80,7 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                 )
             self._dd_span.finish()
 
+
 def _loop_handler(chunk, streamed_chunks):
     """Appends the chunk to the correct index in the streamed_chunks list.
 
@@ -88,11 +95,17 @@ def _loop_handler(chunk, streamed_chunks):
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
     try:
         if is_completion:
-            formatted_completions = [openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+            formatted_completions = [
+                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
         else:
-            formatted_completions = [openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+            formatted_completions = [
+                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
         operation = "completion" if is_completion else "chat"
         if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
+            integration.llmobs_set_tags(
+                span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation
+            )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)

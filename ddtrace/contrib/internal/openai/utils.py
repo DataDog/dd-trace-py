@@ -6,7 +6,10 @@ from typing import Dict
 from typing import Generator
 from typing import List
 
-from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks, openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import (
+    openai_construct_completion_from_streamed_chunks,
+    openai_construct_message_from_streamed_chunks,
+)
 import wrapt
 
 from ddtrace.internal.logger import get_logger
@@ -266,9 +269,13 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
     request_messages = kwargs.get("messages", None)
     try:
         if is_completion:
-            formatted_completions = [openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
+            formatted_completions = [
+                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
         else:
-            formatted_completions = [openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
+            formatted_completions = [
+                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
@@ -276,6 +283,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
+
 
 def _tag_streamed_response(integration, span, completions_or_messages=None):
     """Tagging logic for streamed completions and chat completions."""

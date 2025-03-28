@@ -50,13 +50,16 @@ def _create_span(litellm, pin, func, instance, args, kwargs):
 def traced_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_completion(litellm, pin, func, instance, args, kwargs, False)
 
+
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, False)
 
+
 @with_traced_module
 def traced_text_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_completion(litellm, pin, func, instance, args, kwargs, True)
+
 
 @with_traced_module
 async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
@@ -72,9 +75,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMStream(
-                resp, integration, span, args, kwargs, is_completion
-            )
+            return TracedLiteLLMStream(resp, integration, span, args, kwargs, is_completion)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -83,7 +84,9 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat")
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                )
             span.finish()
 
 
@@ -96,9 +99,7 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMAsyncStream(
-                resp, integration, span, args, kwargs, is_completion
-            )
+            return TracedLiteLLMAsyncStream(resp, integration, span, args, kwargs, is_completion)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -107,7 +108,9 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat")
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                )
             span.finish()
 
 
