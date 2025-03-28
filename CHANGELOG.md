@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.2.2
+
+
+### Bug Fixes
+
+- LLM Observability: Resolves issue where Pydantic model objects were encoded as unhelpful default placeholder text.
+- LLM Observability: Improves encoding of non-JSON serializable I/O objects by attempting to convert to string before resorting to default placeholder text.
+
+
+---
+
 ## 2.21.4
 
 
