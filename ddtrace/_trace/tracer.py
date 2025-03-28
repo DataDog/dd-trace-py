@@ -5,6 +5,7 @@ import logging
 import os
 from os import environ
 from os import getpid
+import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -282,8 +283,9 @@ class Tracer(object):
 
         # Non-global tracers require that we still register these hooks, until
         # their usage is fully deprecated. The global one will be managed by the
-        # product protocol.
-        if not isinstance(self, Tracer):
+        # product protocol. We also need to register these hooks if the library
+        # was not bootstrapped correctly.
+        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
             atexit.register(self._atexit)
             forksafe.register(self._child_after_fork)
 
@@ -1064,10 +1066,11 @@ class Tracer(object):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
             forksafe.unregister_before_fork(self._sample_before_fork)
-            # Non-global tracers require that we still register these hooks, until
-            # their usage is fully deprecated. The global one will be managed by the
-            # product protocol.
-            if not isinstance(self, Tracer):
+            # Non-global tracers require that we still register these hooks,
+            # until their usage is fully deprecated. The global one will be
+            # managed by the product protocol. We also need to register these
+            # hooks if the library was not bootstrapped correctly.
+            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
 
