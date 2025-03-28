@@ -90,6 +90,7 @@ suites:
     runner: hatch
     snapshot: true
   unittest:
+    parallelism: 2
     paths:
       - '@contrib'
       - '@unittest'
