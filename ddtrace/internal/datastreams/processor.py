@@ -22,6 +22,7 @@ from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -117,12 +118,12 @@ Bucket = NamedTuple(
 class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
-        # type: (str, Optional[float], float, int) -> None
+    def __init__(self, agent_url=None, interval=None, timeout=1.0, retry_attempts=3):
+        # type: (Optional[str], Optional[float], float, int) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
-        self._agent_url = agent_url
+        self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout

@@ -5,8 +5,6 @@ def _global_sampling_rule():
     from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace.trace import tracer
 
-    assert hasattr(tracer._sampler, "rules")
-
     for rule in tracer._sampler.rules:
         if (
             rule.service == SamplingRule.NO_RULE
