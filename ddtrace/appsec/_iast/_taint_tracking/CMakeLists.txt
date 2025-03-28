@@ -54,20 +54,20 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
-    "Aspects/*.cpp"
-    "Initializer/*.cpp"
-    "TaintedOps/*.cpp"
-    "TaintTracking/*.cpp"
-    "Utils/*.cpp")
+    "aspects/*.cpp"
+    "initializer/*.cpp"
+    "tainted_ops/*.cpp"
+    "taint_tracking/*.cpp"
+    "utils/*.cpp")
 file(
     GLOB
     HEADER_FILES
     "*.h"
-    "Aspects/*.h"
-    "Initializer/*.h"
-    "TaintedOps/*.h"
-    "TaintTracking/*.h"
-    "Utils/*.h")
+    "aspects/*.h"
+    "initializer/*.h"
+    "tainted_ops/*.h"
+    "taint_tracking/*.h"
+    "utils/*.h")
 
 # Find ICU library (not needed for now) find_package(ICU REQUIRED COMPONENTS uc i18n)  # 'uc' for the common library,
 # 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
