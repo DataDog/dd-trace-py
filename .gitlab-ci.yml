@@ -9,6 +9,8 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   # CI_DEBUG_SERVICES: "true"
+  # VPA Template configuration
+  KUBERNETES_POD_ANNOTATIONS_1: "vpa.datadoghq.com/template=gitlab-runner/vpa-template-rollup-max-cpu-p70-10percent"
 
 default:
   interruptible: true
