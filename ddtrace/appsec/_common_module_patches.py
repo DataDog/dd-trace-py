@@ -1,5 +1,4 @@
 # This module must not import other modules unconditionally that require iast
-
 import ctypes
 import os
 from typing import Any
@@ -356,6 +355,7 @@ def wrap_object(module, name, factory, args=(), kwargs=None):
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
+    wrapper.__deepcopy__ = lambda memo: wrapper
     return wrapper
 
 
