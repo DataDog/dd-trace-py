@@ -1,5 +1,5 @@
 from ddtrace import config
-from ddtrace.internal import agent
+from ddtrace.settings._agent import config as agent_config
 
 from ...internal.utils.importlib import require_modules
 
@@ -22,6 +22,6 @@ def data_streams_processor():
     if config._data_streams_enabled and not _processor:
         from . import processor
 
-        _processor = processor.DataStreamsProcessor(agent.get_trace_url())
+        _processor = processor.DataStreamsProcessor(agent_config.trace_agent_url)
 
     return _processor
