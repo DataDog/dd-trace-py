@@ -9,17 +9,15 @@ def post_preload():
 
 
 def start():
-    if config.enabled:
-        from ddtrace.internal import symbol_db
+    if config._force:
+        # Force the upload of symbols, ignoring RCM instructions.
+        from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-        symbol_db.bootstrap()
+        SymbolDatabaseUploader.install()
 
 
 def restart(join=False):
-    if not config._force:
-        from ddtrace.internal import symbol_db
-
-        symbol_db.restart()
+    pass
 
 
 def stop(join=False):
