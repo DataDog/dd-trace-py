@@ -227,9 +227,9 @@ class FalconTestCase(FalconTestMixin):
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
-        writer = self.tracer._span_aggregagtor.writer
+        writer = self.tracer._span_aggregator.writer
         ot_tracer = init_tracer("my_svc", self.tracer)
-        ot_tracer._dd_tracer._span_aggregagtor.writer = writer
+        ot_tracer._dd_tracer._span_aggregator.writer = writer
         ot_tracer._dd_tracer._recreate()
 
         with ot_tracer.start_active_span("ot_span"):

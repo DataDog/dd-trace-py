@@ -618,7 +618,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
             with tracer.trace("child"):
                 pass
 
-    trace = tracer._span_aggregagtor.writer.pop()
+    trace = tracer._span_aggregator.writer.pop()
     assert trace, "DummyWriter failed to encode the trace"
 
     encoder.put(trace)

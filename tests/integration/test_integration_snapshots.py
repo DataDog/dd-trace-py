@@ -87,8 +87,8 @@ def test_synchronous_writer():
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer
 
-    writer = AgentWriter(tracer._span_aggregagtor.writer.agent_url, sync_mode=True)
-    tracer._span_aggregagtor.writer = writer
+    writer = AgentWriter(tracer._span_aggregator.writer.agent_url, sync_mode=True)
+    tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):

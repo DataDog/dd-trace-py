@@ -100,7 +100,7 @@ assert config._trace_compute_stats is False
 
 # but it's reported as enabled
 # to avoid the agent from doing it either.
-assert tracer._span_aggregagtor.writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
+assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
 """,
         env=env,
     )

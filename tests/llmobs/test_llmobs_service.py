@@ -46,7 +46,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 def run_llmobs_trace_filter(dummy_tracer):
     with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span.set_tag_str(SPAN_KIND, "llm")
-    return dummy_tracer._span_aggregagtor.writer.pop()
+    return dummy_tracer._span_aggregator.writer.pop()
 
 
 def test_service_enable_proxy_default():

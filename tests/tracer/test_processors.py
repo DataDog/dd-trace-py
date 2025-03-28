@@ -382,7 +382,7 @@ def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
     tracer = DummyTracer()
     # get processor
-    sampling_processor = tracer._span_aggregagtor.sampling_processor
+    sampling_processor = tracer._span_aggregator.sampling_processor
     assert sampling_processor.sampler is tracer._sampler
 
     new_sampler = mock.Mock()
@@ -579,7 +579,7 @@ def assert_span_sampling_decision_tags(
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
-    tracer._span_aggregagtor.sampling_processor = sampling_processor
+    tracer._span_aggregator.sampling_processor = sampling_processor
 
 
 def test_endpoint_call_counter_processor():

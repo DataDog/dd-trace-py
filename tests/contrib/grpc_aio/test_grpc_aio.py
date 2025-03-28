@@ -232,7 +232,7 @@ def _create_server(servicer, target):
 
 
 def _get_spans(tracer):
-    return tracer._span_aggregagtor.writer.spans
+    return tracer._span_aggregator.writer.spans
 
 
 def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello"):

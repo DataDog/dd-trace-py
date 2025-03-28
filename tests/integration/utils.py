@@ -28,7 +28,7 @@ class BadEncoder:
 def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     from ddtrace.trace import tracer as t
 
-    for client in t._span_aggregagtor.writer._clients:
+    for client in t._span_aggregator.writer._clients:
         client.encoder = encoder_cls()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()

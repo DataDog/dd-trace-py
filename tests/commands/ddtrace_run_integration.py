@@ -17,8 +17,8 @@ if __name__ == "__main__":
     assert pin
 
     pin._tracer = DummyTracer()
-    assert isinstance(pin.tracer._span_aggregagtor.writer, DummyWriter)
-    writer = pin.tracer._span_aggregagtor.writer
+    assert isinstance(pin.tracer._span_aggregator.writer, DummyWriter)
+    writer = pin.tracer._span_aggregator.writer
     r.flushall()
     spans = writer.pop()
 

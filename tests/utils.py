@@ -505,7 +505,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer._span_aggregagtor.writer.pop()
+        self.tracer._span_aggregator.writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -620,37 +620,37 @@ class DummyTracer(Tracer):
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
         # Ensure DummyTracer is always initialized with a DummyWriter
-        self._span_aggregagtor.writer = DummyWriter(
+        self._span_aggregator.writer = DummyWriter(
             trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
         )
 
     @property
     def agent_url(self):
         # type: () -> str
-        return self._span_aggregagtor.writer.agent_url
+        return self._span_aggregator.writer.agent_url
 
     @property
     def encoder(self):
         # type: () -> Encoder
-        return self._span_aggregagtor.writer.msgpack_encoder
+        return self._span_aggregator.writer.msgpack_encoder
 
     def get_spans(self):
         # type: () -> List[List[Span]]
-        spans = self._span_aggregagtor.writer.spans
+        spans = self._span_aggregator.writer.spans
         if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._span_aggregagtor.writer)
+            flush_test_tracer_spans(self._span_aggregator.writer)
         return spans
 
     def pop(self):
         # type: () -> List[Span]
-        spans = self._span_aggregagtor.writer.pop()
+        spans = self._span_aggregator.writer.pop()
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        traces = self._span_aggregagtor.writer.pop_traces()
+        traces = self._span_aggregator.writer.pop_traces()
         if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._span_aggregagtor.writer)
+            flush_test_tracer_spans(self._span_aggregator.writer)
         return traces
 
 
@@ -880,7 +880,7 @@ class TracerSpanContainer(TestSpanContainer):
         :returns: List of spans attached to this tracer
         :rtype: list
         """
-        return self.tracer._span_aggregagtor.writer.spans
+        return self.tracer._span_aggregator.writer.spans
 
     def pop(self):
         return self.tracer.pop()
@@ -1050,19 +1050,19 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._span_aggregagtor.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
         # itself run
         try:
-            tracer._span_aggregagtor.writer.flush_queue()
+            tracer._span_aggregator.writer.flush_queue()
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer._span_aggregagtor.writer._headers["X-Datadog-Test-Session-Token"] = token
+            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1100,9 +1100,9 @@ def snapshot_context(
             )
         finally:
             # Force a flush so all traces are submitted.
-            tracer._span_aggregagtor.writer.flush_queue()
+            tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._span_aggregagtor.writer._headers["X-Datadog-Test-Session-Token"]
+                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)

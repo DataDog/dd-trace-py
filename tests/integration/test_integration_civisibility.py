@@ -38,10 +38,10 @@ def test_civisibility_intake_with_evp_available():
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
-        assert CIVisibility._instance.tracer._span_aggregagtor.writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == agent_config.trace_agent_url
+        assert CIVisibility._instance.tracer._span_aggregator.writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
+        assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == agent_config.trace_agent_url
         assert (
-            CIVisibility._instance.tracer._span_aggregagtor.writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
+            CIVisibility._instance.tracer._span_aggregator.writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
             == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
         )
         CIVisibility.disable()
@@ -66,8 +66,8 @@ def test_civisibility_intake_with_apikey():
     ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
-        assert CIVisibility._instance.tracer._span_aggregagtor.writer._endpoint == AGENTLESS_ENDPOINT
-        assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == "https://citestcycle-intake.foo.bar"
+        assert CIVisibility._instance.tracer._span_aggregator.writer._endpoint == AGENTLESS_ENDPOINT
+        assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "https://citestcycle-intake.foo.bar"
         CIVisibility.disable()
 
 
@@ -82,9 +82,9 @@ def test_civisibility_intake_payloads():
     from tests.utils import override_env
 
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        t._span_aggregagtor.writer = CIVisibilityWriter(reuse_connections=True, coverage_enabled=True)
+        t._span_aggregator.writer = CIVisibilityWriter(reuse_connections=True, coverage_enabled=True)
         t._recreate()
-        t._span_aggregagtor.writer._conn = mock.MagicMock()
+        t._span_aggregator.writer._conn = mock.MagicMock()
         with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response
             from_http_response.return_value.status = 200
@@ -97,7 +97,7 @@ def test_civisibility_intake_payloads():
                 + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
             )
             span.finish()
-            conn = t._span_aggregagtor.writer._conn
+            conn = t._span_aggregator.writer._conn
             t.shutdown()
         assert 2 <= conn.request.call_count <= 3
         assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"

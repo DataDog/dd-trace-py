@@ -422,7 +422,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         ), mock.patch(
             "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregagtor.writer.intake_url",
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
             "http://patchedagenturl:6218",
         ):
             try:
@@ -528,7 +528,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregagtor.writer.intake_url",
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
             "http://patchedagenturl:6218",
         ):
             try:
