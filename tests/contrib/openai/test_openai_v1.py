@@ -194,6 +194,7 @@ def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
 
     assert len(mock_tracer.pop_traces()) == 0
 
+
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
@@ -327,6 +328,7 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
         )
 
     assert len(mock_tracer.pop_traces()) == 0
+
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"

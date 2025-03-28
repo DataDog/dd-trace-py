@@ -106,9 +106,13 @@ def patch():
     )
     wrap(openai, "resources.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
     wrap(
-        openai, "resources.chat.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
+        openai,
+        "resources.chat.AsyncCompletionsWithRawResponse.__init__",
+        patched_completions_with_raw_response_init(openai),
     )
-    wrap(openai, "resources.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
+    wrap(
+        openai, "resources.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
+    )
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -147,7 +151,7 @@ def unpatch():
     unwrap(openai.resources.CompletionsWithRawResponse, "__init__")
     unwrap(openai.resources.chat.AsyncCompletionsWithRawResponse, "__init__")
     unwrap(openai.resources.AsyncCompletionsWithRawResponse, "__init__")
-    
+
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
             continue
@@ -179,9 +183,15 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
 @with_traced_module
 def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
-    if hasattr(instance, "create") and (isinstance(instance, openai.resources.completions.CompletionsWithRawResponse) or isinstance(instance, openai.resources.completions.AsyncCompletionsWithRawResponse)):
+    if hasattr(instance, "create") and (
+        isinstance(instance, openai.resources.completions.CompletionsWithRawResponse)
+        or isinstance(instance, openai.resources.completions.AsyncCompletionsWithRawResponse)
+    ):
         wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._CompletionWithRawResponseHook))
-    elif hasattr(instance, "create") and (isinstance(instance, openai.resources.chat.CompletionsWithRawResponse) or isinstance(instance, openai.resources.chat.AsyncCompletionsWithRawResponse)):
+    elif hasattr(instance, "create") and (
+        isinstance(instance, openai.resources.chat.CompletionsWithRawResponse)
+        or isinstance(instance, openai.resources.chat.AsyncCompletionsWithRawResponse)
+    ):
         wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
     return
 
