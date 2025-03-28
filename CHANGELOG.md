@@ -4,6 +4,24 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.0.1
+
+
+### Bug Fixes
+
+- asyncio: Fixes an issue where the name of a coroutine was being overridden by a ddtrace function.
+- CI Visibility: This fix resolves an issue where ddtrace's own sys.monitoring coverage tool in Python 3.12+ would block other sys.monitoring tools such as pytest-cov from being used.
+- configurations: This fix resolves an issue where DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES env variable was not parsed correctly
+- LLM Observability: Resolves issue where Pydantic model objects were encoded as unhelpful default placeholder text.
+- LLM Observability: Improves encoding of non-JSON serializable I/O objects by attempting to convert to string before resorting to default placeholder text.
+- ASM: This fix resolves an issue where blocking mechanism could partially fail with a 500 error on fastapi with python\>=3.11 with a custom middleware.
+- LLM Observability: Fixes non-LLM message inputs and outputs to be rendered as json rather than Python strings.
+- profiling: fixes an issue where the profiler unnecessarily outputs log messages when it was unable to record a lock acquire event.
+- library: Updates the exception raised when `ddtrace.patch(...)` is called with an invalid argument.
+
+
+---
+
 ## 2.21.4
 
 
