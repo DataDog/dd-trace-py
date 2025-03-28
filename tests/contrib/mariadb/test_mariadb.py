@@ -186,6 +186,8 @@ def test_user_specified_dd_mariadb_service_snapshot():
     When a user specifies a service for the app
         The mariadb integration should not use it.
     """
+    import ddtrace.auto  # noqa
+
     import mariadb
 
     from ddtrace import patch

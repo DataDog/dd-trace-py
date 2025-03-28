@@ -996,6 +996,8 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
+    import ddtrace.auto  # noqa
+
     from ddtrace.constants import MANUAL_KEEP_KEY
     from ddtrace.trace import tracer
 
@@ -1634,8 +1636,10 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_fork_manual_span_same_context():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.trace import tracer
@@ -1662,8 +1666,10 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_fork_manual_span_different_contexts():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.trace import tracer
@@ -1685,8 +1691,10 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_fork_pid():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.constants import PID
