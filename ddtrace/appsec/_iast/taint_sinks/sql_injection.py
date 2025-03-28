@@ -1,6 +1,6 @@
-from .. import oce
-from ..constants import VULN_SQL_INJECTION
-from ._base import VulnerabilityBase
+from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 
 
 @oce.register

@@ -1,15 +1,14 @@
 from typing import Any
 from typing import Callable
 
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
+from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
+from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
+from ddtrace.appsec._iast.taint_sinks.weak_randomness import WeakRandomness
 from ddtrace.settings.asm import config as asm_config
-
-from ..._constants import IAST_SPAN_TAGS
-from .._metrics import _set_metric_iast_executed_sink
-from .._metrics import increment_iast_span_metric
-from ..constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
-from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
-from .path_traversal import check_and_report_path_traversal
-from .weak_randomness import WeakRandomness
 
 
 # TODO: we also need a native version of this function!

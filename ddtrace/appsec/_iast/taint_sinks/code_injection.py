@@ -81,6 +81,6 @@ class CodeInjection(VulnerabilityBase):
 def _iast_report_code_injection(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
-    if asm_config.is_iast_request_enabled:
+    if asm_config.is_iast_request_enabled and CodeInjection.has_quota():
         if is_pyobject_tainted(code_string):
             CodeInjection.report(evidence_value=code_string)

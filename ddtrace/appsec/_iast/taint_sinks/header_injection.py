@@ -6,6 +6,7 @@ from wrapt.importer import when_imported
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -15,11 +16,9 @@ from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-
-from .._logs import iast_instrumentation_wrapt_debug_log
-from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
