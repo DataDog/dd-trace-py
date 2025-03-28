@@ -7,6 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace Datadog {
@@ -45,7 +46,8 @@ Datadog::CodeProvenance::set_stdlib_path(std::string_view _stdlib_path)
 }
 
 void
-CodeProvenance::add_packages(std::unordered_map<std::string_view, std::string_view> distributions)
+CodeProvenance::add_packages(
+  std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> distributions)
 {
 
     if (!is_enabled()) {
@@ -54,10 +56,10 @@ CodeProvenance::add_packages(std::unordered_map<std::string_view, std::string_vi
 
     std::lock_guard<std::mutex> lock(mtx);
 
-    for (const auto& [package_name, version] : distributions) {
+    for (const auto& [package_name, version_and_path] : distributions) {
         auto it = packages.find(package_name);
         if (it == packages.end()) {
-            add_new_package(package_name, version);
+            add_new_package(package_name, version_and_path.first, version_and_path.second);
         }
     }
 }
@@ -83,7 +85,7 @@ CodeProvenance::add_filename(std::string_view filename)
 
     const Package* package = it->second.get();
     if (package) {
-        packages_to_files[package].insert(std::string(filename));
+        packages_to_output.insert(package);
     }
 }
 
@@ -99,18 +101,13 @@ CodeProvenance::try_serialize_to_json_str()
     std::ostringstream out;
     // DEV: Simple JSON serialization, maybe consider using a JSON library.
     out << "{\"v1\":["; // Start of the JSON array
-    for (const auto& [package, paths] : packages_to_files) {
+    for (const auto& package : packages_to_output) {
         out << "{"; // Start of the JSON object
         out << "\"name\": \"" << package->name << "\",";
         out << "\"kind\": \"library\",";
         out << "\"version\": \"" << package->version << "\",";
         out << "\"paths\":["; // Start of paths array
-        for (auto it = paths.begin(); it != paths.end(); ++it) {
-            out << "\"" << *it << "\"";
-            if (std::next(it) != paths.end()) {
-                out << ",";
-            }
-        }
+        out << "\"" << package->path << "\"";
         out << "]";  // End of paths array
         out << "},"; // End of the JSON object
     }
@@ -126,7 +123,7 @@ CodeProvenance::try_serialize_to_json_str()
     out << "]}"; // End of the JSON array
 
     // Clear the state
-    packages_to_files.clear();
+    packages_to_output.clear();
     return out.str();
 }
 
@@ -134,7 +131,7 @@ void
 CodeProvenance::reset()
 {
     std::lock_guard<std::mutex> lock(mtx);
-    packages_to_files.clear();
+    packages_to_output.clear();
 }
 
 std::string_view
@@ -158,11 +155,13 @@ CodeProvenance::get_package_name(std::string_view filename)
 }
 
 const Package*
-CodeProvenance::add_new_package(std::string_view package_name, std::string_view version)
+CodeProvenance::add_new_package(std::string_view package_name, std::string_view version, std::string_view path)
 {
     std::unique_ptr<Package> package = std::make_unique<Package>();
     package->name = package_name;
     package->version = version;
+    package->path = path;
+    package->path += "/" + package->name;
 
     const Package* ret_val = package.get();
     packages[std::string_view(package->name)] = std::move(package);
