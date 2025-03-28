@@ -251,6 +251,7 @@ appsec_iast_packages:
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
+    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
     - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
         """
         )
