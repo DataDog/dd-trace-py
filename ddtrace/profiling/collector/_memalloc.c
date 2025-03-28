@@ -5,22 +5,12 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 #include "_utils.h"
-
-typedef struct
-{
-    PyMemAllocatorEx pymem_allocator_obj;
-    /* The domain we are tracking */
-    PyMemAllocatorDomain domain;
-    /* The maximum number of events for allocation tracking */
-    uint16_t max_events;
-    /* The maximum number of frames collected in stack traces */
-    uint16_t max_nframe;
-} memalloc_context_t;
 
 /* We only support being started once, so we use a global context for the whole
    module. If we ever want to be started multiple twice, we'd need a more
@@ -28,84 +18,113 @@ typedef struct
 */
 static memalloc_context_t global_memalloc_ctx;
 
-/* Allocation tracker */
-typedef struct
-{
-    /* List of traceback */
-    traceback_array_t allocs;
-    /* Total number of allocations */
-    uint64_t alloc_count;
-} alloc_tracker_t;
-
 /* A string containing "object" */
 static PyObject* object_string = NULL;
 
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
-/* This lock protects access to global_alloc_tracker. The GIL is NOT sufficient
-   to protect our data structures from concurrent access. For one, the GIL is an
-   implementation detail and may go away in the future. Additionally, even if the
-   GIL is held on _entry_ to our C extension functions, making it safe to call
-   Python C API functions, the GIL can be released during Python C API calls if
-   we call back into interpreter code. This can happen if we allocate a Python
-   object (such as frame info), trigger garbage collection, and run arbitrary
-   destructors. When this happens, other threads can run python code, such as the
-   thread that aggregates and uploads the profile data and mutates the global
-   data structures. The GIL does not create critical sections for C extension
-   functions!
- */
-static memlock_t g_memalloc_lock;
-
-static alloc_tracker_t* global_alloc_tracker;
-
-// This is a multiplatform way to define an operation to happen at static initialization time
 static void
-memalloc_init(void);
-
-static void
-memalloc_prefork(void)
+memalloc_context_prefork(void)
 {
+    if (!global_memalloc_ctx.one_time_init) {
+        return;
+    }
+
     // Lock the mutex prior to forking. This ensures that the memory profiler
     // data structures will be in a consistent state in the child process.
     // The rest of the memalloc calls do trylock so we don't run the risk
     // of deadlocking if some other fork handler allocates
-    memlock_lock(&g_memalloc_lock);
+    memlock_lock(&global_memalloc_ctx.alloc_lock);
+    memlock_lock(&global_memalloc_ctx.heap_lock);
 }
 
 static void
-memalloc_postfork_parent(void)
+memalloc_context_postfork_parent(void)
 {
-    memlock_unlock(&g_memalloc_lock);
+    if (!global_memalloc_ctx.one_time_init) {
+        return;
+    }
+    memlock_unlock(&global_memalloc_ctx.heap_lock);
+    memlock_unlock(&global_memalloc_ctx.alloc_lock);
 }
 
 static void
-memalloc_postfork_child(void)
+memalloc_context_postfork_child(void)
 {
-    memlock_unlock(&g_memalloc_lock);
+    if (!global_memalloc_ctx.one_time_init) {
+        return;
+    }
+    memlock_unlock(&global_memalloc_ctx.heap_lock);
+    memlock_unlock(&global_memalloc_ctx.alloc_lock);
 }
 
-#ifdef _MSC_VER
-#pragma section(".CRT$XCU", read)
-__declspec(allocate(".CRT$XCU")) void (*memalloc_init_func)(void) = memalloc_init;
-
-#elif defined(__GNUC__) || defined(__clang__)
-__attribute__((constructor))
-#else
-#error Unsupported compiler
-#endif
 static void
-memalloc_init()
+memalloc_context_one_time_init(memalloc_context_t* ctx)
 {
-    memlock_init(&g_memalloc_lock);
+    if (ctx->one_time_init) {
+        return;
+    }
+    memlock_init(&ctx->alloc_lock);
+    memlock_init(&ctx->heap_lock);
+    /* Set this after initializing the locks so that the fork handler
+       can trust they're initialized */
+    ctx->one_time_init = true;
 #ifndef _WIN32
-    pthread_atfork(memalloc_prefork, memalloc_postfork_parent, memalloc_postfork_child);
+    /* NB: The fork handlers are inherited by the child process! */
+    pthread_atfork(memalloc_context_prefork, memalloc_context_postfork_parent, memalloc_context_postfork_child);
 #endif
+}
+
+static void
+alloc_tracker_init(alloc_tracker_t* tracker)
+{
+    tracker->alloc_count = 0;
+    traceback_array_init(&tracker->allocs);
+}
+
+static void
+alloc_tracker_free(alloc_tracker_t* alloc_tracker)
+{
+    traceback_array_wipe(&alloc_tracker->allocs);
+}
+
+static void
+memalloc_context_init(memalloc_context_t* ctx, uint16_t max_nframe, uint16_t max_events, uint32_t heap_sample_size)
+{
+    memalloc_context_one_time_init(ctx);
+
+    ctx->max_nframe = max_nframe;
+    ctx->max_events = (uint16_t)max_events;
+
+    memalloc_heap_tracker_init(ctx, heap_sample_size);
+
+    if (memlock_trylock(&ctx->alloc_lock)) {
+        alloc_tracker_init(&ctx->alloc_profile);
+        memlock_unlock(&ctx->alloc_lock);
+    }
+
+    /* NB: we don't set ctx->active until we've installed the allocator, as we
+       use ctx->active to tell us whether to uninstall the allocator when we stop
+       profiling. Though in practice it seems unlikely that starting and stopping
+       the profiler will race */
+}
+
+static void
+memalloc_context_reset(memalloc_context_t* ctx)
+{
+    if (memlock_trylock(&ctx->alloc_lock)) {
+        alloc_tracker_free(&ctx->alloc_profile);
+        memlock_unlock(&ctx->alloc_lock);
+    }
+
+    memalloc_heap_tracker_deinit(ctx);
+    ctx->active = false;
 }
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
-    uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
+    uint64_t alloc_count = atomic_add_clamped(&ctx->alloc_profile.alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
     /* Return if we've reached the maximum number of allocations */
     if (alloc_count == 0)
@@ -119,16 +138,16 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
     // In this implementation, the `global_alloc_tracker` isn't intrinsically protected.  Before we read or modify,
     // take the lock.  The count of allocations is already forward-attributed elsewhere, so if we can't take the lock
     // there's nothing to do.
-    if (!memlock_trylock(&g_memalloc_lock)) {
+    if (!memlock_trylock(&ctx->alloc_lock)) {
         return;
     }
 
     /* Determine if we can capture or if we need to sample */
-    if (global_alloc_tracker->allocs.count < ctx->max_events) {
+    if (ctx->alloc_profile.allocs.count < ctx->max_events) {
         /* Buffer is not full, fill it */
         traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
         if (tb) {
-            traceback_array_append(&global_alloc_tracker->allocs, tb);
+            traceback_array_append(&ctx->alloc_profile.allocs, tb);
         }
     } else {
         /* Sampling mode using a reservoir sampling algorithm: replace a random
@@ -136,33 +155,33 @@ memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
         uint64_t r = random_range(alloc_count);
 
         // In addition to event size, need to check that the tab is in a good state
-        if (r < ctx->max_events && global_alloc_tracker->allocs.tab != NULL) {
+        if (r < ctx->max_events && ctx->alloc_profile.allocs.tab != NULL) {
             /* Replace a random traceback with this one */
             traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
 
             // Need to check not only that the tb returned
             if (tb) {
-                traceback_free(global_alloc_tracker->allocs.tab[r]);
-                global_alloc_tracker->allocs.tab[r] = tb;
+                traceback_free(ctx->alloc_profile.allocs.tab[r]);
+                ctx->alloc_profile.allocs.tab[r] = tb;
             }
         }
     }
 
-    memlock_unlock(&g_memalloc_lock);
+    memlock_unlock(&ctx->alloc_lock);
     memalloc_yield_guard();
 }
 
 static void
 memalloc_free(void* ctx, void* ptr)
 {
-    PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
+    memalloc_context_t* mctx = (memalloc_context_t*)ctx;
 
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack(ptr);
+    memalloc_heap_untrack(mctx, ptr);
 
-    alloc->free(alloc->ctx, ptr);
+    mctx->pymem_allocator_obj.free(mctx->pymem_allocator_obj.ctx, ptr);
 }
 
 static void*
@@ -178,7 +197,7 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 
     if (ptr) {
         memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        memalloc_heap_track(memalloc_ctx, memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
     }
 
     return ptr;
@@ -204,27 +223,11 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 
     if (ptr2) {
         memalloc_add_event(memalloc_ctx, ptr2, new_size);
-        memalloc_heap_untrack(ptr);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_untrack(memalloc_ctx, ptr);
+        memalloc_heap_track(memalloc_ctx, memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
 
     return ptr2;
-}
-
-static alloc_tracker_t*
-alloc_tracker_new()
-{
-    alloc_tracker_t* alloc_tracker = PyMem_RawMalloc(sizeof(alloc_tracker_t));
-    alloc_tracker->alloc_count = 0;
-    traceback_array_init(&alloc_tracker->allocs);
-    return alloc_tracker;
-}
-
-static void
-alloc_tracker_free(alloc_tracker_t* alloc_tracker)
-{
-    traceback_array_wipe(&alloc_tracker->allocs);
-    PyMem_RawFree(alloc_tracker);
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
@@ -240,9 +243,16 @@ PyDoc_STRVAR(memalloc_start__doc__,
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
-    if (global_alloc_tracker) {
+    if (global_memalloc_ctx.active) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
         return NULL;
+    }
+
+    if (object_string == NULL) {
+        object_string = PyUnicode_FromString("object");
+        if (object_string == NULL)
+            return NULL;
+        PyUnicode_InternInPlace(&object_string);
     }
 
     char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
@@ -264,31 +274,20 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
+    if (memalloc_tb_init(max_nframe) < 0)
+        return NULL;
 
     if (max_events < 1 || max_events > TRACEBACK_ARRAY_MAX_COUNT) {
         PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", TRACEBACK_ARRAY_MAX_COUNT);
         return NULL;
     }
 
-    global_memalloc_ctx.max_events = (uint16_t)max_events;
-
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %lu]", MAX_HEAP_SAMPLE_SIZE);
         return NULL;
     }
 
-    if (memalloc_tb_init(global_memalloc_ctx.max_nframe) < 0)
-        return NULL;
-
-    if (object_string == NULL) {
-        object_string = PyUnicode_FromString("object");
-        if (object_string == NULL)
-            return NULL;
-        PyUnicode_InternInPlace(&object_string);
-    }
-
-    memalloc_heap_tracker_init((uint32_t)heap_sample_size);
+    memalloc_context_init(&global_memalloc_ctx, max_nframe, max_events, heap_sample_size);
 
     PyMemAllocatorEx alloc;
 
@@ -301,13 +300,12 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
 
-    if (memlock_trylock(&g_memalloc_lock)) {
-        global_alloc_tracker = alloc_tracker_new();
-        memlock_unlock(&g_memalloc_lock);
-    }
-
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
+
+    /* The profiler is initialized and our handler is installed, so now we can
+       mark it as "active" */
+    global_memalloc_ctx.active = true;
 
     Py_RETURN_NONE;
 }
@@ -322,20 +320,14 @@ PyDoc_STRVAR(memalloc_stop__doc__,
 static PyObject*
 memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    if (!global_alloc_tracker) {
+    if (!global_memalloc_ctx.active) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
 
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+    memalloc_context_reset(&global_memalloc_ctx);
     memalloc_tb_deinit();
-    if (memlock_trylock(&g_memalloc_lock)) {
-        alloc_tracker_free(global_alloc_tracker);
-        global_alloc_tracker = NULL;
-        memlock_unlock(&g_memalloc_lock);
-    }
-
-    memalloc_heap_tracker_deinit();
 
     Py_RETURN_NONE;
 }
@@ -348,17 +340,17 @@ PyDoc_STRVAR(memalloc_heap_py__doc__,
 static PyObject*
 memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
-    if (!global_alloc_tracker) {
+    if (!global_memalloc_ctx.active) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
 
-    return memalloc_heap();
+    return memalloc_heap(&global_memalloc_ctx);
 }
 
 typedef struct
 {
-    PyObject_HEAD alloc_tracker_t* alloc_tracker;
+    PyObject_HEAD alloc_tracker_t alloc_tracker;
     uint32_t seq_index;
 } IterEventsState;
 
@@ -375,7 +367,7 @@ PyDoc_STRVAR(iterevents__doc__,
 static PyObject*
 iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
-    if (!global_alloc_tracker) {
+    if (!global_memalloc_ctx.active) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
@@ -389,24 +381,20 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
     /* Reset the current traceback list. Do this outside lock so we can track it,
      * and avoid reentrancy/deadlock problems, if we start tracking the raw
      * allocator domain */
-    alloc_tracker_t* tracker = alloc_tracker_new();
-    if (!tracker) {
-        PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
-        Py_TYPE(iestate)->tp_free(iestate);
-        return NULL;
-    }
+    alloc_tracker_t tracker;
+    alloc_tracker_init(&tracker);
 
-    memlock_lock(&g_memalloc_lock);
-    iestate->alloc_tracker = global_alloc_tracker;
-    global_alloc_tracker = tracker;
-    memlock_unlock(&g_memalloc_lock);
+    memlock_lock(&global_memalloc_ctx.alloc_lock);
+    memcpy(&iestate->alloc_tracker, &global_memalloc_ctx.alloc_profile, sizeof(alloc_tracker_t));
+    memcpy(&global_memalloc_ctx.alloc_profile, &tracker, sizeof(alloc_tracker_t));
+    memlock_unlock(&global_memalloc_ctx.alloc_lock);
 
     iestate->seq_index = 0;
 
     PyObject* iter_and_count = PyTuple_New(3);
     PyTuple_SET_ITEM(iter_and_count, 0, (PyObject*)iestate);
-    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker->allocs.count));
-    PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->alloc_tracker->alloc_count));
+    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker.allocs.count));
+    PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->alloc_tracker.alloc_count));
 
     return iter_and_count;
 }
@@ -414,18 +402,20 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
 static void
 iterevents_dealloc(IterEventsState* iestate)
 {
-    if (memlock_trylock(&g_memalloc_lock)) {
-        alloc_tracker_free(iestate->alloc_tracker);
+    // TODO(nick): this lock isn't really needed, right?
+    // iestate->alloc_tracker doesn't share state with the global tracker
+    if (memlock_trylock(&global_memalloc_ctx.alloc_lock)) {
+        alloc_tracker_free(&iestate->alloc_tracker);
         Py_TYPE(iestate)->tp_free(iestate);
-        memlock_unlock(&g_memalloc_lock);
+        memlock_unlock(&global_memalloc_ctx.alloc_lock);
     }
 }
 
 static PyObject*
 iterevents_next(IterEventsState* iestate)
 {
-    if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
-        traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
+    if (iestate->seq_index < iestate->alloc_tracker.allocs.count) {
+        traceback_t* tb = iestate->alloc_tracker.allocs.tab[iestate->seq_index];
         iestate->seq_index++;
 
         PyObject* tb_size_domain = PyTuple_New(3);
