@@ -94,7 +94,8 @@ def patch_app_call(wrapped, instance, args, kwargs):
         tags={},
         tracer=pin.tracer,
         distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
-        distributed_headers_config=config.molten,
+        integration_config=config.molten,
+        activate_distributed_headers=True,
         headers_case_sensitive=True,
         analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
