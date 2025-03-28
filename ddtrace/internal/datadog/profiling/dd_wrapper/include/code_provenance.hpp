@@ -4,10 +4,10 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Datadog {
@@ -54,7 +54,7 @@ class CodeProvenance
     // Mapping from package name to Package object
     std::unordered_map<std::string_view, std::unique_ptr<Package>> packages;
     // Mapping from Package object to list of filenames that are associated with the package
-    std::unordered_map<const Package*, std::set<std::string>> packages_to_files;
+    std::unordered_map<const Package*, std::unordered_set<std::string>> packages_to_files;
 
     // Private Constructor/Destructor to prevent instantiation/deletion from outside
     CodeProvenance() = default;

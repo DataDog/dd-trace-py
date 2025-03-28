@@ -442,7 +442,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events):
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
-            input_value=str({"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}),
+            input_value='{"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}',
             output_value="test_prompt",
             session_id="test_session_id",
         )
@@ -460,7 +460,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "retrieval",
-        input_value=str({"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}),
+        input_value='{"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}',
         session_id="test_session_id",
     )
 
@@ -831,7 +831,7 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        input_value=str({"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}),
+        input_value='{"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}',
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),

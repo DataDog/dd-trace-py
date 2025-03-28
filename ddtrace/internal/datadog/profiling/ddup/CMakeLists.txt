@@ -10,6 +10,9 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 

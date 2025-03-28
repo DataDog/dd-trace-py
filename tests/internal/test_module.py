@@ -490,7 +490,10 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    import ddtrace  # noqa:F401
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
     from tests.internal.namespace_test import ns_module
 
     # Check that the loader's get_code is wrapped:

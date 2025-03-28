@@ -505,6 +505,12 @@ Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib._vertica
 
+.. _yaaredis:
+
+yaaredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib._yaaredis
+
 .. _wsgi:
 
 WSGI

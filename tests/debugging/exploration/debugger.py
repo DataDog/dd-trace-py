@@ -1,11 +1,14 @@
 import atexit
-import os
 import sys
 from types import ModuleType
 import typing as t
 
 from _config import config
 from output import log
+from utils import COLS
+from utils import from_editable_install
+from utils import is_ddtrace
+from utils import is_included
 
 from ddtrace.debugging._config import di_config
 import ddtrace.debugging._debugger as _debugger
@@ -18,8 +21,6 @@ from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import Path
-from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 
 
@@ -30,46 +31,6 @@ class NoopRemoteConfig(RemoteConfigPoller):
 
 # Disable remote config as we don't need it for exploration tests
 _debugger.remoteconfig_poller = NoopRemoteConfig()
-
-try:
-    COLS, _ = os.get_terminal_size()
-except Exception:
-    COLS = 80
-CWD = Path.cwd()
-
-
-# Taken from Python 3.9. This is not implemented in older versions of Python
-def is_relative_to(self, other):
-    """Return True if the path is relative to another path or False."""
-    try:
-        self.relative_to(other)
-        return True
-    except ValueError:
-        return False
-
-
-def from_editable_install(module: ModuleType) -> bool:
-    o = origin(module)
-    if o is None:
-        return False
-    return (
-        o.is_relative_to(CWD)
-        and not any(_.stem.startswith("test") for _ in o.parents)
-        and (config.venv is None or not o.is_relative_to(config.venv))
-    )
-
-
-def is_included(module: ModuleType) -> bool:
-    segments = module.__name__.split(".")
-    for i in config.include:
-        if i == segments[: len(i)]:
-            return True
-    return False
-
-
-def is_ddtrace(module: ModuleType) -> bool:
-    name = module.__name__
-    return name == "ddtrace" or name.startswith("ddtrace.")
 
 
 class ModuleCollector(DebuggerModuleWatchdog):
@@ -85,9 +46,9 @@ class ModuleCollector(DebuggerModuleWatchdog):
         try:
             if not is_ddtrace(module):
                 if config.include:
-                    if not is_included(module):
+                    if not is_included(module, config):
                         return
-                elif not from_editable_install(module):
+                elif not from_editable_install(module, config):
                     # We want to instrument only the modules that belong to the
                     # codebase and exclude the modules that belong to the tests
                     # and the dependencies installed within the virtual env.

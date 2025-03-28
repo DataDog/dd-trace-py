@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "web.request",
+    "service": "tests.contrib.dd_trace_api",
+    "resource": "web.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67acf5f200000000",
+      "error.message": "",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/tests/contrib/dd_trace_api/test_integration.py\", line 94, in test_set_traceback\n    raise Exception\nException\n",
+      "error.type": "builtins.Exception",
+      "language": "python",
+      "runtime-id": "b3171ef9be8f4447a646f236195e0337"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 61551
+    },
+    "duration": 324541,
+    "start": 1739388402052944676
+  }]]

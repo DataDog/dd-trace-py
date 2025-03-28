@@ -216,7 +216,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
 
     def test_pin_not_activated(self):
-        self.tracer._configure(enabled=False)
+        self.tracer.enabled = False
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))
@@ -669,7 +669,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
-@flaky(until=1738272799, reason="GitLab CI does not support ipv6 at this time")
+@flaky(until=1767220930, reason="GitLab CI does not support ipv6 at this time")
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""

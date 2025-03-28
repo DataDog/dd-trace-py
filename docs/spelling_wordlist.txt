@@ -315,3 +315,4 @@ workflow
 Wrapt
 wsgi
 xfail
+yaaredis

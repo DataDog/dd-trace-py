@@ -165,7 +165,7 @@ def test_propagate_ranges_with_no_context(caplog):
         result = mod.do_os_path_join(string_input, "bar")
         assert result == "abcde/bar"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
 
 
 # TODO: add tests for os.path.splitdrive and os.path.normcase under Windows

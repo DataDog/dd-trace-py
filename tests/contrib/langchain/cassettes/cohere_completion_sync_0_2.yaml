@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "model": null, "stop_sequences":
+      null, "stream": false}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '109'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.com
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain:partner
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.13.11
+    method: POST
+    uri: https://api.cohere.com/v1/generate
+  response:
+    body:
+      string: '{"id":"f15260ab-8bdf-4d3c-9d93-9f272736573c","generations":[{"id":"17be474b-3080-48f5-98f1-59a182419eb3","text":"
+        The secret Krabby Patty recipe has been kept hidden throughout all the Spongebob
+        Squarepants episodes and movies, and it is not disclosed in any official media.
+        Nevertheless, fans have come up with their own speculations on what the recipe
+        might contain. One popular theory suggests that the recipe includes seaweed,
+        cheddar, crab, vegetables, and a secret sauce. \n\nIt''s important to note
+        that the secret Krabby Patty recipe is fictional and solely exists within
+        the Spongebob Squarepants universe. ","finish_reason":"COMPLETE"}],"prompt":"What
+        is the secret Krabby Patty recipe?","meta":{"api_version":{"version":"1"},"billed_units":{"input_tokens":10,"output_tokens":101}}}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '791'
+      Via:
+      - 1.1 google
+      access-control-expose-headers:
+      - X-Debug-Trace-ID
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Tue, 11 Feb 2025 18:57:40 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      num_chars:
+      - '539'
+      num_tokens:
+      - '111'
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-api-warning:
+      - 'unknown field: parameter model is not a valid field'
+      x-debug-trace-id:
+      - b03ef8103599fe9b74524248d2befdec
+      x-endpoint-monthly-call-limit:
+      - '1000'
+      x-envoy-upstream-service-time:
+      - '2952'
+      x-trial-endpoint-call-limit:
+      - '40'
+      x-trial-endpoint-call-remaining:
+      - '39'
+    status:
+      code: 200
+      message: OK
+version: 1

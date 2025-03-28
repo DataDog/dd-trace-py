@@ -1,11 +1,12 @@
 from pathlib import Path
 
+from mock import patch
 import pytest
 
+from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
+from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
+from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-from .test_anthropic import ANTHROPIC_VERSION
-from .utils import tools
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -30,6 +31,37 @@ Francisco, CA is 73°F."
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsAnthropic:
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self,
+        mock_anthropic_messages_post,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        mock_tracer,
+        request_vcr,
+    ):
+        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
+        llm = anthropic.Anthropic(base_url="http://localhost:4000")
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            system="Respond only in all caps.",
+            temperature=0.8,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Hello, I am looking for information about some books!"},
+                        {"type": "text", "text": "What is the best selling book?"},
+                    ],
+                }
+            ],
+        )
+        # base_url is specified, so no llm obs span should be sent
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 

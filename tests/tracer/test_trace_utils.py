@@ -23,8 +23,8 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
@@ -309,7 +309,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 @pytest.mark.subprocess(
     parametrize={
-        "DD_TRACE_HEADER_TAGS": ["header1 header2 header3:third-header", "header1,header2,header3:third-header"]
+        "DD_TRACE_HEADER_TAGS": [
+            "header1 header2 header3:third-header",
+            "header1,header2,header3:third-header",
+            "header1, header2, header3:third-header",
+        ]
     }
 )
 def test_set_http_meta_with_http_header_tags_config():

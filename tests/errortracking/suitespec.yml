@@ -1,0 +1,15 @@
+---
+components:
+  errortracking:
+    - ddtrace/errortracking/*
+    - ddtrace/settings/errortracking.py
+suites:
+  errortracker:
+    parallelism: 1
+    paths:
+      - '@errortracking'
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - tests/errortracking/*
+    runner: riot

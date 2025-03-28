@@ -1,4 +1,5 @@
 import functools
+import http.client as httplib
 import importlib
 import json
 import os
@@ -9,7 +10,6 @@ import unittest
 
 import wrapt
 
-from ddtrace.internal.compat import httplib
 from ddtrace.version import get_version
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess

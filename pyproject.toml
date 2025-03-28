@@ -26,10 +26,10 @@ classifiers = [
 ]
 dependencies = [
     "bytecode>=0.16.0; python_version>='3.13.0'",
-    "bytecode>=0.15.0; python_version~='3.12.0'",
+    "bytecode>=0.15.1; python_version~='3.12.0'",
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
-    "envier~=0.5",
+    "envier~=0.6.1",
     "importlib_metadata<=6.5.0; python_version<'3.8'",
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
@@ -63,6 +63,7 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
+"error-tracking" = "ddtrace.errortracking.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.product"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"

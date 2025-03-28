@@ -73,6 +73,8 @@ class TestVisibilitySessionSettings:
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
     test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
+    ci_provider_name: Optional[str] = None
+    is_auto_injected: bool = False
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):

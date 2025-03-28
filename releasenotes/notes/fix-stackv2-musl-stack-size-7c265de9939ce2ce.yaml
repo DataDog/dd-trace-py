@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where Profiling native threads would respect the musl libc
+    default stack size, which could cause stack overflows in certain
+    configurations.

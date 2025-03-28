@@ -9,13 +9,13 @@ import httpretty
 import mock
 import pytest
 
+from ddtrace import config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
-from ddtrace.settings import _global_config as config
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import override_global_config
@@ -112,11 +112,13 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
                     {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "unknown", "value": 5.0},
-                    {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+                    {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_SERVICE_MAPPING", "origin": "unknown", "value": ""},
                     {"name": "DD_SPAN_SAMPLING_RULES", "origin": "unknown", "value": None},
                     {"name": "DD_SPAN_SAMPLING_RULES_FILE", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "unknown", "value": True},
+                    {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+                    {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
                     {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "unknown", "value": 2.0},
                     {"name": "DD_TRACE_API_VERSION", "origin": "unknown", "value": None},
                     {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "unknown", "value": None},
@@ -131,6 +133,16 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_OTEL_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "unknown", "value": 300},
+                    {
+                        "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
+                        "origin": "default",
+                        "value": False,
+                    },
+                    {
+                        "name": "DD_TRACE_PEER_SERVICE_MAPPING",
+                        "origin": "env_var",
+                        "value": "default_service:remapped_service",
+                    },
                     {"name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_TRACE_PEER_SERVICE_MAPPING", "origin": "unknown", "value": ""},
                     {
@@ -220,7 +232,7 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_STARTUP_LOGS"] = "True"
     env["DD_LOGS_INJECTION"] = "True"
     env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "true"
+    env["DD_APPSEC_ENABLED"] = "False"
     env["DD_RUNTIME_METRICS_ENABLED"] = "True"
     env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
     env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
@@ -267,6 +279,10 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
     env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
     env["DD_SITE"] = "datadoghq.com"
+    env["DD_APPSEC_RASP_ENABLED"] = "False"
+    env["DD_API_SECURITY_ENABLED"] = "False"
+    env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
+    env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
@@ -285,12 +301,13 @@ import ddtrace.settings.exception_replay
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
-        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "default", "value": "identification"},
-        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE", "origin": "env_var", "value": "disabled"},
+        {"name": "DD_APPSEC_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_MAX_STACK_TRACES", "origin": "default", "value": 2},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH", "origin": "default", "value": 32},
         {"name": "DD_APPSEC_MAX_STACK_TRACE_DEPTH_TOP_PERCENT", "origin": "default", "value": 75.0},
@@ -311,7 +328,7 @@ import ddtrace.settings.exception_replay
             "[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(?:\\.[\\w.+\\/=-]+)?|[\\-]"
             "{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
-        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
         {
             "name": "DD_APPSEC_SCA_ENABLED",
@@ -325,6 +342,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
+        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
@@ -339,6 +357,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DJANGO_INCLUDE_USER_LOGIN", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_NAME", "origin": "default", "value": True},
         {"name": "DD_DJANGO_INCLUDE_USER_REALNAME", "origin": "default", "value": False},
+        {"name": "DD_DOGSTATSD_HOST", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_PORT", "origin": "default", "value": None},
         {"name": "DD_DOGSTATSD_URL", "origin": "default", "value": None},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL", "origin": "default", "value": 3600},
@@ -350,9 +369,12 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
+        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED", "origin": "default", "value": False},
+        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED", "origin": "default", "value": ""},
+        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES", "origin": "default", "value": ""},
+        {"name": "DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_LOGGER", "origin": "default", "value": ""},
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
-        {"name": "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
@@ -385,6 +407,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_TELEMETRY_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
@@ -397,19 +420,30 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
         {"name": "DD_PROFILING_MAX_EVENTS", "origin": "default", "value": 16384},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
+        {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
         {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
+        {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
+        {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
         {"name": "DD_PROFILING__FORCE_LEGACY_EXPORTER", "origin": "default", "value": False},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
-        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "unknown", "value": False},
+        {"name": "DD_RUNTIME_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_SERVICE", "origin": "default", "value": DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME},
         {"name": "DD_SERVICE_MAPPING", "origin": "env_var", "value": "default_dd_service:remapped_dd_service"},
         {"name": "DD_SITE", "origin": "env_var", "value": "datadoghq.com"},
@@ -428,6 +462,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TEST_SESSION_NAME", "origin": "default", "value": None},
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
+        {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
@@ -435,16 +471,32 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": "set()"},
+        {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_HEADER_TAGS", "origin": "default", "value": ""},
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
         {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
+        {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
+        {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
+        {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
+        {
+            "name": "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
+        {
+            "name": "DD_TRACE_PEER_SERVICE_MAPPING",
+            "origin": "env_var",
+            "value": "default_service:remapped_service",
+        },
         {"name": "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT", "origin": "env_var", "value": "restart"},
         {"name": "DD_TRACE_PROPAGATION_EXTRACT_FIRST", "origin": "default", "value": False},
         {"name": "DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", "origin": "default", "value": False},
@@ -478,7 +530,6 @@ import ddtrace.settings.exception_replay
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
-        {"name": "trace_sample_rate", "origin": "default", "value": 1.0},
     ]
     assert configurations == expected, configurations
 

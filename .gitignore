@@ -132,6 +132,9 @@ ENV/
 # VS Code
 .vscode/
 
+# Cursor
+.cursor/
+
 # Riot
 .riot/venv*
 .riot/requirements/*.in
@@ -165,6 +168,7 @@ cloned_venvs/
 .circleci/config.gen.yml
 # GitLab CI generated config
 .gitlab/*-gen.yml
+.gitlab-ci-local/
 
 # Automatically generated fixtures
 tests/appsec/iast/fixtures/aspects/callers.py

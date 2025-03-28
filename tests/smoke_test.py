@@ -6,15 +6,6 @@ import sys
 import textwrap
 
 
-def mac_supported_iast_version():
-    if platform.system() == "Darwin":
-        # TODO: MacOS 10.9 or lower has a old GCC version but cibuildwheel has a GCC old version in newest mac versions
-        # mac_version = [int(i) for i in mac_ver()[0].split(".")]
-        # mac_version > [10, 9]
-        return False
-    return True
-
-
 # Code need to be run in a separate subprocess to reload since reloading .so files doesn't
 # work like normal Python ones
 test_native_load_code = """
@@ -45,7 +36,7 @@ except ImportError as e:
 
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and platform.system() != "Windows" and mac_supported_iast_version():
+    if sys.version_info >= (3, 6, 0) and platform.system() != "Windows":
         print("Running native IAST module load test...")
         test_code = textwrap.dedent(test_native_load_code)
         cmd = [sys.executable, "-c", test_code]
@@ -84,17 +75,8 @@ if __name__ == "__main__":
     # Profiling smoke test
     print("Running profiling smoke test...")
     profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
-    if sys.version_info >= (3, 13, 0):
-        print("Skipping profiling smoke test for Python 3.13+ as it's not supported yet")
-    elif (
-        # echion doesn't work on Windows
-        platform.system() == "Windows"
-        # libdatadog x86_64-apple-darwin has not yet been integrated to dd-trace-py
-        or (platform.system() == "Darwin" and platform.machine() == "x86_64")
-        # echion crashes on musl linux with Python 3.12 for both x86_64 and
-        # aarch64
-        or (platform.system() == "Linux" and sys.version_info[:2] == (3, 12) and platform.libc_ver()[0] != "glibc")
-    ):
+    # echion doesn't work on Windows
+    if platform.system() == "Windows":
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
         copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"

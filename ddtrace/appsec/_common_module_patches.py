@@ -1,5 +1,4 @@
 # This module must not import other modules unconditionally that require iast
-
 import ctypes
 import os
 from typing import Any
@@ -45,14 +44,7 @@ def patch_common_modules():
 
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
-    try_wrap_function_wrapper("_io", "BytesIO.read", wrapped_read_F3E51D71B4EC16EF)
-    try_wrap_function_wrapper("_io", "StringIO.read", wrapped_read_F3E51D71B4EC16EF)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-        from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
-
-        _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
     _is_patched = True
 
 
@@ -69,29 +61,6 @@ def unpatch_common_modules():
     _is_patched = False
 
 
-def wrapped_read_F3E51D71B4EC16EF(original_read_callable, instance, args, kwargs):
-    """
-    wrapper for _io.BytesIO and _io.StringIO read function
-    """
-    result = original_read_callable(*args, **kwargs)
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import Source
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-        ranges = get_tainted_ranges(instance)
-        if len(ranges) > 0:
-            source = ranges[0].source if ranges[0].source else Source(name="_io", value=result, origin=OriginType.EMPTY)
-            result = taint_pyobject(
-                pyobject=result,
-                source_name=source.name,
-                source_value=source.value,
-                source_origin=source.origin,
-            )
-    return result
-
-
 def _must_block(actions: Iterable[str]) -> bool:
     return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
 
@@ -100,15 +69,6 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     """
     wrapper for open file function
     """
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        try:
-            from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
-
-            check_and_report_path_traversal(*args, **kwargs)
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            return original_open_callable(*args, **kwargs)
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
@@ -356,6 +316,7 @@ def wrap_object(module, name, factory, args=(), kwargs=None):
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
+    wrapper.__deepcopy__ = lambda memo: wrapper
     return wrapper
 
 
