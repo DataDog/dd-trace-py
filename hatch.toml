@@ -57,7 +57,7 @@ checks = [
     "suitespec-check",
 ]
 spelling = [
-    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt' {args:ddtrace/ tests/ releasenotes/ docs/}",
+    "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
 typing = [
     "mypy {args}",
@@ -186,7 +186,8 @@ DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
+CARGO_BUILD_JOBS = "12"
+DD_FAST_BUILD = "1"
 
 ## ASM Django
 
@@ -199,9 +200,6 @@ dependencies = [
     "hypothesis",
     "django{matrix:django}"
 ]
-
-[envs.appsec_threats_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -248,9 +246,6 @@ dependencies = [
     "flask{matrix:flask}"
 ]
 
-[envs.appsec_threats_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-
 [envs.appsec_threats_flask.scripts]
 test = [
     "uname -a",
@@ -279,6 +274,74 @@ flask = ["~=2.3"]
 python = ["3.8", "3.11", "3.13"]
 flask = ["~=3.0"]
 
+## ASM IAST module
+
+[envs.appsec_iast_default]
+template = "appsec_iast_default"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "astunparse",
+    "simplejson",
+    "SQLAlchemy",
+    "psycopg2-binary~=2.9.9",
+    "pymysql",
+    "mysqlclient==2.1.1",
+    "grpcio",
+    "mysqlclient==2.1.1",
+]
+
+[envs.appsec_iast_default.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_iast_default.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
+]
+
+[[envs.appsec_iast_default.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+## ASM IAST memcheck
+
+[envs.appsec_iast_memcheck]
+template = "appsec_iast_memcheck"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "psycopg2-binary~=2.9.9",
+    "pytest-memray"
+]
+
+[envs.appsec_iast_memcheck.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_iast_memcheck.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
+]
+
+[[envs.appsec_iast_memcheck.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -288,6 +351,11 @@ dependencies = [
     "pybind11",
     "clang"
 ]
+
+[envs.appsec_iast_native.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
 test = [
@@ -313,15 +381,55 @@ dependencies = [
     "virtualenv-clone"
 ]
 
+[envs.appsec_iast_packages.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
 [envs.appsec_iast_packages.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+    "python -m pytest tests/appsec/iast_packages",
 ]
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
+
+## ASM iast_tdd_propagation
+
+[envs.iast_tdd_propagation]
+template = "iast_tdd_propagation"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "flask",
+    "pycryptodome",
+    "sqlalchemy~=2.0.23",
+    "pony",
+    "aiosqlite",
+    "tortoise-orm",
+    "peewee",
+    "aiosqlite",
+]
+
+[envs.iast_tdd_propagation.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+DD_CIVISIBILITY_ITR_ENABLED = "0"
+
+[envs.iast_tdd_propagation.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_tdd_propagation",
+]
+
+[[envs.iast_tdd_propagation.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM appsec_integrations_django
 
@@ -338,11 +446,18 @@ dependencies = [
     "Django{matrix:django}",
 ]
 
+[envs.appsec_integrations_django.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+
 [envs.appsec_integrations_django.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -370,11 +485,17 @@ dependencies = [
     "flask{matrix:flask}",
 ]
 
+[envs.appsec_integrations_flask.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
 [envs.appsec_integrations_flask.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
@@ -399,7 +520,56 @@ flask = ["~=2.2"]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 flask = ["~=3.0"]
 
+[[envs.appsec_integrations_flask.matrix]]
+# werkzeug 3.1 drops support for py3.8
+python = ["3.11", "3.12", "3.13"]
+flask = ["~=3.1"]
+werkzeug = ["~=3.1"]
 
+## ASM appsec_integrations_fastapi
+
+[envs.appsec_integrations_fastapi]
+template = "appsec_integrations_fastapi"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "python-multipart",
+    "jinja2",
+    "httpx<0.28.0",
+    "anyio{matrix:anyio:}",
+    "fastapi{matrix:fastapi}"
+]
+
+[envs.appsec_integrations_fastapi.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_integrations_fastapi.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+]
+
+
+# if you add or remove a version here, please also update the parallelism parameter
+# in .circleci/config.templ.yml
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.86.0"]
+anyio = ["==3.7.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["==0.94.1"]
+
+[[envs.appsec_integrations_fastapi.matrix]]
+python = ["3.8", "3.10", "3.13"]
+fastapi = ["~=0.114.2"]
 
 ## ASM FastAPI
 
@@ -414,9 +584,6 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
-
-[envs.appsec_threats_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
@@ -441,11 +608,10 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
+## ASM IAST Aggregated Leak Testing
 
-## ASM Appsec Aggregated Leak Testing
-
-[envs.appsec_aggregated_leak_testing]
-template = "appsec_aggregated_leak_testing"
+[envs.iast_aggregated_leak_testing]
+template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
@@ -457,21 +623,21 @@ dependencies = [
     "pydantic-settings",
 ]
 
-[envs.appsec_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
+[envs.iast_aggregated_leak_testing.env-vars]
 DD_IAST_ENABLED = "true"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
+DD_FAST_BUILD = "0"
 
-[envs.appsec_aggregated_leak_testing.scripts]
+[envs.iast_aggregated_leak_testing.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
-[[envs.appsec_aggregated_leak_testing.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
-
-
+[[envs.iast_aggregated_leak_testing.matrix]]
+python = ["3.10", "3.11", "3.12"]
 
 ## pytorch profiling test
 
@@ -489,7 +655,6 @@ dependencies = [
 [envs.profiling_pytorch.env-vars]
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.profiling_pytorch.scripts]
 test = [
@@ -622,7 +787,6 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
 
 [envs.selenium.scripts]
 test = [
@@ -639,3 +803,4 @@ matrix.tested_pytest_plugin_version.env-vars = [
     { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "false", if = ["v1"]},
     { key = "_TESTED_PYTEST_PLUGIN_VERSION", value = "true", if = ["v2"]}
 ]
+

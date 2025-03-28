@@ -19,10 +19,10 @@ jobs:
     outputs:
       include: ${{steps.set-matrix.outputs.include}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: '3.8'
       - run: pip install cibuildwheel==2.22.0
@@ -50,13 +50,13 @@ jobs:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
@@ -77,7 +77,7 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
         with:
           platforms: all
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: Build wheels
         if: always() && matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.22.0
+        uses: pypa/cibuildwheel@ee63bf16da6cddfb925f542f2c7b59ad50e93969 # v2.22.0
         with:
           only: ${{ matrix.only }}
         env:
@@ -127,6 +127,7 @@ jobs:
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
+              yum install -y libatomic.i686
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
@@ -162,7 +163,7 @@ jobs:
         run: |
           chcp 65001 #set code page to utf-8
           echo "ARTIFACT_NAME=${{ matrix.only }}"  >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl

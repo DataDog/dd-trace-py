@@ -1,18 +1,9 @@
 import copy
 import os
-from platform import system
+import platform
 import subprocess
 import sys
 import textwrap
-
-
-def mac_supported_iast_version():
-    if system() == "Darwin":
-        # TODO: MacOS 10.9 or lower has a old GCC version but cibuildwheel has a GCC old version in newest mac versions
-        # mac_version = [int(i) for i in mac_ver()[0].split(".")]
-        # mac_version > [10, 9]
-        return False
-    return True
 
 
 # Code need to be run in a separate subprocess to reload since reloading .so files doesn't
@@ -45,7 +36,7 @@ except ImportError as e:
 
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and system() != "Windows" and mac_supported_iast_version():
+    if sys.version_info >= (3, 6, 0) and platform.system() != "Windows":
         print("Running native IAST module load test...")
         test_code = textwrap.dedent(test_native_load_code)
         cmd = [sys.executable, "-c", test_code]
@@ -67,7 +58,7 @@ if __name__ == "__main__":
             os.environ = orig_env
 
     # ASM WAF smoke test
-    if system() != "Linux" or sys.maxsize > 2**32:
+    if platform.system() != "Linux" or sys.maxsize > 2**32:
         import ddtrace.appsec._ddwaf
         import ddtrace.bootstrap.sitecustomize as module
 
@@ -80,3 +71,33 @@ if __name__ == "__main__":
     else:
         # Skip the test for 32-bit Linux systems
         print("Skipping test, 32-bit DDWAF not ready yet")
+
+    # Profiling smoke test
+    print("Running profiling smoke test...")
+    profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
+    if sys.version_info >= (3, 13, 0):
+        print("Skipping profiling smoke test for Python 3.13+ as it's not supported yet")
+    elif (
+        # echion doesn't work on Windows
+        platform.system() == "Windows"
+        # libdatadog x86_64-apple-darwin has not yet been integrated to dd-trace-py
+        or (platform.system() == "Darwin" and platform.machine() == "x86_64")
+        # echion crashes on musl linux with Python 3.12 for both x86_64 and
+        # aarch64
+        or (platform.system() == "Linux" and sys.version_info[:2] == (3, 12) and platform.libc_ver()[0] != "glibc")
+    ):
+        orig_env = os.environ.copy()
+        copied_env = copy.deepcopy(orig_env)
+        copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
+        if platform.system() == "Windows":
+            # Memory profiler crashes on Windows
+            copied_env["DD_PROFILING_MEMORY_ENABLED"] = "False"
+        result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
+            result.stdout,
+            result.stderr,
+        )
+    else:
+        result = subprocess.run(profiling_cmd, capture_output=True, text=True)
+        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+    print("Profiling smoke test completed successfully")

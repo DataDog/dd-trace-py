@@ -54,6 +54,57 @@ requirements_json_test:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
+promote-oci-to-prod:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+promote-oci-to-prod-beta:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+promote-oci-to-staging:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+publish-lib-init-ghcr-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+
+publish-lib-init-pinned-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+    - job: generate-lib-init-pinned-tag-values
+      artifacts: true
+
 onboarding_tests_installer:
   parallel:
     matrix:
