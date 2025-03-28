@@ -1,14 +1,13 @@
 from typing import Dict
 from typing import Optional
 
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
 from .. import oce
-from .._iast_request_context import is_iast_request_enabled
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
-from .._taint_tracking._errors import iast_taint_log_error
 from ..constants import VULN_INSECURE_COOKIE
 from ..constants import VULN_NO_HTTPONLY_COOKIE
 from ..constants import VULN_NO_SAMESITE_COOKIE
@@ -37,7 +36,7 @@ class NoSameSite(VulnerabilityBase):
 def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
     if not cookies:
         return
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
         try:
             for cookie_key, cookie_value in cookies.items():
                 lvalue = cookie_value.lower().replace(" ", "")
@@ -77,4 +76,4 @@ def asm_check_cookies(cookies: Optional[Dict[str, str]]) -> None:
                     _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
                     NoSameSite.report(evidence_value=cookie_key)
         except Exception as e:
-            iast_taint_log_error("[IAST] error in asm_check_cookies. {}".format(e))
+            iast_error(f"propagation::sink_point::Error in check stacktrace leak. {e}")
