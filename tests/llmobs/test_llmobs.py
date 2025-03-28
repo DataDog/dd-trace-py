@@ -5,6 +5,7 @@ from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -278,7 +279,41 @@ def test_structured_prompt_data(llmobs, llmobs_backend):
     assert len(events) == 1
     assert events[0]["spans"][0]["meta"]["input"] == {
         "prompt": {
+            "id": "unnamed_prompt",
+            "name": "unnamed_prompt",
+            "instance_id": events[0]["spans"][0]["meta"]["input"]["prompt"]["instance_id"],
             "template": "test {{value}}",
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+            "version": "1.0.0",
+        },
+    }
+
+
+def test_structured_prompt_data_v2(llmobs, llmobs_backend):
+    prompt = Prompt(
+        name="test",
+        id="test",
+        template="test {{value}}",
+        chat_template=[("user", "test {{value}}")],
+        variables={"value": "test"},
+    )
+    with llmobs.llm() as span:
+        llmobs.annotate(
+            span,
+            prompt=prompt,
+        )
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0]["spans"][0]["meta"]["input"] == {
+        "prompt": {
+            "id": "test",
+            "instance_id": events[0]["spans"][0]["meta"]["input"]["prompt"]["instance_id"],
+            "name": "test",
+            "version": "1.0.0",
+            "chat_template": [{"role": "user", "content": "test {{value}}"}],
+            "template": "test {{value}}",
+            "variables": {"value": "test"},
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         },
