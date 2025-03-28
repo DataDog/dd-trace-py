@@ -691,6 +691,8 @@ class Experiment:
         url = f"/api/unstable/llm-obs/v1/experiments/{self._datadog_experiment_id}/events"
         exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
+        time.sleep(3)  # Give Datadog time to process
+
         print(f"{Color.GREEN}✓ Summary metric '{name}' pushed to Datadog{Color.RESET}")
         print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}\n")
 
@@ -947,6 +949,7 @@ class ExperimentResults:
             if show_progress:
                 _print_progress_bar(chunk_idx + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
+        time.sleep(3)  # Give Datadog time to process
         print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
         print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
 
