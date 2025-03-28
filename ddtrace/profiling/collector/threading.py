@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 
-import threading
-from threading import Thread
 import typing  # noqa:F401
 
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -32,22 +30,25 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> typing.Any:
+        import threading
+
         return threading.Lock
 
-    def _set_patch_target(
-        self, value  # type: typing.Any
-    ):
-        # type: (...) -> None
+    def _set_patch_target(self, value: typing.Any) -> None:
+        import threading
+
         threading.Lock = value  # type: ignore[misc]
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
-def init_stack_v2():
+def init_stack_v2() -> None:
+    import threading
+    from threading import Thread
+
     if config.stack.v2_enabled and stack_v2.is_available:
-        _thread_set_native_id = Thread._set_native_id
-        _thread_bootstrap_inner = Thread._bootstrap_inner
+        _thread_set_native_id = Thread._set_native_id  # type: ignore[attr-defined]
+        _thread_bootstrap_inner = Thread._bootstrap_inner  # type: ignore[attr-defined]
 
         def thread_set_native_id(self, *args, **kswargs):
             _thread_set_native_id(self, *args, **kswargs)
@@ -57,11 +58,11 @@ def init_stack_v2():
             _thread_bootstrap_inner(self, *args, **kwargs)
             stack_v2.unregister_thread(self.ident)
 
-        Thread._set_native_id = thread_set_native_id
-        Thread._bootstrap_inner = thread_bootstrap_inner
+        Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
+        Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
 
         # Instrument any living threads
-        for thread_id, thread in threading._active.items():
+        for thread_id, thread in threading._active.items():  # type: ignore[attr-defined]
             # DEV: calling _set_native_id will register the thread with stack_v2
             # as we've already patched it.
             # Calling _set_native_id was necessary to ensure that the native_id
