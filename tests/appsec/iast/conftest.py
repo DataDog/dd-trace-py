@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import subprocess
 import time
 
@@ -29,6 +28,7 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -136,10 +136,6 @@ def iast_span_defaults(tracer):
     for _ in iast_context(dict(DD_IAST_ENABLED="true")):
         with tracer.trace("test") as span:
             yield span
-
-
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
 
 
 @pytest.fixture(autouse=True)

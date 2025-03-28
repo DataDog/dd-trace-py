@@ -17,7 +17,6 @@ from ddtrace.internal.service import ServiceStatus
 from tests.utils import BaseTestCase
 from tests.utils import TracerTestCase
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 @contextlib.contextmanager
@@ -80,6 +79,18 @@ def test_runtime_tags_empty():
 
     tags = dict(tags)
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
+
+
+@pytest.mark.subprocess()
+def test_runtime_platformv2_tags():
+    from ddtrace.internal.runtime.runtime_metrics import PlatformTagsV2
+
+    tags = list(PlatformTagsV2())
+    assert len(tags) == 5
+
+    tags = dict(tags)
+    # Ensure runtime-id is present along with all the v1 tags
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "runtime-id"])
 
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
@@ -215,7 +226,6 @@ class TestRuntimeWorker(TracerTestCase):
                 assert child.get_tag("language") is None
 
 
-@flaky(1731169429)
 def test_fork():
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_enable.py"))
     assert exitcode == 0

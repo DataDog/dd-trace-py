@@ -24,13 +24,11 @@ from ddtrace.ext.git import extract_commit_sha
 from ddtrace.ext.git import extract_git_version
 from ddtrace.ext.git import extract_remote_url
 from ddtrace.ext.git import extract_workspace_path
-from ddtrace.internal.agent import get_trace_url
-from ddtrace.internal.compat import JSONDecodeError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Tracer  # noqa: F401
 
-from .. import compat
 from .. import telemetry
 from ..utils.http import Response
 from ..utils.http import get_connection
@@ -94,7 +92,7 @@ class CIVisibilityGitClient(object):
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            tracer_url = get_trace_url() if tracer is None else tracer._agent_url
+            tracer_url = agent_config.trace_agent_url if tracer is None else tracer._agent_url
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
@@ -291,7 +289,7 @@ class CIVisibilityGitClient(object):
                 try:
                     result = serializer.search_commits_decode(response.body)
                     return result
-                except JSONDecodeError:
+                except json.JSONDecodeError:
                     request_error = ERROR_TYPES.BAD_JSON
                     log.warning("Error searching commits, response not parsable: %s", response.body)
                     return None
@@ -318,7 +316,7 @@ class CIVisibilityGitClient(object):
             conn = get_connection(url, timeout=timeout)
             log.debug("Sending request: %s %s %s %s", "POST", url_path, payload, _headers)
             conn.request("POST", url_path, payload, _headers)
-            resp = compat.get_connection_response(conn)
+            resp = conn.getresponse()
             log.debug("Response status: %s", resp.status)
             result = Response.from_http_response(resp)
         finally:
@@ -468,7 +466,7 @@ class CIVisibilityGitClientSerializerV1(object):
             return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
         except KeyError:
             log.warning("Expected information not found in search_commits response", exc_info=True)
-        except JSONDecodeError:
+        except json.JSONDecodeError:
             log.warning("Unexpected decode error in search_commits response", exc_info=True)
 
         return res

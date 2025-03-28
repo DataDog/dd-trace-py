@@ -13,7 +13,7 @@ from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -43,6 +43,7 @@ def _patch_env_for_testing():
             "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
             "git.commit.sha": "mytestcommitsha1234",
             "git.branch": "notmainbranch",
+            "git.commit.message": "message",
         },
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -117,9 +118,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
     ]
 
     git_data_parameters = [
-        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala"),
-        GitData(None, "shalessbranch", None),
-        GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None),
+        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "message"),
+        GitData(None, "shalessbranch", None, None),
+        GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None, None),
         None,
     ]
 
@@ -356,7 +357,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         if "dd_env" not in _expected_config:
             _expected_config["dd_env"] = "none"
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing():
             try:
                 expected_client = AgentlessTestVisibilityAPIClient(
@@ -415,10 +416,14 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         if "dd_service" not in _expected_config:
             _expected_config["dd_service"] = "dd-test-py"
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-        ), mock.patch("ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"), mock.patch(
+        ), mock.patch(
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://shouldntbeused:6218",
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
         ):
             try:
@@ -516,11 +521,13 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.version": "1.2.3",
         }
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://shouldntbeused:6218",
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
         ):

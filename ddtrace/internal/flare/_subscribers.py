@@ -48,17 +48,12 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             return
 
         data = self._data_connector.read()
-        metadata = data.get("metadata")
-        if not metadata:
-            log.debug("No metadata received from data connector")
-            return
-        configs = data.get("config")
-        if not configs:
-            log.debug("No config items received from data connector")
+        if not data:
+            log.debug("No data received from data connector")
             return
 
-        for md in metadata:
-            product_type = md.get("product_name")
+        for md in data:
+            product_type = md.metadata.product_name
             if product_type == "AGENT_CONFIG":
                 # We will only process one tracer flare request at a time
                 if self.current_request_start is not None:
@@ -68,7 +63,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     )
                     continue
                 log.info("Preparing tracer flare")
-                if _prepare_tracer_flare(self.flare, configs):
+                if _prepare_tracer_flare(self.flare, md.content):
                     self.current_request_start = datetime.now()
             elif product_type == "AGENT_TASK":
                 # Possible edge case where we don't have an existing flare request
@@ -77,7 +72,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     log.warning("There is no tracer flare job to complete. Skipping new request.")
                     continue
                 log.info("Generating and sending tracer flare")
-                if _generate_tracer_flare(self.flare, configs):
+                if _generate_tracer_flare(self.flare, md.content):
                     self.current_request_start = None
             else:
                 log.warning("Received unexpected product type for tracer flare: {}", product_type)

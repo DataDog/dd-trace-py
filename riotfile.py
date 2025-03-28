@@ -418,6 +418,14 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            name="errortracker",
+            command="pytest {cmdargs} tests/errortracking/",
+            pkgs={
+                "flask": latest,
+            },
+            pys=select_pys(min_version="3.10"),
+        ),
+        Venv(
             name="vendor",
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
@@ -1273,6 +1281,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
                 ),
             ],
         ),
@@ -2485,6 +2497,7 @@ venv = Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
+                "vcrpy": "==7.0.0",
                 "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
@@ -2494,11 +2507,11 @@ venv = Venv(
                 "pytest-randomly": "==3.10.1",
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
+                "respx": latest,
             },
             venvs=[
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2519,7 +2532,6 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2538,7 +2550,6 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,
@@ -2915,28 +2926,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.11
+                # Python >= 3.11
                 Venv(
-                    pys="3.11",
-                    pkgs={"uwsgi": latest},
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==4.22.0", latest],
-                            },
-                        ),
-                        # Gevent
-                        Venv(
-                            env={
-                                "DD_PROFILE_TEST_GEVENT": "1",
-                            },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
-                        ),
-                    ],
-                ),
-                # Python 3.12
-                Venv(
-                    pys="3.12",
+                    pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(

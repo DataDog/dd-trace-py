@@ -75,10 +75,10 @@ if config._otel_enabled:
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
 
-    LLMObs.enable()
+    LLMObs.enable(_auto=True)
 
 if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
-    from ddtrace import patch_all
+    from ddtrace._monkey import _patch_all
 
     @register_post_preload
     def _():
@@ -88,7 +88,7 @@ if asbool(os.getenv("DD_TRACE_ENABLED", default=True)):
         modules_to_patch = os.getenv("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
-        patch_all(**modules_to_bool)
+        _patch_all(**modules_to_bool)
 
     if config._trace_methods:
         _install_trace_methods(config._trace_methods)

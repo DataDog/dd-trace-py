@@ -40,9 +40,9 @@ impl PyConfigurator {
         );
         match res_config {
             Ok(config) => {
-                let list = PyList::empty_bound(py);
+                let list = PyList::empty(py);
                 for c in config.iter() {
-                    let dict = PyDict::new_bound(py);
+                    let dict = PyDict::new(py);
                     dict.set_item("name", c.name.to_str().to_owned())?;
                     dict.set_item("value", c.value.clone())?;
                     dict.set_item("source", c.source.to_str().to_owned())?;
