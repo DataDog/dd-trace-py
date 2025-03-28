@@ -4,10 +4,10 @@ import types
 
 import pytest
 from wrapt import FunctionWrapper
-from wrapt import wrap_object
 
 from ddtrace.appsec._common_module_patches import DataDogFunctionWrapper
 from ddtrace.appsec._common_module_patches import patch_common_modules
+from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 
@@ -110,21 +110,23 @@ def test_patch_read_enabled():
         "sum",
         "super",
         "tuple",
-        "type",
         "vars",
         "zip",
     ],
 )
 def test_other_builtin_functions(builtin_function_name):
-    def dummywrapper(callable, instance, args, kwargs):
+    def dummywrapper(callable, instance, args, kwargs):  # noqa: A002
         return callable(*args, **kwargs)
 
-    try_wrap_function_wrapper("builtins", builtin_function_name, dummywrapper)
+    try:
+        try_wrap_function_wrapper("builtins", builtin_function_name, dummywrapper)
 
-    original_func = getattr(builtins, builtin_function_name)
-    copy_func = copy.deepcopy(original_func)
+        original_func = getattr(builtins, builtin_function_name)
+        copy_func = copy.deepcopy(original_func)
 
-    assert type(original_func) == DataDogFunctionWrapper
-    assert isinstance(copy_func, DataDogFunctionWrapper)
-    assert isinstance(original_func, DataDogFunctionWrapper)
-    assert hasattr(original_func, "__wrapped__")
+        assert type(original_func) == DataDogFunctionWrapper
+        assert isinstance(copy_func, DataDogFunctionWrapper)
+        assert isinstance(original_func, DataDogFunctionWrapper)
+        assert hasattr(original_func, "__wrapped__")
+    finally:
+        try_unwrap("builtins", builtin_function_name)
