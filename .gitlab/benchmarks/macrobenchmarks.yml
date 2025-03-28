@@ -77,6 +77,17 @@ baseline:
     DD_SERVICE: "ddtrace-mb-baseline"
 
 
+tracing-runtime-metrics-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_TRACE_ENABLED: "true"
+    DD_RUNTIME_METRICS_ENABLED: "false"
+    DD_SERVICE: "ddtrace-mb-tracing-runtime-metrics-enabled"
+
 tracing-rc-disabled-telemetry-disabled:
   extends: .macrobenchmarks
   variables:

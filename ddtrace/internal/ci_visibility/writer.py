@@ -13,9 +13,9 @@ from ddtrace.internal.ci_visibility.constants import MODULE_TYPE
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
-from .. import agent
 from .. import service
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
@@ -120,7 +120,7 @@ class CIVisibilityWriter(HTTPWriter):
             timeout = config._agent_timeout_seconds
         intake_cov_url = None
         if use_evp:
-            intake_url = intake_url if intake_url else agent.get_trace_url()
+            intake_url = intake_url if intake_url else agent_config.trace_agent_url
             intake_cov_url = intake_url
         elif config._ci_visibility_agentless_url:
             intake_url = intake_url if intake_url else config._ci_visibility_agentless_url

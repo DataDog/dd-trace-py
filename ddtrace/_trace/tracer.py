@@ -33,7 +33,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
@@ -63,6 +62,7 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -223,7 +223,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url()
+        self._dogstatsd_url = agent_config.dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -235,7 +235,7 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url()
+        self._agent_url: str = agent_config.trace_agent_url
         verify_url(self._agent_url)
 
         if self._use_log_writer():

@@ -646,8 +646,12 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://arandomhost:9126"
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://arandomhost:9126",
+        ) as agent_url_mock, mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
             dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
             test_client = dummy_writer._clients[0]
@@ -658,7 +662,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_any_call("http://arandomhost:9126", 2.0)
+                _get_connection.assert_any_call(agent_url_mock, 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
@@ -687,7 +691,9 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://evpproxy.bar:1234",
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
@@ -708,7 +714,9 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(

@@ -90,15 +90,3 @@ def _add_file_handler(
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
     return ddtrace_file_handler
-
-
-def _configure_log_injection():
-    """
-    Ensures that logging is patched before we inject trace information into logs.
-    """
-    from ddtrace import patch
-
-    patch(logging=True)
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))

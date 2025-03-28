@@ -1201,3 +1201,5 @@ usr/libexec/grepconf.sh
 /usr/bin/sepolgen-ifgen
 /usr/bin/sepolicy
 /usr/bin/sesearch
+# Python tools
+uwsgi

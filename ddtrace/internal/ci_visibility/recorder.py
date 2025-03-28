@@ -84,6 +84,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -389,7 +390,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url() if url is None else url,
+                intake_url=agent_config.trace_agent_url if url is None else url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,

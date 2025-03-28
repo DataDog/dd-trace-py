@@ -22,7 +22,6 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import to_unicode
@@ -37,6 +36,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
@@ -564,7 +564,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent.get_trace_url()
+            kwargs["agent_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -1293,9 +1293,8 @@ def git_repo(git_repo_empty):
 
 
 def check_test_agent_status():
-    agent_url = agent.get_trace_url()
     try:
-        parsed = parse.urlparse(agent_url)
+        parsed = parse.urlparse(agent_config.trace_agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/info")
         response = conn.getresponse()

@@ -34,6 +34,7 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.time import parse_isoformat
 from ddtrace.internal.utils.version import _pep440_to_semver
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import DDConfig
 
 
@@ -208,7 +209,7 @@ class RemoteConfigClient:
         tracer_version = _pep440_to_semver()
 
         self.id = str(uuid.uuid4())
-        self.agent_url = agent.get_trace_url()
+        self.agent_url = agent_config.trace_agent_url
 
         self._headers = {"content-type": "application/json"}
         additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
@@ -305,7 +306,7 @@ class RemoteConfigClient:
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
 
-            conn = agent.get_connection(self.agent_url, timeout=agent.config.trace_agent_timeout_seconds)
+            conn = agent.get_connection(self.agent_url, timeout=agent_config.trace_agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
             resp = conn.getresponse()
             data_length = resp.headers.get("Content-Length")

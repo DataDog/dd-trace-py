@@ -1,6 +1,6 @@
-#include "Aspects/Helpers.h"
+#include "aspects/helpers.h"
 
-#include <Aspects/AspectIndex.h>
+#include <aspects/aspect_index.h>
 #include <tests/test_common.hpp>
 
 using AspectIndexCheck = PyEnvWithContext;
