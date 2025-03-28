@@ -84,6 +84,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -167,15 +168,16 @@ class CIVisibility(Service):
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    url = parse.urlparse(env_agent_url)
-                    self.tracer._configure(hostname=url.hostname, port=url.port)
+                    self.tracer._agent_url = env_agent_url
                 self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
+            self.tracer._partial_flush_enabled = True
+            self.tracer._partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
@@ -388,14 +390,15 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url() if url is None else url,
+                intake_url=agent_config.trace_agent_url if url is None else url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer._configure(writer=writer)
+            self.tracer._writer = writer
+            self.tracer._recreate()
 
     def _agent_evp_proxy_is_available(self) -> bool:
         try:
@@ -602,7 +605,7 @@ class CIVisibility(Service):
         tracer_filters = self.tracer._user_trace_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            self.tracer._configure(trace_processors=tracer_filters)
+            self.tracer.configure(trace_processors=tracer_filters)
 
         if self.test_skipping_enabled():
             self._fetch_tests_to_skip()
