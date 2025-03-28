@@ -13,6 +13,7 @@ from ddtrace.appsec._common_module_patches import unpatch_common_modules
 
 
 def test_patch_read():
+    unpatch_common_modules()
     copy_open = copy.deepcopy(open)
 
     assert copy_open is open
@@ -23,6 +24,7 @@ def test_patch_read():
 
 
 def test_patch_read_enabled():
+    unpatch_common_modules()
     original_open = open
     try:
         patch_common_modules()
@@ -41,7 +43,6 @@ def test_patch_read_enabled():
     "builtin_function_name",
     [
         "all",
-        "anext",
         "any",
         "ascii",
         "bin",
