@@ -1,4 +1,5 @@
 ---
 features:
   - |
-    Enables encoding span events as a top-level field in v0.4 payloads and introduces environment variable ``DD_TRACE_NATIVE_SPAN_EVENTS``.
+    Adds configuration for encoding span events as a top-level field in v0.4 payloads and introduces environment variable ``DD_TRACE_NATIVE_SPAN_EVENTS`` (disabled by default).
+    This requires agent version 7.63.0 or later.

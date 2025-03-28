@@ -103,16 +103,10 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
         ret = msgpack_pack_raw_body(pk, bs, l)
     return ret
 
-cdef inline int pack_bool(msgpack_packer *pk, object n) except? -1:
-    if n is None:
-        return msgpack_pack_nil(pk)
-
-    if PyBool_Check(n):
-        if n:
-            return msgpack_pack_true(pk)
-        else:
-            return msgpack_pack_false(pk)
-
+cdef inline int pack_bool(msgpack_packer *pk, bint n) except? -1:
+    if n:
+        return msgpack_pack_true(pk)
+    return msgpack_pack_false(pk)
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
@@ -628,7 +622,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     return ret
         return 0
 
-    cdef inline int _pack_span_events(self, list span_events):
+    cdef inline int _pack_span_events(self, list span_events) except? -1:
         cdef int ret
         cdef int L
         cdef str attr_k
@@ -677,7 +671,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = self.pack_span_event_attributes(attr_v)
                     if ret != 0:
                         return ret
-        return 0
+        return ret
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
         cdef Py_ssize_t L
