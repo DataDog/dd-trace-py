@@ -169,22 +169,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             log.info("Set overwritten suite name tag for test %s", self.name)
 
     def _set_known_test_tag(self) -> None:
-        # NOTE: The is_new tag is set in two contexts:
-        # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
-        # 2. When is_known_tests_enabled is False:
-        #    We only mark tests as new if EFD is enabled and the session is not faulty
-        if not self.is_new():
+        # When known_tests_enabled is True, we mark unknown tests regardless of EFD
+        if not self.is_new() or not self._is_known_tests_enabled:
             return
 
-        if not self._is_known_tests_enabled:
-            return
-
-        session = self.get_session()
-        if session is None:
-            return
-
-        if session._session_settings.efd_settings.enabled and session.efd_is_faulty_session():
-            return
+        # session = self.get_session()
+        # if session is None or (session._session_settings.efd_settings.enabled and session.efd_is_faulty_session()):
+        #     return
 
         # When known tests are enabled, mark unknown tests regardless of EFD
         self.set_tag(TEST_IS_NEW, self._is_new)
@@ -261,6 +252,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if exc_info is not None:
             self._exc_info = exc_info
 
+        # Set known test tag if applicable
+        self._set_known_test_tag()
+
         # When EFD is enabled, we want to track whether the test is too slow to retry
         if (
             self._session_settings.efd_settings.enabled
@@ -269,9 +263,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             and self._efd_should_abort()
         ):
             self._efd_abort_reason = "slow"
-
-        # Set known test tag if applicable
-        self._set_known_test_tag()
 
         super().finish(override_finish_time=override_finish_time)
 
