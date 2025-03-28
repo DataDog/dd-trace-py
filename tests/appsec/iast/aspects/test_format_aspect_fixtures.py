@@ -250,7 +250,7 @@ def test_propagate_ranges_with_no_context(caplog):
 
     ranges_result = get_tainted_ranges(result_2)
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
 
 
