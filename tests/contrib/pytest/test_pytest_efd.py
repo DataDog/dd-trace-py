@@ -407,7 +407,10 @@ class PytestEFDTestCase(PytestTestCaseBase):
             assert len(spans) == 17  # 1 session + 1 module + 6 suites + 9 tests
 
     def test_pytest_efd_known_tests_disabled_with_efd_disabled(self):
-        """Tests that when both known_tests_enabled and efd.enabled are False, no tests are marked as new and no retries occur"""
+        """
+        Tests that when both known_tests_enabled and efd.enabled are False,
+        no tests are marked as new and no retries occur
+        """
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
@@ -418,8 +421,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
-                known_tests_enabled=False
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False), known_tests_enabled=False
             ),
         ):
             rec = self.inline_run("--ddtrace", "-v")

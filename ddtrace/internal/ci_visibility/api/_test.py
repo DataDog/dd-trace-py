@@ -168,42 +168,15 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.SUITE, self._overwritten_suite_name)
             log.info("Set overwritten suite name tag for test %s", self.name)
 
-        # Set the known test tag
-        log.info("Setting known test tag for test %s", self.name)
-        self._set_known_test_tag()
-
     def _set_known_test_tag(self) -> None:
-        if self._efd_abort_reason is not None:
-            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-
         # NOTE: The is_new tag is set in two contexts:
         # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
         # 2. When is_known_tests_enabled is False:
         #    We only mark tests as new if EFD is enabled and the session is not faulty
-        session = self.get_session()
-        log.info(
-            "Setting known test tag for test %s: is_new=%s, is_known_tests_enabled=%s, session_faulty=%s",
-            self.name,
-            self.is_new(),
-            self._is_known_tests_enabled,
-            session.efd_is_faulty_session() if session else None,
-        )
-        if self.is_new() and session is not None:
-            # If known tests are enabled, mark unknown tests regardless of EFD
-            if self._is_known_tests_enabled:
+        if self._is_known_tests_enabled and self.is_new():
+            session = self.get_session()
+            if session is not None and not session.efd_is_faulty_session():
                 self.set_tag(TEST_IS_NEW, self._is_new)
-                log.info("Set TEST_IS_NEW tag for test %s to %s (known tests enabled)", self.name, self._is_new)
-            # If known tests are disabled but EFD is enabled, mark unknown tests regardless of session faultiness
-            elif session._session_settings.efd_settings.enabled:
-                self.set_tag(TEST_IS_NEW, self._is_new)
-                log.info("Set TEST_IS_NEW tag for test %s to %s (EFD enabled)", self.name, self._is_new)
-            else:
-                log.info(
-                    "Did not set TEST_IS_NEW tag for test %s (is_known_tests_enabled=%s, session_faulty=%s)",
-                    self.name,
-                    self._is_known_tests_enabled,
-                    session.efd_is_faulty_session(),
-                )
 
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
@@ -212,25 +185,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-
-        # NOTE: The is_new tag is set in two contexts:
-        # 1. When is_known_tests_enabled is True (from settings API), we mark unknown tests regardless of EFD
-        # 2. When is_known_tests_enabled is False:
-        #    We only mark tests as new if EFD is enabled and the session is not faulty
-        session = self.get_session()
-        if self.is_new() and session is not None:
-            if self._is_known_tests_enabled or (
-                not self._is_known_tests_enabled and not session.efd_is_faulty_session()
-            ):
-                self.set_tag(TEST_IS_NEW, self._is_new)
-                log.info("Set TEST_IS_NEW tag for test %s to %s", self.name, self._is_new)
-            else:
-                log.info(
-                    "Did not set TEST_IS_NEW tag for test %s (is_known_tests_enabled=%s, session_faulty=%s)",
-                    self.name,
-                    self._is_known_tests_enabled,
-                    session.efd_is_faulty_session(),
-                )
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
