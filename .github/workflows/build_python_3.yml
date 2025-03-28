@@ -89,7 +89,7 @@ jobs:
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:cd6422aadb976a6c04c1c81f49bcfcc3f5f27c8f@sha256:1ff8f112d682a3d9df945b790089d773cd41e3d5ee374b1dca2d1c9594776ec0
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
@@ -126,7 +126,7 @@ jobs:
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:cd6422aadb976a6c04c1c81f49bcfcc3f5f27c8f@sha256:1ff8f112d682a3d9df945b790089d773cd41e3d5ee374b1dca2d1c9594776ec0
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
