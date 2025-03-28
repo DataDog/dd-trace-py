@@ -191,49 +191,47 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
         elif isinstance(instance, openai.resources.completions.AsyncCompletionsWithRawResponse):
             wrap(instance, "create", _patched_endpoint_async(openai, _endpoint_hooks._CompletionWithRawResponseHook))
         elif isinstance(instance, openai.resources.chat.AsyncCompletionsWithRawResponse):
-            wrap(instance, "create", _patched_endpoint_async(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
+            wrap(
+                instance, "create", _patched_endpoint_async(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook)
+            )
     return
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
+
     span = integration.trace(
         pin,
         endpoint_hook.OPERATION_ID,
         base_url=base_url,
     )
-
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     err = None
-    if openai_api_key and span:
+    if openai_api_key:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
     try:
         # Start the hook
-        if span:
-            hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
-            hook.send(None)
+        hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
+        hook.send(None)
 
         resp, err = yield
 
         # Record any error information
-        if err is not None and span:
+        if err is not None:
             span.set_exc_info(*sys.exc_info())
 
         # Pass the response and the error to the hook
         try:
-            if span:
-                hook.send((resp, err))
-            else:
-                return resp
+            hook.send((resp, err))
         except StopIteration as e:
             if err is None:
                 return e.value
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if (not kwargs.get("stream") or err is not None) and span:
+        if not kwargs.get("stream") or err is not None:
             span.finish()
 
 
@@ -248,7 +246,7 @@ def _patched_endpoint(openai, patch_hook):
             return func(*args, **kwargs)
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
             return func(*args, **kwargs)
-        
+
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
