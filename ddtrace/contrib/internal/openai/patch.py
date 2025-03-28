@@ -191,14 +191,13 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
 
-    # avoid creating a span if streaming with raw response
-    create_span = not (kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False))
-    if create_span:
+    if not (kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False)):
         span = integration.trace(
             pin,
             endpoint_hook.OPERATION_ID,
             base_url=base_url,
         )
+    # avoid creating a span if streaming with raw response
     else:
         span = None
 
