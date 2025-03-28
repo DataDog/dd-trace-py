@@ -747,19 +747,20 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
         has_span_events = <bint> (len(span._events) > 0)
-        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or has_span_events)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
+        has_meta = <bint> (
+            len(span._meta) > 0
+            or dd_origin is not NULL
+            or (not self.top_level_span_event_encoding and has_span_events)
+        )
 
         # do not include in meta
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
         if self.top_level_span_event_encoding:
-            has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
-            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_span_events \
-                + has_meta_struct
-        else:
-            L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+            L += has_span_events
 
         ret = msgpack_pack_map(&self.pk, L)
 
