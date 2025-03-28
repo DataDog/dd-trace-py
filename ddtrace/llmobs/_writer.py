@@ -14,7 +14,6 @@ import http.client as httplib
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
@@ -32,6 +31,7 @@ from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
@@ -266,7 +266,7 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent_config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
         self.agentless_url = agentless_url

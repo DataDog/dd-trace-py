@@ -3,7 +3,6 @@ import os
 import mock
 import pytest
 
-from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
@@ -11,6 +10,7 @@ from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
+from ddtrace.settings._agent import config as agent_config
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import override_env
 
@@ -39,7 +39,7 @@ def test_civisibility_intake_with_evp_available():
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._span_aggregagtor.writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == agent.get_trace_url()
+        assert CIVisibility._instance.tracer._span_aggregagtor.writer.intake_url == agent_config.trace_agent_url
         assert (
             CIVisibility._instance.tracer._span_aggregagtor.writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
             == EVP_SUBDOMAIN_HEADER_EVENT_VALUE

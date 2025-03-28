@@ -30,7 +30,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
@@ -40,7 +39,6 @@ from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.core import dispatch
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
@@ -49,7 +47,6 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import TraceWriter
@@ -209,14 +206,12 @@ class Tracer(object):
             config._partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
-        agent_url = agent.config.trace_agent_url
-        verify_url(agent_url)
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
             # when importing ddtrace.
             from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 
-            self.data_streams_processor = DataStreamsProcessor(agent_url)
+            self.data_streams_processor = DataStreamsProcessor()
             register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
@@ -378,8 +373,6 @@ class Tracer(object):
         if isinstance(self._span_aggregagtor.writer, AgentWriter):
             if appsec_enabled:
                 self._span_aggregagtor.writer._api_version = "v0.4"
-            dogstatsd_url = agent.get_stats_url()
-            self._span_aggregagtor.writer.dogstatsd = get_dogstatsd_client(dogstatsd_url)
 
         if trace_processors:
             self._user_trace_processors = trace_processors

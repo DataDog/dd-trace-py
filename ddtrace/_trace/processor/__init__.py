@@ -16,7 +16,6 @@ from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal import agent
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
@@ -34,10 +33,12 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -262,8 +263,6 @@ class SpanAggregator(SpanProcessor):
         partial_flush_min_spans: int,
         trace_processors: Iterable[TraceProcessor],
         writer: Optional[TraceWriter] = None,
-        tracer_url: Optional[str] = None,
-        dogstatsd_url: Optional[str] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -277,14 +276,13 @@ class SpanAggregator(SpanProcessor):
         # Initialize writer
         if writer is not None:
             self.writer: TraceWriter = writer
-        elif SpanAggregator._use_log_writer() and not tracer_url:
+        elif SpanAggregator._use_log_writer():
             self.writer = LogWriter()
         else:
-            agent_url = agent.get_trace_url() if tracer_url is None else tracer_url
-            dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+            verify_url(agent_config.trace_agent_url)
             self.writer = AgentWriter(
-                agent_url=agent_url,
-                dogstatsd=get_dogstatsd_client(dogstatsd_url),
+                agent_url=agent_config.trace_agent_url,
+                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"}
                 if (config._trace_compute_stats or asm_config._apm_opt_out)
