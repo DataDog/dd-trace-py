@@ -325,6 +325,13 @@ OpenAI
 .. automodule:: ddtrace.contrib._openai
 
 
+.. _openai_agents:
+
+OpenAI Agents
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._openai_agents
+
+
 .. _pylibmc:
 
 pylibmc
