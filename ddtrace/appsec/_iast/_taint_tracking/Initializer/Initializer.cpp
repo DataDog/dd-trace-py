@@ -145,17 +145,20 @@ Initializer::allocate_tainted_object_copy(const TaintedObjectPtr& from)
 }
 
 TaintRangePtr
-Initializer::allocate_taint_range(const RANGE_START start, const RANGE_LENGTH length, const Source& origin)
+Initializer::allocate_taint_range(const RANGE_START start,
+                                  const RANGE_LENGTH length,
+                                  const Source& origin,
+                                  const SecureMarksList& secure_marks)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
         available_ranges_stack.pop();
-        rptr->set_values(start, length, origin);
+        rptr->set_values(start, length, origin, secure_marks);
         return rptr;
     }
 
     // Stack is empty, create new object
-    return make_shared<TaintRange>(start, length, origin);
+    return make_shared<TaintRange>(start, length, origin, secure_marks);
 }
 
 void

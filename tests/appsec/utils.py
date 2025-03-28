@@ -36,7 +36,9 @@ def asm_context(
         if tracer is None:
             tracer = default_tracer
         if config:
-            tracer._configure(api_version="v0.4")
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            tracer._writer._api_version = "v0.4"
+            tracer._recreate()
 
         with core.context_with_data(
             "test.asm",

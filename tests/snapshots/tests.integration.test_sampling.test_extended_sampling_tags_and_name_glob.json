@@ -1,33 +1,33 @@
 [[
   {
-    "name": "should_not_send",
-    "service": "tests.integration",
-    "resource": "mycoolre$ource",
+    "name": "mycoolname",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "mycoolname",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-3",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
+      "banana": "True",
       "language": "python",
-      "runtime-id": "c7c739442f864f07b02918014eb23b3a",
-      "tag1": "mycooltag"
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
     },
     "metrics": {
-      "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 2682
+      "_sampling_priority_v1": 1,
+      "process_id": 70612
     },
-    "duration": 28541,
-    "start": 1693412122912172136
+    "duration": 60000,
+    "start": 1707776518618875000
   }],
 [
   {
     "name": "should_send1",
-    "service": "tests.integration",
+    "service": "ddtrace_subprocess_dir",
     "resource": "should_send1",
     "trace_id": 1,
     "span_id": 1,
@@ -36,23 +36,24 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
       "banana": "True",
       "language": "python",
-      "runtime-id": "c7c739442f864f07b02918014eb23b3a"
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2682
+      "process_id": 70612
     },
-    "duration": 89667,
-    "start": 1693412122912718927
+    "duration": 49000,
+    "start": 1707776518617308000
   }],
 [
   {
     "name": "should_send2",
-    "service": "tests.integration",
+    "service": "ddtrace_subprocess_dir",
     "resource": "banana",
     "trace_id": 2,
     "span_id": 1,
@@ -61,41 +62,44 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "65ca9a0600000000",
       "language": "python",
-      "runtime-id": "c7c739442f864f07b02918014eb23b3a",
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
       "tag1": "mycooltag"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 2682
+      "process_id": 70612
     },
-    "duration": 11000,
-    "start": 1693412122912914761
+    "duration": 72000,
+    "start": 1707776518615597000
   }],
 [
   {
-    "name": "should_send3",
-    "service": "tests.integration",
-    "resource": "mycoolre$ource",
+    "name": "mycoolname",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "mycoolname",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-0",
-      "banana": "True",
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "65ca9a0600000000",
       "language": "python",
-      "runtime-id": "c7c739442f864f07b02918014eb23b3a"
+      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
+      "tag1": "mycooltag"
     },
     "metrics": {
+      "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2682
+      "_sampling_priority_v1": -1,
+      "process_id": 70612
     },
-    "duration": 8000,
-    "start": 1693412122912968927
+    "duration": 101000,
+    "start": 1707776518613453000
   }]]

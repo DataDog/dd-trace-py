@@ -340,7 +340,7 @@ async def test_invalid_target(server_info, tracer):
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_not_activated(server_info, tracer):
-    tracer._configure(enabled=False)
+    tracer.enabled = False
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
