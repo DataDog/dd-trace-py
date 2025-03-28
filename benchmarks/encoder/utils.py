@@ -6,8 +6,6 @@ from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 
-from ddtrace.settings._agent import config as agent_config
-
 _Span = Span
 
 # DEV: 1.x dropped tracer positional argument
@@ -47,8 +45,6 @@ def gen_traces(config):
     metric_keys = _random_values(config.nmetrics, 16)
     dd_origin_values = ["synthetics", "ciapp-test"]
 
-    if config.top_level_span_events and hasattr(agent_config, "trace_native_span_events"):
-        agent_config.trace_native_span_events = True
 
     for _ in range(config.ntraces):
         trace = []
