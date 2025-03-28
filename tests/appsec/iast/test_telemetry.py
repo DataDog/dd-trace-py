@@ -38,7 +38,7 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
-    assert [metric["tags"] for metric in generate_metrics)] == [f"vulnerability_type:{vuln_type}",]
+    assert [metric["tags"] for metric in generate_metrics] == [f"vulnerability_type:{vuln_type}"]
     assert [metric["points"][0][1] for metric in generate_metrics] == [1]
     assert [metric["metric_type"] for metric in generate_metrics] == ["count"]
 
