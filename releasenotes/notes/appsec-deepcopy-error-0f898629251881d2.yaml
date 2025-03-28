@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: Fixed an issue where wrapped builtin functions (like `open`) would lose their original type when being 
+    deepcopied while ASM or IAST were enabled.

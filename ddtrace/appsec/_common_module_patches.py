@@ -1,5 +1,6 @@
 # This module must not import other modules unconditionally that require iast
 
+import copy
 import ctypes
 import os
 from typing import Any
@@ -32,6 +33,30 @@ _is_patched = False
 
 _RASP_SYSTEM = "rasp_os.system"
 _RASP_POPEN = "rasp_Popen"
+
+
+class DataDogFunctionWrapper(FunctionWrapper):
+    """Wrapper that maintains the original type of builtin functions."""
+
+    def __class_getitem__(cls, item):
+        return cls.__class__
+
+    def __class__(self):
+        return type(self.__wrapped__)
+
+    def __deepcopy__(self, memo):
+        """Create a deep copy of the wrapper.
+
+        Args:
+            memo: Dictionary of id's to copies
+
+        Returns:
+            A new DataDogFunctionWrapper instance with the same wrapped object and a copy of the wrapper
+        """
+        # We don't want to copy the wrapped object (the builtin function)
+        # but we do want to copy the wrapper function
+        wrapper_copy = copy.deepcopy(self._self_wrapper, memo)
+        return DataDogFunctionWrapper(self.__wrapped__, wrapper_copy)
 
 
 def patch_common_modules():
@@ -306,7 +331,7 @@ def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) ->
     @ModuleWatchdog.after_module_imported(module_name)
     def _(module):
         try:
-            wrap_object(module, name, FunctionWrapper, (wrapper,))
+            wrap_object(module, name, DataDogFunctionWrapper, (wrapper,))
         except (ImportError, AttributeError):
             log.debug("ASM patching. Module %s.%s does not exist", module_name, name)
 
