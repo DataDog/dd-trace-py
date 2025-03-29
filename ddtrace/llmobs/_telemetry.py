@@ -123,23 +123,13 @@ def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     )
 
 
-def record_dropped_span_payload(events: List[LLMObsSpanEvent], error: str):
+def record_dropped_payload(num_events: int, event_type: str, error: str):
+    name = LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS
+    if event_type == "evaluation_metric":
+        name = LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS
     tags = [("error", error)]
     telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS,
-        value=len(events),
-        tags=tuple(tags),
-    )
-
-
-def record_dropped_eval_payload(events: List[Any], error: str):
-    tags = [("error", error)]
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS,
-        value=len(events),
-        tags=tuple(tags),
+        namespace=TELEMETRY_NAMESPACE.MLOBS, name=name, value=num_events, tags=tuple(tags),
     )
 
 

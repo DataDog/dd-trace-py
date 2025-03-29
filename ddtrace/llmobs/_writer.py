@@ -19,10 +19,14 @@ from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_ENDPOINT
+from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EVAL_ENDPOINT
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
@@ -70,7 +74,10 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
+    RETRY_ATTEMPTS = 3
+    EVENT_TYPE = ""
+
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
@@ -80,8 +87,20 @@ class BaseLLMObsWriter(PeriodicService):
         self._endpoint = ""  # type: str
         self._site = site  # type: str
         self._intake = ""  # type: str
-        self._headers = {"DD-API-KEY": self._api_key, "Content-Type": "application/json"}
-        self._event_type = ""  # type: str
+        self._headers = {"Content-Type": "application/json"}
+        self._agentless = is_agentless
+        if is_agentless:
+            self._headers["DD-API-KEY"] = self._api_key
+            self._intake = "api.{}".format(self._site)
+        else:
+            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
+            self._intake = agent_config.trace_agent_url.split("//")[-1]
+
+        self._send_payload_with_retry = fibonacci_backoff_with_jitter(
+            attempts=self.RETRY_ATTEMPTS,
+            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            until=lambda result: isinstance(result, httplib.HTTPResponse),
+        )(self._send_payload)
 
     def start(self, *args, **kwargs):
         super(BaseLLMObsWriter, self).start()
@@ -92,14 +111,31 @@ class BaseLLMObsWriter(PeriodicService):
         self.periodic()
 
     def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
+        event_size = len(safe_json(event))
+
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
-                telemetry.record_dropped_eval_payload([event], error="buffer_full")
+                telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
                 return
+            if len(self._buffer) + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+                logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
+                self.periodic()
+            if self.EVENT_TYPE == "span":
+                telemetry.record_span_event_size(event, event_size)
             self._buffer.append(event)
+
+    def _encode(self, payload, num_events):
+        try:
+            enc_llm_events = safe_json(payload)
+            logger.debug("encoded %d LLMObs %s events to be sent", num_events, self.EVENT_TYPE)
+            return enc_llm_events
+        except TypeError:
+            logger.error("failed to encode %d LLMObs %s events", num_events, self.EVENT_TYPE, exc_info=True)
+            telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="encoding_error")
+            return None
 
     def periodic(self) -> None:
         with self._lock:
@@ -108,42 +144,56 @@ class BaseLLMObsWriter(PeriodicService):
             events = self._buffer
             self._buffer = []
 
-        if not self._headers.get("DD-API-KEY"):
+        if self._agentless and not self._headers.get("DD-API-KEY"):
             logger.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. ",
-                "Ensure this configuration is set before running your application.",
+                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
+                "Ensure this configuration is set before running your application."
             )
             return
-
         data = self._data(events)
-        enc_llm_events = safe_json(data)
-        conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
+        enc_llm_events = self._encode(data, len(events))
+        if not enc_llm_events:
+            return
         try:
-            conn.request("POST", self._endpoint, enc_llm_events, self._headers)
+            self._send_payload_with_retry(enc_llm_events, len(events))
+        except Exception:
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            logger.error(
+                "failed to send %d LLMObs %s events to %s", len(events), self.EVENT_TYPE, self._intake, exc_info=True
+            )
+
+    def _send_payload(self, payload: bytes, num_events: int):
+        if self._agentless:
+            conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
+        else:
+            conn = httplib.HTTPConnection(self._intake, timeout=self._timeout)
+        try:
+            conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
-                    len(events),
-                    self._event_type,
+                    num_events,
+                    self.EVENT_TYPE,
                     self._url,
                     resp.status,
                     resp.read(),
                 )
-                telemetry.record_dropped_eval_payload(events, error="http_error")
+                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
-                logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
+                logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
+            return resp
         except Exception:
-            telemetry.record_dropped_eval_payload(events, error="connection_error")
             logger.error(
-                "failed to send %d LLMObs %s events to %s", len(events), self._event_type, self._intake, exc_info=True
+                "failed to send %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._intake, exc_info=True
             )
+            raise
         finally:
             conn.close()
 
     @property
     def _url(self) -> str:
-        return "https://%s%s" % (self._intake, self._endpoint)
+        return "https://{}{}".format(self._intake, self._endpoint)
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
@@ -159,13 +209,13 @@ class BaseLLMObsWriter(PeriodicService):
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
+    EVENT_TYPE = "evaluation_metric"
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout)
-        self._event_type = "evaluation_metric"
+        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless=True)
         self._buffer = []
-        self._endpoint = "/api/intake/llm-obs/v2/eval-metric"
-        self._intake = "api.%s" % self._site  # type: str
+        self._endpoint = AGENTLESS_EVAL_ENDPOINT
+
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
         self._enqueue(event)
@@ -174,117 +224,28 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
 
-class LLMObsSpanEncoder(BufferedEncoder):
-    """Encodes LLMObsSpanEvents to JSON in buffer, and is used in LLMObsSpanWriter's LLMObsEventClient"""
-
-    content_type = "application/json"
-
-    def __init__(self, *args):
-        super(LLMObsSpanEncoder, self).__init__()
-        self._lock = forksafe.RLock()
-        self._buffer_limit = 1000
-        self._init_buffer()
-
-    def __len__(self):
-        with self._lock:
-            return len(self._buffer)
-
-    def _init_buffer(self):
-        with self._lock:
-            self._buffer = []
-            self.buffer_size = 0
-
-    def put(self, events: List[LLMObsSpanEvent]):
-        # events always has only 1 event - with List type to be compatible with HTTPWriter interfaces
-        with self._lock:
-            if len(self._buffer) >= self._buffer_limit:
-                logger.warning(
-                    "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
-                )
-                telemetry.record_dropped_span_payload(events, error="buffer_full")
-                return
-            self._buffer.extend(events)
-            event_size = len(safe_json(events))
-            self.buffer_size += event_size
-            telemetry.record_span_event_size(events[0], event_size)
-
-    def encode(self):
-        with self._lock:
-            if not self._buffer:
-                return None, 0
-            events = self._buffer
-            self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
-        try:
-            enc_llm_events = safe_json(data)
-            logger.debug("encode %d LLMObs span events to be sent", len(events))
-        except TypeError:
-            logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
-            telemetry.record_dropped_span_payload(events, error="encoding_error")
-            return None, 0
-        return enc_llm_events, len(events)
-
-
-class LLMObsEventClient(WriterClientBase):
-    def __init__(self):
-        encoder = LLMObsSpanEncoder(0, 0)
-        super(LLMObsEventClient, self).__init__(encoder)
-
-
-class LLMObsAgentlessEventClient(LLMObsEventClient):
-    ENDPOINT = AGENTLESS_ENDPOINT
-
-
-class LLMObsProxiedEventClient(LLMObsEventClient):
-    ENDPOINT = EVP_PROXY_AGENT_ENDPOINT
-
-
-class LLMObsSpanWriter(HTTPWriter):
+class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writer to the Datadog LLMObs Span Endpoint via Agent EvP Proxy."""
 
-    RETRY_ATTEMPTS = 5
-    HTTP_METHOD = "POST"
-    STATSD_NAMESPACE = "llmobs.writer"
+    EVENT_TYPE = "span"
 
     def __init__(
-        self,
-        interval: float,
-        timeout: float,
-        is_agentless: bool = True,
-        agentless_url: str = "",
-        dogstatsd=None,
-        sync_mode=False,
-        reuse_connections=None,
-    ):
-        headers = {}
-        clients = []  # type: List[WriterClientBase]
+        self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True, agentless_url: str = ""
+    ) -> None:
+        super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
         if is_agentless:
             if not agentless_url:
                 raise ValueError("agentless_url is required for agentless mode")
-            clients.append(LLMObsAgentlessEventClient())
-            intake_url = agentless_url
-            headers["DD-API-KEY"] = config._dd_api_key
+            self._intake = agentless_url
+            self._endpoint = AGENTLESS_SPAN_ENDPOINT
         else:
-            clients.append(LLMObsProxiedEventClient())
-            intake_url = agent_config.trace_agent_url
-            headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
-
+            self._intake = agent_config.trace_agent_url.split("//")[-1]
+            self._endpoint = EVP_PROXY_AGENT_ENDPOINT
         self.agentless_url = agentless_url
-
-        super(LLMObsSpanWriter, self).__init__(
-            intake_url=intake_url,
-            clients=clients,
-            processing_interval=interval,
-            timeout=timeout,
-            dogstatsd=dogstatsd,
-            sync_mode=sync_mode,
-            reuse_connections=reuse_connections,
-            headers=headers,
-        )
 
     def start(self, *args, **kwargs):
         super(LLMObsSpanWriter, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__, self.intake_url)
+        logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
     def stop(self, timeout=None):
@@ -294,31 +255,22 @@ class LLMObsSpanWriter(HTTPWriter):
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
         should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
-
         if should_truncate:
             logger.warning(
                 "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
                 raw_event_size,
             )
             event = _truncate_span_event(event)
-
-        for client in self._clients:
-            if isinstance(client, LLMObsEventClient) and isinstance(client.encoder, LLMObsSpanEncoder):
-                with client.encoder._lock:
-                    if (client.encoder.buffer_size + raw_event_size) > EVP_PAYLOAD_SIZE_LIMIT:
-                        logger.debug("flushing queue because queuing next event will exceed EVP payload limit")
-                        self._flush_queue_with_client(client)
-
         telemetry.record_span_event_raw_size(event, raw_event_size)
-        self.write([event])
+        self._enqueue(event)
 
-    # Noop to make it compatible with HTTPWriter interface
-    def _set_keep_rate(self, events: List[LLMObsSpanEvent]):
-        return
+    def _data(self, events: List[LLMObsSpanEvent]) -> Dict[str, Any]:
+        return {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
 
-    def recreate(self):
-        # type: () -> HTTPWriter
+    def recreate(self) -> "LLMObsSpanWriter":
         return self.__class__(
+            site=self._site,
+            api_key=self._api_key,
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
