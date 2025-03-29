@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    opentracing: Support for OpenTracing has been deprecated and will be removed in v4.0.0. Please use the OpenTelemetry API instead.
