@@ -28,14 +28,24 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "datadog-ddsketch"
-version = "14.3.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v14.3.1#48240f2588665a03c2061879345566ec7e70fabf"
+version = "16.0.3"
+source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.3#ce8c536ddef78a49142fe4a6c77ab0a1263c1018"
 dependencies = [
  "prost",
 ]
 
 [[package]]
-name = "ddtrace-core"
+name = "datadog-library-config"
+version = "0.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=v16.0.3#ce8c536ddef78a49142fe4a6c77ab0a1263c1018"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_yaml",
+]
+
+[[package]]
+name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
  "datadog-ddsketch",
