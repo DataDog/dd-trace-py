@@ -40,7 +40,7 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
     assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
     assert [metric["tags"] for metric in generate_metrics] == [[f"vulnerability_type:{vuln_type.lower()}"]]
     assert [metric["points"][0][1] for metric in generate_metrics] == [1]
-    assert [metric["metric_type"] for metric in generate_metrics] == ["count"]
+    assert [metric["type"].value for metric in generate_metrics] == ["count"]
 
 
 @pytest.mark.parametrize(
@@ -84,12 +84,12 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
 
         metrics_result = telemetry_writer._namespace.flush()
 
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value].values()
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric for metric in generate_metrics if metric._tags[0] == ("vulnerability_type", "WEAK_HASH")]
-    assert [metric._tags for metric in filtered_metrics] == [(("vulnerability_type", "WEAK_HASH"),)]
+    filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:WEAK_HASH"]
+    assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 2
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
