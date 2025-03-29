@@ -89,16 +89,6 @@ def gen_pre_checks(template: dict) -> None:
     )
 
 
-def gen_build_docs(template: dict) -> None:
-    """Include the docs build step if the docs have changed."""
-    from needs_testrun import pr_matches_patterns
-
-    if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
-    ):
-        template["workflows"]["test"]["jobs"].append({"build_docs": template["requires_pre_check"]})
-
-
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
