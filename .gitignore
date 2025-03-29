@@ -174,4 +174,3 @@ cloned_venvs/
 # Automatically generated fixtures
 tests/appsec/iast/fixtures/aspects/callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_callers.py
-.aider*
