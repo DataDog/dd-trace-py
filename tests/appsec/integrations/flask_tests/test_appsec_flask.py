@@ -5,6 +5,8 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
+from tests.appsec.appsec_utils import flask_server
+from tests.appsec.integrations.flask_tests.utils import _PORT
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
@@ -85,3 +87,23 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "iast_enabled",
+    ["true", "false"],
+)
+@pytest.mark.parametrize("appsec_enabled", ["true", "false"])
+def test_flask_common_modules_patch_read(iast_enabled, appsec_enabled):
+    with flask_server(
+        appsec_enabled=iast_enabled, iast_enabled=appsec_enabled, token=None, port=_PORT, assert_debug=False
+    ) as context:
+        _, flask_client, pid = context
+
+        response = flask_client.get("/common-modules-patch-read")
+
+        assert response.status_code == 200
+        if iast_enabled == appsec_enabled == "false":
+            assert response.content == b"OK: False"
+        else:
+            assert response.content == b"OK: True"
