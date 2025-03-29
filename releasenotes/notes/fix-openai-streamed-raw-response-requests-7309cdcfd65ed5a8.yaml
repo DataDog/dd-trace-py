@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    openai: This fix avoids creating spans for streamed Open AI chat and completion requests that use with_raw_response since the stream cannot be traced
+    in these cases, leading to unfinished spans.
