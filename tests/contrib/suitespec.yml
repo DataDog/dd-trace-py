@@ -439,6 +439,8 @@ suites:
       - '@cassandra'
       - tests/contrib/cassandra/*
     runner: riot
+    services:
+      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
