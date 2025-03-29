@@ -38,7 +38,7 @@ def _assert_instrumented_sink(telemetry_writer, vuln_type):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
-    assert [metric["tags"] for metric in generate_metrics] == [f"vulnerability_type:{vuln_type}"]
+    assert [metric["tags"] for metric in generate_metrics] == [f"vulnerability_type:{vuln_type.lower()}"]
     assert [metric["points"][0][1] for metric in generate_metrics] == [1]
     assert [metric["metric_type"] for metric in generate_metrics] == ["count"]
 
@@ -142,7 +142,7 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
     assert filtered_metrics == ["instrumented.propagation"]
 
 
@@ -166,7 +166,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
     assert filtered_metrics == ["executed.source", "request.tainted"]
     assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
