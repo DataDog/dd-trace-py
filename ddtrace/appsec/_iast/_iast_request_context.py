@@ -1,6 +1,6 @@
 import os
-import sys
 from typing import Dict
+from typing import Literal  # noqa:F401
 from typing import Optional
 
 from ddtrace.appsec._constants import APPSEC
@@ -23,11 +23,6 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
 
 class IASTEnvironment:

@@ -89,7 +89,8 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._configure(api_version="v0.4")
+        interface.tracer._writer._api_version = "v0.4"
+        interface.tracer._recreate()
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -1663,7 +1664,6 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer
