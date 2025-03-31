@@ -6,6 +6,7 @@ from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 
+
 _Span = Span
 
 # DEV: 1.x dropped tracer positional argument
@@ -16,6 +17,7 @@ try:
     # the introduction of the buffered encoder changed the internal api
     # see https://github.com/DataDog/dd-trace-py/pull/2422
     from ddtrace.internal._encoding import BufferedEncoder  # noqa: F401
+
     def init_encoder(encoding, max_size=8 << 20, max_item_size=8 << 20):
         return MSGPACK_ENCODERS[encoding](max_size, max_item_size)
 
@@ -44,7 +46,6 @@ def gen_traces(config):
     tag_keys = _random_values(config.ntags, 16)
     metric_keys = _random_values(config.nmetrics, 16)
     dd_origin_values = ["synthetics", "ciapp-test"]
-
 
     for _ in range(config.ntraces):
         trace = []
