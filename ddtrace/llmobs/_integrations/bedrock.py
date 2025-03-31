@@ -177,16 +177,28 @@ class BedrockIntegration(BaseLLMIntegration):
 
         current_message: Optional[Dict[str, Any]] = None
 
-        def process_message_end(current_message: Dict[str, Any]):
-            indices = sorted(current_message.get("context_block_indices", []))
-            message_output = {"role": current_message["role"]}
+        def get_final_message(
+            message: Dict[str, Any], text_blocks: Dict[int, str], tool_blocks: Dict[int, Dict[str, Any]]
+        ) -> Dict[str, Any]:
+            """Process a message and its content blocks into LLM Obs message format.
 
-            text_contents = [text_content_blocks[idx] for idx in indices if idx in text_content_blocks]
+            Args:
+                message: A message to be processed containing role and content block indices
+                text_blocks: Mapping of content block indices to their text content
+                tool_blocks: Mapping of content block indices to their tool usage data
+
+            Returns:
+                Dict containing the processed message with content and optional tool calls
+            """
+            indices = sorted(message.get("context_block_indices", []))
+            message_output = {"role": message["role"]}
+
+            text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
             message_output.update({"content": "".join(text_contents)} if text_contents else {})
 
             tool_calls = []
             for idx in indices:
-                tool_block = tool_content_blocks.get(idx)
+                tool_block = tool_blocks.get(idx)
                 if not tool_block:
                     continue
                 tool_call = {
@@ -206,7 +218,7 @@ class BedrockIntegration(BaseLLMIntegration):
             if tool_calls:
                 message_output["tool_calls"] = tool_calls
 
-            messages.append(message_output)
+            return message_output
 
         for chunk in streamed_body:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
@@ -250,12 +262,12 @@ class BedrockIntegration(BaseLLMIntegration):
                         )
 
             if "messageStop" in chunk:
-                process_message_end(current_message)
+                messages.append(get_final_message(current_message, text_content_blocks, tool_content_blocks))
                 current_message = None
 
-            # Handle the case where we didn't receive an explicit message stop event
-            if current_message is not None:
-                process_message_end(current_message)
+        # Handle the case where we didn't receive an explicit message stop event
+        if current_message is not None:
+            messages.append(get_final_message(current_message, text_content_blocks, tool_content_blocks))
 
         if not messages:
             messages.append({"role": "assistant", "content": ""})
