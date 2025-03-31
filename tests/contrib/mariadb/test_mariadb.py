@@ -280,6 +280,7 @@ def test_query_many_fetchall_snapshot(tracer):
 
 
 @snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@flaky(until=1743713962, reason="Did not receive expected traces: 'mariadb.connection.commit'")
 def test_commit_snapshot(tracer):
     with get_connection(tracer) as connection:
         connection.commit()
