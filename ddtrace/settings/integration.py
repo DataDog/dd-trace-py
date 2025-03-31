@@ -101,28 +101,12 @@ class IntegrationConfig(AttrDict):
             return self.global_config._header_tag_name(header_name)
         return tag_name
 
-    def _is_analytics_enabled(self, use_global_config):
-        # DEV: analytics flag can be None which should not be taken as
-        # enabled when global flag is disabled
-        if use_global_config and self.global_config._analytics_enabled:
-            return self.analytics_enabled is not False
-        else:
-            return self.analytics_enabled is True
-
     def get_analytics_sample_rate(self, use_global_config=False):
         """
         Returns analytics sample rate but only when integration-specific
         analytics configuration is enabled with optional override with global
         configuration
         """
-        if self._is_analytics_enabled(use_global_config):
-            analytics_sample_rate = getattr(self, "analytics_sample_rate", None)
-            # return True if attribute is None or attribute not found
-            if analytics_sample_rate is None:
-                return True
-            # otherwise return rate
-            return analytics_sample_rate
-
         # Use `None` as a way to say that it was not defined,
         #   `False` would mean `0` which is a different thing
         return None
