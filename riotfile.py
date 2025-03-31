@@ -649,7 +649,7 @@ venv = Venv(
         Venv(
             name="dd_trace_api",
             command="pytest {cmdargs} tests/contrib/dd_trace_api",
-            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": "0.0.0", "requests": latest},
             pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
