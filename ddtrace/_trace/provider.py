@@ -5,7 +5,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace._hooks import Hooks
+from ddtrace import _hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
@@ -30,7 +30,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     """
 
     def __init__(self) -> None:
-        self._hooks = Hooks()
+        self._hooks = _hooks.Hooks()
 
     @abc.abstractmethod
     def _has_active_context(self) -> bool:

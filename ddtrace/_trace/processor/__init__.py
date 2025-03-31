@@ -8,6 +8,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -27,7 +28,6 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.settings._config import config
 
 
 try:
