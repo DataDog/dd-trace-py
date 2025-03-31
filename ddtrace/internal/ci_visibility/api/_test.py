@@ -361,15 +361,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         """
         return self._efd_handler.get_final_status()
 
-    def set_efd_abort_reason(self, reason: str) -> None:
-        """Sets the abort reason for EFD.
-
-        Args:
-            reason: The reason to abort EFD retries.
-        """
-        self._efd_handler.set_abort_reason(reason)
-        self._efd_abort_reason = reason  # Keep for backward compatibility
-
     #
     # ATR (Auto Test Retries) functionality
     #

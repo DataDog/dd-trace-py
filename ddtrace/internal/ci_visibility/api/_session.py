@@ -123,11 +123,6 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         """Check if EFD is enabled for this session."""
         return self._efd_handler.is_enabled()
 
-    def set_efd_abort_reason(self, abort_reason: str):
-        """Set the reason for aborting EFD for this session."""
-        self._efd_handler.set_abort_reason(abort_reason)
-        self._efd_abort_reason = abort_reason  # For backward compatibility
-
     def efd_is_faulty_session(self):
         """Check if this is a faulty session for EFD purposes."""
         result = self._efd_handler.is_faulty_session()
