@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import multiprocessing
 import os
 
 import mock
@@ -100,13 +99,19 @@ def test_synchronous_writer():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
         The trace should be continued in the child process.
     """
+    import multiprocessing
+
+    from ddtrace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         with tracer.trace("child"):
             pass
         tracer.flush()
@@ -120,14 +125,22 @@ def test_tracer_trace_across_popen():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
         The trace should be continued in the child processes.
     """
+    import multiprocessing
+
+    from ddtrace.trace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         def task2(tracer):
+            import ddtrace.auto  # noqa
+
             with tracer.trace("child2"):
                 pass
             tracer.flush()
@@ -240,6 +253,8 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
 
     fn(
         """
+import ddtrace.auto
+
 from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
