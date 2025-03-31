@@ -25,7 +25,6 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 from .._encoding import packb
 from ..agent import get_connection
-from ..compat import get_connection_response
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
@@ -268,7 +267,7 @@ class DataStreamsProcessor(PeriodicService):
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("POST", self._endpoint, payload, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
         except Exception:
             log.debug("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise

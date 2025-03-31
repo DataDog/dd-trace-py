@@ -1,7 +1,11 @@
+import sys
+
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+
+
+PY = sys.version_info[:2]
 
 
 # -----------------------------------------------------------------------------

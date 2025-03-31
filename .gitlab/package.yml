@@ -9,6 +9,9 @@ download_ddtrace_artifacts:
       gh auth login --with-token < token
       rm token
     fi
+    # Prevent git operation errors:
+    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
+    git config --global --add safe.directory "${CI_PROJECT_DIR}"
     .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:

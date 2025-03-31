@@ -1,9 +1,9 @@
 # this module must not load any other unsafe appsec module directly
 
 import logging
-import sys
 import typing
 from typing import Any
+from typing import Optional
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -19,6 +19,35 @@ from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+
+_TRUNC_STRING_LENGTH = 1
+_TRUNC_CONTAINER_DEPTH = 4
+_TRUNC_CONTAINER_SIZE = 2
+
+
+class _observator:
+    def __init__(self):
+        self.string_length: Optional[int] = None
+        self.container_size: Optional[int] = None
+        self.container_depth: Optional[int] = None
+
+    def set_string_length(self, length: int):
+        if self.string_length is None:
+            self.string_length = length
+        else:
+            self.string_length = max(self.string_length, length)
+
+    def set_container_size(self, size: int):
+        if self.container_size is None:
+            self.container_size = size
+        else:
+            self.container_size = max(self.container_size, size)
+
+    def set_container_depth(self, depth: int):
+        if self.container_depth is None:
+            self.container_depth = depth
+        else:
+            self.container_depth = max(self.container_depth, depth)
 
 
 def parse_response_body(raw_body):
@@ -189,7 +218,5 @@ def get_triggers(span) -> Any:
 
 
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
-    if sys.version_info < (3, 8):
-        return msg
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"

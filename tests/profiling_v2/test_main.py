@@ -8,7 +8,6 @@ import pytest
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 def test_call_script():
@@ -166,8 +165,6 @@ def test_multiprocessing(method, tmp_path):
     assert len(child_samples) > 0
 
 
-@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
-@pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),

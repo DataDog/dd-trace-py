@@ -9,7 +9,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.sampler import BaseSampler
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
@@ -120,7 +120,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def __init__(
         self,
         compute_stats_enabled: bool,
-        sampler: BaseSampler,
+        sampler: DatadogSampler,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
     ):

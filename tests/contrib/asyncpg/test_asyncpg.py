@@ -13,7 +13,6 @@ from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.utils import flaky
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +38,6 @@ async def patched_conn():
 
 
 @pytest.mark.asyncio
-@flaky(until=1742428860, reason="Did not receive expected traces: 'postgres.connect'")
 async def test_connect(snapshot_context):
     with snapshot_context():
         conn = await asyncpg.connect(
@@ -163,7 +161,6 @@ async def test_service_override_pin(patched_conn):
     await patched_conn.execute("SELECT 1")
 
 
-@flaky(1735812000)
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_parenting(patched_conn):

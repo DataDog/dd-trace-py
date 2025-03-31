@@ -2,7 +2,6 @@ import importlib
 
 import wrapt
 
-import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -190,7 +189,6 @@ def _install_init(patch_item, patch_class, patch_mod, config):
         # create and attach a pin with the defaults
         Pin(
             tags=config.get("tags", {}),
-            tracer=config.get("tracer", ddtrace.tracer),
             _config=config["patch"][patch_item],
         ).onto(instance)
         return r
