@@ -65,7 +65,7 @@ function(add_ddup_config target)
         target_link_options(${target} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
         target_link_options(${target} PRIVATE -ldl -undefined dynamic_lookup)
     else()
-        # # Linux/ELF-based linker options
+        # Linux/ELF-based linker options
         target_link_options(
             ${target}
             PRIVATE
