@@ -236,9 +236,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 if "span_start" in conf:
                     conf["span_start"](instance, span, conf, *args, **kwargs)
 
-                # set analytics sample rate
-                span., config.get_analytics_sample_rate())
-
                 result = wrapped(*args, **kwargs)
                 return result
         except Exception as err:
