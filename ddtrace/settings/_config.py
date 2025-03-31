@@ -1,6 +1,5 @@
 from copy import deepcopy
 import json
-import logging
 import os
 import re
 import sys
@@ -32,7 +31,6 @@ from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.logger import get_logger
-from ..internal.logger import root_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
 from ..internal.telemetry import get_config as _get_config
@@ -439,8 +437,8 @@ class Config(object):
         self._integration_configs = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
-        if self._debug_mode:
-            root_logger.setLevel(logging.DEBUG)
+        # if self._debug_mode:
+        #     root_logger.setLevel(logging.DEBUG)
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
         self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
