@@ -1,4 +1,5 @@
-import mock
+import logging
+
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -124,28 +125,22 @@ def test_blocking_exception_correctly_propagated():
     assert witness == 1
 
 
-def test_log_waf_callback():
-    with mock.patch("logging.Logger.log") as mck, override_global_config({"_asm_enabled": True}):
+def test_log_waf_callback(caplog):
+    import ddtrace.internal.logger as ddlogger
+
+    caplog.handler.setFormatter(ddlogger.DDFormatter())
+
+    with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
         _asm_request_context.call_waf_callback()
-    calls = mck.call_args_list
-    assert len(calls) == 2
-    # debug log
-    first_log_message = calls[0][0]
-    assert first_log_message[1].startswith(
-        "appsec::asm_context::debug::get_value::no_active_context[1]callbacks::waf_run"
-    ), first_log_message
+
     # warning log
-    second_log_message = calls[1][0]
-    assert second_log_message[1].startswith(
-        "appsec::asm_context::warning::call_waf_callback::not_set[1]"
-    ), first_log_message
-    mck.reset_mock()
+    assert len(caplog.records) == 1, f"expected 1 log record, got {len(caplog.records)}: {caplog.records}"
+    assert caplog.records[0].levelname == "WARNING"
+    assert caplog.records[0].msg == "asm_context::call_waf_callback::not_set"
+
+    caplog.clear()
     # second time, the warning log should be filtered out
-    with mock.patch("logging.Logger.log") as mck, override_global_config({"_asm_enabled": True}):
+    with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
         _asm_request_context.call_waf_callback()
-    calls = mck.call_args_list
-    assert len(calls) == 1
-    first_log_message = calls[0][0]
-    assert first_log_message[1].startswith(
-        "appsec::asm_context::debug::get_value::no_active_context[1]callbacks::waf_run"
-    ), first_log_message
+
+    assert len(caplog.records) == 0, f"expected 0 log record, got {len(caplog.records)}: {caplog.records}"

@@ -18,7 +18,7 @@ Usage:
     ddlog.debug('waf::init', extra={"product": "appsec", "stack_limit": 4, "more_info": info}, stack_info=True)
     # This will log the message only once per hour, counting the number of skipped messages, using "waf::init" as the
     # tag to keep track of the rate limit
-    # Different log levels can be used, the rate limit is shared between all invocations for the same tag and same level
+    # Different log levels can be used, the rate limit is shared between all invocations and all levels for the same tag
 
     # example result
     DEBUG appsec::waf::init[some more info] 1 additional messages skipped
@@ -37,6 +37,7 @@ import time
 import traceback
 from typing import DefaultDict
 from typing import Tuple
+from typing import Union
 
 
 logging.basicConfig()
@@ -57,6 +58,7 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)
+    logger.propagate = True
     return logger
 
 
@@ -98,7 +100,8 @@ class LoggingBucket:
 
 _MINF = float("-inf")
 
-_buckets: DefaultDict[Tuple[str, int], LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
+key_type = Union[Tuple[str, int], str]
+_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
 
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
 # Allow configuring via `DD_TRACE_LOGGING_RATE`
@@ -121,7 +124,7 @@ def log_filter(record: logging.LogRecord) -> bool:
     # Allow 1 log record by pathname/lineno every X seconds or message/levelno for product logs
     # This way each unique log message can get logged at least once per time period
     if hasattr(record, "product"):
-        key = (record.message, record.levelno)
+        key: key_type = record.msg
     else:
         key = (record.pathname, record.lineno)
     # Only log this message if the time bucket allows it
@@ -156,7 +159,11 @@ class DDFormatter(logging.Formatter):
         if len(stack) <= limit * 2 + 1:
             return stack_info
         stack_str = "\n".join(stack[-2 * limit :])
-        return f"{stack_info[0]}\n{stack_str}"
+        return f"{stack[0]}\n{stack_str}"
 
 
-logging.getLogger().handlers[0].setFormatter(DDFormatter())
+# setup the default formatter for all ddtrace loggers
+root_logger = logging.getLogger("ddtrace")
+root_logger.handlers.append(logging.StreamHandler())
+root_logger.handlers[0].setFormatter(DDFormatter())
+root_logger.propagate = True
