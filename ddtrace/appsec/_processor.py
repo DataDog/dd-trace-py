@@ -9,6 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -39,6 +40,7 @@ from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
@@ -180,10 +182,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info)
+                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
+
         self._update_required()
 
     def _update_required(self):
@@ -195,14 +198,16 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
+    def _update_rules(
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+    ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        result = self._ddwaf.update_rules(new_rules)
-        self.metrics._set_waf_updates_metric(self._ddwaf.info)
+        result = self._ddwaf.update_rules(removals, updates)
+        self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
 

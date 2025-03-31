@@ -35,10 +35,11 @@ variables:
   variables:
     # Benchmark's env variables. Modify to tweak benchmark parameters.
     DD_TRACE_DEBUG: "false"
-    DD_RUNTIME_METRICS_ENABLED: "true"
+    DD_RUNTIME_METRICS_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
     DD_CRASHTRACKING_ENABLED: "false"
+    DD_APPSEC_ENABLED: "false"
 
     K6_OPTIONS_WARMUP_RATE: 40
     K6_OPTIONS_WARMUP_DURATION: 1m
@@ -75,6 +76,17 @@ baseline:
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_SERVICE: "ddtrace-mb-baseline"
 
+
+tracing-runtime-metrics-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_TRACE_ENABLED: "true"
+    DD_RUNTIME_METRICS_ENABLED: "false"
+    DD_SERVICE: "ddtrace-mb-tracing-runtime-metrics-enabled"
 
 tracing-rc-disabled-telemetry-disabled:
   extends: .macrobenchmarks

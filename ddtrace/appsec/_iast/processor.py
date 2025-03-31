@@ -22,10 +22,8 @@ class AppSecIastSpanProcessor(SpanProcessor):
     def on_span_start(self, span: Span):
         if span.span_type != SpanTypes.WEB:
             return
-        _iast_start_request(span)
-        from .taint_sinks.stacktrace_leak import check_and_report_stacktrace_leak
 
-        check_and_report_stacktrace_leak()
+        _iast_start_request(span)
 
     def on_span_finish(self, span: Span):
         """Report reported vulnerabilities.

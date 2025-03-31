@@ -1,3 +1,5 @@
+import typing
+
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
 import ddtrace.appsec._ddwaf as ddwaf
@@ -11,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 log = get_logger(__name__)
 
 DDWAF_VERSION = ddwaf.version()
+UNKNOWN_VERSION = "unknown"
 
 bool_str = ("false", "true")
 
@@ -19,50 +22,41 @@ bool_str = ("false", "true")
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
     tags = {
         "waf_version": DDWAF_VERSION,
+        "event_rules_version": version or UNKNOWN_VERSION,
         "lib_language": "python",
     }
-    if version:
-        tags["event_rules_version"] = version
     level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
     telemetry.telemetry_writer.add_log(level, msg, tags=tags)
 
 
-def _set_waf_updates_metric(info):
+def _set_waf_updates_metric(info, success: bool):
     try:
-        if info and info.version:
-            tags = (
-                ("event_rules_version", info.version),
+        if info:
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
+                ("success", bool_str[success]),
             )
         else:
-            tags = (("waf_version", DDWAF_VERSION),)
+            tags = (("waf_version", DDWAF_VERSION), ("success", bool_str[success]))
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC,
-            "waf.updates",
-            1.0,
-            tags=tags,
-        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF updates metrics", exc_info=True)
 
 
-def _set_waf_init_metric(info):
+def _set_waf_init_metric(info, success: bool):
     try:
-        if info and info.version:
-            tags = (
-                ("event_rules_version", info.version),
+        if info:
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
+                ("success", bool_str[success]),
             )
         else:
-            tags = (("waf_version", DDWAF_VERSION),)
+            tags = (("waf_version", DDWAF_VERSION), ("success", bool_str[success]))
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC,
-            "waf.init",
-            1.0,
-            tags=tags,
-        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
         log.warning("Error reporting ASM WAF init metrics", exc_info=True)
 
@@ -109,10 +103,10 @@ def _report_waf_truncations(observator):
         log.warning("Error reporting ASM WAF truncation metrics", exc_info=True)
 
 
-def _set_waf_request_metrics(*args):
+def _set_waf_request_metrics(*_args):
     try:
         result = _asm_request_context.get_waf_telemetry_results()
-        if result is not None and result["version"] is not None:
+        if result is not None:
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
 
@@ -121,19 +115,16 @@ def _set_waf_request_metrics(*args):
                 truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
             )
             tags_request = (
-                ("event_rules_version", result["version"]),
+                ("event_rules_version", result["version"] or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
                 ("rule_triggered", bool_str[result["triggered"]]),
                 ("request_blocked", bool_str[result["blocked"]]),
-                ("waf_timeout", bool_str[result["timeout"]]),
+                ("waf_timeout", bool_str[bool(result["timeout"])]),
                 ("input_truncated", bool_str[input_truncated]),
             )
 
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC,
-                "waf.requests",
-                1.0,
-                tags=tags_request,
+                TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
             rasp = result["rasp"]
             if rasp["sum_eval"]:
@@ -143,15 +134,29 @@ def _set_waf_request_metrics(*args):
                             telemetry.telemetry_writer.add_count_metric(
                                 TELEMETRY_NAMESPACE.APPSEC,
                                 n,
-                                float(value),
-                                tags=_TYPES_AND_TAGS.get(rule_type, ()) + (("waf_version", DDWAF_VERSION),),
+                                value,
+                                tags=_TYPES_AND_TAGS.get(rule_type, ())
+                                + (
+                                    ("waf_version", DDWAF_VERSION),
+                                    ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                                ),
                             )
 
     except Exception:
         log.warning("Error reporting ASM WAF requests metrics", exc_info=True)
-    finally:
-        if result is not None:
-            result["triggered"] = False
-            result["blocked"] = False
-            result["timeout"] = False
-            result["version"] = None
+
+
+def _report_api_security(route: bool, schemas: int) -> None:
+    framework = _asm_request_context.get_framework()
+    try:
+        if route:
+            metric_name = "api_security.request.schema" if schemas > 0 else "api_security.request.no_schema"
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, metric_name, 1, tags=(("framework", framework),)
+            )
+        else:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, "api_security.missing_route", 1, tags=(("framework", framework),)
+            )
+    except Exception:
+        log.warning("Error reporting API security metrics", exc_info=True)

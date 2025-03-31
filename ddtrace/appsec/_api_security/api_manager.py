@@ -74,9 +74,11 @@ class APIManager(Service):
 
         from ddtrace.appsec import _processor as appsec_processor
         import ddtrace.appsec._asm_request_context as _asm_request_context
+        import ddtrace.appsec._metrics as _metrics
 
         self._asm_context = _asm_request_context
         self._appsec_processor = appsec_processor
+        self._metrics = _metrics
 
     def _stop_service(self) -> None:
         self._asm_context.remove_context_callback(self._schema_callback, global_callback=True)
@@ -85,8 +87,11 @@ class APIManager(Service):
     def _start_service(self) -> None:
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env, priority: int) -> bool:
+    def _should_collect_schema(self, env, priority: int) -> Optional[bool]:
         # Rate limit per route
+        # return None if missing route, method or status
+        # return False if sampled
+        # return True if we should collect
         if priority <= 0:
             return False
 
@@ -101,7 +106,7 @@ class APIManager(Service):
                 bool(route),
                 bool(status),
             )
-            return False
+            return None
         end_point_hash = hash((route, method, status))
         current_time = time.monotonic()
         previous_time = self._hashtable.get(end_point_hash, M_INFINITY)
@@ -136,7 +141,11 @@ class APIManager(Service):
                 priority = constants.USER_REJECT
             else:
                 priority = max(priorities)
-            if not self._should_collect_schema(env, priority):
+            should_collect = self._should_collect_schema(env, priority)
+            if should_collect is None:
+                self._metrics._report_api_security(False, 0)
+                return
+            if not should_collect:
                 return
         except Exception:
             log.warning("Failed to sample request for schema generation", exc_info=True)
@@ -165,6 +174,7 @@ class APIManager(Service):
         result = self._asm_context.call_waf_callback(waf_payload)
         if result is None:
             return
+        nb_schemas = 0
         for meta, schema in result.derivatives.items():
             b64_gzip_content = b""
             try:
@@ -174,6 +184,7 @@ class APIManager(Service):
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLargeSchemaException
                 root._meta[meta] = b64_gzip_content
+                nb_schemas += 1
             except Exception:
                 self._log_limiter.limit(
                     log.warning,
@@ -183,3 +194,4 @@ class APIManager(Service):
                     repr(value)[:256],
                     exc_info=True,
                 )
+        self._metrics._report_api_security(True, nb_schemas)

@@ -110,7 +110,7 @@ def _coverage_has_valid_data(coverage_data: Coverage, silent_mode: bool = False)
 
 
 def _switch_coverage_context(
-    coverage_data: Coverage, unique_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
+    coverage_data: Coverage, known_test_name: str, framework: Optional[TEST_FRAMEWORKS] = None
 ):
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, framework)
     # Experimental feature to use internal coverage collection
@@ -124,7 +124,7 @@ def _switch_coverage_context(
         return
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
     try:
-        coverage_data.switch_context(unique_test_name)
+        coverage_data.switch_context(known_test_name)
     except RuntimeError as err:
         record_code_coverage_error()
         log.warning(err)

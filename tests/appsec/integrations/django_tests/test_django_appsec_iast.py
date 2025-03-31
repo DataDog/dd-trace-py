@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+from urllib.parse import urlencode
 
 import pytest
 
@@ -10,7 +11,6 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
-from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
@@ -40,7 +40,7 @@ def _aux_appsec_get_root_span(
     if cookies is None:
         cookies = {}
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._configure(api_version="v0.4")
+    tracer._recreate()
     # Set cookies
     client.cookies.load(cookies)
     if payload is None:

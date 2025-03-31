@@ -2,20 +2,13 @@
 
 import os
 from re import Match
-import sys
+from typing import Any
+from typing import Iterator
+from typing import Literal  # noqa:F401
+from typing import Tuple
 
 from _io import BytesIO
 from _io import StringIO
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
-from typing import Any
-from typing import Iterator
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -73,6 +66,7 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION: Literal["_dd.appsec.rasp.duration"] = "_dd.appsec.rasp.duration"
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
+    RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
     TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
     TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
     TRUNCATION_CONTAINER_DEPTH: Literal["_dd.appsec.truncated.container_depth"] = "_dd.appsec.truncated.container_depth"
@@ -119,6 +113,7 @@ class APPSEC(metaclass=Constant_Class):
     OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -192,6 +187,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
     REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
+    REQUEST_SESSION_ID: Literal["usr.session_id"] = "usr.session_id"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -207,6 +203,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
             REQUEST_USERNAME,
+            REQUEST_SESSION_ID,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,

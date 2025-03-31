@@ -4,7 +4,8 @@ import os
 import mock
 import pytest
 
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
+from tests.utils import remote_config_build_payload as build_payload
 
 
 @pytest.fixture
@@ -13,9 +14,9 @@ def config():
 
 
 def _base_rc_config(cfg):
-    return {
-        "metadata": [],
-        "config": [
+    return [
+        build_payload(
+            "APM_TRACING",
             # this flare data can often come in and we want to make sure we're pulling the
             # actual lib_config data out correctly regardless
             {
@@ -30,20 +31,23 @@ def _base_rc_config(cfg):
                 ],
                 "order": [],
             },
+            "config",
+        ),
+        build_payload(
+            "APM_TRACING",
             {
                 "action": "enable",
                 "service_target": {"service": None, "env": None},
                 "lib_config": cfg,
             },
-        ],
-    }
+            "config",
+            sha_hash="1234",
+        ),
+    ]
 
 
 def _deleted_rc_config():
-    return {
-        "metadata": [],
-        "config": [False],
-    }
+    return [build_payload("APM_TRACING", None, "config", sha_hash="1234")]
 
 
 @pytest.mark.parametrize(
@@ -221,8 +225,8 @@ def test_settings_missing_lib_config(config, monkeypatch):
     base_rc_config = _base_rc_config({})
 
     # Delete "lib_config" from the remote config
-    del base_rc_config["config"][1]["lib_config"]
-    assert "lib_config" not in base_rc_config["config"][0]
+    del base_rc_config[1].content["lib_config"]
+    assert "lib_config" not in base_rc_config[0].content
 
     config._handle_remoteconfig(base_rc_config, None)
 
@@ -245,17 +249,19 @@ def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update({"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1, "name":"test"}]'})
 
-    out, err, status, _ = run_python_code_in_subprocess(
+    _, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
 from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
 
+# Span is sampled using sampling rules from env var
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 assert span.get_tag("_dd.p.dm") == "-3"
 
+# Override env var sampling rules with sampling rules from the agent
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
@@ -265,63 +271,44 @@ config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
             "sample_rate": 0.2,
         }
         ]}))
+# Span is sampled using sampling rules from the agent
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.2
 assert span.get_tag("_dd.p.dm") == "-11"
+# Span is sampling using default sampling rate
+with tracer.trace("does_not_match_remote_rules") as span:
+    pass
+assert span.get_tag("_dd.p.dm") == "-0"
+assert span.context.sampling_priority == 1
 
+# Agent sampling rules do not contain any sampling rules
 config._handle_remoteconfig(_base_rc_config({}))
+# Span is sampled using sampling rules from env var
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 
-custom_sampler = DatadogSampler(DatadogSampler._parse_rules_from_str('[{"sample_rate":0.3, "name":"test"}]'))
-tracer._configure(sampler=custom_sampler)
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-assert span.get_tag("_dd.p.dm") == "-3"
-
-config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
-        {
-            "service": "*",
-            "name": "test",
-            "resource": "*",
-            "provenance": "dynamic",
-            "sample_rate": 0.4,
-        }
-        ]}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.4
-assert span.get_tag("_dd.p.dm") == "-12"
-
-config._handle_remoteconfig(_base_rc_config({}))
-with tracer.trace("test") as span:
-    pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-assert span.get_tag("_dd.p.dm") == "-3"
-
+# Agent sampling rules are set to match service, name, and resource
 config._handle_remoteconfig(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "ok",
             "name": "test",
-            "resource": "*",
+            "resource": "hello",
             "provenance": "customer",
             "sample_rate": 0.4,
         }
         ]}))
-with tracer.trace(service="ok", name="test") as span:
+# Span is sampled using sampling rules from the agent
+with tracer.trace("test", service="ok", resource="hello") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.4
 assert span.get_tag("_dd.p.dm") == "-11"
-
-config._handle_remoteconfig(_deleted_rc_config())
+# Span is sampling using default sampling rate (does not match new rules)
 with tracer.trace("test") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.3
-assert span.get_tag("_dd.p.dm") == "-3"
-
+assert span.get_tag("_dd.p.dm") == "-0"
+assert span.context.sampling_priority == 1
         """,
         env=env,
     )
@@ -577,7 +564,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 def test_config_public_properties_and_methods():
     # Regression test to prevent unexpected changes to public attributes in Config
     # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings import Config
+    from ddtrace.settings._config import Config
 
     public_attrs = set()
     c = Config()

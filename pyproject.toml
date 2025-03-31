@@ -63,10 +63,12 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
+"error-tracking" = "ddtrace.errortracking.product"
 "remote-configuration" = "ddtrace.internal.remoteconfig.product"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
 "iast" = "ddtrace.internal.iast.product"
+"tracer" = "ddtrace._trace.product"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"

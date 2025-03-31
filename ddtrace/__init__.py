@@ -1,14 +1,9 @@
 import sys
 import os
-import warnings
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-from ddtrace.internal.module import ModuleWatchdog
-
-
-ModuleWatchdog.install()
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa

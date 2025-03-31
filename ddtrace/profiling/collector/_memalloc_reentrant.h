@@ -86,17 +86,12 @@ typedef struct
 #endif
 } memlock_t;
 
-// Global setting; if a lock fails to be acquired, crash
-static bool g_crash_on_mutex_pass = false;
-
 // Generic initializer
 static inline bool
-memlock_init(memlock_t* lock, bool crash_on_pass)
+memlock_init(memlock_t* lock)
 {
     if (!lock)
         return false;
-
-    g_crash_on_mutex_pass = crash_on_pass;
 
 #ifdef _WIN32
     lock->mutex = CreateMutex(NULL, FALSE, NULL);
@@ -137,13 +132,6 @@ memlock_trylock(memlock_t* lock)
 #else
     bool result = 0 == pthread_mutex_trylock(&lock->mutex);
 #endif
-    if (!result && g_crash_on_mutex_pass) {
-        // segfault
-        int* p = NULL;
-        *p = 0;
-        abort(); // should never reach here
-    }
-
     return result;
 }
 
