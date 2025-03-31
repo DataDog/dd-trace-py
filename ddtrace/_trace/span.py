@@ -10,7 +10,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Sequence
 from typing import Text
 from typing import Type
 from typing import Union
@@ -23,6 +22,7 @@ from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
@@ -57,16 +57,6 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
-_AttributeValueType = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[str],
-    Sequence[bool],
-    Sequence[int],
-    Sequence[float],
-]
 
 
 class SpanEvent:
