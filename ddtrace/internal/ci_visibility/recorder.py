@@ -210,7 +210,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
-        self._unique_test_ids: Set[InternalTestId] = set()
+        self._known_test_ids: Set[InternalTestId] = set()
         self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
@@ -501,10 +501,10 @@ class CIVisibility(Service):
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
-    def _fetch_unique_tests(self) -> Optional[Set[InternalTestId]]:
+    def _fetch_known_tests(self) -> Optional[Set[InternalTestId]]:
         try:
             if self._api_client is not None:
-                return self._api_client.fetch_unique_tests()
+                return self._api_client.fetch_known_tests()
             log.warning("API client not initialized, cannot fetch unique tests")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
@@ -620,12 +620,12 @@ class CIVisibility(Service):
 
         def _task_fetch_known_tests():
             if CIVisibility.is_efd_enabled():
-                unique_test_ids = self._fetch_unique_tests()
-                if unique_test_ids is None:
+                known_test_ids = self._fetch_known_tests()
+                if known_test_ids is None:
                     log.warning("Failed to fetch unique tests for Early Flake Detection")
                 else:
-                    self._unique_test_ids = unique_test_ids
-                    log.info("Unique tests fetched for Early Flake Detection: %s", len(self._unique_test_ids))
+                    self._known_test_ids = known_test_ids
+                    log.info("Unique tests fetched for Early Flake Detection: %s", len(self._known_test_ids))
             else:
                 if (
                     self._api_settings.early_flake_detection.enabled
@@ -965,7 +965,7 @@ class CIVisibility(Service):
         client.set_metadata("test", capabilities.tags())
 
     @classmethod
-    def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
+    def is_known_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
         instance = cls.get_instance()
         if instance is None:
             return False
@@ -973,10 +973,10 @@ class CIVisibility(Service):
         # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
         # because the current EFD usage would cause the session to be faulty even if the query was successful but
         # not unique tests exist. In this case, we assume all tests are unique.
-        if len(instance._unique_test_ids) == 0:
+        if len(instance._known_test_ids) == 0:
             return True
 
-        return test_id in instance._unique_test_ids
+        return test_id in instance._known_test_ids
 
     @classmethod
     def get_test_properties(cls, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
@@ -1243,10 +1243,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
     # New tests are currently only considered for EFD:
-    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if known tests were fetched properly (enforced by is_known_test)
     # - if they have no parameters
     if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
-        is_new = not CIVisibility.is_unique_test(discover_args.test_id)
+        is_new = not CIVisibility.is_known_test(discover_args.test_id)
     else:
         is_new = False
 
