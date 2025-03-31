@@ -11,7 +11,6 @@ from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 import urllib.parse
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -22,6 +21,7 @@ from ddtrace.internal.core import dispatch
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Context
 from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import tracer  # noqa: F401
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -1059,17 +1059,14 @@ class HTTPPropagator(object):
 
             span_context = non_active_span.context
 
-        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
-            root_span: Optional[Span] = None
-            if non_active_span is not None:
-                root_span = non_active_span._local_root
-            else:
-                root_span = ddtrace.tracer.current_root_span()
-
-            if root_span is not None and root_span.context.sampling_priority is None:
-                ddtrace.tracer.sample(root_span)
+        root_span: Optional[Span] = None
+        if non_active_span is not None:
+            root_span = non_active_span._local_root
         else:
-            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
+            root_span = tracer.current_root_span()
+
+        if root_span is not None and root_span.context.sampling_priority is None:
+            tracer.sample(root_span)
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
