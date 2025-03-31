@@ -1,6 +1,6 @@
+from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace.constants import _BASE_SERVICE_KEY
-from ddtrace.settings._config import config
 
 from . import schematize_service_name
 

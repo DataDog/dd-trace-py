@@ -15,6 +15,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
+from ddtrace import config
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind

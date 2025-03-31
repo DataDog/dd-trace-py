@@ -12,7 +12,9 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings._config import config
+from .settings._config import Config as _Config
+
+config = _Config()
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
