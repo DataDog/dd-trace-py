@@ -17,13 +17,13 @@ from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
