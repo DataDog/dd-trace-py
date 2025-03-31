@@ -345,14 +345,6 @@ class LLMObs(Service):
         error = None
         start_ns = time.time_ns()
         try:
-            # validate required values for LLMObs
-            if not config._llmobs_ml_app:
-                error = "missing_ml_app"
-                raise ValueError(
-                    "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
-                    "Ensure this configuration is set before running your application."
-                )
-
             config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs
