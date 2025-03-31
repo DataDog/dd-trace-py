@@ -56,8 +56,12 @@ function(add_ddup_config target)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         target_link_options(
-            ${target} PRIVATE "$<$<CONFIG:Release>:/OPT:REF>" # Equivalent to --gc-sections
-            "$<$<CONFIG:Release>:/INCREMENTAL:NO>" # Disable incremental linking (similar to -s for stripping symbols)
+            ${target}
+            PRIVATE
+            "$<$<CONFIG:Release>:/OPT:REF>" # Equivalent to --gc-sections
+            # Disable incremental linking mainly to reduce the binary size
+            # https://learn.microsoft.com/en-us/cpp/build/reference/incremental-link-incrementally?view=msvc-170#remarks
+            "$<$<CONFIG:Release>:/INCREMENTAL:NO>"
             "/NODEFAULTLIB:ALL" # Rough equivalent of --exclude-libs,ALL
         )
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
