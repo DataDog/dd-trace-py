@@ -15,6 +15,7 @@ import http.client as httplib
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
