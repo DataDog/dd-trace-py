@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.api._test_early_flake_detection import EarlyFlakeDetectionHandler
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
@@ -89,9 +90,13 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._is_disabled = is_disabled
         self._is_attempt_to_fix = is_attempt_to_fix
 
-        self._efd_is_retry = is_efd_retry
-        self._efd_retries: List[TestVisibilityTest] = []
-        self._efd_abort_reason: Optional[str] = None
+        # Initialize the EFD handler and set its properties accordingly
+        self._efd_handler = EarlyFlakeDetectionHandler(self, session_settings)
+        self._efd_handler.is_retry = is_efd_retry
+
+        self._efd_is_retry = is_efd_retry  # Keep for backward compatibility
+        self._efd_retries: List[TestVisibilityTest] = []  # Keep for backward compatibility
+        self._efd_abort_reason: Optional[str] = None  # Keep for backward compatibility
 
         self._atr_is_retry = is_atr_retry
         self._atr_retries: List[TestVisibilityTest] = []
@@ -126,19 +131,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.SUITE, self._overwritten_suite_name)
 
     def _set_efd_tags(self) -> None:
-        if self._efd_is_retry:
-            self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
-            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.EARLY_FLAKE_DETECTION.value)
-
-        if self._efd_abort_reason is not None:
-            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-
-        # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
-        # test as new.
-        session = self.get_session()
-        if self.is_new() and session is not None and not session.efd_is_faulty_session():
-            self.set_tag(TEST_IS_NEW, self._is_new)
+        """Sets EFD-related tags using the EFD handler."""
+        self._efd_handler.set_tags()
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
@@ -175,7 +169,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             is_benchmark=self._is_benchmark,
             is_new=self.is_new(),
             is_retry=self._efd_is_retry or self._atr_is_retry,
-            early_flake_detection_abort_reason=self._efd_abort_reason,
+            early_flake_detection_abort_reason=self._efd_handler.abort_reason,
             is_quarantined=self.is_quarantined(),
             is_disabled=self.is_disabled(),
             is_attempt_to_fix=self.is_attempt_to_fix(),
@@ -208,10 +202,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if (
             self._session_settings.efd_settings.enabled
             and self.is_new()
-            and not self._efd_is_retry
-            and self._efd_should_abort()
+            and not self._efd_handler.is_retry
+            and self._efd_handler.should_abort()
         ):
-            self._efd_abort_reason = "slow"
+            self._efd_handler.set_abort_reason("slow")
+            self._efd_abort_reason = "slow"  # Keep for backward compatibility
 
         super().finish(override_finish_time=override_finish_time)
 
@@ -293,117 +288,51 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     # EFD (Early Flake Detection) functionality
     #
     def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
-        if self._parameters is not None:
-            raise ValueError("Cannot create an early flake retry from a test with parameters")
-        retry_test = self.__class__(
-            self.name,
-            self._session_settings,
-            codeowners=self._codeowners,
-            source_file_info=self._source_file_info,
-            initial_tags=self._tags,
-            is_efd_retry=True,
-            is_new=self._is_new,
-        )
-        retry_test.parent = self.parent
-
+        """Creates a retry test from this test for EFD."""
+        retry_test = self._efd_handler.make_retry_from_test()
         return retry_test
 
     def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
-        return self._efd_retries[retry_number - 1]
+        """Gets a retry test by number."""
+        return self._efd_handler._get_retry_test(retry_number)
 
     def _efd_should_abort(self) -> bool:
-        # We have to use current time since the span is not yet finished
-        if self._span is None or self._span.start_ns is None:
-            raise ValueError("Test span has not started")
-        duration_s = (time_ns() - self._span.start_ns) / 1e9
-        return duration_s > 300
+        """Determines if EFD should be aborted for this test."""
+        return self._efd_handler.should_abort()
 
     def efd_should_retry(self):
-        efd_settings = self._session_settings.efd_settings
-        if not efd_settings.enabled:
-            return False
-
-        if self.get_session().efd_is_faulty_session():
-            return False
-
-        if self._efd_abort_reason is not None:
-            return False
-
-        if not self.is_new():
-            return False
-
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
-
-        duration_s = self._span.duration
-
-        num_retries = len(self._efd_retries)
-
-        if duration_s <= 5:
-            return num_retries < efd_settings.slow_test_retries_5s
-        if duration_s <= 10:
-            return num_retries < efd_settings.slow_test_retries_10s
-        if duration_s <= 30:
-            return num_retries < efd_settings.slow_test_retries_30s
-        if duration_s <= 300:
-            return num_retries < efd_settings.slow_test_retries_5m
-
-        return False
+        """Determines if the test should be retried for EFD."""
+        return self._efd_handler.should_retry()
 
     def efd_has_retries(self) -> bool:
-        return len(self._efd_retries) > 0
+        """Checks if the test has EFD retries."""
+        return self._efd_handler.has_retries()
 
     def efd_add_retry(self, start_immediately=False) -> Optional[int]:
-        if not self.efd_should_retry():
-            log.debug("Early Flake Detection: efd_add_retry called but test should not retry")
-            return None
-
-        retry_number = len(self._efd_retries) + 1
-
-        retry_test = self.make_early_flake_retry_from_test()
-        self._efd_retries.append(retry_test)
-        if start_immediately:
-            retry_test.start()
-
+        """Adds an EFD retry and optionally starts it immediately."""
+        retry_number = self._efd_handler.add_retry(start_immediately)
+        if retry_number is not None:
+            # Keep for backward compatibility
+            retry_test = self._efd_handler._retries[-1]
+            self._efd_retries.append(retry_test)
         return retry_number
 
     def efd_start_retry(self, retry_number: int) -> None:
-        self._efd_get_retry_test(retry_number).start()
+        """Starts an EFD retry."""
+        self._efd_handler.start_retry(retry_number)
 
     def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
-        retry_test = self._efd_get_retry_test(retry_number)
-
-        if status is not None:
-            retry_test.set_status(status)
-
-        retry_test.finish_test(status, exc_info=exc_info)
+        """Finishes an EFD retry with the given status."""
+        self._efd_handler.finish_retry(retry_number, status, exc_info)
 
     def efd_get_final_status(self) -> EFDTestStatus:
-        status_counts: Dict[TestStatus, int] = {
-            TestStatus.PASS: 0,
-            TestStatus.FAIL: 0,
-            TestStatus.SKIP: 0,
-        }
-
-        # NOTE: we assume that any unfinished test (eg: defaulting to failed) mean the test failed
-        status_counts[self._status] += 1
-        for retry in self._efd_retries:
-            status_counts[retry._status] += 1
-
-        expected_total = len(self._efd_retries) + 1
-
-        if status_counts[TestStatus.PASS] == expected_total:
-            return EFDTestStatus.ALL_PASS
-        if status_counts[TestStatus.FAIL] == expected_total:
-            return EFDTestStatus.ALL_FAIL
-        if status_counts[TestStatus.SKIP] == expected_total:
-            return EFDTestStatus.ALL_SKIP
-
-        return EFDTestStatus.FLAKY
+        """Gets the final status of the EFD test and its retries."""
+        return self._efd_handler.get_final_status()
 
     def set_efd_abort_reason(self, reason: str) -> None:
-        self._efd_abort_reason = reason
+        """Sets the abort reason for EFD."""
+        self._efd_handler.set_abort_reason(reason)
+        self._efd_abort_reason = reason  # Keep for backward compatibility
 
     #
     # ATR (Auto Test Retries) functionality
