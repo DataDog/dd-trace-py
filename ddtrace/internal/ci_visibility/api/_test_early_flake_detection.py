@@ -3,9 +3,12 @@ from typing import TYPE_CHECKING
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import Union
 from typing import cast
+from typing import overload
+from dataclasses import dataclass
 
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -15,12 +18,124 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
 if TYPE_CHECKING:
     from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
+    from ddtrace.internal.ci_visibility.api._base import TestVisibilitySession
     from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
     from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 
 T = TypeVar("T", bound="TestVisibilityTest")
 
 log = get_logger(__name__)
+
+
+# Domain Events
+@dataclass
+class TestRetryRequested:
+    """Event representing a request to retry a test."""
+    test_id: str
+    original_test_name: str
+    retry_number: int
+
+
+@dataclass
+class TestRetryStarted:
+    """Event representing a retry test being started."""
+    test_id: str
+    retry_number: int
+
+
+@dataclass
+class TestRetryFinished:
+    """Event representing a retry test being finished."""
+    test_id: str
+    retry_number: int
+    status: TestStatus
+
+
+# Value Objects
+class DurationThreshold:
+    """Value object representing a test duration threshold with its retry limit."""
+    
+    def __init__(self, max_duration_seconds: float, retry_limit: int):
+        self.max_duration_seconds = max_duration_seconds
+        self.retry_limit = retry_limit
+        
+    def is_applicable(self, duration: float) -> bool:
+        """Check if this threshold applies to the given duration."""
+        return duration <= self.max_duration_seconds
+        
+    def allows_retry(self, retry_count: int) -> bool:
+        """Check if more retries are allowed for this threshold."""
+        return retry_count < self.retry_limit
+
+
+# Commands
+@dataclass
+class AddRetryCommand:
+    """Command to add a retry for a test."""
+    start_immediately: bool = False
+
+
+@dataclass
+class FinishRetryCommand:
+    """Command to finish a retry test."""
+    retry_number: int
+    status: TestStatus
+    exc_info: Optional[TestExcInfo] = None
+
+
+# Service Interface
+class EarlyFlakeDetectionService(Protocol):
+    """Interface for the Early Flake Detection service."""
+    
+    @property
+    def is_retry(self) -> bool:
+        """Whether the current test is a retry."""
+        ...
+    
+    @property
+    def abort_reason(self) -> Optional[str]:
+        """The reason for aborting retries, if any."""
+        ...
+    
+    def set_abort_reason(self, reason: str) -> None:
+        """Set the reason for aborting retries."""
+        ...
+    
+    def should_retry(self) -> bool:
+        """Determine if the test should be retried."""
+        ...
+    
+    def has_retries(self) -> bool:
+        """Check if the test has any retries."""
+        ...
+    
+    def add_retry(self, command: AddRetryCommand) -> Optional[int]:
+        """Add a retry for the test."""
+        ...
+    
+    def start_retry(self, retry_number: int) -> None:
+        """Start a specific retry test."""
+        ...
+    
+    def finish_retry(self, command: FinishRetryCommand) -> None:
+        """Finish a specific retry test."""
+        ...
+    
+    def get_final_status(self) -> EFDTestStatus:
+        """Calculate the final status based on original test and retries."""
+        ...
+    
+    def get_consolidated_status(self) -> Union[TestStatus, "SPECIAL_STATUS"]:
+        """Convert the EFD final status to a consolidated test status."""
+        ...
+    
+    def set_tags(self) -> None:
+        """Set EFD-related tags on the test."""
+        ...
+    
+    def check_and_handle_abort_if_needed(self) -> bool:
+        """Check if the test should abort EFD and handle it."""
+        ...
 
 
 class EarlyFlakeDetectionHandler:
@@ -36,6 +151,35 @@ class EarlyFlakeDetectionHandler:
         self._is_retry: bool = False
         self._retries: List["TestVisibilityTest"] = []
         self._abort_reason: Optional[str] = None
+    
+    @classmethod
+    def create(cls, test: "TestVisibilityTest", session_settings: "TestVisibilitySessionSettings") -> "EarlyFlakeDetectionService":
+        """Factory method to create an EFD handler.
+        
+        Args:
+            test: The test for which to create the handler
+            session_settings: The session settings
+            
+        Returns:
+            An EFD handler that implements the EarlyFlakeDetectionService interface
+        """
+        handler = cls(test, session_settings)
+        
+        # If this is a retry test, mark it as such
+        if getattr(test, "_is_efd_retry", False):
+            handler.is_retry = True
+            
+        return handler
+        
+    def _get_duration_thresholds(self) -> List[DurationThreshold]:
+        """Get duration thresholds from session settings as domain objects."""
+        efd_settings = self._session_settings.efd_settings
+        return [
+            DurationThreshold(5, efd_settings.slow_test_retries_5s),
+            DurationThreshold(10, efd_settings.slow_test_retries_10s),
+            DurationThreshold(30, efd_settings.slow_test_retries_30s),
+            DurationThreshold(300, efd_settings.slow_test_retries_5m),
+        ]
 
     @property
     def is_retry(self) -> bool:
@@ -107,23 +251,55 @@ class EarlyFlakeDetectionHandler:
 
         duration_s = cast(float, self._test._span.duration)
         num_retries = len(self._retries)
-
-        if duration_s <= 5:
-            return num_retries < efd_settings.slow_test_retries_5s
-        if duration_s <= 10:
-            return num_retries < efd_settings.slow_test_retries_10s
-        if duration_s <= 30:
-            return num_retries < efd_settings.slow_test_retries_30s
-        if duration_s <= 300:
-            return num_retries < efd_settings.slow_test_retries_5m
+        
+        # Use domain objects to check thresholds
+        for threshold in self._get_duration_thresholds():
+            if threshold.is_applicable(duration_s):
+                return threshold.allows_retry(num_retries)
 
         return False
 
     def has_retries(self) -> bool:
         return len(self._retries) > 0
 
-    def add_retry(self, start_immediately=False) -> Optional[int]:
-        """Add a retry test and optionally start it immediately."""
+    # Overloaded method for backward compatibility
+    @overload
+    def add_retry(self, start_immediately: bool = False) -> Optional[int]:
+        ...
+    
+    @overload
+    def add_retry(self, command: AddRetryCommand = ...) -> Optional[int]:
+        ...
+
+    def add_retry(self, *args, **kwargs) -> Optional[int]:
+        """Add a retry test and optionally start it immediately.
+        
+        This method supports both the old signature for backward compatibility:
+            add_retry(start_immediately=False)
+        
+        And the new command-based signature:
+            add_retry(command)
+            
+        Args:
+            *args: Either start_immediately (old style) or a command (new style)
+            **kwargs: Support for keyword arguments like start_immediately=False
+            
+        Returns:
+            The retry number if a retry was added, None otherwise
+        """
+        # Parse arguments to maintain backward compatibility
+        if args and isinstance(args[0], AddRetryCommand):
+            command = args[0]
+        else:
+            # Handle both positional and keyword arguments for backward compatibility
+            start_immediately = False
+            if args and isinstance(args[0], bool):
+                start_immediately = args[0]
+            elif 'start_immediately' in kwargs:
+                start_immediately = kwargs['start_immediately']
+            
+            command = AddRetryCommand(start_immediately=start_immediately)
+
         if not self.should_retry():
             log.debug("Early Flake Detection: add_retry called but test should not retry")
             return None
@@ -132,23 +308,89 @@ class EarlyFlakeDetectionHandler:
 
         retry_test = self.make_retry_from_test()
         self._retries.append(retry_test)
-        if start_immediately:
+        
+        # Emit domain event
+        log.debug(
+            "Early Flake Detection: Retry requested", 
+            extra={"event": TestRetryRequested(
+                test_id=str(self._test._span.span_id if self._test._span else "unknown"),
+                original_test_name=self._test.name,
+                retry_number=retry_number
+            )}
+        )
+        
+        if command.start_immediately:
             retry_test.start()
+            # Emit domain event for retry started
+            log.debug(
+                "Early Flake Detection: Retry started", 
+                extra={"event": TestRetryStarted(
+                    test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
+                    retry_number=retry_number
+                )}
+            )
 
         return retry_number
 
     def start_retry(self, retry_number: int) -> None:
         """Start a specific retry test."""
-        self._get_retry_test(retry_number).start()
-
-    def finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
-        """Finish a specific retry test with the given status."""
         retry_test = self._get_retry_test(retry_number)
+        retry_test.start()
+        
+        # Emit domain event
+        log.debug(
+            "Early Flake Detection: Retry started", 
+            extra={"event": TestRetryStarted(
+                test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
+                retry_number=retry_number
+            )}
+        )
 
-        if status is not None:
-            retry_test.set_status(status)
+    # Overloaded method for backward compatibility
+    @overload
+    def finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
+        ...
+    
+    @overload
+    def finish_retry(self, command: FinishRetryCommand) -> None:
+        ...
 
-        retry_test.finish_test(status, exc_info=exc_info)
+    def finish_retry(self, arg1, status=None, exc_info=None):
+        """Finish a specific retry test with the given status.
+        
+        This method supports both the old signature for backward compatibility:
+            finish_retry(retry_number, status, exc_info=None)
+        
+        And the new command-based signature:
+            finish_retry(command)
+        """
+        # Handle both old and new style invocations
+        if isinstance(arg1, FinishRetryCommand):
+            command = arg1
+        else:
+            # Old style invocation with separate parameters
+            command = FinishRetryCommand(
+                retry_number=arg1,
+                status=status,
+                exc_info=exc_info
+            )
+            
+        retry_test = self._get_retry_test(command.retry_number)
+
+        if command.status is not None:
+            retry_test.set_status(command.status)
+
+        retry_test.finish_test(command.status, exc_info=command.exc_info)
+        
+        # Emit domain event
+        log.debug(
+            "Early Flake Detection: Retry finished", 
+            extra={"event": TestRetryFinished(
+                test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
+                retry_number=command.retry_number,
+                status=command.status
+            )}
+        )
 
     def get_final_status(self) -> EFDTestStatus:
         """Calculate the final status based on original test and retries."""
