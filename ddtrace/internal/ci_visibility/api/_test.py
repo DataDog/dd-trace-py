@@ -1,5 +1,4 @@
 from pathlib import Path
-from time import time_ns
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -23,11 +22,9 @@ from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
-from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.constants import TEST_IS_ATTEMPT_TO_FIX
 from ddtrace.internal.ci_visibility.constants import TEST_IS_DISABLED
-from ddtrace.internal.ci_visibility.constants import TEST_IS_NEW
 from ddtrace.internal.ci_visibility.constants import TEST_IS_QUARANTINED
 from ddtrace.internal.ci_visibility.constants import TEST_IS_RETRY
 from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
@@ -198,26 +195,15 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if exc_info is not None:
             self._exc_info = exc_info
 
-        # When EFD is enabled, we want to track whether the test is too slow to retry
-        if (
-            self._session_settings.efd_settings.enabled
-            and self.is_new()
-            and not self._efd_handler.is_retry
-            and self._efd_handler.should_abort()
-        ):
-            self._efd_handler.set_abort_reason("slow")
-            self._efd_abort_reason = "slow"  # Keep for backward compatibility
+        # Let the EFD handler check if we should abort due to test duration
+        if self._efd_handler.check_and_handle_abort_if_needed():
+            self._efd_abort_reason = self._efd_handler.abort_reason  # Keep for backward compatibility
 
         super().finish(override_finish_time=override_finish_time)
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.efd_has_retries():
-            efd_status = self.efd_get_final_status()
-            if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
-                return TestStatus.PASS
-            if efd_status == EFDTestStatus.ALL_SKIP:
-                return TestStatus.SKIP
-            return TestStatus.FAIL
+            return self._efd_handler.get_consolidated_status()
         if self.atr_has_retries():
             return self.atr_get_final_status()
         if self.attempt_to_fix_has_retries():
@@ -288,28 +274,60 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     # EFD (Early Flake Detection) functionality
     #
     def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
-        """Creates a retry test from this test for EFD."""
-        retry_test = self._efd_handler.make_retry_from_test()
-        return retry_test
+        """Creates a retry test from this test for EFD.
+
+        Returns:
+            TestVisibilityTest: A new test instance configured as an EFD retry.
+
+        Raises:
+            ValueError: If the test has parameters (EFD does not support parameterized tests).
+        """
+        return self._efd_handler.make_retry_from_test()
 
     def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
-        """Gets a retry test by number."""
+        """Gets a retry test by number.
+
+        Args:
+            retry_number: The 1-indexed retry number to get.
+
+        Returns:
+            TestVisibilityTest: The retry test at the specified number.
+        """
         return self._efd_handler._get_retry_test(retry_number)
 
     def _efd_should_abort(self) -> bool:
-        """Determines if EFD should be aborted for this test."""
+        """Determines if EFD should be aborted for this test due to duration limits.
+
+        Returns:
+            bool: True if the test should abort EFD retries, False otherwise.
+        """
         return self._efd_handler.should_abort()
 
-    def efd_should_retry(self):
-        """Determines if the test should be retried for EFD."""
+    def efd_should_retry(self) -> bool:
+        """Determines if the test should be retried for EFD.
+
+        Returns:
+            bool: True if the test should be retried, False otherwise.
+        """
         return self._efd_handler.should_retry()
 
     def efd_has_retries(self) -> bool:
-        """Checks if the test has EFD retries."""
+        """Checks if the test has EFD retries.
+
+        Returns:
+            bool: True if the test has retries, False otherwise.
+        """
         return self._efd_handler.has_retries()
 
     def efd_add_retry(self, start_immediately=False) -> Optional[int]:
-        """Adds an EFD retry and optionally starts it immediately."""
+        """Adds an EFD retry and optionally starts it immediately.
+
+        Args:
+            start_immediately: Whether to start the retry test immediately.
+
+        Returns:
+            Optional[int]: The retry number if a retry was added, None otherwise.
+        """
         retry_number = self._efd_handler.add_retry(start_immediately)
         if retry_number is not None:
             # Keep for backward compatibility
@@ -318,19 +336,37 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         return retry_number
 
     def efd_start_retry(self, retry_number: int) -> None:
-        """Starts an EFD retry."""
+        """Starts an EFD retry.
+
+        Args:
+            retry_number: The 1-indexed retry number to start.
+        """
         self._efd_handler.start_retry(retry_number)
 
     def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
-        """Finishes an EFD retry with the given status."""
+        """Finishes an EFD retry with the given status.
+
+        Args:
+            retry_number: The 1-indexed retry number to finish.
+            status: The test status to set.
+            exc_info: Optional exception information if the test failed.
+        """
         self._efd_handler.finish_retry(retry_number, status, exc_info)
 
     def efd_get_final_status(self) -> EFDTestStatus:
-        """Gets the final status of the EFD test and its retries."""
+        """Gets the final status of the EFD test and its retries.
+
+        Returns:
+            EFDTestStatus: The final status of the test considering all retries.
+        """
         return self._efd_handler.get_final_status()
 
     def set_efd_abort_reason(self, reason: str) -> None:
-        """Sets the abort reason for EFD."""
+        """Sets the abort reason for EFD.
+
+        Args:
+            reason: The reason to abort EFD retries.
+        """
         self._efd_handler.set_abort_reason(reason)
         self._efd_abort_reason = reason  # Keep for backward compatibility
 

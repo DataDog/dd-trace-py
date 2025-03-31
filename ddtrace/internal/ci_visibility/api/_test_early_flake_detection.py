@@ -1,52 +1,62 @@
 from time import time_ns
-from typing import Dict, List, Optional, TypeVar, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import TypeVar
+from typing import Union
+from typing import cast
 
-from ddtrace.ext.test_visibility.api import TestExcInfo, TestStatus
-from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
+from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
+
 
 if TYPE_CHECKING:
-    from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
+    from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
     from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
+    from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 
-T = TypeVar('T', bound='TestVisibilityTest')
+T = TypeVar("T", bound="TestVisibilityTest")
 
 log = get_logger(__name__)
 
+
 class EarlyFlakeDetectionHandler:
     """Domain service responsible for handling Early Flake Detection (EFD) related operations.
-    
+
     This class encapsulates all the EFD-specific logic previously embedded in TestVisibilityTest.
     It follows DDD principles by focusing specifically on the EFD domain concern.
     """
-    
-    def __init__(self, test: 'TestVisibilityTest', session_settings: 'TestVisibilitySessionSettings'):
+
+    def __init__(self, test: "TestVisibilityTest", session_settings: "TestVisibilitySessionSettings"):
         self._test = test
         self._session_settings = session_settings
         self._is_retry: bool = False
-        self._retries: List['TestVisibilityTest'] = []
+        self._retries: List["TestVisibilityTest"] = []
         self._abort_reason: Optional[str] = None
-    
+
     @property
     def is_retry(self) -> bool:
         return self._is_retry
-    
+
     @is_retry.setter
     def is_retry(self, value: bool) -> None:
         self._is_retry = value
-    
+
     @property
     def abort_reason(self) -> Optional[str]:
         return self._abort_reason
 
     def set_abort_reason(self, reason: str) -> None:
         self._abort_reason = reason
-    
-    def make_retry_from_test(self) -> 'TestVisibilityTest':
+
+    def make_retry_from_test(self) -> "TestVisibilityTest":
         """Create a retry test from the original test."""
         if self._test._parameters is not None:
             raise ValueError("Cannot create an early flake retry from a test with parameters")
-            
+
         retry_test = self._test.__class__(
             self._test.name,
             self._session_settings,
@@ -59,10 +69,10 @@ class EarlyFlakeDetectionHandler:
         retry_test.parent = self._test.parent
 
         return retry_test
-    
-    def _get_retry_test(self, retry_number: int) -> 'TestVisibilityTest':
+
+    def _get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
         return self._retries[retry_number - 1]
-    
+
     def should_abort(self) -> bool:
         """Check if the test duration is too long for EFD retries."""
         # We have to use current time since the span is not yet finished
@@ -70,14 +80,15 @@ class EarlyFlakeDetectionHandler:
             raise ValueError("Test span has not started")
         duration_s = (time_ns() - self._test._span.start_ns) / 1e9
         return duration_s > 300
-    
+
     def should_retry(self) -> bool:
         """Determine if the test should be retried as part of EFD."""
         efd_settings = self._session_settings.efd_settings
         if not efd_settings.enabled:
             return False
 
-        if self._test.get_session().efd_is_faulty_session():
+        session = self._test.get_session()
+        if session is None or session.efd_is_faulty_session():
             return False
 
         if self._abort_reason is not None:
@@ -90,7 +101,11 @@ class EarlyFlakeDetectionHandler:
             log.debug("Early Flake Detection: should_retry called but test is not finished")
             return False
 
-        duration_s = self._test._span.duration
+        if self._test._span is None or self._test._span.duration is None:
+            log.debug("Early Flake Detection: test span or duration is None")
+            return False
+
+        duration_s = cast(float, self._test._span.duration)
         num_retries = len(self._retries)
 
         if duration_s <= 5:
@@ -103,10 +118,10 @@ class EarlyFlakeDetectionHandler:
             return num_retries < efd_settings.slow_test_retries_5m
 
         return False
-    
+
     def has_retries(self) -> bool:
         return len(self._retries) > 0
-    
+
     def add_retry(self, start_immediately=False) -> Optional[int]:
         """Add a retry test and optionally start it immediately."""
         if not self.should_retry():
@@ -121,14 +136,12 @@ class EarlyFlakeDetectionHandler:
             retry_test.start()
 
         return retry_number
-    
+
     def start_retry(self, retry_number: int) -> None:
         """Start a specific retry test."""
         self._get_retry_test(retry_number).start()
-    
-    def finish_retry(
-        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None
-    ) -> None:
+
+    def finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
         """Finish a specific retry test with the given status."""
         retry_test = self._get_retry_test(retry_number)
 
@@ -136,7 +149,7 @@ class EarlyFlakeDetectionHandler:
             retry_test.set_status(status)
 
         retry_test.finish_test(status, exc_info=exc_info)
-    
+
     def get_final_status(self) -> EFDTestStatus:
         """Calculate the final status based on original test and retries."""
         status_counts: Dict[TestStatus, int] = {
@@ -160,7 +173,20 @@ class EarlyFlakeDetectionHandler:
             return EFDTestStatus.ALL_SKIP
 
         return EFDTestStatus.FLAKY
-    
+
+    def get_consolidated_status(self) -> Union[TestStatus, "SPECIAL_STATUS"]:
+        """Convert the EFD final status to a consolidated test status.
+
+        This converts the more detailed EFDTestStatus enum to the simpler TestStatus
+        that's expected by the system.
+        """
+        efd_status = self.get_final_status()
+        if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
+            return TestStatus.PASS
+        if efd_status == EFDTestStatus.ALL_SKIP:
+            return TestStatus.SKIP
+        return TestStatus.FAIL
+
     def set_tags(self) -> None:
         """Set EFD-related tags on the test."""
         if self._is_retry:
@@ -175,4 +201,20 @@ class EarlyFlakeDetectionHandler:
         # test as new.
         session = self._test.get_session()
         if self._test.is_new() and session is not None and not session.efd_is_faulty_session():
-            self._test.set_tag("test.is_new", self._test._is_new) 
+            self._test.set_tag("test.is_new", self._test._is_new)
+
+    def check_and_handle_abort_if_needed(self) -> bool:
+        """Check if the test should abort EFD (e.g., due to being too slow) and handle it.
+
+        Returns:
+            bool: True if the test was aborted, False otherwise.
+        """
+        if (
+            self._session_settings.efd_settings.enabled
+            and self._test.is_new()
+            and not self.is_retry
+            and self.should_abort()
+        ):
+            self.set_abort_reason("slow")
+            return True
+        return False
