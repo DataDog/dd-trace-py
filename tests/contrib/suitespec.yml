@@ -76,9 +76,9 @@ components:
     - ddtrace/contrib/dbapi.py
     - ddtrace/contrib/dbapi_async.py
     - ddtrace/ext/db.py
-  dd_trace_api:
-    - ddtrace/contrib/internal/dd_trace_api/*
-    - tests/snapshots/tests.contrib.dd_trace_api.*
+  ddtrace_api:
+    - ddtrace/contrib/internal/ddtrace_api/*
+    - tests/snapshots/tests.contrib.ddtrace_api.*
   django:
     - ddtrace/contrib/_django.py
     - ddtrace/contrib/internal/django/*
@@ -500,13 +500,14 @@ suites:
       - '@datastreams'
       - tests/datastreams/*
     runner: riot
-  dd_trace_api:
+  ddtrace_api:
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@dd_trace_api'
-      - tests/contrib/dd_trace_api/*
+      - '@ddtrace_api'
+      - tests/contrib/ddtrace_api/*
     runner: riot
     snapshot: true
   django:
