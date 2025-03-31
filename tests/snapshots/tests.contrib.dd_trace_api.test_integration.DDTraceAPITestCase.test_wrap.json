@@ -1,8 +1,8 @@
 [[
   {
-    "name": "tests.contrib.dd_trace_api.test_integration.foo",
-    "service": "tests.contrib.dd_trace_api",
-    "resource": "tests.contrib.dd_trace_api.test_integration.foo",
+    "name": "tests.contrib.ddtrace_api.test_integration.foo",
+    "service": "tests.contrib.ddtrace_api",
+    "resource": "tests.contrib.ddtrace_api.test_integration.foo",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

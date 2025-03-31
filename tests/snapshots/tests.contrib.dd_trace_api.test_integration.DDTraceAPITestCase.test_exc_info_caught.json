@@ -1,7 +1,7 @@
 [[
   {
     "name": "web.request",
-    "service": "tests.contrib.dd_trace_api",
+    "service": "tests.contrib.ddtrace_api",
     "resource": "web.request",
     "trace_id": 0,
     "span_id": 1,
@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "67bcbe8400000000",
       "error.message": "",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/tests/contrib/dd_trace_api/test_integration.py\", line 116, in test_exc_info_caught\n    raise Exception\nException\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/tests/contrib/ddtrace_api/test_integration.py\", line 116, in test_exc_info_caught\n    raise Exception\nException\n",
       "error.type": "builtins.Exception",
       "language": "python",
       "runtime-id": "21b675aeda9244f79d2670c22b159d97"

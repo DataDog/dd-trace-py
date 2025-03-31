@@ -1,7 +1,7 @@
 [[
   {
     "name": "web.request",
-    "service": "tests.contrib.dd_trace_api",
+    "service": "tests.contrib.ddtrace_api",
     "resource": "web.request",
     "trace_id": 0,
     "span_id": 1,
