@@ -1,12 +1,12 @@
 import functools
 import json
 import re
-import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Literal  # noqa:F401
 from typing import Optional
 from typing import Set
 from typing import Union
@@ -26,11 +26,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
 
-if asm_config._iast_enabled:
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-
 if TYPE_CHECKING:
     from ddtrace.appsec._ddwaf import DDWaf_info
     from ddtrace.appsec._ddwaf import DDWaf_result
@@ -39,10 +34,6 @@ log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
 _ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
@@ -75,8 +66,13 @@ class ASM_Environment:
         if context_span is None:
             info = add_context_log(log, "appsec.asm_context.warning::ASM_Environment::no_span")
             log.warning(info)
-            context_span = tracer.trace("asm.context")
+            context_span = tracer.trace("sdk.request")
         self.span: Span = context_span
+        if self.span.name.endswith(".request"):
+            self.framework = self.span.name[:-8]
+        else:
+            self.framework = self.span.name
+        self.framework = self.framework.lower().replace(" ", "_")
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
@@ -125,6 +121,13 @@ def get_blocked() -> Dict[str, Any]:
     if env is None:
         return {}
     return env.blocked or {}
+
+
+def get_framework() -> str:
+    env = _get_asm_context()
+    if env is None:
+        return ""
+    return env.framework
 
 
 def _use_html(headers) -> bool:
@@ -241,17 +244,21 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     flush_waf_triggers(env)
     for function in env.callbacks[_CONTEXT_CALL]:
         function(env)
-    if env.waf_info:
-        info = env.waf_info()
-        try:
-            if info.errors:
-                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
-                log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
-            env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except Exception:
-            log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+    root_span = env.span._local_root or env.span
+    if root_span:
+        if env.waf_info:
+            info = env.waf_info()
+            try:
+                if info.errors:
+                    root_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
+                root_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                root_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+                root_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            except Exception:
+                log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+        if asm_config._rc_client_id is not None:
+            root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -491,8 +498,6 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
-    elif asm_config._iast_enabled:
-        core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
 def end_context(span: Span):
@@ -508,7 +513,7 @@ def _on_context_ended(ctx):
 
 
 def _on_wrapped_view(kwargs):
-    return_value = [None, None]
+    callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
     if asm_config._asm_enabled and in_asm_context():
         log.debug("Flask WAF call for Suspicious Request Blocking on request")
@@ -517,21 +522,7 @@ def _on_wrapped_view(kwargs):
         call_waf_callback()
         if is_blocked():
             callback_block = get_value(_CALLBACKS, "flask_block")
-            return_value[0] = callback_block
-
-    # If IAST is enabled, taint the Flask function kwargs (path parameters)
-
-    if asm_config._iast_enabled and kwargs:
-        if not asm_config.is_iast_request_enabled:
-            return return_value
-
-        _kwargs = {}
-        for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(
-                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-            )
-        return_value[1] = _kwargs
-    return return_value
+    return callback_block
 
 
 def _on_pre_tracedrequest(ctx):
@@ -598,7 +589,7 @@ def asm_listen():
     trace_listen()
 
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
+    core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf_first, "waf")

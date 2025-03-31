@@ -74,7 +74,7 @@ import psycopg
 import ddtrace
 from tests.contrib.config import POSTGRES_CONFIG
 
-ddtrace.patch_all()
+ddtrace._monkey._patch_all()
 
 conn = psycopg.connect(**POSTGRES_CONFIG)
 assert conn

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #define PY_SSIZE_T_CLEAN
-#include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -80,7 +79,9 @@ typedef struct
     } freezer;
 } heap_tracker_t;
 
-static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMHEAP_CRASH_ON_MUTEX_PASS";
+/* This lock protects global_heap_tracker. See g_memalloc_lock docs for why this
+ * is needed, and why the GIL is not sufficient to protect our data structures
+ */
 static memlock_t g_memheap_lock;
 
 static heap_tracker_t global_heap_tracker;
@@ -120,9 +121,7 @@ __attribute__((constructor))
 static void
 memheap_init()
 {
-    // Check if we should crash the process on mutex pass
-    bool crash_on_mutex_pass = memalloc_get_bool_env(g_crash_on_mutex_pass_str);
-    memlock_init(&g_memheap_lock, crash_on_mutex_pass);
+    memlock_init(&g_memheap_lock);
 #ifndef _WIN32
     pthread_atfork(memheap_prefork, memheap_postfork_parent, memheap_postfork_child);
 #endif

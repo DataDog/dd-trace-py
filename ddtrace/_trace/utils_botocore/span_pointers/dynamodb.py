@@ -1,12 +1,12 @@
 from copy import deepcopy
 from enum import Enum
 import itertools
-import sys
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Set
+from typing import TypedDict
 from typing import Union
 from typing import cast
 
@@ -16,11 +16,6 @@ from ddtrace._trace._span_pointer import _standard_hashing_function
 from ddtrace._trace.utils_botocore.span_pointers.telemetry import record_span_pointer_calculation_issue
 from ddtrace.internal.logger import get_logger
 
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict
-else:
-    from typing_extensions import TypedDict
 
 log = get_logger(__name__)
 
@@ -233,7 +228,7 @@ def _extract_primary_key_names_from_configuration(
     try:
         return dynamodb_primary_key_names_for_tables[table_name]
     except KeyError as e:
-        log.warning(
+        log.debug(
             "span pointers: failed to extract %s span pointer: table %s not found in primary key names; "
             "Please set them through ddtrace.config.botocore['dynamodb_primary_key_names_for_tables'] or "
             "DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS",

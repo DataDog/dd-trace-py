@@ -18,7 +18,6 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -223,6 +222,8 @@ class ASMConfig(DDConfig):
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
+    _rc_client_id: Optional[str] = None
+
     def __init__(self):
         super().__init__()
         if not self._iast_supported:
@@ -279,4 +280,3 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
-_report_telemetry(config)

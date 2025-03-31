@@ -10,6 +10,7 @@ from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
+from tests.contrib.openai.utils import multi_message_input
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -192,12 +193,7 @@ def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, sn
             client = openai.OpenAI(api_key=request_api_key)
             client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
+                messages=multi_message_input,
                 top_p=0.9,
                 n=2,
                 user="ddtrace-test",
@@ -283,12 +279,7 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
             client = openai.OpenAI()
             client.chat.completions.with_raw_response.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
+                messages=multi_message_input,
                 top_p=0.9,
                 n=2,
                 user="ddtrace-test",
@@ -305,12 +296,7 @@ async def test_achat_completion(api_key_in_env, request_api_key, openai, openai_
             client = openai.OpenAI(api_key=request_api_key)
             client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
+                messages=multi_message_input,
                 top_p=0.9,
                 n=2,
                 user="ddtrace-test",
@@ -834,7 +820,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -875,7 +861,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -935,12 +921,7 @@ def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_
         with openai_vcr.use_cassette("chat_completion.yaml"):
             client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-                    {"role": "user", "content": "Where was it played?"},
-                ],
+                messages=multi_message_input,
                 top_p=0.9,
                 n=2,
                 user="ddtrace-test",
@@ -1251,7 +1232,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")

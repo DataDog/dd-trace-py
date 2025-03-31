@@ -33,7 +33,6 @@ unset(BUILD_MACOS CACHE)
 # Check the DD_COMPILE_ABSEIL environment variable and build type
 if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
                                                                                  "false"))
-
     message("==============================================================")
     message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
     message("==============================================================")
@@ -44,7 +43,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("=====================================")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
-    message("Release mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
+    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
     FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20230802.1.zip")
     FetchContent_MakeAvailable(absl)
 endif()
@@ -55,20 +54,20 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
-    "Aspects/*.cpp"
-    "Initializer/*.cpp"
-    "TaintedOps/*.cpp"
-    "TaintTracking/*.cpp"
-    "Utils/*.cpp")
+    "aspects/*.cpp"
+    "initializer/*.cpp"
+    "tainted_ops/*.cpp"
+    "taint_tracking/*.cpp"
+    "utils/*.cpp")
 file(
     GLOB
     HEADER_FILES
     "*.h"
-    "Aspects/*.h"
-    "Initializer/*.h"
-    "TaintedOps/*.h"
-    "TaintTracking/*.h"
-    "Utils/*.h")
+    "aspects/*.h"
+    "initializer/*.h"
+    "tainted_ops/*.h"
+    "taint_tracking/*.h"
+    "utils/*.h")
 
 # Find ICU library (not needed for now) find_package(ICU REQUIRED COMPONENTS uc i18n)  # 'uc' for the common library,
 # 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
@@ -95,7 +94,7 @@ set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRE
 
 # target_link_libraries(_native PRIVATE ${ICU_LIBS})
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release"
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
    AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
                                                                                           STREQUAL "false")))
     target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)

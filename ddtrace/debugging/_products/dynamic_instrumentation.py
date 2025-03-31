@@ -13,12 +13,12 @@ requires = ["remote-configuration"]
 
 
 def post_preload():
-    from ddtrace.debugging._import import DebuggerModuleWatchdog
+    from ddtrace.debugging._debugger import Debugger
 
     # We need to install this on start-up because if DI gets enabled remotely
     # we won't be able to capture many of the code objects from the modules
     # that are already loaded.
-    DebuggerModuleWatchdog.install()
+    Debugger.__watchdog__.install()
 
 
 def _start():

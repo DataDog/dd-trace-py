@@ -6,7 +6,6 @@ import bm
 
 
 class Startup(bm.Scenario):
-    ddtrace_run: bool
     import_ddtrace: bool
     import_ddtrace_auto: bool
     import_flask: bool
@@ -35,8 +34,6 @@ class Startup(bm.Scenario):
             commands.append("import django.core.management")
 
         args = ["python", "-c"] + [";".join(commands)]
-        if self.ddtrace_run:
-            args = ["ddtrace-run"] + args
 
         def _(loops: int):
             for _ in range(loops):

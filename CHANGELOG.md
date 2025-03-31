@@ -4,6 +4,118 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.2
+
+
+### Bug Fixes
+
+- single-step instrumentation: Removes `boto3` from the minimum versions list to avoid blocking SSI on `boto3` version.
+- internal: Fix performance overhead of Python distribution parsing for internal telemetry.
+- ASM: This fix resolves an issue where blocking mechanism could partially fail with a 500 error on fastapi with python\>=3.11 with a custom middleware.
+
+
+---
+
+## 3.3.0
+
+### New Features
+
+- Includes <span class="title-ref">dynamodb</span> in the default list of cloud services for payload tagging, i.e. <span class="title-ref">DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES</span> Note that cloud services payload tagging feature is still gated by <span class="title-ref">DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING</span> and <span class="title-ref">DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING</span>.
+
+- LLM Observability: This introduces tracing for `converse` calls to the Bedrock Converse API. `converse` calls are traced as  
+  LLM spans with <span class="title-ref">max_tokens</span>, <span class="title-ref">temperature</span> inference parameters and input/output messages.
+
+- botocore: This introduces capturing prompts, token usage, and inference parameters for `converse` calls to the Bedrock API.
+
+- SCA: This add support for extended heartbeat every 24h with dependencies payload.
+
+- kafka: Adds messaging.destination.name tag to kafka `produce` and `consume` spans.
+
+- LLM Observability: Avoids submitting spans to LLM Observability when a non-default base URL is detected in request for the Anthropic, Bedrock, LangChain, Open AI, and Azure Open AI integrations.
+
+- ASM: This introduces support for automatic instrumentation of session monitoring and blocking for Django.
+
+- ASM: This introduces new metrics span tags to keep track of truncations of WAF payloads.
+
+- runtime_metrics: Adds support for sending runtime metrics as gauge metrics (instead of distributions). To enable this feature set `DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED`.
+
+- runtime_metrics: Adds support for tagging runtime metrics with the current runtime ID. To enable tagging, set `DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED=True`.
+### Bug Fixes
+
+- SCA: This fix resolves an issue where some dependencies where reported with an inaccurate name.
+- profiling: This fix resolves an issue where the Lock profiler would throw an `AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'`.
+
+- tags: Updates <span class="title-ref">DD_TAGS</span> parsing to match the Datadog Agent and other SDKs. Key-value pairs can now be separated by both commas and spaces (e.g., <span class="title-ref">DD_TAGS="key1:value1, key2:value2, key3:value3"</span>). This reverts a change introduced in v2.11.0, which only allowed one separator type.
+
+- dynamic sampling: Ensures that dynamic sampling rates are always consistent with the rates received from the agent via remote configuration. Previously, setting a global sample rate and then sampling rules via remote config would result in both configurations being applied. With this fix only the most recent sampling configuration will be applied.
+
+- LLM Observability: This fix resolves an issue where enabling LLM Observability caused all botocore submodules to be patched instead  
+  of only `bedrock-runtime`.
+
+- LLM Observability: Resolves issue where Pydantic model objects were encoded as unhelpful default placeholder text.
+
+- LLM Observability: Improves encoding of non-JSON serializable I/O objects by attempting to convert to string before resorting to default placeholder text.
+
+- tracing: Resolves an issue where trace information, such as span links, baggage, and trace-level tags (ex: sampling decision maker), could be lost when a new process was created while a trace was active.
+
+- internal: Fixes an issue where trimming a traceback to attach it to the span could result in the loss of the most recent frames.
+
+- pylibmc: fixes an issue where using `Client(server=[url])` would throw the error `__init__() got multiple values for argument 'servers'`
+
+- tracing: Ensures remote sampling rules no longer overwrite existing samplers, preserving service-based sample rates set by the Agent and ensuring tracer rate limits configured by ddtrace products (e.g., ASM) are always respected.
+### Other Changes
+
+- tracing: Ensures a single DatadogSampler is initialized per Tracer instance, improving Tracer object initialization speed by approximately 7% and simplifying sampling logic.
+- agent: Migrates agent connection configurations to envier. This provides better documentation and validation for expected types. The following configuration are affected:
+  - <span class="title-ref">DD_TRACE_AGENT_URL</span>
+  - <span class="title-ref">DD_DOGSTATSD_URL</span>
+  - <span class="title-ref">DD_TRACE_AGENT_HOSTNAME</span>
+  - <span class="title-ref">DD_AGENT_HOST</span>
+  - <span class="title-ref">DD_TRACE_AGENT_PORT</span>
+  - <span class="title-ref">DD_DOGSTATSD_PORT</span>
+  - <span class="title-ref">DD_AGENT_PORT</span>
+
+  \- <span class="title-ref">DD_TRACE_AGENT_TIMEOUT_SECONDS</span> Of the above impacted configurations, these had a precedence change:
+  - <span class="title-ref">DD_TRACE_AGENT_HOSTNAME</span> over <span class="title-ref">DD_AGENT_HOST</span>
+  - <span class="title-ref">DD_TRACE_AGENT_PORT</span> over <span class="title-ref">DD_AGENT_PORT</span>
+  - <span class="title-ref">DD_DOGSTATSD_HOST</span> over <span class="title-ref">DD_AGENT_HOST</span>
+  - <span class="title-ref">DD_DOGSTATSD_PORT</span> over <span class="title-ref">DD_AGENT_PORT</span>
+
+
+---
+
+## 2.21.4
+
+
+### Bug Fixes
+
+  - CI Visibility: This fix resolves an issue where ddtrace's own sys.monitoring coverage tool in Python 3.12+ would block other sys.monitoring tools such as pytest-cov from being used.
+
+
+---
+
+## 3.2.0
+
+### New Features
+
+
+  - ASM: This introduces auto instrumentation of signup events for Django.
+### Upgrade Notes
+
+  - ASM: To align across products, we're replacing `DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED` with `DD_APM_TRACING_ENABLED`. Feature set remains the same.
+  - Bumps libdatadog dependency to v16.0.3.
+
+### Bug Fixes
+
+  - celery: When multiple broker URLs are provided as a list, use the first broker URL from a list to avoid parsing errors.
+  - CI Visibility: This fix resolves an issue where ddtrace's own sys.monitoring coverage tool in Python 3.12+ would block other sys.monitoring tools such as pytest-cov from being used.
+  - tracing: Changes the name of the span event generated by a record\_exception call as it was not following OTEL semantics.
+  - Fixes an issue where Profiling native threads would respect the musl libc default stack size, which could cause stack overflows in certain configurations.
+  - profiling: The memory profiler has a guard to avoid re-entering its code if there are allocations during sampling. This guard was meant to be thread-local, but was not correctly declared as such. This doesn't immediately cause problems because the profiler uses try-locks to protect access to its data structures, and re-entering the code will fail to acquire the locks. But this bug could be a source of deadlocks or data corruption if the code changes substantially in the future. This fix makes the guard thread-local as originally intended.
+
+
+---
+
 ## 3.1.0
 
 ### New Features

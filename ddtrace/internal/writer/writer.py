@@ -14,7 +14,9 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
@@ -154,7 +156,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = config._agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -243,7 +245,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     data,
                     headers,
                 )
-                resp = compat.get_connection_response(self._conn)
+                resp = self._conn.getresponse()
                 log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -449,7 +451,7 @@ class AgentWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = config._agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:

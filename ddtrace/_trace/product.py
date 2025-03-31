@@ -4,8 +4,8 @@ import typing as t
 
 from envier import En
 
-from ddtrace.internal.utils.formats import asbool  # noqa:F401
-from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 
 
 requires = ["remote-configuration"]
@@ -15,6 +15,7 @@ class Config(En):
     __prefix__ = "dd.trace"
 
     enabled = En.v(bool, "enabled", default=True)
+    global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
 
 
 _config = Config()
@@ -22,12 +23,12 @@ _config = Config()
 
 def post_preload():
     if _config.enabled:
-        from ddtrace._monkey import patch_all
+        from ddtrace._monkey import _patch_all
 
         modules_to_patch = os.getenv("DD_PATCH_MODULES")
         modules_to_str = parse_tags_str(modules_to_patch)
         modules_to_bool = {k: asbool(v) for k, v in modules_to_str.items()}
-        patch_all(**modules_to_bool)
+        _patch_all(**modules_to_bool)
 
 
 def start():
@@ -35,15 +36,14 @@ def start():
         from ddtrace import config
 
         if config._trace_methods:
-            from ddtrace.internal.tracemethods import _install_trace_methods  # noqa:F401
+            from ddtrace.internal.tracemethods import _install_trace_methods
 
             _install_trace_methods(config._trace_methods)
 
-    if "DD_TRACE_GLOBAL_TAGS" in os.environ:
+    if _config.global_tags:
         from ddtrace.trace import tracer
 
-        env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
-        tracer.set_tags(parse_tags_str(env_tags))
+        tracer.set_tags(_config.global_tags)
 
 
 def restart(join=False):

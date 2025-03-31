@@ -75,7 +75,6 @@ class DatadogSampler:
     __slots__ = (
         "limiter",
         "rules",
-        "default_sample_rate",
         "_rate_limit_always_on",
         "_by_service_samplers",
     )
@@ -84,7 +83,6 @@ class DatadogSampler:
     def __init__(
         self,
         rules: Optional[List[SamplingRule]] = None,
-        default_sample_rate: Optional[float] = None,
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
@@ -98,23 +96,11 @@ class DatadogSampler:
             applied to them, (default: ``100``)
         """
         # Set sampling rules
-        self.rules: List[SamplingRule] = []
-        if rules is None:
-            env_sampling_rules = config._trace_sampling_rules
-            if env_sampling_rules:
-                self.rules = self._parse_rules_from_str(env_sampling_rules)
+        global_sampling_rules = config._trace_sampling_rules
+        if rules is None and global_sampling_rules:
+            self.set_sampling_rules(global_sampling_rules)
         else:
-            # Validate that rules is a list of SampleRules
-            for rule in rules:
-                if isinstance(rule, SamplingRule):
-                    self.rules.append(rule)
-                elif config._raise:
-                    raise TypeError(
-                        "Rule {!r} must be a sub-class of type ddtrace._trace.sampler.SamplingRules".format(rule)
-                    )
-        if default_sample_rate is not None:
-            # DEV: sampling rule must come last
-            self.rules.append(SamplingRule(sample_rate=default_sample_rate))
+            self.rules: List[SamplingRule] = rules or []
         # Set Agent based samplers
         self._by_service_samplers: Dict[str, RateSampler] = {}
         # Set rate limiter
@@ -148,8 +134,12 @@ class DatadogSampler:
 
     __repr__ = __str__
 
-    @staticmethod
-    def _parse_rules_from_str(rules: str) -> List[SamplingRule]:
+    def set_sampling_rules(self, rules: str) -> None:
+        """Sets the trace sampling rules from a JSON string"""
+        if not rules:
+            self.rules = []
+            return
+
         sampling_rules = []
         json_rules = []
         try:
@@ -177,8 +167,7 @@ class DatadogSampler:
                     raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
 
         # Sort the sampling_rules list using a lambda function as the key
-        sampling_rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
-        return sampling_rules
+        self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
         span.context._update_tags(span)
