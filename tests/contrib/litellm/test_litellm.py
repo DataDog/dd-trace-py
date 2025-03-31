@@ -81,7 +81,7 @@ async def test_litellm_atext_completion(litellm, request_vcr, stream, n):
 @pytest.mark.parametrize("model", ["vertex_ai/gemini-pro", "anthropic/claude-3-5-sonnet-20240620"])
 @pytest.mark.snapshot(token="tests.contrib.litellm.test_litellm.test_litellm_completion_different_models")
 def test_litellm_completion_different_models(litellm, request_vcr, model):
-    with request_vcr.use_cassette(f"completion_{model}.yaml"):
+    with request_vcr.use_cassette(f"completion_{model.split('/')[0]}.yaml"):
         messages = [{"content": "Hey, what is up?", "role": "user"}]
         litellm.completion(
             model=model,
