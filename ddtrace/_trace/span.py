@@ -54,7 +54,6 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.settings._config import config
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
