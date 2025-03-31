@@ -18,7 +18,6 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -281,4 +280,3 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
-_report_telemetry(config)

@@ -187,3 +187,16 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
                     if _test.atr_has_retries() and _test.atr_get_final_status() == TestStatus.FAIL:
                         return True
         return False
+
+    def attempt_to_fix_has_failed_tests(self):
+        if not self._session_settings.test_management_settings.enabled:
+            return False
+
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.is_quarantined() or _test.is_disabled():
+                        continue
+                    if _test.is_attempt_to_fix() and _test.attempt_to_fix_get_final_status() == TestStatus.FAIL:
+                        return True
+        return False

@@ -559,11 +559,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         retry_test.finish_test(status, exc_info=exc_info)
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
-        if self._status in [TestStatus.PASS, TestStatus.SKIP]:
-            return self._status
-
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):
             return TestStatus.PASS
+
+        if all(retry._status == TestStatus.SKIP for retry in self._attempt_to_fix_retries):
+            return TestStatus.SKIP
 
         return TestStatus.FAIL
 

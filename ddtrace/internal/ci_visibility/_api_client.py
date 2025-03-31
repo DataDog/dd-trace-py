@@ -17,13 +17,13 @@ from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -68,7 +68,7 @@ _BASE_HEADERS: t.Dict[str, str] = {
 
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
-_UNIQUE_TESTS_TYPE = t.Set[InternalTestId]
+_KNOWN_TESTS_TYPE = t.Set[InternalTestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -515,7 +515,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+    def fetch_known_tests(self) -> t.Optional[t.Set[InternalTestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -523,7 +523,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        unique_test_ids: t.Set[InternalTestId] = set()
+        known_test_ids: t.Set[InternalTestId] = set()
 
         payload = {
             "data": {
@@ -540,7 +540,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", KNOWN_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
         except Exception:  # noqa: E722
             return None
@@ -562,15 +562,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 for suite, tests in suites.items():
                     suite_id = TestSuiteId(module_id, suite)
                     for test in tests:
-                        unique_test_ids.add(InternalTestId(suite_id, test))
+                        known_test_ids.add(InternalTestId(suite_id, test))
         except Exception:  # noqa: E722
             log.debug("Failed to parse unique tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
 
-        record_early_flake_detection_tests_count(len(unique_test_ids))
+        record_early_flake_detection_tests_count(len(known_test_ids))
 
-        return unique_test_ids
+        return known_test_ids
 
     def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
@@ -587,6 +587,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "type": "ci_app_libraries_tests_request",
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
+                    "commit_message": self._git_data.commit_message,
                 },
             }
         }

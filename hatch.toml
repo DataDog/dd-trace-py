@@ -306,7 +306,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest {args:tests/appsec/iast/}",
+    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
 ]
 
 [[envs.appsec_iast_default.matrix]]

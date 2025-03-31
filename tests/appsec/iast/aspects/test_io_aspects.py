@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import pytest
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -9,6 +8,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytesio_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import stringio_aspect
+from ddtrace.appsec._iast.sources import ast_function
 from tests.utils import override_global_config
 
 
@@ -21,7 +21,6 @@ from tests.utils import override_global_config
 )
 def test_stringio_aspect_read(aspect, text):
     with override_global_config(dict(_iast_enabled=True)):
-        patch_common_modules()
         tainted = taint_pyobject(
             pyobject=text,
             source_name="test_stringio_read_aspect_tainted_string",
@@ -29,7 +28,7 @@ def test_stringio_aspect_read(aspect, text):
             source_origin=OriginType.PARAMETER,
         )
         sio = aspect(None, 0, tainted)
-        val = sio.read()
+        val = ast_function(sio.read, 0)
         assert is_pyobject_tainted(val)
         ranges = get_tainted_ranges(val)
         assert len(ranges) == 1
@@ -47,7 +46,6 @@ def test_stringio_aspect_read(aspect, text):
 )
 def test_stringio_aspect_read_with_offset(aspect, text, added_text):
     with override_global_config(dict(_iast_enabled=True)):
-        patch_common_modules()
         not_tainted = added_text
         tainted = taint_pyobject(
             pyobject=text,
@@ -57,13 +55,13 @@ def test_stringio_aspect_read_with_offset(aspect, text, added_text):
         )
         added = add_aspect(not_tainted, tainted)
         sio = aspect(None, 0, added)
-        val = sio.read(10)
+        val = ast_function(sio.read, 0, 10)
         # If the StringIO() and read() aspects were perfect, `val` would not be tainted
         assert not is_pyobject_tainted(val)
         ranges = get_tainted_ranges(val)
         assert len(ranges) == 0
 
-        val_tainted = sio.read(5)
+        val_tainted = ast_function(sio.read, 0, 5)
         assert is_pyobject_tainted(val_tainted)
         ranges = get_tainted_ranges(val_tainted)
         assert len(ranges) == 1
@@ -79,7 +77,6 @@ def test_stringio_aspect_read_with_offset(aspect, text, added_text):
 )
 def test_stringio_always_tainted_from_zero(aspect, text, added_text):
     with override_global_config(dict(_iast_enabled=True)):
-        patch_common_modules()
         not_tainted = added_text
         tainted = taint_pyobject(
             pyobject=text,
@@ -90,7 +87,7 @@ def test_stringio_always_tainted_from_zero(aspect, text, added_text):
         added = add_aspect(not_tainted, tainted)
         sio = aspect(None, 0, added)
         read_len = 10
-        val = sio.read(read_len)
+        val = ast_function(sio.read, 0, read_len)
         # If the StringIO() and read() aspects were perfect, `val` would not be tainted
         ranges = get_tainted_ranges(val)
         assert len(ranges) == 1
@@ -98,7 +95,7 @@ def test_stringio_always_tainted_from_zero(aspect, text, added_text):
         assert ranges[0].length == read_len
 
         read_len = 5
-        val_tainted = sio.read(read_len)
+        val_tainted = ast_function(sio.read, 0, read_len)
         ranges = get_tainted_ranges(val_tainted)
         assert len(ranges) == 1
         assert ranges[0].start == 0
@@ -109,7 +106,6 @@ def test_stringio_always_tainted_from_zero(aspect, text, added_text):
 # Check the current behaviour of always tainting read() results from offset 0
 def test_bytesio_always_tainted_from_zero():
     with override_global_config(dict(_iast_enabled=True)):
-        patch_common_modules()
         not_tainted = b"foobazbazfoo"
         tainted = taint_pyobject(
             pyobject=b"foobar",
@@ -120,7 +116,7 @@ def test_bytesio_always_tainted_from_zero():
         added = add_aspect(not_tainted, tainted)
         sio = bytesio_aspect(None, 0, added)
         read_len = 10
-        val = sio.read(read_len)
+        val = ast_function(sio.read, 0, read_len)
         # If the bytesio() and read() aspects were perfect, `val` would not be tainted
         ranges = get_tainted_ranges(val)
         assert len(ranges) == 1
@@ -128,7 +124,7 @@ def test_bytesio_always_tainted_from_zero():
         assert ranges[0].length == read_len
 
         read_len = 5
-        val_tainted = sio.read(read_len)
+        val_tainted = ast_function(sio.read, 0, read_len)
         ranges = get_tainted_ranges(val_tainted)
         assert len(ranges) == 1
         assert ranges[0].start == 0

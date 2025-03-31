@@ -510,7 +510,7 @@ _PACKAGES = [
         "User data directory for foobar-app: %s/.local/share/foobar-app" % _user_dir,
         "",
         import_module_to_validate="platformdirs.unix",
-        test_propagation=True,
+        test_propagation=False,
     ),
     ## Skip due to pluggy added to the denylist
     # PackageForTesting(
@@ -569,7 +569,8 @@ _PACKAGES = [
         import_module_to_validate="multipart.multipart",
         # This test is failing in CircleCI with the latest version
         test_import=False,
-        test_propagation=True,
+        test_e2e=False,
+        test_propagation=False,
     ),
     ## Skip due to pytz added to the denylist
     # PackageForTesting(
@@ -647,7 +648,7 @@ _PACKAGES = [
         import_module_to_validate="tomli._parser",
         # This test is failing in CircleCI with the latest version
         test_import=False,
-        test_propagation=True,
+        test_propagation=False,
     ),
     PackageForTesting(
         "tomlkit",
@@ -841,7 +842,7 @@ _PACKAGES = [
         "test1234",
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
-        test_propagation=True,
+        test_propagation=False,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(

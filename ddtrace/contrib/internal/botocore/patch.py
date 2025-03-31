@@ -114,9 +114,9 @@ config._add(
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
             service.strip()
-            for service in os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge").split(
-                ","
-            )
+            for service in os.getenv(
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
+            ).split(",")
         ),
     },
 )
