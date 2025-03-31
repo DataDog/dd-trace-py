@@ -1328,13 +1328,13 @@ class LLMObs(Service):
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:
             return
+
         active_span = cls._instance._llmobs_context_provider.active()
-        active_context = active_span.context if active_span else None
-        if active_context is None:
-            parent_id = ROOT_PARENT_ID
-        else:
-            parent_id = str(active_context.span_id)
-        ml_app = active_span._get_ctx_item(ML_APP) if active_span else config._llmobs_ml_app
+        active_context = active_span.context if isinstance(active_span, Span) else active_span
+
+        parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
+        ml_app = active_span._get_ctx_item(ML_APP) if isinstance(active_span, Span) else config._llmobs_ml_app
+
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
         span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 

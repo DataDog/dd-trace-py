@@ -6,6 +6,7 @@ import pytest
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 
@@ -28,6 +29,13 @@ def test_inject_llmobs_parent_id_simple(llmobs):
     with llmobs.workflow("LLMObs span") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "unnamed-ml-app"
+
+
+def test_inject_llmobs_ml_app_override(llmobs):
+    with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
