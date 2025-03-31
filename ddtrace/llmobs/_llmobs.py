@@ -50,6 +50,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
@@ -1327,12 +1328,15 @@ class LLMObs(Service):
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:
             return
-        active_context = cls._instance._current_trace_context()
+        active_span = cls._instance._llmobs_context_provider.active()
+        active_context = active_span.context if active_span else None
         if active_context is None:
             parent_id = ROOT_PARENT_ID
         else:
             parent_id = str(active_context.span_id)
+        ml_app = active_span._get_ctx_item(ML_APP) if active_span else config._llmobs_ml_app
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+        span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
