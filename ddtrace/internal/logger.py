@@ -169,4 +169,3 @@ root_logger = logging.getLogger("ddtrace")
 if not root_logger.handlers:
     root_logger.handlers.append(logging.StreamHandler())
 root_logger.handlers[0].setFormatter(DDFormatter())
-root_logger.propagate = False
