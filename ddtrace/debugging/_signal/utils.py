@@ -3,6 +3,7 @@ from collections import OrderedDict
 from collections import defaultdict
 from collections import deque
 from collections.abc import Collection
+from decimal import Decimal
 from itertools import islice
 from itertools import takewhile
 from types import BuiltinFunctionType
@@ -41,7 +42,7 @@ EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", 
 
 NoneType = type(None)
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, complex])
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, complex, Decimal])
 BUILTIN_MAPPING_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
 BUILTIN_SEQUENCE_TYPES = frozenset([list, tuple, set, frozenset, deque])
 BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPING_TYPES | BUILTIN_SEQUENCE_TYPES

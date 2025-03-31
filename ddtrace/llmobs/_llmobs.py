@@ -40,6 +40,7 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -237,6 +238,8 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
+        if span._get_ctx_item(INTEGRATION):
+            tags["integration"] = span._get_ctx_item(INTEGRATION)
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)

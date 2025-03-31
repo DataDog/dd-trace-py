@@ -25,7 +25,7 @@ components:
     - ddtrace/contrib/internal/langgraph/*
 suites:
   anthropic:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -39,6 +39,7 @@ suites:
     runner: riot
     snapshot: true
   google_generativeai:
+    parallelism: 1
     paths:
     - '@bootstrap'
     - '@core'
@@ -51,6 +52,7 @@ suites:
     runner: riot
     snapshot: true
   vertexai:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -111,7 +113,7 @@ suites:
     runner: riot
     snapshot: true
   langgraph:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'

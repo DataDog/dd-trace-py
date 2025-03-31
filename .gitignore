@@ -132,6 +132,9 @@ ENV/
 # VS Code
 .vscode/
 
+# Cursor
+.cursor/
+
 # Riot
 .riot/venv*
 .riot/requirements/*.in

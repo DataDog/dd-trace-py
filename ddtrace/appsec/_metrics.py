@@ -13,6 +13,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 log = get_logger(__name__)
 
 DDWAF_VERSION = ddwaf.version()
+UNKNOWN_VERSION = "unknown"
 
 bool_str = ("false", "true")
 
@@ -21,19 +22,18 @@ bool_str = ("false", "true")
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
     tags = {
         "waf_version": DDWAF_VERSION,
+        "event_rules_version": version or UNKNOWN_VERSION,
         "lib_language": "python",
     }
-    if version:
-        tags["event_rules_version"] = version
     level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
     telemetry.telemetry_writer.add_log(level, msg, tags=tags)
 
 
 def _set_waf_updates_metric(info, success: bool):
     try:
-        if info and info.version:
+        if info:
             tags: typing.Tuple[typing.Tuple[str, str], ...] = (
-                ("event_rules_version", info.version),
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
                 ("success", bool_str[success]),
             )
@@ -47,9 +47,9 @@ def _set_waf_updates_metric(info, success: bool):
 
 def _set_waf_init_metric(info, success: bool):
     try:
-        if info and info.version:
+        if info:
             tags: typing.Tuple[typing.Tuple[str, str], ...] = (
-                ("event_rules_version", info.version),
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
                 ("success", bool_str[success]),
             )
@@ -106,7 +106,7 @@ def _report_waf_truncations(observator):
 def _set_waf_request_metrics(*_args):
     try:
         result = _asm_request_context.get_waf_telemetry_results()
-        if result is not None and result["version"] is not None:
+        if result is not None:
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
 
@@ -115,7 +115,7 @@ def _set_waf_request_metrics(*_args):
                 truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
             )
             tags_request = (
-                ("event_rules_version", result["version"]),
+                ("event_rules_version", result["version"] or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
                 ("rule_triggered", bool_str[result["triggered"]]),
                 ("request_blocked", bool_str[result["blocked"]]),
@@ -136,7 +136,10 @@ def _set_waf_request_metrics(*_args):
                                 n,
                                 value,
                                 tags=_TYPES_AND_TAGS.get(rule_type, ())
-                                + (("waf_version", DDWAF_VERSION), ("event_rules_version", result["version"])),
+                                + (
+                                    ("waf_version", DDWAF_VERSION),
+                                    ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                                ),
                             )
 
     except Exception:

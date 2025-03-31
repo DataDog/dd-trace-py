@@ -14,7 +14,6 @@ import http.client as httplib
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
@@ -32,6 +31,7 @@ from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
@@ -204,7 +204,9 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(safe_json(events))
+            event_size = len(safe_json(events))
+            self.buffer_size += event_size
+            telemetry.record_span_event_size(events[0], event_size)
 
     def encode(self):
         with self._lock:
@@ -212,7 +214,14 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        """
+        Send a batch of events, where each event contains a single span in the `spans` field. This allows us to
+        fully take advantage of EVP event/payload size limits.
+        """
+        data = [
+            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            for event in events
+        ]
         try:
             enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
@@ -264,8 +273,10 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent_config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
+
+        self.agentless_url = agentless_url
 
         super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
@@ -306,7 +317,6 @@ class LLMObsSpanWriter(HTTPWriter):
                         self._flush_queue_with_client(client)
 
         telemetry.record_span_event_raw_size(event, raw_event_size)
-        telemetry.record_span_event_size(event, len(event), should_truncate)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface
@@ -319,6 +329,7 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url=self.agentless_url,
         )
 
 
