@@ -12,13 +12,13 @@ from typing import cast  # noqa:F401
 import urllib.parse
 
 import ddtrace
-from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal.core import dispatch
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Context
 from ddtrace.trace import Span  # noqa:F401

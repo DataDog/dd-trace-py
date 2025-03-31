@@ -268,10 +268,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         "requests_mode_settings",
         request_mode_settings_parameters,
     )
-    def test_civisibility_api_client_unique_tests_do_request(
+    def test_civisibility_api_client_known_tests_do_request(
         self, requests_mode_settings, client_timeout, request_timeout
     ):
-        """Tests that the correct payload and headers are sent to the correct API URL for unique tests requests"""
+        """Tests that the correct payload and headers are sent to the correct API URL for known tests requests"""
         client = self._get_test_client(
             requests_mode=requests_mode_settings["mode"],
             api_key=requests_mode_settings.get("api_key"),
@@ -288,8 +288,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            unique_tests = client.fetch_unique_tests()
-            assert unique_tests == set()
+            known_tests = client.fetch_known_tests()
+            assert known_tests == set()
             mock_get_connection.assert_called_once_with(
                 requests_mode_settings["expected_urls"]["tests"],
                 client_timeout if client_timeout is not None else 12.34,

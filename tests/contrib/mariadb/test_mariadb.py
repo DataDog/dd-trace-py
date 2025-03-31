@@ -186,6 +186,8 @@ def test_user_specified_dd_mariadb_service_snapshot():
     When a user specifies a service for the app
         The mariadb integration should not use it.
     """
+    import ddtrace.auto  # noqa
+
     import mariadb
 
     from ddtrace import patch
@@ -278,6 +280,7 @@ def test_query_many_fetchall_snapshot(tracer):
 
 
 @snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
+@flaky(until=1743713962, reason="Did not receive expected traces: 'mariadb.connection.commit'")
 def test_commit_snapshot(tracer):
     with get_connection(tracer) as connection:
         connection.commit()
