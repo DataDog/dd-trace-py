@@ -148,7 +148,7 @@ TaintRangePtr
 Initializer::allocate_taint_range(const RANGE_START start,
                                   const RANGE_LENGTH length,
                                   const Source& origin,
-                                  const SecureMarksList& secure_marks)
+                                  const SecureMarks secure_marks)
 {
     if (!available_ranges_stack.empty()) {
         auto rptr = available_ranges_stack.top();
