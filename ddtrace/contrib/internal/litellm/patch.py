@@ -36,12 +36,11 @@ def _create_span(litellm, pin, func, instance, args, kwargs):
     """Helper function to create and configure a traced span."""
     model = get_argument_value(args, kwargs, 0, "model", None)
     integration = litellm._datadog_integration
-    base_url = kwargs.get("api_base", None)
     span = integration.trace(
         pin,
         "litellm.%s" % func.__name__,
         model=model,
-        submit_to_llmobs=integration.should_submit_to_llmobs(base_url),
+        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
     )
     return span
 

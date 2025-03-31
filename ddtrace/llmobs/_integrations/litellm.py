@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ddtrace
 from ddtrace.llmobs._constants import (
     INPUT_TOKENS_METRIC_KEY,
     METRICS,
@@ -13,7 +14,6 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.utils import (
-    get_llmobs_metrics_tags,
     openai_set_meta_tags_from_chat,
     openai_set_meta_tags_from_completion,
 )
@@ -68,5 +68,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
 
-    def should_submit_to_llmobs(self, base_url: Optional[str] = None) -> bool:
-        return base_url is None
+    def should_submit_to_llmobs(self, model: Optional[str] = None, kwargs: Dict[str, Any] = None) -> bool:
+        """
+        Span should be NOT submitted to LLMObs if:
+            - base_url is not None
+            - model provider is Open AI or Azure AND request is not being streamed AND Open AI integration is enabled
+        """
+        base_url = kwargs.get("api_base", None)
+        if base_url is not None:
+            return False
+        stream = kwargs.get("stream", False)
+        model_lower = model.lower() if model else ""
+        # model provider is unknown until request completes; therefore, this is a best effort attempt to check if model provider is Open AI or Azure
+        if ("gpt" in model_lower or "openai" in model_lower or "azure" in model_lower) and not stream and "openai" in ddtrace._monkey._get_patched_modules():
+            return False
+        return True

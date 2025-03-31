@@ -1,7 +1,10 @@
+from ddtrace._trace.pin import Pin
+from ddtrace.llmobs._llmobs import LLMObs
 import pytest
 
 from tests.contrib.litellm.utils import async_consume_stream, get_cassette_name, consume_stream, parse_response, tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.utils import DummyTracer
 
 
 @pytest.mark.parametrize(
@@ -84,7 +87,6 @@ class TestLLMObsLiteLLM:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
             )
         )
-    
 
     async def test_acompletion(self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
@@ -178,3 +180,57 @@ class TestLLMObsLiteLLM:
             )
         )
 
+    def test_completion_integrations_enabled(self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
+        if stream:
+            pytest.skip("Streamed Open AI requests will lead to unfinished spans; therefore, skip them for now")
+        with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
+            LLMObs.disable()
+
+            LLMObs.enable(integrations_enabled=True)
+            mock_tracer = DummyTracer()
+            import litellm
+            import openai
+
+            pin = Pin.get_from(litellm)
+            pin._override(litellm, tracer=mock_tracer)
+            pin._override(openai, tracer=mock_tracer)
+
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": include_usage},
+            )
+            LLMObs.disable()
+            if stream:
+                output_messages, token_metrics = consume_stream(resp, n)
+            else:
+                output_messages, token_metrics = parse_response(resp)
+
+        openai_span = mock_tracer.pop_traces()[0][1]
+        # remove parent span since LiteLLM request span will not be submitted to LLMObs
+        openai_span._parent = None
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                openai_span,
+                model_name="gpt-3.5-turbo-0125",
+                model_provider="openai",
+                input_messages=messages,
+                output_messages=output_messages,
+                metadata={
+                    "n": n,
+                    "extra_body": {},
+                    "timeout": 600.0,
+                    "extra_headers": {
+                        "X-Stainless-Raw-Response": "true"
+                    }
+                },
+                token_metrics=token_metrics,
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+            )
+        )
+
+ 

@@ -66,9 +66,10 @@ def mock_tracer(litellm, ddtrace_global_config):
     pin.tracer._configure()
 
     if ddtrace_global_config.get("_llmobs_enabled", False):
-        # Have to disable and re-enable LLMObs to use to mock tracer.
+        # Have to disable and re-enable LLMObs to use the mock tracer.
         LLMObs.disable()
-        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        enable_integrations = ddtrace_global_config.get("_integrations_enabled", False)
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=enable_integrations)
 
     yield mock_tracer
 
