@@ -79,7 +79,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.22.0"
+LIBDDWAF_VERSION = "1.24.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -106,14 +106,14 @@ def interpose_sccache():
         )
         if cc_path:
             os.environ["DD_CC_OLD"] = cc_path
-            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+            os.environ["CC"] = str(sccache_path) + " " + str(cc_path)
 
         cxx_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
         )
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
-            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
+            os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
 
 
 def verify_checksum_from_file(sha256_filename, filename):

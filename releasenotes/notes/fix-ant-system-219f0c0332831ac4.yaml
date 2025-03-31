@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue with anthropic LLM spans where multiple system prompts caused missing input messages.
