@@ -139,6 +139,7 @@ class DDFormatter(logging.Formatter):
         else:
             skip_str = ""
         product = getattr(record, "product", None)
+        # new syntax
         if product:
             more_info = getattr(record, "more_info", "")
             stack_limit = getattr(record, "stack_limit", 0)
@@ -151,8 +152,8 @@ class DDFormatter(logging.Formatter):
             if record.exc_info:
                 string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
             return "\n".join(string_buffer)
-        else:
-            return f"{record.levelname} {super().format(record)}{skip_str}"
+        # legacy syntax
+        return f"{record.levelname} {super().format(record)}{skip_str}"
 
     def format_stack(self, stack_info, limit) -> str:
         stack = stack_info.split("\n")
