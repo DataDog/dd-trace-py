@@ -182,6 +182,11 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
+    """
+    Patch create method of CompletionsWithRawResponse classes to catch requests that use with_raw_response wrapper
+    since the response for these streamed requests cannot be traced and we therefore need to avoid creating
+    spans for these cases.
+    """
     func(*args, **kwargs)
     if hasattr(instance, "create"):
         if isinstance(instance, openai.resources.completions.CompletionsWithRawResponse):
