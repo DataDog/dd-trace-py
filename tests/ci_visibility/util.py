@@ -43,12 +43,12 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
     return new_ddconfig
 
 
-def _fetch_unique_tests_side_effect(unique_test_ids: t.Optional[t.Set[InternalTestId]] = None):
-    if unique_test_ids is None:
-        unique_test_ids = set()
+def _fetch_known_tests_side_effect(known_test_ids: t.Optional[t.Set[InternalTestId]] = None):
+    if known_test_ids is None:
+        known_test_ids = set()
 
     def _side_effect():
-        CIVisibility._instance._unique_test_ids = unique_test_ids
+        CIVisibility._instance._known_test_ids = known_test_ids
 
     return _side_effect
 
@@ -72,7 +72,7 @@ def set_up_mock_civisibility(
     require_git: bool = False,
     suite_skipping_mode: bool = False,
     skippable_items=None,
-    unique_test_ids: t.Optional[t.Set[InternalTestId]] = None,
+    known_test_ids: t.Optional[t.Set[InternalTestId]] = None,
     efd_settings: t.Optional[EarlyFlakeDetectionSettings] = None,
 ):
     """This is a one-stop-shop that patches all parts of CI Visibility for testing.
@@ -127,8 +127,8 @@ def set_up_mock_civisibility(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
         side_effect=_fake_fetch_tests_to_skip,
     ), mock.patch(
-        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
-        return_value=_fetch_unique_tests_side_effect(unique_test_ids),
+        "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+        return_value=_fetch_known_tests_side_effect(known_test_ids),
     ), mock.patch.multiple(
         CIVisibilityGitClient,
         _get_repository_url=classmethod(lambda *args, **kwargs: "git@github.com:TestDog/dd-test-py.git"),
