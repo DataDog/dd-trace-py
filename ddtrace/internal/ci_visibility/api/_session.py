@@ -9,18 +9,16 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._test_early_flake_detection import EarlyFlakeDetectionSessionHandler
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
-from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_ENABLED
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
 
 log = get_logger(__name__)
@@ -47,6 +45,10 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         )
         self._test_command = self._session_settings.test_command
 
+        # Create EFD handler for session-level operations
+        self._efd_handler = EarlyFlakeDetectionSessionHandler.create(self, session_settings)
+
+        # Keep these for backward compatibility
         self._efd_abort_reason: Optional[str] = None
         self._efd_is_faulty_session: Optional[bool] = None
         self._efd_has_efd_failed_tests: bool = False
@@ -64,13 +66,14 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
         return self._session_settings
 
     def _set_efd_tags(self):
-        if self._session_settings.efd_settings.enabled:
-            self.set_tag(TEST_EFD_ENABLED, True)
-        if self._efd_abort_reason is not None:
-            # Allow any set abort reason to override faulty session abort reason
-            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-        elif self.efd_is_faulty_session():
-            self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
+        # Delegate to the EFD handler
+        self._efd_handler.set_tags()
+
+        # Update backward compatibility fields if needed
+        if self._efd_handler._abort_reason is not None:
+            self._efd_abort_reason = self._efd_handler._abort_reason
+        if self._efd_handler._is_faulty_session is not None:
+            self._efd_is_faulty_session = self._efd_handler._is_faulty_session
 
     def _set_test_management_tags(self):
         self.set_tag(TEST_MANAGEMENT_ENABLED, True)
@@ -117,51 +120,25 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
     # EFD (Early Flake Detection) functionality
     #
     def efd_is_enabled(self):
-        return self._session_settings.efd_settings.enabled
+        """Check if EFD is enabled for this session."""
+        return self._efd_handler.is_enabled()
 
     def set_efd_abort_reason(self, abort_reason: str):
-        self._efd_abort_reason = abort_reason
+        """Set the reason for aborting EFD for this session."""
+        self._efd_handler.set_abort_reason(abort_reason)
+        self._efd_abort_reason = abort_reason  # For backward compatibility
 
     def efd_is_faulty_session(self):
-        """A session is considered "EFD faulty" if the percentage of tests considered new is greater than the
-        given threshold, and the total number of news tests exceeds the threshold.
-
-        NOTE: this behavior is cached on the assumption that this method will only be called once
-        """
-        if self._efd_is_faulty_session is not None:
-            return self._efd_is_faulty_session
-
-        if self._session_settings.efd_settings.enabled is False:
-            return False
-
-        total_tests_count = 0
-        new_tests_count = 0
-        for _module in self._children.values():
-            for _suite in _module._children.values():
-                for _test in _suite._children.values():
-                    total_tests_count += 1
-                    if _test.is_new():
-                        new_tests_count += 1
-
-        if new_tests_count <= self._session_settings.efd_settings.faulty_session_threshold:
-            return False
-
-        new_tests_pct = 100 * (new_tests_count / total_tests_count)
-
-        self._efd_is_faulty_session = new_tests_pct > self._session_settings.efd_settings.faulty_session_threshold
-
-        return self._efd_is_faulty_session
+        """Check if this is a faulty session for EFD purposes."""
+        result = self._efd_handler.is_faulty_session()
+        self._efd_is_faulty_session = result  # For backward compatibility
+        return result
 
     def efd_has_failed_tests(self):
-        if (not self._session_settings.efd_settings.enabled) or self.efd_is_faulty_session():
-            return False
-
-        for _module in self._children.values():
-            for _suite in _module._children.values():
-                for _test in _suite._children.values():
-                    if _test.efd_has_retries() and _test.efd_get_final_status() == EFDTestStatus.ALL_FAIL:
-                        return True
-        return False
+        """Check if the session has tests that failed in all EFD retries."""
+        result = self._efd_handler.has_failed_tests()
+        self._efd_has_efd_failed_tests = result  # For backward compatibility
+        return result
 
     #
     # ATR (Auto Test Retries , AKA Flaky Test Retries) functionality

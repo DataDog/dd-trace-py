@@ -12,6 +12,7 @@ from uuid import uuid4
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.internal.ci_visibility.api._efd_settings import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -81,16 +82,6 @@ class TestVisibilitySettingsError(Exception):
 class TestVisibilitySkippableItemsError(Exception):
     __test__ = False
     pass
-
-
-@dataclasses.dataclass(frozen=True)
-class EarlyFlakeDetectionSettings:
-    enabled: bool = False
-    slow_test_retries_5s: int = 10
-    slow_test_retries_10s: int = 5
-    slow_test_retries_30s: int = 3
-    slow_test_retries_5m: int = 2
-    faulty_session_threshold: int = 30
 
 
 @dataclasses.dataclass(frozen=True)

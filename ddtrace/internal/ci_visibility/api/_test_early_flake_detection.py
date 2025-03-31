@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Dict
@@ -8,10 +9,10 @@ from typing import TypeVar
 from typing import Union
 from typing import cast
 from typing import overload
-from dataclasses import dataclass
 
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.api._efd_settings import EarlyFlakeDetectionSettings
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
@@ -27,10 +28,18 @@ T = TypeVar("T", bound="TestVisibilityTest")
 log = get_logger(__name__)
 
 
+EFD = "efd"
+SLOW = "slow"
+UNKNOWN = "unknown"
+FAULTY = "faulty"
+IS_EFD_RETRY = "is_efd_retry"
+
+
 # Domain Events
 @dataclass
 class TestRetryRequested:
     """Event representing a request to retry a test."""
+
     test_id: str
     original_test_name: str
     retry_number: int
@@ -39,6 +48,7 @@ class TestRetryRequested:
 @dataclass
 class TestRetryStarted:
     """Event representing a retry test being started."""
+
     test_id: str
     retry_number: int
 
@@ -46,96 +56,247 @@ class TestRetryStarted:
 @dataclass
 class TestRetryFinished:
     """Event representing a retry test being finished."""
+
     test_id: str
     retry_number: int
     status: TestStatus
 
 
+@dataclass
+class SessionMarkedFaulty:
+    """Event representing a session being marked as faulty for EFD."""
+
+    session_id: str
+    new_tests_count: int
+    total_tests_count: int
+    new_tests_percentage: float
+    threshold: float
+
+
 # Value Objects
 class DurationThreshold:
     """Value object representing a test duration threshold with its retry limit."""
-    
+
     def __init__(self, max_duration_seconds: float, retry_limit: int):
         self.max_duration_seconds = max_duration_seconds
         self.retry_limit = retry_limit
-        
+
     def is_applicable(self, duration: float) -> bool:
         """Check if this threshold applies to the given duration."""
         return duration <= self.max_duration_seconds
-        
+
     def allows_retry(self, retry_count: int) -> bool:
         """Check if more retries are allowed for this threshold."""
         return retry_count < self.retry_limit
+
+
+# Session-related interfaces
+class EarlyFlakeDetectionSessionService(Protocol):
+    """Interface for the Early Flake Detection session service."""
+
+    def is_enabled(self) -> bool:
+        """Check if EFD is enabled for this session."""
+        ...
+
+    def set_abort_reason(self, reason: str) -> None:
+        """Set the reason for aborting EFD for this session."""
+        ...
+
+    def is_faulty_session(self) -> bool:
+        """Check if this is a faulty session for EFD purposes."""
+        ...
+
+    def has_failed_tests(self) -> bool:
+        """Check if the session has tests that failed in all EFD retries."""
+        ...
+
+    def set_tags(self) -> None:
+        """Set EFD-related tags on the session."""
+        ...
 
 
 # Commands
 @dataclass
 class AddRetryCommand:
     """Command to add a retry for a test."""
+
     start_immediately: bool = False
 
 
 @dataclass
 class FinishRetryCommand:
     """Command to finish a retry test."""
+
     retry_number: int
     status: TestStatus
     exc_info: Optional[TestExcInfo] = None
 
 
-# Service Interface
+# Test-related interfaces
 class EarlyFlakeDetectionService(Protocol):
     """Interface for the Early Flake Detection service."""
-    
+
     @property
     def is_retry(self) -> bool:
         """Whether the current test is a retry."""
         ...
-    
+
     @property
     def abort_reason(self) -> Optional[str]:
         """The reason for aborting retries, if any."""
         ...
-    
+
     def set_abort_reason(self, reason: str) -> None:
         """Set the reason for aborting retries."""
         ...
-    
+
     def should_retry(self) -> bool:
         """Determine if the test should be retried."""
         ...
-    
+
     def has_retries(self) -> bool:
         """Check if the test has any retries."""
         ...
-    
+
     def add_retry(self, command: AddRetryCommand) -> Optional[int]:
         """Add a retry for the test."""
         ...
-    
+
     def start_retry(self, retry_number: int) -> None:
         """Start a specific retry test."""
         ...
-    
+
     def finish_retry(self, command: FinishRetryCommand) -> None:
         """Finish a specific retry test."""
         ...
-    
+
     def get_final_status(self) -> EFDTestStatus:
         """Calculate the final status based on original test and retries."""
         ...
-    
+
     def get_consolidated_status(self) -> Union[TestStatus, "SPECIAL_STATUS"]:
         """Convert the EFD final status to a consolidated test status."""
         ...
-    
+
     def set_tags(self) -> None:
         """Set EFD-related tags on the test."""
         ...
-    
+
     def check_and_handle_abort_if_needed(self) -> bool:
         """Check if the test should abort EFD and handle it."""
         ...
+
+
+class EarlyFlakeDetectionSessionHandler:
+    """Domain service responsible for handling Early Flake Detection (EFD) operations at the session level.
+
+    This class encapsulates all the session-level EFD-specific logic previously embedded in TestVisibilitySession.
+    It follows DDD principles by focusing specifically on the session-level EFD domain concern.
+    """
+
+    def __init__(self, session: "TestVisibilitySession", session_settings: "TestVisibilitySessionSettings"):
+        self._session = session
+        self._session_settings = session_settings
+        self._abort_reason: Optional[str] = None
+        self._is_faulty_session: Optional[bool] = None
+
+    @classmethod
+    def create(
+        cls, session: "TestVisibilitySession", session_settings: "TestVisibilitySessionSettings"
+    ) -> "EarlyFlakeDetectionSessionService":
+        """Factory method to create an EFD session handler.
+
+        Args:
+            session: The session for which to create the handler
+            session_settings: The session settings
+
+        Returns:
+            An EFD session handler that implements the EarlyFlakeDetectionSessionService interface
+        """
+        return cls(session, session_settings)
+
+    def is_enabled(self) -> bool:
+        """Check if EFD is enabled for this session."""
+        return self._session_settings.efd_settings.enabled
+
+    def set_abort_reason(self, reason: str) -> None:
+        """Set the reason for aborting EFD for this session."""
+        self._abort_reason = reason
+
+    def is_faulty_session(self) -> bool:
+        """A session is considered "EFD faulty" if the percentage of tests considered new is greater than the
+        given threshold, and the total number of news tests exceeds the threshold.
+
+        This result is cached after the first calculation.
+        """
+        if self._is_faulty_session is not None:
+            return self._is_faulty_session
+
+        if not self.is_enabled():
+            return False
+
+        total_tests_count = 0
+        new_tests_count = 0
+
+        # Traverse the test hierarchy to count tests
+        for _module in self._session._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    total_tests_count += 1
+                    if _test.is_new():
+                        new_tests_count += 1
+
+        if new_tests_count <= self._session_settings.efd_settings.faulty_session_threshold:
+            return False
+
+        new_tests_pct = 100 * (new_tests_count / total_tests_count)
+
+        self._is_faulty_session = new_tests_pct > self._session_settings.efd_settings.faulty_session_threshold
+
+        # Emit domain event if session is faulty
+        if self._is_faulty_session:
+            log.debug(
+                "Early Flake Detection: Session marked as faulty",
+                extra={
+                    "event": SessionMarkedFaulty(
+                        session_id=str(self._session._span.span_id if self._session._span else UNKNOWN),
+                        new_tests_count=new_tests_count,
+                        total_tests_count=total_tests_count,
+                        new_tests_percentage=new_tests_pct,
+                        threshold=self._session_settings.efd_settings.faulty_session_threshold,
+                    )
+                },
+            )
+
+        return self._is_faulty_session
+
+    def has_failed_tests(self) -> bool:
+        """Check if the session has tests that failed in all EFD retries."""
+        if not self.is_enabled() or self.is_faulty_session():
+            return False
+
+        # Traverse the test hierarchy to check for failed tests
+        for _module in self._session._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.efd_has_retries() and _test.efd_get_final_status() == EFDTestStatus.ALL_FAIL:
+                        return True
+
+        return False
+
+    def set_tags(self) -> None:
+        """Set EFD-related tags on the session."""
+        from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
+        from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
+
+        if self.is_enabled():
+            self._session.set_tag(TEST_EFD_ENABLED, True)
+
+        if self._abort_reason is not None:
+            # Allow any set abort reason to override faulty session abort reason
+            self._session.set_tag(TEST_EFD_ABORT_REASON, self._abort_reason)
+        elif self.is_faulty_session():
+            self._session.set_tag(TEST_EFD_ABORT_REASON, FAULTY)
 
 
 class EarlyFlakeDetectionHandler:
@@ -151,34 +312,33 @@ class EarlyFlakeDetectionHandler:
         self._is_retry: bool = False
         self._retries: List["TestVisibilityTest"] = []
         self._abort_reason: Optional[str] = None
-    
+
     @classmethod
-    def create(cls, test: "TestVisibilityTest", session_settings: "TestVisibilitySessionSettings") -> "EarlyFlakeDetectionService":
+    def create(
+        cls, test: "TestVisibilityTest", session_settings: "TestVisibilitySessionSettings"
+    ) -> "EarlyFlakeDetectionService":
         """Factory method to create an EFD handler.
-        
+
         Args:
             test: The test for which to create the handler
             session_settings: The session settings
-            
+
         Returns:
             An EFD handler that implements the EarlyFlakeDetectionService interface
         """
         handler = cls(test, session_settings)
-        
+
         # If this is a retry test, mark it as such
-        if getattr(test, "_is_efd_retry", False):
+        if getattr(test, IS_EFD_RETRY, False):
             handler.is_retry = True
-            
+
         return handler
-        
+
     def _get_duration_thresholds(self) -> List[DurationThreshold]:
         """Get duration thresholds from session settings as domain objects."""
-        efd_settings = self._session_settings.efd_settings
+        efd_settings: EarlyFlakeDetectionSettings = self._session_settings.efd_settings
         return [
-            DurationThreshold(5, efd_settings.slow_test_retries_5s),
-            DurationThreshold(10, efd_settings.slow_test_retries_10s),
-            DurationThreshold(30, efd_settings.slow_test_retries_30s),
-            DurationThreshold(300, efd_settings.slow_test_retries_5m),
+            DurationThreshold(threshold, retries) for threshold, retries in efd_settings.get_threshold_definitions()
         ]
 
     @property
@@ -251,13 +411,10 @@ class EarlyFlakeDetectionHandler:
 
         duration_s = cast(float, self._test._span.duration)
         num_retries = len(self._retries)
-        
-        # Use domain objects to check thresholds
-        for threshold in self._get_duration_thresholds():
-            if threshold.is_applicable(duration_s):
-                return threshold.allows_retry(num_retries)
 
-        return False
+        # Use the helper method from EarlyFlakeDetectionSettings
+        max_retries = efd_settings.get_max_retries_for_duration(duration_s)
+        return num_retries < max_retries
 
     def has_retries(self) -> bool:
         return len(self._retries) > 0
@@ -266,24 +423,24 @@ class EarlyFlakeDetectionHandler:
     @overload
     def add_retry(self, start_immediately: bool = False) -> Optional[int]:
         ...
-    
+
     @overload
     def add_retry(self, command: AddRetryCommand = ...) -> Optional[int]:
         ...
 
     def add_retry(self, *args, **kwargs) -> Optional[int]:
         """Add a retry test and optionally start it immediately.
-        
+
         This method supports both the old signature for backward compatibility:
             add_retry(start_immediately=False)
-        
+
         And the new command-based signature:
             add_retry(command)
-            
+
         Args:
             *args: Either start_immediately (old style) or a command (new style)
             **kwargs: Support for keyword arguments like start_immediately=False
-            
+
         Returns:
             The retry number if a retry was added, None otherwise
         """
@@ -291,13 +448,14 @@ class EarlyFlakeDetectionHandler:
         if args and isinstance(args[0], AddRetryCommand):
             command = args[0]
         else:
+            START_IMMEDIATELY = "start_immediately"
             # Handle both positional and keyword arguments for backward compatibility
             start_immediately = False
             if args and isinstance(args[0], bool):
                 start_immediately = args[0]
-            elif 'start_immediately' in kwargs:
-                start_immediately = kwargs['start_immediately']
-            
+            elif START_IMMEDIATELY in kwargs:
+                start_immediately = kwargs[START_IMMEDIATELY]
+
             command = AddRetryCommand(start_immediately=start_immediately)
 
         if not self.should_retry():
@@ -308,26 +466,30 @@ class EarlyFlakeDetectionHandler:
 
         retry_test = self.make_retry_from_test()
         self._retries.append(retry_test)
-        
+
         # Emit domain event
         log.debug(
-            "Early Flake Detection: Retry requested", 
-            extra={"event": TestRetryRequested(
-                test_id=str(self._test._span.span_id if self._test._span else "unknown"),
-                original_test_name=self._test.name,
-                retry_number=retry_number
-            )}
+            "Early Flake Detection: Retry requested",
+            extra={
+                "event": TestRetryRequested(
+                    test_id=str(self._test._span.span_id if self._test._span else UNKNOWN),
+                    original_test_name=self._test.name,
+                    retry_number=retry_number,
+                )
+            },
         )
-        
+
         if command.start_immediately:
             retry_test.start()
             # Emit domain event for retry started
             log.debug(
-                "Early Flake Detection: Retry started", 
-                extra={"event": TestRetryStarted(
-                    test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
-                    retry_number=retry_number
-                )}
+                "Early Flake Detection: Retry started",
+                extra={
+                    "event": TestRetryStarted(
+                        test_id=str(retry_test._span.span_id if retry_test._span else UNKNOWN),
+                        retry_number=retry_number,
+                    )
+                },
             )
 
         return retry_number
@@ -336,31 +498,32 @@ class EarlyFlakeDetectionHandler:
         """Start a specific retry test."""
         retry_test = self._get_retry_test(retry_number)
         retry_test.start()
-        
+
         # Emit domain event
         log.debug(
-            "Early Flake Detection: Retry started", 
-            extra={"event": TestRetryStarted(
-                test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
-                retry_number=retry_number
-            )}
+            "Early Flake Detection: Retry started",
+            extra={
+                "event": TestRetryStarted(
+                    test_id=str(retry_test._span.span_id if retry_test._span else UNKNOWN), retry_number=retry_number
+                )
+            },
         )
 
     # Overloaded method for backward compatibility
     @overload
     def finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
         ...
-    
+
     @overload
     def finish_retry(self, command: FinishRetryCommand) -> None:
         ...
 
     def finish_retry(self, arg1, status=None, exc_info=None):
         """Finish a specific retry test with the given status.
-        
+
         This method supports both the old signature for backward compatibility:
             finish_retry(retry_number, status, exc_info=None)
-        
+
         And the new command-based signature:
             finish_retry(command)
         """
@@ -369,27 +532,25 @@ class EarlyFlakeDetectionHandler:
             command = arg1
         else:
             # Old style invocation with separate parameters
-            command = FinishRetryCommand(
-                retry_number=arg1,
-                status=status,
-                exc_info=exc_info
-            )
-            
+            command = FinishRetryCommand(retry_number=arg1, status=status, exc_info=exc_info)
+
         retry_test = self._get_retry_test(command.retry_number)
 
         if command.status is not None:
             retry_test.set_status(command.status)
 
         retry_test.finish_test(command.status, exc_info=command.exc_info)
-        
+
         # Emit domain event
         log.debug(
-            "Early Flake Detection: Retry finished", 
-            extra={"event": TestRetryFinished(
-                test_id=str(retry_test._span.span_id if retry_test._span else "unknown"),
-                retry_number=command.retry_number,
-                status=command.status
-            )}
+            "Early Flake Detection: Retry finished",
+            extra={
+                "event": TestRetryFinished(
+                    test_id=str(retry_test._span.span_id if retry_test._span else UNKNOWN),
+                    retry_number=command.retry_number,
+                    status=command.status,
+                )
+            },
         )
 
     def get_final_status(self) -> EFDTestStatus:
@@ -433,7 +594,7 @@ class EarlyFlakeDetectionHandler:
         """Set EFD-related tags on the test."""
         if self._is_retry:
             self._test.set_tag("test.is_retry", self._is_retry)
-            self._test.set_tag("test.retry_reason", "early_flake_detection")
+            self._test.set_tag("test.retry_reason", EFD)
 
         if self._abort_reason is not None:
             self._test.set_tag("test.efd.abort_reason", self._abort_reason)
@@ -446,17 +607,12 @@ class EarlyFlakeDetectionHandler:
             self._test.set_tag("test.is_new", self._test._is_new)
 
     def check_and_handle_abort_if_needed(self) -> bool:
-        """Check if the test should abort EFD (e.g., due to being too slow) and handle it.
+        """Check if EFD should be aborted for this test and handle it if needed.
 
         Returns:
-            bool: True if the test was aborted, False otherwise.
+            True if the test should abort EFD, False otherwise
         """
-        if (
-            self._session_settings.efd_settings.enabled
-            and self._test.is_new()
-            and not self.is_retry
-            and self.should_abort()
-        ):
-            self.set_abort_reason("slow")
+        if self.should_abort():
+            self.set_abort_reason(SLOW)
             return True
         return False
