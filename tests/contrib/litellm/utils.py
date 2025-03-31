@@ -8,21 +8,20 @@ CASETTE_EXTENSION = ".yaml"
 # VCR is used to capture and store network requests made to Anthropic.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
-def get_request_vcr():
+def get_request_vcr(ignore_localhost=True):
     return vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],
-        # Ignore requests to the agent
-        ignore_localhost=True,
+        ignore_localhost=ignore_localhost,
     )
 
 
 # Get the name of the cassette to use for a given test
 # All LiteLLM requests that use Open AI get routed to the chat completions endpoint,
 # so we can reuse the same cassette for each combination of stream and n
-def get_cassette_name(stream, n, include_usage=True, tools=False):
+def get_cassette_name(stream, n, include_usage=True, tools=False, proxy=False):
     stream_suffix = "_stream" if stream else ""
     choice_suffix = "_multiple_choices" if n > 1 else ""
     # include_usage only affects streamed responses
@@ -31,7 +30,8 @@ def get_cassette_name(stream, n, include_usage=True, tools=False):
     else:
         usage_suffix = ""
     tools_suffix = "_with_tools" if tools else ""
-    return "completion" + stream_suffix + choice_suffix + usage_suffix + tools_suffix + CASETTE_EXTENSION
+    proxy_suffix = "_proxy" if proxy else ""
+    return "completion" + stream_suffix + choice_suffix + usage_suffix + tools_suffix + proxy_suffix + CASETTE_EXTENSION
 
 
 def consume_stream(resp, n, is_completion=False):

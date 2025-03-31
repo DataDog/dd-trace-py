@@ -232,5 +232,24 @@ class TestLLMObsLiteLLM:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
             )
         )
+    
+    def test_completion_proxy(self, litellm, request_vcr_include_localhost, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, include_usage, proxy=True)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": include_usage},
+                api_base="http://0.0.0.0:4000",
+            )
+            if stream:
+                consume_stream(resp, n)
+
+        # client side requests made to the proxy are not submitted to LLMObs
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
+    
 
  
