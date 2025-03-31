@@ -90,6 +90,7 @@ def _init_span(span, request):
     if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)
 
+
 def _set_span_meta(span, request, response):
     # type: (Span, httpx.Request, httpx.Response) -> None
     set_http_meta(
