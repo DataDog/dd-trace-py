@@ -109,7 +109,7 @@ class IntegrationConfig(AttrDict):
         """
         # Use `None` as a way to say that it was not defined,
         #   `False` would mean `0` which is a different thing
-        return None
+        return 1
 
     def __repr__(self):
         cls = self.__class__
