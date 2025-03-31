@@ -25,6 +25,7 @@ Full grammar:
 """  # noqa
 
 from dataclasses import dataclass
+from decimal import Decimal
 from itertools import chain
 import re
 import sys
@@ -344,7 +345,7 @@ class DDCompiler:
 
     def _compile_literal(self, ast: DDASTType) -> Optional[List[Instr]]:
         # literal  =>  <number> | true | false | "string" | null
-        if not (isinstance(ast, (str, int, float, bool)) or ast is None):
+        if not (isinstance(ast, (str, int, float, bool, Decimal)) or ast is None):
             return None
 
         return [Instr("LOAD_CONST", ast)]
