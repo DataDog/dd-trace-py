@@ -52,9 +52,6 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         span.set_tag_str("aws.region", region_name)
         span.set_tag_str("region", region_name)
 
-    # set analytics sample rate
-    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
-
 
 def set_botocore_response_metadata_tags(
     span: Span, result: Dict[str, Any], is_error_code_fn: Optional[Callable] = None

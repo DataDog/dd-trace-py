@@ -7,7 +7,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
 
-from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -87,10 +86,6 @@ class TracedAsyncCursor(TracedCursor):
                 _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                 if check_tainted_dbapi_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                     SqlInjection.report(evidence_value=args[0], dialect=self._self_config.integration_name)
-
-            # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedAsyncCursor):
-                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
             if dbm_propagator:

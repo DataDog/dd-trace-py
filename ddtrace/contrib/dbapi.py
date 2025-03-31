@@ -12,7 +12,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
 
-from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -115,10 +114,6 @@ class TracedCursor(wrapt.ObjectProxy):
                         SqlInjection.report(evidence_value=args[0], dialect=self._self_config.integration_name)
                 except Exception:
                     log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
-
-            # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedCursor):
-                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
             if dbm_propagator:
