@@ -115,6 +115,8 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
 @pytest.mark.subprocess(env=dict(DD_TRACE_GRAPHQL_ERROR_EXTENSIONS="code, status"))
 @pytest.mark.snapshot(ignores=["meta.events", "meta.error.stack"])
 def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_resolvers):
+    import ddtrace.auto  # noqa
+
     import graphene
 
     from ddtrace.contrib.internal.graphql.patch import patch
