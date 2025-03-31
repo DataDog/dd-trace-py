@@ -181,8 +181,6 @@ class TraceMiddleware:
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
-            sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
-
             host_header = None
             for key, value in _extract_headers(scope).items():
                 if key.encode() == b"host":

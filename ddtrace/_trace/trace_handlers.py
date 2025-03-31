@@ -14,7 +14,6 @@ from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -146,9 +145,6 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(_SPAN_MEASURED_KEY)
-
-    analytics_enabled = ctx.get_item("analytics_enabled")
-    analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
 
 
 def _on_web_framework_start_request(ctx, int_config):
