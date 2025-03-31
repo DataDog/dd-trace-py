@@ -4,7 +4,8 @@ import os
 import mock
 import pytest
 
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
+from tests.utils import remote_config_build_payload as build_payload
 
 
 @pytest.fixture
@@ -13,9 +14,9 @@ def config():
 
 
 def _base_rc_config(cfg):
-    return {
-        "metadata": [],
-        "config": [
+    return [
+        build_payload(
+            "APM_TRACING",
             # this flare data can often come in and we want to make sure we're pulling the
             # actual lib_config data out correctly regardless
             {
@@ -30,20 +31,23 @@ def _base_rc_config(cfg):
                 ],
                 "order": [],
             },
+            "config",
+        ),
+        build_payload(
+            "APM_TRACING",
             {
                 "action": "enable",
                 "service_target": {"service": None, "env": None},
                 "lib_config": cfg,
             },
-        ],
-    }
+            "config",
+            sha_hash="1234",
+        ),
+    ]
 
 
 def _deleted_rc_config():
-    return {
-        "metadata": [],
-        "config": [False],
-    }
+    return [build_payload("APM_TRACING", None, "config", sha_hash="1234")]
 
 
 @pytest.mark.parametrize(
@@ -221,8 +225,8 @@ def test_settings_missing_lib_config(config, monkeypatch):
     base_rc_config = _base_rc_config({})
 
     # Delete "lib_config" from the remote config
-    del base_rc_config["config"][1]["lib_config"]
-    assert "lib_config" not in base_rc_config["config"][0]
+    del base_rc_config[1].content["lib_config"]
+    assert "lib_config" not in base_rc_config[0].content
 
     config._handle_remoteconfig(base_rc_config, None)
 
@@ -560,7 +564,7 @@ assert span3.get_tag("env_set_tag_name") == "helloworld"
 def test_config_public_properties_and_methods():
     # Regression test to prevent unexpected changes to public attributes in Config
     # By default most attributes should be private and set via Environment Variables
-    from ddtrace.settings import Config
+    from ddtrace.settings._config import Config
 
     public_attrs = set()
     c = Config()

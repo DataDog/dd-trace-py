@@ -1,7 +1,6 @@
 # this module must not load any other unsafe appsec module directly
 
 import logging
-import sys
 import typing
 from typing import Any
 from typing import Optional
@@ -219,7 +218,5 @@ def get_triggers(span) -> Any:
 
 
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
-    if sys.version_info < (3, 8):
-        return msg
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"
