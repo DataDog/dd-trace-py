@@ -214,6 +214,10 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
+        """
+        Send a batch of events, where each event contains a single span in the `spans` field. This allows us to
+        fully take advantage of EVP event/payload size limits.
+        """
         data = [
             {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
             for event in events
