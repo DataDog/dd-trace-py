@@ -3,13 +3,13 @@ from collections import defaultdict
 import os
 import typing
 
-import ddtrace
-from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._config import config
+from ddtrace.version import get_version
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent
@@ -103,7 +103,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
         self._headers = {
             "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": get_version(),
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
         self._hostname = ""

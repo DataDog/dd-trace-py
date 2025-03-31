@@ -938,3 +938,6 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+config = Config()
