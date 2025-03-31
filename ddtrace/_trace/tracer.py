@@ -5,6 +5,7 @@ import logging
 import os
 from os import environ
 from os import getpid
+import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -33,7 +34,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
@@ -63,6 +63,7 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -197,9 +198,6 @@ class Tracer(object):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
-
-        :param url: The Datadog agent URL.
-        :param dogstatsd_url: The DogStatsD URL.
         """
 
         # Do not set self._instance if this is a subclass of Tracer. Here we only want
@@ -209,7 +207,7 @@ class Tracer(object):
                 Tracer._instance = self
             else:
                 log.error(
-                    "Multiple Tracer instances can not be initialized. Use ``ddtrace.trace.tracer`` instead.",
+                    "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
         self._user_trace_processors: List[TraceProcessor] = []
@@ -223,7 +221,7 @@ class Tracer(object):
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
-        self._dogstatsd_url = agent.get_stats_url()
+        self._dogstatsd_url = agent_config.dogstatsd_url
         if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
@@ -235,7 +233,7 @@ class Tracer(object):
         else:
             self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url()
+        self._agent_url: str = agent_config.trace_agent_url
         verify_url(self._agent_url)
 
         if self._use_log_writer():
@@ -277,9 +275,15 @@ class Tracer(object):
             register_on_exit_signal(self._atexit)
 
         self._hooks = _hooks.Hooks()
-        atexit.register(self._atexit)
         forksafe.register_before_fork(self._sample_before_fork)
-        forksafe.register(self._child_after_fork)
+
+        # Non-global tracers require that we still register these hooks, until
+        # their usage is fully deprecated. The global one will be managed by the
+        # product protocol. We also need to register these hooks if the library
+        # was not bootstrapped correctly.
+        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            atexit.register(self._atexit)
+            forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -947,10 +951,14 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-
-            atexit.unregister(self._atexit)
-            forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
+            # Non-global tracers require that we still register these hooks,
+            # until their usage is fully deprecated. The global one will be
+            # managed by the product protocol. We also need to register these
+            # hooks if the library was not bootstrapped correctly.
+            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+                atexit.unregister(self._atexit)
+                forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
