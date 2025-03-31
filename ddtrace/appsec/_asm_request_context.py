@@ -283,7 +283,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
 def set_value(category: str, address: str, value: Any) -> None:
     env = _get_asm_context()
     if env is None:
-        extra = {"product": "appsec", "more_info": f"{category}::{address}", "stack_limit": 4}
+        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
         logger.debug("asm_context::set_value::no_active_context", extra=extra, stack_info=True)
         return
     asm_context_attr = getattr(env, category, None)
@@ -320,7 +320,7 @@ def set_waf_address(address: str, value: Any) -> None:
 def get_value(category: str, address: str, default: Any = None) -> Any:
     env = _get_asm_context()
     if env is None:
-        extra = {"product": "appsec", "more_info": f"{category}::{address}", "stack_limit": 4}
+        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
         logger.debug("asm_context::get_value::no_active_context", extra=extra, stack_info=True)
         return default
     asm_context_attr = getattr(env, category, None)

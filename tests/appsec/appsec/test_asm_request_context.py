@@ -128,6 +128,8 @@ def test_blocking_exception_correctly_propagated():
 def test_log_waf_callback(caplog):
     import ddtrace.internal.logger as ddlogger
 
+    ddlogger.root_logger.propagate = True
+
     caplog.handler.setFormatter(ddlogger.DDFormatter())
 
     with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):

@@ -58,7 +58,8 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)
-    logger.propagate = True
+    if name.startswith("ddtrace."):
+        logger.propagate = True
     return logger
 
 
@@ -165,6 +166,7 @@ class DDFormatter(logging.Formatter):
 
 # setup the default formatter for all ddtrace loggers
 root_logger = logging.getLogger("ddtrace")
-root_logger.handlers.append(logging.StreamHandler())
+if not root_logger.handlers:
+    root_logger.handlers.append(logging.StreamHandler())
 root_logger.handlers[0].setFormatter(DDFormatter())
-root_logger.propagate = True
+root_logger.propagate = False
