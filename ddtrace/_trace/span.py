@@ -490,9 +490,40 @@ class Span(object):
         """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
+    def _validate_attribute_value(self, value):
+        if isinstance(value, (str, int, float, bool)):
+            return True
+
+        if isinstance(value, (list, tuple)):
+            if not value:
+                return True
+
+            types_in_list = set(type(v) for v in value)
+
+            if types_in_list.issubset({int, float}):  # allow mixed int/float
+                return True
+
+            # otherwise, all types in array must be homogeneous
+            if len(types_in_list) == 1 and next(iter(types_in_list)) in (str, bool):
+                return True
+
+            return False
+
+        return False
+
     def _add_event(
         self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
+        if attributes is not None:
+            for k, v in attributes.items():
+                if not isinstance(k, str):
+                    log.warning("SpanEvent not created: attribute key is not str — got %s: ", type(k))
+                    return None
+                if not self._validate_attribute_value(v):
+                    log.warning(
+                        "SpanEvent not created: invalid attribute value for key %s' — got %s: %s", k, v, type(v)
+                    )
+                    return None
         self._events.append(SpanEvent(name, attributes, timestamp))
 
     def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
