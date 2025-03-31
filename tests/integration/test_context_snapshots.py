@@ -12,6 +12,8 @@ def test_context_multiprocess(run_python_code_in_subprocess):
     # Testing example from our docs:
     # https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#tracing-across-processes
     code = """
+import ddtrace.auto
+
 from multiprocessing import Process
 import time
 
