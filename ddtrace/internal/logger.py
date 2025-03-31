@@ -154,7 +154,8 @@ class DDFormatter(logging.Formatter):
                 string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
             return "\n".join(string_buffer)
         # legacy syntax
-        return f"{record.levelname} {super().format(record)}{skip_str}"
+        record.msg = f"{record.msg}{skip_str}"
+        return super().format(record)
 
     def format_stack(self, stack_info, limit) -> str:
         stack = stack_info.split("\n")
