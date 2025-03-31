@@ -146,7 +146,7 @@ class Initializer
     TaintRangePtr allocate_taint_range(RANGE_START start,
                                        RANGE_LENGTH length,
                                        const Source& source,
-                                       const SecureMarksList& secure_marks = SecureMarksList());
+                                       const SecureMarks secure_marks = 0);
 
     void release_taint_range(TaintRangePtr rangeptr);
 };
