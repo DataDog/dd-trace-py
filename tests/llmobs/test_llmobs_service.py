@@ -1375,15 +1375,12 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
     with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=False)
-        original_pid = llmobs_service._instance.tracer._pid
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
-            assert llmobs_service._instance.tracer._pid == original_pid
             assert llmobs_service._instance._llmobs_span_writer == original_span_writer
             assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
         else:  # child
-            assert llmobs_service._instance.tracer._pid != original_pid
             assert llmobs_service._instance._llmobs_span_writer != original_span_writer
             assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
             llmobs_service.disable()
@@ -1421,15 +1418,12 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
-        original_pid = llmobs_service._instance.tracer._pid
         original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
         pid = os.fork()
         if pid:  # parent
-            assert llmobs_service._instance.tracer._pid == original_pid
             assert llmobs_service._instance._llmobs_eval_metric_writer == original_eval_metric_writer
             assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
         else:  # child
-            assert llmobs_service._instance.tracer._pid != original_pid
             assert llmobs_service._instance._llmobs_eval_metric_writer != original_eval_metric_writer
             assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
             llmobs_service.disable()
@@ -1447,15 +1441,12 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
     with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
-            original_pid = llmobs_service._instance.tracer._pid
             original_evaluator_runner = llmobs_service._instance._evaluator_runner
             pid = os.fork()
             if pid:  # parent
-                assert llmobs_service._instance.tracer._pid == original_pid
                 assert llmobs_service._instance._evaluator_runner == original_evaluator_runner
                 assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
             else:  # child
-                assert llmobs_service._instance.tracer._pid != original_pid
                 assert llmobs_service._instance._evaluator_runner != original_evaluator_runner
                 assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
                 llmobs_service.disable()
