@@ -5,6 +5,7 @@ import logging
 import os
 from os import environ
 from os import getpid
+import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -15,8 +16,7 @@ from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import _hooks
-from ddtrace import config
+from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -64,6 +64,7 @@ from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import Config
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -197,9 +198,6 @@ class Tracer(object):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
-
-        :param url: The Datadog agent URL.
-        :param dogstatsd_url: The DogStatsD URL.
         """
 
         # Do not set self._instance if this is a subclass of Tracer. Here we only want
@@ -209,7 +207,7 @@ class Tracer(object):
                 Tracer._instance = self
             else:
                 log.error(
-                    "Multiple Tracer instances can not be initialized. Use ``ddtrace.trace.tracer`` instead.",
+                    "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
         self._user_trace_processors: List[TraceProcessor] = []
@@ -276,10 +274,16 @@ class Tracer(object):
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
             register_on_exit_signal(self._atexit)
 
-        self._hooks = _hooks.Hooks()
-        atexit.register(self._atexit)
+        self._hooks = Hooks()
         forksafe.register_before_fork(self._sample_before_fork)
-        forksafe.register(self._child_after_fork)
+
+        # Non-global tracers require that we still register these hooks, until
+        # their usage is fully deprecated. The global one will be managed by the
+        # product protocol. We also need to register these hooks if the library
+        # was not bootstrapped correctly.
+        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            atexit.register(self._atexit)
+            forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -947,10 +951,14 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-
-            atexit.unregister(self._atexit)
-            forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
+            # Non-global tracers require that we still register these hooks,
+            # until their usage is fully deprecated. The global one will be
+            # managed by the product protocol. We also need to register these
+            # hooks if the library was not bootstrapped correctly.
+            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+                atexit.unregister(self._atexit)
+                forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
