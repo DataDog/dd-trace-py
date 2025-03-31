@@ -54,11 +54,11 @@ def collect(tracer):
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-    if isinstance(tracer._span_aggregagtor.writer, LogWriter):
+    if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._span_aggregagtor.writer, AgentWriter):
-        writer = tracer._span_aggregagtor.writer
+    elif isinstance(tracer._span_aggregator.writer, AgentWriter):
+        writer = tracer._span_aggregator.writer
         agent_url = writer.agent_url
         try:
             writer.write([])
@@ -149,8 +149,8 @@ def collect(tracer):
         global_tags=tags_to_str(ddtrace.config.tags),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
-        partial_flush_enabled=tracer._span_aggregagtor.partial_flush_enabled,
-        partial_flush_min_spans=tracer._span_aggregagtor.partial_flush_min_spans,
+        partial_flush_enabled=tracer._span_aggregator.partial_flush_enabled,
+        partial_flush_min_spans=tracer._span_aggregator.partial_flush_min_spans,
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,

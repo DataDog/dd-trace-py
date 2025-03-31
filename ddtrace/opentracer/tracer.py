@@ -125,8 +125,8 @@ class Tracer(opentracing.Tracer):
                 new_url = f"unix://{uds_path}"
             else:
                 new_url = f"{scheme}://{hostname}:{port}"
-            if isinstance(self._dd_tracer._span_aggregagtor.writer, AgentWriter):
-                self._dd_tracer._span_aggregagtor.writer.intake_url = new_url
+            if isinstance(self._dd_tracer._span_aggregator.writer, AgentWriter):
+                self._dd_tracer._span_aggregator.writer.intake_url = new_url
             self._dd_tracer._recreate()
 
         if self._config[keys.SAMPLER]:

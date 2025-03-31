@@ -168,15 +168,15 @@ class CIVisibility(Service):
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    self.tracer._span_aggregagtor.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
+                    self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
                 self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer._span_aggregagtor.partial_flush_enabled = True
-            self.tracer._span_aggregagtor.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            self.tracer._span_aggregator.partial_flush_enabled = True
+            self.tracer._span_aggregator.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
@@ -397,7 +397,7 @@ class CIVisibility(Service):
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer._span_aggregagtor.writer = writer
+            self.tracer._span_aggregator.writer = writer
             self.tracer._recreate()
 
     def _agent_evp_proxy_is_available(self) -> bool:
@@ -921,7 +921,7 @@ class CIVisibility(Service):
         return instance._is_auto_injected
 
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
-        writer = self.tracer._span_aggregagtor.writer
+        writer = self.tracer._span_aggregator.writer
         if isinstance(writer, CIVisibilityWriter):
             for client in writer._clients:
                 if isinstance(client, CIVisibilityEventClient):

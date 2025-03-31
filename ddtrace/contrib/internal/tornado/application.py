@@ -52,7 +52,7 @@ def tracer_config(__init__, app, args, kwargs):
         curr_agent_url = urlparse(tracer._agent_url)
         hostname = settings.get("hostname", curr_agent_url.hostname)
         port = settings.get("port", curr_agent_url.port)
-        tracer._agent_url = tracer._span_aggregagtor.writer.intake_url = f"{curr_agent_url.scheme}://{hostname}:{port}"
+        tracer._agent_url = tracer._span_aggregator.writer.intake_url = f"{curr_agent_url.scheme}://{hostname}:{port}"
         tracer._recreate()
     # TODO: Remove tags from settings, tags should be set via `DD_TAGS` environment variable
     # set global tags if any

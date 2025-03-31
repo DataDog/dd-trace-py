@@ -195,7 +195,7 @@ class Tracer(object):
             config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
             self._user_trace_processors,
             None,
             config._partial_flush_enabled,
@@ -225,12 +225,12 @@ class Tracer(object):
 
     @property
     def _agent_url(self):
-        return getattr(self._span_aggregagtor.writer, "intake_url", None)
+        return getattr(self._span_aggregator.writer, "intake_url", None)
 
     @_agent_url.setter
     def _agent_url(self, value):
-        if isinstance(self._span_aggregagtor.writer, HTTPWriter):
-            self._span_aggregagtor.writer.intake_url = value
+        if isinstance(self._span_aggregator.writer, HTTPWriter):
+            self._span_aggregator.writer.intake_url = value
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -273,11 +273,11 @@ class Tracer(object):
 
     @property
     def _sampler(self):
-        return self._span_aggregagtor.sampling_processor.sampler
+        return self._span_aggregator.sampling_processor.sampler
 
     @_sampler.setter
     def _sampler(self, value):
-        self._span_aggregagtor.sampling_processor.sampler = value
+        self._span_aggregator.sampling_processor.sampler = value
 
     @property
     def debug_logging(self):
@@ -364,9 +364,9 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
-        if isinstance(self._span_aggregagtor.writer, AgentWriter):
+        if isinstance(self._span_aggregator.writer, AgentWriter):
             if appsec_enabled:
-                self._span_aggregagtor.writer._api_version = "v0.4"
+                self._span_aggregator.writer._api_version = "v0.4"
 
         if trace_processors:
             self._user_trace_processors = trace_processors
@@ -416,19 +416,19 @@ class Tracer(object):
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
         try:
-            self._span_aggregagtor.writer.stop()
+            self._span_aggregator.writer.stop()
         except ServiceStatusError:
             # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
             # the writer before that point will raise a ServiceStatusError.
             pass
         # Re-create the background writer thread
-        self._span_aggregagtor.writer = self._span_aggregagtor.writer.recreate()
+        self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
-        self._span_processors, self._appsec_processor, self._span_aggregagtor = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
             self._user_trace_processors,
-            self._span_aggregagtor.writer,
-            self._span_aggregagtor.partial_flush_enabled,
-            self._span_aggregagtor.partial_flush_min_spans,
+            self._span_aggregator.writer,
+            self._span_aggregator.partial_flush_enabled,
+            self._span_aggregator.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
 
@@ -603,7 +603,7 @@ class Tracer(object):
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregagtor]
+                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
             ):
                 if p:
                     p.on_span_start(span)
@@ -623,7 +623,7 @@ class Tracer(object):
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregagtor]
+                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
             ):
                 if p:
                     p.on_span_finish(span)
@@ -740,14 +740,14 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregagtor.writer, AgentWriter):
-            return self._span_aggregagtor.writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriter):
+            return self._span_aggregator.writer.agent_url
 
         return None
 
     def flush(self):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
-        self._span_aggregagtor.writer.flush_queue()
+        self._span_aggregator.writer.flush_queue()
 
     def wrap(
         self,
@@ -859,7 +859,7 @@ class Tracer(object):
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
             for processor in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregagtor]
+                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
             ):
                 if processor:
                     processor.shutdown(timeout)
