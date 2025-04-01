@@ -138,7 +138,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             if not session.efd_is_faulty_session():
                 self.set_tag(TEST_IS_NEW, self._is_new)
 
-        elif self._known_tests_enabled:
+        elif self._is_known_tests_enabled:
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_efd_tags(self) -> None:

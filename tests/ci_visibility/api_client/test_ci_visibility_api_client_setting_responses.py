@@ -54,6 +54,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     skipping_enabled=True,
                     itr_enabled=True,
                     early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
+                    known_tests_enabled=True,
                 ),
             ],
             # EFD matrix-y-testing
@@ -71,6 +72,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     code_coverage=True,
                     flaky_test_retries_enabled=True,
                     efd_detection_enabled=True,
+                    known_tests_enabled=True,
                     efd_5s=10,
                     efd_10s=25,
                     efd_30s=15,
@@ -88,6 +90,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                         slow_test_retries_5m=10,
                         faulty_session_threshold=45,
                     ),
+                    known_tests_enabled=True,
                 ),
             ],
             # If EFD is not enabled, the defaults should be returned even if the response has values (because we
@@ -105,6 +108,7 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
                     early_flake_detection=EarlyFlakeDetectionSettings(
                         enabled=False,
                     ),
+                    known_tests_enabled=False,
                 ),
             ],
         ],
