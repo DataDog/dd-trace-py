@@ -112,7 +112,7 @@ suites:
     snapshot: true
     timeout: 40m
   appsec_integrations_pygoat:
-    parallelism: 4
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
