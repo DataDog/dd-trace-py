@@ -151,3 +151,4 @@ def test_log_waf_callback(caplog):
     assert len(caplog.records) == 1, f"expected 1 log record, got {len(caplog.records)}: {caplog.records}"
     assert caplog.records[0].levelname == "WARNING"
     assert caplog.records[0].msg.startswith("appsec::asm_context::call_waf_callback::not_set")
+    ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", ddlogger.DAY)

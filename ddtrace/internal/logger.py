@@ -128,17 +128,17 @@ def log_filter(record: logging.LogRecord) -> bool:
         not rate_limit or logger.getEffectiveLevel() == logging.DEBUG or _buckets[key].is_sampled(record, rate_limit)
     )
     if must_be_propagated:
-        skipped = getattr(record, "skipped", 0)
+        skipped = record.__dict__.pop("skipped", 0)
         if skipped:
             skip_str = f" [{skipped} skipped]"
         else:
             skip_str = ""
-        product = getattr(record, "product", None)
+        product = record.__dict__.pop("product", None)
         # new syntax
         if product:
-            more_info = getattr(record, "more_info", "")
-            stack_limit = getattr(record, "stack_limit", 0)
-            exec_limit = getattr(record, "exec_limit", 1)
+            more_info = record.__dict__.pop("more_info", "")
+            stack_limit = record.__dict__.pop("stack_limit", 0)
+            exec_limit = record.__dict__.pop("exec_limit", 1)
             # format the stacks if they are present with the right depth
             if stack_limit and record.stack_info:
                 record.stack_info = format_stack(record.stack_info, stack_limit)
@@ -149,10 +149,6 @@ def log_filter(record: logging.LogRecord) -> bool:
                 string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
             record.msg = "\n".join(string_buffer)
             # clean the record for any subsequent handlers
-            record.__dict__.pop("product", None)
-            record.__dict__.pop("more_info", None)
-            record.__dict__.pop("stack_limit", None)
-            record.__dict__.pop("exec_limit", None)
             record.stack_info = None
             record.exc_info = None
         else:
