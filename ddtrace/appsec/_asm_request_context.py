@@ -38,7 +38,6 @@ _TELEMETRY: Literal["telemetry"] = "telemetry"
 _CONTEXT_CALL: Literal["context"] = "context"
 _WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
-_TELEMETRY_WAF_RESULTS: Literal["t_waf_results"] = "t_waf_results"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
@@ -182,7 +181,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
-    telemetry_results: Optional[Telemetry_result] = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    telemetry_results: Telemetry_result = env.telemetry
     if telemetry_results:
         from ddtrace.appsec._metrics import DDWAF_VERSION
 
@@ -414,37 +413,42 @@ def set_waf_telemetry_results(
     rule_type: Optional[str],
     is_sampled: bool,
 ) -> None:
-    result: Optional[Telemetry_result] = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    env = _get_asm_context()
+    if env is None:
+        return
+    result: Telemetry_result = env.telemetry
     is_triggered = bool(waf_results.data)
     from ddtrace.appsec._metrics import _report_waf_truncations
 
     _report_waf_truncations(waf_results.truncation)
-    if result is not None:
-        for key in ["container_size", "container_depth", "string_length"]:
-            res = getattr(waf_results.truncation, key)
-            if isinstance(res, int):
-                getattr(result.truncation, key).append(res)
-        if rule_type is None:
-            # Request Blocking telemetry
-            result.triggered |= is_triggered
-            result.blocked |= is_blocked
-            result.timeout += waf_results.timeout
-            if rules_version is not None:
-                result.version = rules_version
-            result.duration += waf_results.runtime
-            result.total_duration += waf_results.total_runtime
-        else:
-            # Exploit Prevention telemetry
-            result.rasp.sum_eval += 1
-            result.rasp.eval[rule_type] += 1
-            result.rasp.match[rule_type] += int(is_triggered)
-            result.rasp.timeout[rule_type] += int(waf_results.timeout)
-            result.rasp.duration += waf_results.runtime
-            result.rasp.total_duration += waf_results.total_runtime
+    for key in ["container_size", "container_depth", "string_length"]:
+        res = getattr(waf_results.truncation, key)
+        if isinstance(res, int):
+            getattr(result.truncation, key).append(res)
+    if rule_type is None:
+        # Request Blocking telemetry
+        result.triggered |= is_triggered
+        result.blocked |= is_blocked
+        result.timeout += waf_results.timeout
+        if rules_version is not None:
+            result.version = rules_version
+        result.duration += waf_results.runtime
+        result.total_duration += waf_results.total_runtime
+    else:
+        # Exploit Prevention telemetry
+        result.rasp.sum_eval += 1
+        result.rasp.eval[rule_type] += 1
+        result.rasp.match[rule_type] += int(is_triggered)
+        result.rasp.timeout[rule_type] += int(waf_results.timeout)
+        result.rasp.duration += waf_results.runtime
+        result.rasp.total_duration += waf_results.total_runtime
 
 
 def get_waf_telemetry_results() -> Optional[Telemetry_result]:
-    return get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+    env = _get_asm_context()
+    if env:
+        return env.telemetry
+    return None
 
 
 def store_waf_results_data(data) -> None:
