@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run this script to update the pygoat compressed tarball
 
-set -e 
+set -ex 
 VERSION=v2.0.1
 
 rm -f pygoat.xc
@@ -16,7 +16,7 @@ rm -rf chatbot docker-compose.yml Dockerfile docs gh-md-toc installer.sh .git .g
 # and CI doesn't have it, so we nuke it from existence
 sed -i '/^Pillow==9.4.0$/d' requirements.txt
 sed -i '/^from PIL import Image *,* *ImageMath *$/d' introduction/views.py
-sed -i '' '
+sed -i '
 /^@csrf_exempt$/{
   N
   /^@csrf_exempt\ndef a9_lab2(request):$/{
@@ -26,7 +26,7 @@ sed -i '' '
     /\n@authentication_decorator$/!ba
     s/.*\n@authentication_decorator/@authentication_decorator/
   }
-}' views.py
+}' introduction/views.py
 sed -i '/^.*a9_lab2/d' introduction/urls.py
 
 cd ..
