@@ -14,12 +14,9 @@ _span_processor = None
 
 
 def get_version() -> str:
-    try:
-        from agents import version
+    from agents import version
 
-        return getattr(version, "__version__", "")
-    except ImportError:
-        return ""
+    return getattr(version, "__version__", "")
 
 
 def patch():
