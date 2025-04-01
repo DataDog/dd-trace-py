@@ -1,19 +1,9 @@
 stages:
-  - build
   - package
   - tests
   - shared-pipeline
   - benchmarks
   - release
-
-build_pygoat:
-  stage: build
-  extends: .testrunner
-  image: docker:stable
-  services:
-    - docker:dind 
-  script:
-    - docker build -t pygoat_image -f tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1 .
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
