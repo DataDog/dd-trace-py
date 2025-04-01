@@ -373,27 +373,27 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
-        _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version,
-            bool(waf_results.data),
-            bool(blocked),
-            waf_results.timeout,
-            rule_type,
-            waf_results.runtime,
-            waf_results.total_runtime,
-            waf_results.truncation,
-        )
         if blocked:
             _asm_request_context.set_blocked(blocked)
 
+        allowed = True
         if waf_results.data or blocked:
-            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
-            # events
+            # We run the rate limiter only if there is an attack,
+            # its goal is to limit the number of collected asm events
             allowed = self._rate_limiter.is_allowed()
-            if not allowed:
-                # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results
 
+        _asm_request_context.set_waf_telemetry_results(
+            self._ddwaf.info.version,
+            bool(blocked),
+            waf_results,
+            rule_type,
+            not allowed,
+        )
+
+        if not allowed:
+            return waf_results
+
+        if waf_results.data or blocked:
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),

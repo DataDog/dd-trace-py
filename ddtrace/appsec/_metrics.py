@@ -110,26 +110,24 @@ def _set_waf_request_metrics(*_args):
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
 
-            truncation = result["truncation"]
-            input_truncated = bool(
-                truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
-            )
+            truncation = result.truncation
+            input_truncated = bool(truncation.string_length or truncation.container_size or truncation.container_depth)
             tags_request = (
-                ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                ("event_rules_version", result.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
-                ("rule_triggered", bool_str[result["triggered"]]),
-                ("request_blocked", bool_str[result["blocked"]]),
-                ("waf_timeout", bool_str[bool(result["timeout"])]),
+                ("rule_triggered", bool_str[result.triggered]),
+                ("request_blocked", bool_str[result.blocked]),
+                ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
             )
 
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
-            rasp = result["rasp"]
-            if rasp["sum_eval"]:
+            rasp = result.rasp
+            if rasp.sum_eval:
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
-                    for rule_type, value in rasp[t].items():
+                    for rule_type, value in getattr(rasp, t).items():
                         if value:
                             telemetry.telemetry_writer.add_count_metric(
                                 TELEMETRY_NAMESPACE.APPSEC,
@@ -138,7 +136,7 @@ def _set_waf_request_metrics(*_args):
                                 tags=_TYPES_AND_TAGS.get(rule_type, ())
                                 + (
                                     ("waf_version", DDWAF_VERSION),
-                                    ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                                    ("event_rules_version", result.version or UNKNOWN_VERSION),
                                 ),
                             )
 
