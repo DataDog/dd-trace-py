@@ -8,6 +8,7 @@ stages:
 
 build_pygoat:
   stage: build
+  extends: .testrunner
   image: docker:stable
   services:
     - docker:dind 
