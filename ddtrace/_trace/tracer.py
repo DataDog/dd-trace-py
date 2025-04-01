@@ -870,6 +870,7 @@ class Tracer(object):
             ):
                 if processor:
                     processor.shutdown(timeout)
+            self.enabled = False
             forksafe.unregister_before_fork(self._sample_before_fork)
             # Non-global tracers require that we still register these hooks,
             # until their usage is fully deprecated. The global one will be
