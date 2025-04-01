@@ -120,3 +120,15 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
+  pygoat:
+    name: registry.ddbuild.io/images/mirror/pygoat:2.0.1
+    alias: pygoat
+    variables:
+      DD_IAST_ENABLED: "true"
+      _DD_IAST_DEBUG: "true"
+      DD_IAST_REQUEST_SAMPLING: "100"
+      DD_IAST_VULNERABILITIES_PER_REQUEST: "100"
+      DD_REMOTE_CONFIGURATION_ENABLED: "true"
+      DD_AGENT_PORT: "8126"
+      DD_TRACE_AGENT_URL: "http://testagent:8126"
+      DD_IAST_DEDUPLICATION_ENABLED: "false"

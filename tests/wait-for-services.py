@@ -13,6 +13,7 @@ from contrib.config import MOTO_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import OPENSEARCH_CONFIG
 from contrib.config import POSTGRES_CONFIG
+from contrib.config import PYGOAT_CONFIG
 from contrib.config import RABBITMQ_CONFIG
 from contrib.config import VERTICA_CONFIG
 import kombu
@@ -129,6 +130,10 @@ def check_opensearch(url):
 def check_httpbin(url):
     requests.get(url).raise_for_status()
 
+
+@try_until_timeout(Exception, args={"url": "http://{host}:{port}/".format(**PYGOAT_CONFIG)})
+def check_pygoat(url):
+    requests.get(url).raise_for_status()
 
 @try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://{host}:{port}/".format(**MOTO_CONFIG)})
 def check_moto(url):
