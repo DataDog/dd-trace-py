@@ -104,21 +104,21 @@ def test_otel_start_span_with_span_links(oteltracer):
         span2.end()
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 def test_otel_start_span_ignore_exceptions(caplog, oteltracer):
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
         with oteltracer.start_span("otel-error-span", record_exception=False, set_status_on_exception=False):
             raise Exception("Sorry Otel Span, I failed you")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_current_span_with_default_args(oteltracer):
     with oteltracer.start_as_current_span("test-start-current-span-defaults") as otel_span:
         assert otel_span.is_recording()
         otel_span.update_name("rename-start-current-span")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_start_current_span_without_default_args(oteltracer):
     with oteltracer.start_as_current_span("root-span") as root:
         with oteltracer.start_as_current_span(
@@ -219,7 +219,10 @@ def otel_flask_app_env(flask_wsgi_application):
         "with_opentelemetry_instrument",
     ],
 )
-@pytest.mark.snapshot(ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"])
+@pytest.mark.snapshot(
+    wait_for_num_traces=1,
+    ignores=["metrics.net.peer.port", "meta.traceparent", "meta.tracestate", "meta.flask.version"],
+)
 def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F811
     with oteltracer.start_as_current_span("test-otel-distributed-trace") as span:
         headers = {}

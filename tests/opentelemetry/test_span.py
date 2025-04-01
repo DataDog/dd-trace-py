@@ -15,7 +15,6 @@ import pytest
 
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
-from tests.utils import flaky
 
 
 @pytest.mark.snapshot(wait_for_num_traces=3)
@@ -64,7 +63,7 @@ def test_otel_span_events(oteltracer):
     span2.add_event("Event on finished span, event won't be added")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.parametrize(
     "override",
     [
@@ -82,8 +81,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
-@pytest.mark.snapshot
-@flaky(1741838400, reason="Did not receive expected traces: 'client','server','producer','consumer','internal'")
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
         pass
