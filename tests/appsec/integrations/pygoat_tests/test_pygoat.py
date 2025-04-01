@@ -1,4 +1,5 @@
 import json
+import os
 import time
 
 import pytest
@@ -15,7 +16,7 @@ span_defaults = iast_context_defaults  # So ruff does not remove it
 
 IMAGE_NAME = "pygoat:2.0.1"
 PYGOAT_URL = "http://0.0.0.0:8321"
-TESTAGENT_URL = "http://0.0.0.0:9126/test/session"
+TESTAGENT_URL = os.getenv("DD_TRACE_AGENT_URL", "http://localhost:9126")
 TESTAGENT_TOKEN = "pygoat_test"
 TESTAGENT_HEADERS = {"X-Datadog-Test-Session-Token": TESTAGENT_TOKEN}
 TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN
@@ -24,9 +25,12 @@ TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN
 @pytest.fixture(autouse=False)
 def client():
     agent_client = requests.session()
-    reply = agent_client.get(TESTAGENT_URL + "/start" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
+    url = TESTAGENT_URL + "/test/session/start" + TESTAGENT_TOKEN_PARAM
+    print("JJJ url: ", url)
+    print("JJJ headers: ", TESTAGENT_HEADERS)
+    reply = agent_client.get(url, headers=TESTAGENT_HEADERS)
 
-    assert reply.status_code == 200
+    assert reply.status_code == 200, "Status code: " + str(reply.status_code) + ": " + reply.text
     pygoat_client, token, session_id = login_to_pygoat()
 
     class RetClient:
@@ -36,13 +40,6 @@ def client():
         csrftoken = token
 
     return RetClient
-
-
-def start_testagent_session():
-    client = requests.session()
-    reply = client.get(TESTAGENT_URL + "/start" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
-    assert reply.status_code == 200
-    return client
 
 
 def login_to_pygoat():
@@ -62,7 +59,7 @@ def login_to_pygoat():
 
 
 def get_traces(agent_client: requests.Session) -> requests.Response:
-    return agent_client.get(TESTAGENT_URL + "/traces" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
+    return agent_client.get(TESTAGENT_URL + "/test/session/traces" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
 
 
 def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> bool:
@@ -70,6 +67,7 @@ def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> b
     traces = get_traces(agent_client)
     assert traces.status_code == 200, traces.text
     traces_list = json.loads(traces.text)
+    print("JJJ traces_list: ", traces_list)
 
     class InnerBreakException(Exception):
         pass

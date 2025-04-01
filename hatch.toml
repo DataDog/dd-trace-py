@@ -836,26 +836,31 @@ dependencies = [
 DD_CIVISIBILITY_ITR_ENABLED = "0"
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_ENABLED = "true"
-_DD_IAST_DEBUG = "true"
+_DD_IAST_DEBUG = "false"
 DD_IAST_VULNERABILITIES_PER_REQUEST = "100"
 DD_REMOTE_CONFIGURATION_ENABLED = "true"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
-DD_TRACE_AGENT_URL = "http://testagent:9126"
+DD_TRACE_AGENT_URL = "http://0.0.0.0:9126"
+DD_FAST_BUILD = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+PYTHONUNBUFFERED = "1"
 
 [envs.appsec_integrations_pygoat.scripts]
 test = [
     "uname -a",
     "pip freeze",
+    "rm -rf pygoat",
+    # JJJ Use a compressed fixture instead? (500kb)
     "git clone --depth 1 --branch v2.0.1 https://github.com/adeyosemanputra/pygoat.git",
     "pip install -r pygoat/requirements.txt",
     "pip install --no-cache-dir --force-reinstall pyyaml==6.0.1 --global-option='--without-libyaml'",
     "python3 pygoat/manage.py migrate",
     "python3 pygoat/manage.py loaddata tests/appsec/integrations/pygoat_tests/fixtures/*",
-    "python -m ddtrace.commands.ddtrace_run python3 pygoat/manage.py runserver 0.0.0.0:8321 &",
+    "python -m ddtrace.commands.ddtrace_run python3 pygoat/manage.py runserver 0.0.0.0:8321 > /dev/null 2>&1 & echo $! > pygoat.pid",
     "sleep 5",
     "python -m pytest -vvv {args:tests/appsec/integrations/pygoat_tests/}",
-    "sleep 2",
-    "pkill -f 'python3 pygoat/manage.py runserver 0.0.0.0:8321'",
+    "kill $(cat pygoat.pid) || true",
+    "rm -f pygoat.pid",
     "rm -rf pygoat",
 ]
 
