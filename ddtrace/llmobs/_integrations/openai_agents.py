@@ -68,21 +68,14 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 span_id=str(llmobs_span.span_id),
                 trace_id=format_trace_id(llmobs_span.trace_id),
             )
-            llmobs_span._set_ctx_item(SPAN_KIND, "workflow")
         elif oai_span:
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
-            span_kind = oai_span.llmobs_span_kind
-            llmobs_span._set_ctx_item(SPAN_KIND, span_kind)
-
             trace_info = self._llmobs_get_trace_info(oai_span)
             if trace_info:
-                # Track current active top level agent span
-                if span_kind == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
+                if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
                     trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
-
-                # Find the first LLM span under the first active agent use it as the trace's input value
                 if (
-                    span_kind == "llm"
+                    oai_span.span_type == "response"
                     and not trace_info.input_oai_span
                     and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
                 ):
@@ -101,10 +94,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         oai_trace = kwargs.get("oai_trace")
         if oai_trace is not None and isinstance(oai_trace, OaiTraceAdapter):
-            group_id = oai_trace.group_id
-            if group_id:
-                span._set_ctx_item(SESSION_ID, group_id)
-
             self._llmobs_set_trace_attributes(span, oai_trace)
             return
 
@@ -118,6 +107,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         span_type = oai_span.span_type
         span_kind = oai_span.llmobs_span_kind
+        span._set_ctx_item(SPAN_KIND, span_kind)
 
         if span_kind == "llm":
             parent = _get_nearest_llmobs_ancestor(span)
@@ -165,6 +155,12 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         trace_info = self._llmobs_get_trace_info(oai_trace)
         if not trace_info:
             return
+
+        group_id = oai_trace.group_id
+        if group_id:
+            span._set_ctx_item(SESSION_ID, group_id)
+
+        span._set_ctx_item(SPAN_KIND, "workflow")
 
         if trace_info.input_oai_span:
             input_value = trace_info.input_oai_span.llmobs_trace_input()
