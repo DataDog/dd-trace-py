@@ -13,7 +13,6 @@ variables:
 default:
   interruptible: true
 
-# trigger CI
 workflow:
   auto_cancel:
     on_new_commit: interruptible
