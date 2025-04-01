@@ -587,12 +587,14 @@ class CIVisibility(Service):
             "test skipping: %s, "
             "Early Flake Detection: %s, "
             "Auto Test Retries: %s, "
-            "Flaky Test Management: %s",
+            "Flaky Test Management: %s, "
+            "Known Tests: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
             CIVisibility.is_atr_enabled(),
             CIVisibility.is_test_management_enabled(),
+            CIVisibility.is_known_tests_enabled(),
         )
 
     @classmethod

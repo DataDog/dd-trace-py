@@ -80,6 +80,7 @@ def record_settings_response(
         require_git,
         itr_enabled,
         flaky_test_retries_enabled,
+        known_tests_enabled,
         early_flake_detection_enabled,
         test_management_enabled,
     )
@@ -95,6 +96,8 @@ def record_settings_response(
         response_tags.append(("itr_enabled", "true"))
     if flaky_test_retries_enabled:
         response_tags.append(("flaky_test_retries_enabled", "true"))
+    if known_tests_enabled:
+        response_tags.append(("known_tests_enabled", "true"))
     if early_flake_detection_enabled:
         response_tags.append(("early_flake_detection_enabled", "true"))
     if test_management_enabled:
