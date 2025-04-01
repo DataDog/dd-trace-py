@@ -7,10 +7,9 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-
-from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
