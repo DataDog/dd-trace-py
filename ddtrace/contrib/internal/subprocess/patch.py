@@ -15,12 +15,12 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
+from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
