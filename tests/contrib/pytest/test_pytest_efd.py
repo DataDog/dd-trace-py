@@ -16,7 +16,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
-from tests.ci_visibility.util import _fetch_unique_tests_side_effect
+from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
@@ -108,7 +108,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
             return_value=_KNOWN_TEST_IDS,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -136,8 +136,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
-            side_effect=_fetch_unique_tests_side_effect(set()),
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            side_effect=_fetch_known_tests_side_effect(set()),
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
