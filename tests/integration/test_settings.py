@@ -136,28 +136,28 @@ def test_remoteconfig_sampling_rate_default(test_agent_session, run_python_code_
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import call_apm_tracing_rc
 
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None
 
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.5}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.5}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
 
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "Unsetting remote config trace sample rate"
 
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.8}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.8}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.8
 
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote config trace sample rate"
@@ -183,9 +183,9 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import call_call_apm_tracing_rc
 
-apm_tracing_rc(
+call_apm_tracing_rc(
     _base_rc_config(
         {
             "tracing_sampling_rules": [
@@ -232,9 +232,9 @@ def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_
 from ddtrace import config, tracer
 from ddtrace.contrib import trace_utils
 from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import call_call_apm_tracing_rc
 
-apm_tracing_rc(_base_rc_config({
+call_apm_tracing_rc(_base_rc_config({
     "tracing_header_tags": [
         {"header": "used", "tag_name":"header_tag_69"},
         {"header": "unused", "tag_name":"header_tag_70"},

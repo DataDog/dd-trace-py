@@ -1,10 +1,12 @@
 import json
 import os
+from typing import Sequence
 
 import mock
 import pytest
 
 from ddtrace._trace.product import apm_tracing_rc
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.settings._config import Config
 from tests.utils import remote_config_build_payload as build_payload
 
@@ -49,6 +51,14 @@ def _base_rc_config(cfg):
 
 def _deleted_rc_config():
     return [build_payload("APM_TRACING", None, "config", sha_hash="1234")]
+
+
+def call_apm_tracing_rc(payloads: Sequence[Payload]):
+    for payload in payloads:
+        if payload.content is None:
+            continue
+        if (lib_config := payload.content.get("lib_config")) is not None:
+            apm_tracing_rc(lib_config)
 
 
 @pytest.mark.parametrize(
@@ -199,7 +209,7 @@ def test_settings_parametrized(testcase, config, monkeypatch):
 
     rc_items = testcase.get("rc", {})
     if rc_items:
-        apm_tracing_rc(_base_rc_config(rc_items))
+        call_apm_tracing_rc(_base_rc_config(rc_items))
 
     for expected_name, expected_value in testcase["expected"].items():
         assert getattr(config, expected_name) == expected_value
@@ -229,7 +239,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
     del base_rc_config[1].content["lib_config"]
     assert "lib_config" not in base_rc_config[0].content
 
-    apm_tracing_rc(base_rc_config)
+    call_apm_tracing_rc(base_rc_config)
 
     for expected_name, expected_value in testcase["expected"].items():
         assert getattr(config, expected_name) == expected_value
@@ -254,8 +264,7 @@ def test_remoteconfig_sampling_rules(run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
-from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config, call_apm_tracing_rc
 
 # Span is sampled using sampling rules from env var
 with tracer.trace("test") as span:
@@ -263,7 +272,7 @@ with tracer.trace("test") as span:
 assert span.get_metric("_dd.rule_psr") == 0.1
 assert span.get_tag("_dd.p.dm") == "-3"
 
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
             "name": "test",
@@ -284,14 +293,14 @@ assert span.get_tag("_dd.p.dm") == "-0"
 assert span.context.sampling_priority == 1
 
 # Agent sampling rules do not contain any sampling rules
-apm_tracing_rc(_base_rc_config({}))
+call_apm_tracing_rc(_base_rc_config({}))
 # Span is sampled using sampling rules from env var
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.1
 
 # Agent sampling rules are set to match service, name, and resource
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "ok",
             "name": "test",
@@ -327,8 +336,7 @@ def test_remoteconfig_global_sample_rate_and_rules(run_python_code_in_subprocess
         """
 from ddtrace import config, tracer
 from ddtrace._trace.sampler import DatadogSampler
-from tests.internal.test_settings import _base_rc_config, _deleted_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, _deleted_rc_config, call_apm_tracing_rc
 
 # Ensure that sampling rule with operation name "rules" is used
 with tracer.trace("rules") as span:
@@ -341,7 +349,7 @@ with tracer.trace("sample_rate") as span:
 assert span.get_metric("_dd.rule_psr") == 0.8
 assert span.get_tag("_dd.p.dm") == "-3"
 # Override all sampling rules set via env var with a new rule
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
             "name": "rules",
@@ -362,7 +370,7 @@ assert span.get_metric("_dd.rule_psr") is None
 assert span.get_tag("_dd.p.dm") == "-0"
 
 # Set a new default sampling rate via rc
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.2}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.2}))
 # Ensure that the new default sampling rate is used
 with tracer.trace("sample_rate") as span:
     pass
@@ -375,7 +383,7 @@ assert span.get_metric("_dd.rule_psr") == 0.2
 assert span.get_tag("_dd.p.dm") == "-3"
 
 # Set a new sampling rules via rc
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.3}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.3}))
 # Ensure that the new default sampling rate is used
 with tracer.trace("sample_rate") as span:
     pass
@@ -388,7 +396,7 @@ assert span.get_metric("_dd.rule_psr") == 0.3
 assert span.get_tag("_dd.p.dm") == "-3"
 
 # Remove all sampling rules from remote config
-apm_tracing_rc(_base_rc_config({}))
+call_apm_tracing_rc(_base_rc_config({}))
 # Ensure that the default sampling rate set via env vars is used
 with tracer.trace("rules") as span:
     pass
@@ -401,7 +409,7 @@ assert span.get_metric("_dd.rule_psr") == 0.8
 assert span.get_tag("_dd.p.dm") == "-3"
 
 # Test swtting dynamic and customer sampling rules
-apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rules":[
         {
             "service": "*",
             "name": "rules_dynamic",
@@ -444,20 +452,19 @@ def test_remoteconfig_custom_tags(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
 
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "apm"
 
-apm_tracing_rc(_base_rc_config({"tracing_tags": ["team:onboarding"]}))
+call_apm_tracing_rc(_base_rc_config({"tracing_tags": ["team:onboarding"]}))
 
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "onboarding", span._meta
 
-apm_tracing_rc(_base_rc_config({}))
+call_apm_tracing_rc(_base_rc_config({}))
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("team") == "apm"
@@ -473,16 +480,15 @@ def test_remoteconfig_tracing_enabled(run_python_code_in_subprocess):
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
 
 assert tracer.enabled is True
 
-apm_tracing_rc(_base_rc_config({"tracing_enabled": "false"}))
+call_apm_tracing_rc(_base_rc_config({"tracing_enabled": "false"}))
 
 assert tracer.enabled is False
 
-apm_tracing_rc(_base_rc_config({"tracing_enabled": "true"}))
+call_apm_tracing_rc(_base_rc_config({"tracing_enabled": "true"}))
 
 assert tracer.enabled is False
         """,
@@ -497,19 +503,19 @@ def test_remoteconfig_logs_injection_jsonlogger(run_python_code_in_subprocess):
 import logging
 from pythonjsonlogger import jsonlogger
 from ddtrace import config, tracer
-from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
+
 log = logging.getLogger()
 log.level = logging.CRITICAL
 logHandler = logging.StreamHandler(); logHandler.setFormatter(jsonlogger.JsonFormatter())
 log.addHandler(logHandler)
 # Enable logs injection
-apm_tracing_rc(_base_rc_config({"log_injection_enabled": True}))
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": True}))
 with tracer.trace("test") as span:
     print(span.trace_id)
     log.critical("Hello, World!")
 # Disable logs injection
-apm_tracing_rc(_base_rc_config({"log_injection_enabled": False}))
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": False}))
 with tracer.trace("test") as span:
     print(span.trace_id)
     log.critical("Hello, World!")
@@ -530,8 +536,7 @@ def test_remoteconfig_header_tags(run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 from ddtrace.contrib import trace_utils
-from tests.internal.test_settings import _base_rc_config
-from ddtrace._trace.product import apm_tracing_rc
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
 
 with tracer.trace("test") as span:
     trace_utils.set_http_meta(span,
@@ -542,7 +547,7 @@ assert span.get_tag("env_set_tag_name") == "helloworld"
 
 config._http._reset()
 config._header_tag_name.invalidate()
-apm_tracing_rc(_base_rc_config({"tracing_header_tags":
+call_apm_tracing_rc(_base_rc_config({"tracing_header_tags":
     [{"header": "X-Header-Tag-420", "tag_name":"header_tag_420"}]}))
 
 with tracer.trace("test_rc_override") as span2:
@@ -554,7 +559,7 @@ assert span2.get_tag("env_set_tag_name") is None
 
 config._http._reset()
 config._header_tag_name.invalidate()
-apm_tracing_rc(_base_rc_config({}))
+call_apm_tracing_rc(_base_rc_config({}))
 
 with tracer.trace("test") as span3:
     trace_utils.set_http_meta(span3,
