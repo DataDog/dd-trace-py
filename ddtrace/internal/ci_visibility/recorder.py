@@ -628,7 +628,8 @@ class CIVisibility(Service):
             log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
             log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
 
-        if CIVisibility.is_known_tests_enabled():
+        # FIXME: if CIVisibility.is_known_tests_enabled():
+        if CIVisibility.is_efd_enabled():
             known_test_ids = self._fetch_known_tests()
             if known_test_ids is None:
                 log.warning("Failed to fetch known tests for Early Flake Detection / Known Tests")
@@ -1248,7 +1249,8 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     # New tests are currently only considered for EFD:
     # - if known tests were fetched properly (enforced by is_known_test)
     # - if they have no parameters
-    if CIVisibility.is_known_tests_enabled() and discover_args.test_id.parameters is None:
+    # FIXME: if CIVisibility.is_known_tests_enabled() and discover_args.test_id.parameters is None:
+    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_known_test(discover_args.test_id)
     else:
         is_new = False

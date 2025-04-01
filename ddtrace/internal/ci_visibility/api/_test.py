@@ -145,6 +145,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
 
+        # FIXME: TEST
+        self._set_known_tests_tags()
+
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
             self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
