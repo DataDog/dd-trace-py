@@ -2496,7 +2496,7 @@ venv = Venv(
         Venv(
             name="openai_agents",
             command="pytest {cmdargs} tests/contrib/openai_agents",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "vcrpy": "==7.0.0",
                 "pytest-asyncio": "==0.23.7",
