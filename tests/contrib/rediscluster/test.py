@@ -260,9 +260,11 @@ def test_cmd_max_length_env():
     r.get("here-is-a-long-key")
 
 
-@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false", DD_TRACE_REDIS_ENABLED="0"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
+    import ddtrace.auto  # noqa
+
     import ddtrace
     from tests.contrib.rediscluster.test import _get_test_client
 

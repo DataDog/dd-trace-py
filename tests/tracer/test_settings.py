@@ -1,8 +1,8 @@
 import pytest
 
-from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._config import Config
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 

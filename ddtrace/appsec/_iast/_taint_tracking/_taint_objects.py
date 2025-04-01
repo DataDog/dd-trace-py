@@ -37,35 +37,69 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
+    """Mark a Python object as tainted with information about its origin.
+
+    This function is the base for marking objects as tainted, setting their origin and range.
+    It is optimized for:
+    1. Early validations to avoid unnecessary operations
+    2. Efficient type conversions
+    3. Special case handling (empty objects)
+    4. Robust error handling
+
+    Performance optimizations:
+    - Early return for disabled IAST or non-taintable types
+    - Efficient string length calculation only when needed
+    - Optimized bytes/bytearray to string conversion using decode()
+    - Minimized object allocations and method calls
+
+    Args:
+        pyobject (Any): The object to mark as tainted. Must be a taintable type.
+        source_name (Any): Name of the taint source (e.g., parameter name).
+        source_value (Any): Original value that caused the taint.
+        source_origin (Optional[OriginType]): Origin of the taint. Defaults to PARAMETER.
+
+    Returns:
+        Any: The tainted object if operation was successful, original object if failed.
+
+    Note:
+        - Only works if IAST is enabled (asm_config.is_iast_request_enabled)
+        - Only applies to taintable types defined in IAST.TAINTEABLE_TYPES
+        - Returns unmodified object for empty strings
+        - Automatically handles bytes/bytearray to str conversion
+    """
+    # Early return if IAST is disabled
     if not asm_config.is_iast_request_enabled:
         return pyobject
 
+    # Early type validation
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
         return pyobject
-    # We need this validation in different condition if pyobject is not a text type and creates a side-effect such as
-    # __len__ magic method call.
-    pyobject_len = 0
-    if isinstance(pyobject, IAST.TEXT_TYPES):
-        pyobject_len = len(pyobject)
-        if pyobject_len == 0:
-            return pyobject
 
+    # Fast path for empty strings
+    if isinstance(pyobject, IAST.TEXT_TYPES) and not pyobject:
+        return pyobject
+
+    # Efficient source_name conversion
     if isinstance(source_name, (bytes, bytearray)):
-        source_name = str(source_name, encoding="utf8", errors="ignore")
-    if isinstance(source_name, OriginType):
+        source_name = source_name.decode("utf-8", errors="ignore")
+    elif isinstance(source_name, OriginType):
         source_name = origin_to_str(source_name)
 
+    # Efficient source_value conversion
     if isinstance(source_value, (bytes, bytearray)):
-        source_value = str(source_value, encoding="utf8", errors="ignore")
+        source_value = source_value.decode("utf-8", errors="ignore")
+
+    # Default source_origin
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
     try:
-        pyobject_newid = set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
-        return pyobject_newid
+        # Calculate length only for text types
+        pyobject_len = len(pyobject) if isinstance(pyobject, IAST.TEXT_TYPES) else 0
+        return set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
     except ValueError:
         iast_propagation_debug_log(f"Tainting object error (pyobject type {type(pyobject)})", exc_info=True)
-    return pyobject
+        return pyobject
 
 
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:

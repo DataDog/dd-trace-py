@@ -1,10 +1,8 @@
+import json
+
 import pytest
 
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import SamplingRule
-from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
-from tests.utils import snapshot
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -12,99 +10,82 @@ RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
 
 
-def snapshot_parametrized_with_writers(f):
-    def _patch(writer, tracer):
-        old_sampler = tracer._sampler
-        old_writer = tracer._writer
-        old_tags = tracer._tags
-        if writer == "sync":
-            writer = AgentWriter(
-                tracer.agent_trace_url,
-                sync_mode=True,
-            )
-            # NB Need to copy the headers, which contain the snapshot token, to associate
-            # snapshots with this test case
-            writer._headers = tracer._writer._headers
-        else:
-            writer = tracer._writer
-        try:
-            return f(writer, tracer)
-        finally:
-            tracer.flush()
-            # Reset tracer configurations to avoid leaking state between tests
-            tracer._configure(sampler=old_sampler, writer=old_writer)
-            tracer._tags = old_tags
+@pytest.mark.snapshot()
+@pytest.mark.subprocess()
+def test_sampling_with_defaults():
+    from ddtrace.trace import tracer
 
-    wrapped = snapshot(include_tracer=True, token_override=f.__name__)(_patch)
-    return pytest.mark.parametrize(
-        "writer",
-        ("default", "sync"),
-    )(wrapped)
-
-
-@snapshot_parametrized_with_writers
-def test_sampling_with_defaults(writer, tracer):
     with tracer.trace("trace1"):
         tracer.trace("child").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_sampling_with_rate_limit_3(writer, tracer):
-    sampler = DatadogSampler(rate_limit=3)
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_RATE_LIMIT": "3"},
+    err=b"DD_TRACE_RATE_LIMIT is set to 3 and DD_TRACE_SAMPLING_RULES is not set. "
+    b"Tracer rate limiting is only applied to spans that match tracer sampling rules. "
+    b"All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.\n",
+)
+def test_sampling_with_rate_limit_3():
+    from ddtrace.trace import tracer
+
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_resource(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, resource=RESOURCE)])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
+def test_extended_sampling_resource():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
+
     tracer.trace("should_not_send", resource=RESOURCE).finish()
     tracer.trace("should_send", resource="something else").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS)])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": TAGS}])})
+def test_extended_sampling_tags():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import TAGS
+
     tracer._tags = TAGS
     tracer.trace("should_not_send").finish()
     tracer._tags = {"banana": "True"}
     tracer.trace("should_send").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_glob(writer, tracer):
-    rule_tags = TAGS.copy()
-    tag_key = list(rule_tags.keys())[0]
-    tag_value = rule_tags[tag_key]
-    rule_tags[tag_key] = tag_value[:2] + "*"
-
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=rule_tags)])
-    assert sampler.rules[0].tags == {tag_key: "my*"}
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag1": "mycool*"}}])})
+def test_extended_sampling_tags_glob():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace("should_not_send").finish()
-    tracer._tags = {tag_key: "mcooltag"}
+    tracer._tags = {"tag1": "mcooltag"}
     tracer.trace("should_send").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_glob_insensitive_case_match(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, resource="BANANA")])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": "BANANA"}])})
+def test_extended_sampling_tags_glob_insensitive_case_match():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource="bananA").finish()
     tracer.trace("should_send2", resource="ban").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_and_resource(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource=RESOURCE)])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": TAGS}])}
+)
+def test_extended_sampling_tags_and_resource():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -115,10 +96,13 @@ def test_extended_sampling_tags_and_resource(writer, tracer):
     tracer.trace("should_send3", resource=RESOURCE).finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_w_None_meta(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": None}, resource=RESOURCE)])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": {"test": None}}])}
+)
+def test_extended_sampling_w_None_meta():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
 
     tracer._tags = {"test": None}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -129,10 +113,13 @@ def test_extended_sampling_w_None_meta(writer, tracer):
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@snapshot()
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE, "tags": {"test": 123}}])}
+)
 def test_extended_sampling_w_metrics(tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"test": 123}, resource=RESOURCE)])
-    tracer._configure(sampler=sampler)
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
 
     tracer._tags = {"test": 123}
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -145,25 +132,33 @@ def test_extended_sampling_w_metrics(tracer):
     tracer.trace("should_send1", resource="banana").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_glob_multi_rule(writer, tracer):
-    sampler = DatadogSampler(
-        rules=[
-            SamplingRule(0, service="webserv?r.non-matching", name="web.req*"),
-            SamplingRule(0, service="webserv?r", name="web.req*.non-matching"),
-            SamplingRule(1, service="webserv?r", name="web.req*"),
-        ]
-    )
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [
+                {"sample_rate": 0, "service": "webserv?r.non-matching", "name": "web.req*"},
+                {"sample_rate": 0, "service": "webserv?r", "name": "web.req*.non-matching"},
+                {"sample_rate": 1, "service": "webserv?r", "name": "web.req*"},
+            ]
+        )
+    }
+)
+def test_extended_sampling_glob_multi_rule():
+    from ddtrace.trace import tracer
 
     tracer._tags = {"test": "tag"}
     tracer.trace(name="web.reqUEst", service="wEbServer").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_and_resource_glob(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, resource="mycoolre$ou*")])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": "mycoolre$ou*", "tags": TAGS}])}
+)
+def test_extended_sampling_tags_and_resource_glob():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", resource=RESOURCE).finish()
@@ -174,10 +169,13 @@ def test_extended_sampling_tags_and_resource_glob(writer, tracer):
     tracer.trace("should_send3", resource=RESOURCE).finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_and_service_glob(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, service="mycoolser????")])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "service": "mycoolser????", "tags": TAGS}])}
+)
+def test_extended_sampling_tags_and_service_glob():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace("should_not_send", service="mycoolservice").finish()
@@ -188,10 +186,13 @@ def test_extended_sampling_tags_and_service_glob(writer, tracer):
     tracer.trace("should_send3", service="mycoolservice").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_tags_and_name_glob(writer, tracer):
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags=TAGS, name="mycoolna*")])
-    tracer._configure(sampler=sampler, writer=writer)
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "name": "mycoolna*", "tags": TAGS}])}
+)
+def test_extended_sampling_tags_and_name_glob():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import TAGS
 
     tracer._tags = TAGS
     tracer.trace(name="mycoolname").finish()
@@ -202,24 +203,26 @@ def test_extended_sampling_tags_and_name_glob(writer, tracer):
     tracer.trace(name="mycoolname").finish()
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_float_special_case_do_not_match(writer, tracer):
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "2*"}}])})
+def test_extended_sampling_float_special_case_do_not_match():
     """A float with a non-zero decimal and a tag with a non-* pattern
     # should not match the rule, and should therefore be kept
     """
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "2*"})])
-    tracer._configure(sampler=sampler, writer=writer)
+    from ddtrace.trace import tracer
+
     with tracer.trace(name="should_send") as span:
         span.set_tag("tag", 20.1)
 
 
-@snapshot_parametrized_with_writers
-def test_extended_sampling_float_special_case_match_star(writer, tracer):
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "*"}}])})
+def test_extended_sampling_float_special_case_match_star():
     """A float with a non-zero decimal and a tag with a * pattern
     # should match the rule, and should therefore should be dropped
     """
-    sampler = DatadogSampler(rules=[SamplingRule(0, tags={"tag": "*"})])
-    tracer._configure(sampler=sampler, writer=writer)
+    from ddtrace.trace import tracer
+
     with tracer.trace(name="should_send") as span:
         span.set_tag("tag", 20.1)
 
@@ -234,7 +237,7 @@ def test_rate_limiter_on_spans(tracer):
     from ddtrace.trace import tracer
 
     # Rate limit is only applied if a sample rate or trace sample rule is set
-    tracer._configure(sampler=DatadogSampler(rules=[SamplingRule(1.0)], rate_limit=10))
+    tracer._sampler = DatadogSampler(rules=[SamplingRule(1.0)], rate_limit=10)
     spans = []
     # Generate 10 spans with the start and finish time in same second
     for x in range(10):
@@ -266,7 +269,7 @@ def test_rate_limiter_on_long_running_spans(tracer):
     from ddtrace._trace.sampler import DatadogSampler
     from ddtrace.trace import tracer
 
-    tracer._configure(sampler=DatadogSampler(rate_limit=5))
+    tracer._sampler = DatadogSampler(rate_limit=5)
 
     with mock.patch("ddtrace.internal.rate_limiter.time.monotonic_ns", return_value=1617333414):
         span_m30 = tracer.trace(name="march 30")

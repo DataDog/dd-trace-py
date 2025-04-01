@@ -22,9 +22,8 @@ def add_test():
 
 
 def create_app_patch_all():
-    from ddtrace import patch_all
+    import ddtrace.auto  # noqa: F401
 
-    patch_all()
     app = Flask(__name__)
     return app
 

@@ -1,4 +1,3 @@
-import multiprocessing
 import threading
 import time
 
@@ -74,6 +73,8 @@ def test_otel_multithreading(oteltracer):
 
 
 def _subprocess_task(parent_span_context, errors):
+    import ddtrace.auto  # noqa
+
     from ddtrace.opentelemetry import TracerProvider
 
     # Tracer provider must be set in the subprocess otherwise the default tracer will be used
@@ -92,7 +93,16 @@ def _subprocess_task(parent_span_context, errors):
 
 
 @pytest.mark.snapshot(ignores=["meta.tracestate"])
-def test_otel_trace_across_fork(oteltracer):
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_otel_trace_across_fork():
+    import multiprocessing
+
+    from opentelemetry.trace import get_tracer
+
+    from tests.opentelemetry.test_context import _subprocess_task
+
+    oteltracer = get_tracer(__name__)
+
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root") as root:
         oteltracer._tracer.sample(root._ddspan)
@@ -106,9 +116,24 @@ def test_otel_trace_across_fork(oteltracer):
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
-@pytest.mark.parametrize("decision", [MANUAL_KEEP_KEY, MANUAL_DROP_KEY], ids=["manual.keep", "manual.drop"])
-def test_sampling_decisions_across_processes(oteltracer, decision):
+@pytest.mark.subprocess(
+    env={"DD_TRACE_OTEL_ENABLED": "true"},
+    parametrize={"SAMPLING_DECISION": [MANUAL_KEEP_KEY, MANUAL_DROP_KEY]},
+    ddtrace_run=True,
+    err=None,
+)
+def test_sampling_decisions_across_processes():
     # sampling decision in the subprocess task should be the same as the parent
+    import multiprocessing
+    import os
+
+    from opentelemetry.trace import get_tracer
+
+    from tests.opentelemetry.test_context import _subprocess_task
+
+    decision = os.environ["SAMPLING_DECISION"]
+    oteltracer = get_tracer(__name__)
+
     errors = multiprocessing.Queue()
     with oteltracer.start_as_current_span("root", attributes={decision: ""}) as root:
         p = multiprocessing.Process(target=_subprocess_task, args=(root.get_span_context(), errors))

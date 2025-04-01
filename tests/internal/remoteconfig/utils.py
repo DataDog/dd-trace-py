@@ -1,6 +1,5 @@
 class MockConnector:
     data = None
-    metadata = None
 
     def __init__(self, data):
         self.data = data
@@ -8,6 +7,5 @@ class MockConnector:
     def read(self):
         return self.data
 
-    def write(self, metadata, config_raw):
-        self.data = config_raw
-        self.metadata = metadata
+    def write(self, payload_list):
+        self.data = payload_list

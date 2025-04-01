@@ -31,13 +31,13 @@ def tracer_appsec_standalone(request, tracer):
 
         # Remove the environment variables as they are unexpected args for the tracer configure
         request.param.pop("DD_APPSEC_SCA_ENABLED", None)
-        tracer._configure(api_version="v0.4", **request.param)
+        tracer.configure(**request.param)
 
         yield tracer, request_param_copy
 
     # Reset tracer configuration
     ddtrace.config._reset()
-    tracer._configure(api_version="v0.4", appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
+    tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):

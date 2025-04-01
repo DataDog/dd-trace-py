@@ -9,8 +9,6 @@ Tracing
 
 .. automodule:: ddtrace.auto
 
-.. autofunction:: ddtrace.patch_all
-
 .. autofunction:: ddtrace.patch
 
 .. autoclass:: ddtrace.trace.Tracer

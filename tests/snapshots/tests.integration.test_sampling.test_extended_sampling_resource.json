@@ -1,0 +1,49 @@
+[[
+  {
+    "name": "should_not_send",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "mycoolre$ource",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "language": "python",
+      "runtime-id": "7871c85140a0460c939f2c0fe8153f65"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 2609
+    },
+    "duration": 36875,
+    "start": 1693412027355192716
+  }],
+[
+  {
+    "name": "should_send",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "something else",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "7871c85140a0460c939f2c0fe8153f65"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 2609
+    },
+    "duration": 50833,
+    "start": 1693412027432116925
+  }]]

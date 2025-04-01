@@ -1,5 +1,5 @@
-#include <Aspects/AspectStr.h>
-#include <Aspects/Helpers.h>
+#include <aspects/aspect_str.h>
+#include <aspects/helpers.h>
 #include <iostream>
 #include <tests/test_common.hpp>
 

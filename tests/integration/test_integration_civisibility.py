@@ -3,7 +3,6 @@ import os
 import mock
 import pytest
 
-from ddtrace.internal import agent
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_ENDPOINT
@@ -11,6 +10,7 @@ from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
+from ddtrace.settings._agent import config as agent_config
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.utils import override_env
 
@@ -39,7 +39,7 @@ def test_civisibility_intake_with_evp_available():
         t = CIVisibilityTracer()
         CIVisibility.enable(tracer=t)
         assert CIVisibility._instance.tracer._writer._endpoint == EVP_PROXY_AGENT_ENDPOINT
-        assert CIVisibility._instance.tracer._writer.intake_url == agent.get_trace_url()
+        assert CIVisibility._instance.tracer._writer.intake_url == agent_config.trace_agent_url
         assert (
             CIVisibility._instance.tracer._writer._headers[EVP_SUBDOMAIN_HEADER_NAME]
             == EVP_SUBDOMAIN_HEADER_EVENT_VALUE
@@ -82,7 +82,8 @@ def test_civisibility_intake_payloads():
     from tests.utils import override_env
 
     with override_env(dict(DD_API_KEY="foobar.baz")):
-        t._configure(writer=CIVisibilityWriter(reuse_connections=True, coverage_enabled=True))
+        t._writer = CIVisibilityWriter(reuse_connections=True, coverage_enabled=True)
+        t._recreate()
         t._writer._conn = mock.MagicMock()
         with mock.patch("ddtrace.internal.writer.Response.from_http_response") as from_http_response:
             from_http_response.return_value.__class__ = Response

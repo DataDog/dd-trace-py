@@ -29,7 +29,7 @@ import ddtrace.internal.telemetry  # noqa: E402
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import _configure_log_injection
+from ddtrace._logger import DD_LOG_FORMAT
 from ddtrace.internal.logger import get_logger  # noqa:F401
 
 # TODO(mabdinur): Remove this once we have a better way to start the mini agent
@@ -39,7 +39,12 @@ _start_mini_agent()
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config._logs_injection:
-    _configure_log_injection()
+    from ddtrace import patch
+
+    patch(logging=True)
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
 
 
 log = get_logger(__name__)

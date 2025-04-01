@@ -216,7 +216,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
 
     def test_pin_not_activated(self):
-        self.tracer._configure(enabled=False)
+        self.tracer.enabled = False
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))

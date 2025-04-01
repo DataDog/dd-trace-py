@@ -1,7 +1,6 @@
 import re
 
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 class SymbolDatabaseConfig(DDConfig):
@@ -39,4 +38,3 @@ class SymbolDatabaseConfig(DDConfig):
 
 
 config = SymbolDatabaseConfig()
-_report_telemetry(config)

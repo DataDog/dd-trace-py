@@ -5,7 +5,7 @@ from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Pin
 from ddtrace.trace import Span  # noqa:F401

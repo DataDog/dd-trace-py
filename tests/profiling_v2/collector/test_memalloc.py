@@ -1,5 +1,6 @@
 import inspect
 import os
+import sys
 import threading
 
 import pytest
@@ -7,6 +8,9 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
+
+
+PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 
 
 def _allocate_1k():
@@ -140,6 +144,7 @@ def test_heap_profiler_large_heap_overhead():
     # Un-skip this test if/when we improve the worst-case performance of the
     # heap profiler for large heaps
     from ddtrace.profiling import Profiler
+    from tests.profiling_v2.collector.test_memalloc import one
 
     p = Profiler()
     p.start()
@@ -149,10 +154,10 @@ def test_heap_profiler_large_heap_overhead():
 
     junk = []
     for i in range(count):
-        b1 = bytearray(thing_size)
-        b2 = bytearray(2 * thing_size)
-        b3 = bytearray(3 * thing_size)
-        b4 = bytearray(4 * thing_size)
+        b1 = one(thing_size)
+        b2 = one(2 * thing_size)
+        b3 = one(3 * thing_size)
+        b4 = one(4 * thing_size)
         t = (b1, b2, b3, b4)
         junk.append(t)
 
@@ -164,20 +169,22 @@ def test_heap_profiler_large_heap_overhead():
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
+# Python 3.13 changed bytearray to use an allocation domain that we don't
+# currently profile, so we use None instead of bytearray to test.
 def one(size):
-    return bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def two(size):
-    return bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def three(size):
-    return bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 def four(size):
-    return bytearray(size)
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
 class HeapInfo:

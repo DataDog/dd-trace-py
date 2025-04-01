@@ -38,7 +38,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
 
     # If the function has the wrapper, the code we want to instrument is the wrapped code
     code_to_instr = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-    if "__code__" not in dir(func):
+    if "__code__" not in dir(code_to_instr):
         return
 
     original_code = code_to_instr.__code__  # type: CodeType

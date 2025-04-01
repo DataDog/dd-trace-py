@@ -67,7 +67,7 @@ def test_call_to_set_ranges_directly_raises_a_exception(caplog):
     with pytest.raises(ValueError) as excinfo:
         set_ranges(
             input_str,
-            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER))],
+            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
         )
     assert str(excinfo.value).startswith("iast::propagation::native::error::Tainted Map isn't initialized")
 

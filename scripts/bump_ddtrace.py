@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import platform
 import re
 import subprocess
@@ -7,9 +8,9 @@ import sys
 import requests
 
 
-PROJECT = ""
-GH_USERNAME = ""
-OS_USERNAME = ""
+PROJECT = os.getenv("BUMP_PROJECT", "")
+GH_USERNAME = os.getenv("BUMP_GH_UNAME", "")
+OS_USERNAME = os.getenv("BUMP_OS_UNAME", "")
 
 
 PROJECT_MAIN_BRANCH_NAME = "main"

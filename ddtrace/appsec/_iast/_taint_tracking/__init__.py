@@ -25,6 +25,7 @@ from ddtrace.appsec._iast._taint_tracking._native.initializer import num_objects
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import are_all_text_all_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_and_shift_ranges_from_strings  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import copy_ranges_from_strings  # noqa: F401
@@ -49,7 +50,7 @@ __all__ = [
     "Source",
     "TagMappingMode",
     "TaintRange",
-    "_aspect_modulo",
+    "VulnerabilityType",
     "_aspect_ospathbasename",
     "_aspect_ospathdirname",
     "_aspect_ospathjoin",
@@ -61,34 +62,25 @@ __all__ = [
     "_aspect_rsplit",
     "_aspect_split",
     "_aspect_splitlines",
-    "_aspect_str",
     "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
     "active_map_addreses_size",
     "are_all_text_all_ranges",
     "as_formatted_evidence",
-    "aspect_helpers",
     "common_replace",
     "copy_and_shift_ranges_from_strings",
     "copy_ranges_from_strings",
-    "create_context",
     "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
     "initializer_size",
     "is_tainted",
-    "is_notinterned_notfasttainted_unicode",
-    "modulo_aspect",
     "new_pyobject_id",
     "num_objects_tainted",
     "origin_to_str",
     "parse_params",
-    "reset_context",
-    "reset_contexts",
-    "set_fast_tainted_if_notinterned_unicode",
     "set_ranges",
     "set_ranges_on_splitted",
-    "setup",
     "shift_taint_range",
     "shift_taint_ranges",
     "str_to_origin",

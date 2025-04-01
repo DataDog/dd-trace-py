@@ -17,7 +17,7 @@ from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer._configure(trace_processors=[PingFilter()])
+tracer.configure(trace_processors=[PingFilter()])
 
 SCHEDULER_SENTINEL = -1
 assert bootstrap.profiler._scheduler._last_export not in (None, SCHEDULER_SENTINEL)

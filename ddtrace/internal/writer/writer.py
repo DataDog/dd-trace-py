@@ -16,13 +16,13 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
-from .. import agent
 from .. import compat
 from .. import periodic
 from .. import service
@@ -156,7 +156,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.config.trace_agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._buffer_size = buffer_size
@@ -451,7 +451,7 @@ class AgentWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.config.trace_agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:

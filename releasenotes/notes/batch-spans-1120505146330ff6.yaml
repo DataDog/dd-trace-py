@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.

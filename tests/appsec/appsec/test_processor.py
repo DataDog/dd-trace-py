@@ -224,17 +224,24 @@ def test_ip_not_block(tracer, ip):
 def test_ip_update_rules_and_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
         tracer._appsec_processor._update_rules(
-            {
-                "rules_data": [
+            [],
+            [
+                (
+                    "ASM",
+                    "Datadog/1/ASM/data",
                     {
-                        "data": [
-                            {"value": rules._IP.BLOCKED},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
+                        "rules_data": [
+                            {
+                                "data": [
+                                    {"value": rules._IP.BLOCKED},
+                                ],
+                                "id": "blocked_ips",
+                                "type": "ip_with_expiration",
+                            },
+                        ]
                     },
-                ]
-            }
+                )
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -249,17 +256,24 @@ def test_ip_update_rules_and_block(tracer):
 def test_ip_update_rules_expired_no_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
         tracer._appsec_processor._update_rules(
-            {
-                "rules_data": [
+            [],
+            [
+                (
+                    "ASM",
+                    "Datadog/1/ASM/data",
                     {
-                        "data": [
-                            {"expiration": 1662804872, "value": rules._IP.BLOCKED},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
+                        "rules_data": [
+                            {
+                                "data": [
+                                    {"expiration": 1662804872, "value": rules._IP.BLOCKED},
+                                ],
+                                "id": "blocked_ips",
+                                "type": "ip_with_expiration",
+                            },
+                        ]
                     },
-                ]
-            }
+                )
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -546,7 +560,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -582,7 +596,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -628,42 +642,48 @@ def test_asm_context_registration(tracer):
     assert core.get_item(_ASM_CONTEXT) is None
 
 
-CUSTOM_RULE_METHOD = {
-    "custom_rules": [
+CUSTOM_RULE_METHOD = [
+    (
+        "ASM",
+        "Datadog/1/ASM/data",
         {
-            "conditions": [
+            "custom_rules": [
                 {
-                    "operator": "match_regex",
-                    "parameters": {
-                        "inputs": [{"address": "server.request.method"}],
-                        "options": {"case_sensitive": False},
-                        "regex": "GET",
-                    },
-                }
-            ],
-            "id": "32b243c7-26eb-4046-adf4-custom",
-            "name": "test required",
-            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-            "transformers": [],
-        },
-        {
-            "conditions": [
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "server.request.method"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-adf4-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                },
                 {
-                    "operator": "match_regex",
-                    "parameters": {
-                        "inputs": [{"address": "usr.login"}],
-                        "options": {"case_sensitive": False},
-                        "regex": "GET",
-                    },
-                }
-            ],
-            "id": "32b243c7-26eb-4046-bbbb-custom",
-            "name": "test required",
-            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-            "transformers": [],
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "usr.login"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-bbbb-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                },
+            ]
         },
-    ]
-}
+    )
+]
 
 
 def test_required_addresses():
@@ -683,7 +703,7 @@ def test_required_addresses():
         "usr.id",
     }
 
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -709,7 +729,7 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         # first call must send all data to the waf

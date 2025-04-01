@@ -92,11 +92,6 @@ def enable_iast_propagation():
     global _iast_propagation_enabled
     if _iast_propagation_enabled:
         return
-    # We need to preload the package_distributions because if we call importlib_metadata inside a module hook
-    # it raises a circular-import
-    from ddtrace.internal.packages import get_package_distributions
-
-    get_package_distributions()
 
     log.debug("iast::instrumentation::starting IAST")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)

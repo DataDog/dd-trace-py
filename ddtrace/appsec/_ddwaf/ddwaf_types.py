@@ -8,6 +8,9 @@ from typing import Dict
 from typing import List
 from typing import Union
 
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -223,31 +226,11 @@ ddwaf_object._fields_ = [
 ]
 
 
-class ddwaf_result(ctypes.Structure):
-    _fields_ = [
-        ("timeout", ctypes.c_bool),
-        ("events", ddwaf_object),
-        ("actions", ddwaf_object),
-        ("derivatives", ddwaf_object),
-        ("total_runtime", ctypes.c_uint64),
-    ]
-
-    def __repr__(self):
-        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
-            self.total_runtime,
-            self.events.struct,
-            self.timeout.struct,
-            self.actions,
-        )
-
-    def __del__(self):
-        try:
-            ddwaf_result_free(self)
-        except TypeError:
-            pass
-
-
-ddwaf_result_p = ctypes.POINTER(ddwaf_result)
+ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
+ddwaf_object_free = ddwaf_object_free_fn(
+    ("ddwaf_object_free", ddwaf),
+    ((1, "object"),),
+)
 
 
 class ddwaf_config_limits(ctypes.Structure):
@@ -263,13 +246,6 @@ class ddwaf_config_obfuscator(ctypes.Structure):
         ("key_regex", ctypes.c_char_p),
         ("value_regex", ctypes.c_char_p),
     ]
-
-
-ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
-ddwaf_object_free = ddwaf_object_free_fn(
-    ("ddwaf_object_free", ddwaf),
-    ((1, "object"),),
-)
 
 
 class ddwaf_config(ctypes.Structure):
@@ -300,42 +276,35 @@ class ddwaf_config(ctypes.Structure):
 ddwaf_config_p = ctypes.POINTER(ddwaf_config)
 
 
+class ddwaf_result(ctypes.Structure):
+    _fields_ = [
+        ("timeout", ctypes.c_bool),
+        ("events", ddwaf_object),
+        ("actions", ddwaf_object),
+        ("derivatives", ddwaf_object),
+        ("total_runtime", ctypes.c_uint64),
+    ]
+
+    def __repr__(self):
+        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
+            self.total_runtime,
+            self.events.struct,
+            self.timeout.struct,
+            self.actions,
+        )
+
+    def __del__(self):
+        try:
+            ddwaf_result_free(self)
+        except TypeError:
+            log.debug("Failed to free result", exc_info=True)
+
+
+ddwaf_result_p = ctypes.POINTER(ddwaf_result)
+
 ddwaf_handle = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
-
-
-class ddwaf_handle_capsule:
-    def __init__(self, handle: ddwaf_handle) -> None:
-        self.handle = handle
-        self.free_fn = ddwaf_destroy
-
-    def __del__(self):
-        if self.handle:
-            try:
-                self.free_fn(self.handle)
-            except TypeError:
-                pass
-            self.handle = None
-
-    def __bool__(self):
-        return bool(self.handle)
-
-
-class ddwaf_context_capsule:
-    def __init__(self, ctx: ddwaf_context) -> None:
-        self.ctx = ctx
-        self.free_fn = ddwaf_context_destroy
-
-    def __del__(self):
-        if self.ctx:
-            try:
-                self.free_fn(self.ctx)
-            except TypeError:
-                pass
-            self.ctx = None
-
-    def __bool__(self):
-        return bool(self.ctx)
+ddwaf_builder = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 
 
 ddwaf_log_cb = ctypes.POINTER(
@@ -360,21 +329,7 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
 
 
 def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info))
-
-
-ddwaf_update = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_update", ddwaf),
-    (
-        (1, "handle"),
-        (1, "ruleset_map"),
-        (1, "diagnostics", None),
-    ),
-)
-
-
-def py_ddwaf_update(handle: ddwaf_handle_capsule, ruleset_map: ddwaf_object, info) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_update(handle.handle, ruleset_map, ctypes.byref(info)))
+    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info), ddwaf_destroy)
 
 
 ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
@@ -406,7 +361,7 @@ ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
 
 
 def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule:
-    return ddwaf_context_capsule(ddwaf_context_init(handle.handle))
+    return ddwaf_context_capsule(ddwaf_context_init(handle.handle), ddwaf_context_destroy)
 
 
 ddwaf_run = ctypes.CFUNCTYPE(
@@ -423,10 +378,78 @@ ddwaf_result_free = ctypes.CFUNCTYPE(None, ddwaf_result_p)(
     ((1, "result"),),
 )
 
+## ddwf_builder
+
+
+ddwaf_builder_init = ctypes.CFUNCTYPE(ddwaf_builder, ddwaf_config_p)(
+    ("ddwaf_builder_init", ddwaf),
+    ((1, "config"),),
+)
+
+
+def py_ddwaf_builder_init(config: ddwaf_config) -> ddwaf_builder_capsule:
+    return ddwaf_builder_capsule(ddwaf_builder_init(config), ddwaf_builder_destroy)
+
+
+ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
+    ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32, ddwaf_object_p, ddwaf_object_p
+)(
+    ("ddwaf_builder_add_or_update_config", ddwaf),
+    (
+        (1, "builder"),
+        (1, "path"),
+        (1, "path_len"),
+        (1, "config"),
+        (1, "diagnostics"),
+    ),
+)
+
+
+def py_add_or_update_config(
+    builder: ddwaf_builder_capsule, path: str, config: ddwaf_object, diagnostics: ddwaf_object
+) -> bool:
+    bin_path = path.encode()
+    return ddwaf_builder_add_or_update_config(builder.builder, bin_path, len(bin_path), config, diagnostics)
+
+
+ddwaf_builder_remove_config = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_builder, ctypes.c_char_p, ctypes.c_uint32)(
+    ("ddwaf_builder_remove_config", ddwaf),
+    (
+        (1, "builder"),
+        (1, "path"),
+        (1, "path_len"),
+    ),
+)
+
+
+def py_remove_config(builder: ddwaf_builder_capsule, path: str) -> bool:
+    bin_path = path.encode()
+    return ddwaf_builder_remove_config(builder.builder, bin_path, len(bin_path))
+
+
+ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
+    ("ddwaf_builder_build_instance", ddwaf),
+    ((1, "builder"),),
+)
+
+
+def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_handle_capsule:
+    return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
+
+
+ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
+    ("ddwaf_builder_destroy", ddwaf),
+    ((1, "builder"),),
+)
+
+
+## ddwaf_object
+
 ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
     ("ddwaf_object_invalid", ddwaf),
     ((3, "object"),),
 )
+
 
 ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p)(
     ("ddwaf_object_string", ddwaf),

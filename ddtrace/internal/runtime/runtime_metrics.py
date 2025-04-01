@@ -84,7 +84,7 @@ class RuntimeWorker(periodic.PeriodicService):
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
+            self.dogstatsd_url or ddtrace.settings._agent.config.dogstatsd_url
         )
         self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
@@ -94,7 +94,7 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if ddtrace.config._runtime_metrics_runtim_id_enabled:
+        if ddtrace.config._runtime_metrics_runtime_id_enabled:
             # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
             self._platform_tags = self._format_tags(PlatformTagsV2())
         else:
