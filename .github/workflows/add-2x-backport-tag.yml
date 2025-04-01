@@ -26,4 +26,3 @@ jobs:
             } else {
               console.log("Skipping label: PR does not meet conditions.");
             }
-            }
