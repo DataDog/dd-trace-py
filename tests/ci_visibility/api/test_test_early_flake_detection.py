@@ -62,7 +62,7 @@ class TestEarlyFlakeDetectionHandler:
         handler = EarlyFlakeDetectionHandler(test, session_settings)
 
         assert handler.abort_reason is None
-        handler.set_abort_reason("test_reason")
+        handler.abort_reason = "test_reason"
         assert handler.abort_reason == "test_reason"
 
     def test_make_retry_from_test(self):
@@ -194,7 +194,7 @@ class TestEarlyFlakeDetectionHandler:
         mock_session = mock.Mock()
         mock_session.efd_is_faulty_session.return_value = False
         with mock.patch.object(test, "get_session", return_value=mock_session):
-            handler.set_abort_reason("test_reason")
+            handler.abort_reason = "test_reason"
             assert handler.should_retry() is False
 
     def test_should_retry_not_new(self):
@@ -391,7 +391,7 @@ class TestEarlyFlakeDetectionHandler:
         with mock.patch.object(test, "get_session", return_value=mock_session):
             # Set is_retry and abort_reason
             handler.is_retry = True
-            handler.set_abort_reason("test_reason")
+            handler.abort_reason = "test_reason"
 
             # Call set_tags
             handler.set_tags()

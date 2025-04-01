@@ -70,7 +70,7 @@ class TestEarlyFlakeDetectionSessionHandler:
         session = mock.MagicMock()
         handler = EarlyFlakeDetectionSessionHandler(session, session_settings)
 
-        handler.set_abort_reason("test_reason")
+        handler.abort_reason = "test_reason"
         assert handler._abort_reason == "test_reason"
 
     def test_is_faulty_session(self):
@@ -222,7 +222,7 @@ class TestEarlyFlakeDetectionSessionHandler:
 
         # Test with abort reason
         session.reset_mock()
-        handler._abort_reason = "test_reason"
+        handler.abort_reason = "test_reason"
         handler.set_tags()
         calls = [mock.call(TEST_EFD_ENABLED, True), mock.call(TEST_EFD_ABORT_REASON, "test_reason")]
         session.set_tag.assert_has_calls(calls, any_order=True)

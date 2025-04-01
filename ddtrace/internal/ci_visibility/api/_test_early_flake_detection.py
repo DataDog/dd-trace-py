@@ -98,8 +98,9 @@ class EarlyFlakeDetectionSessionService(Protocol):
         """Check if EFD is enabled for this session."""
         ...
 
-    def set_abort_reason(self, reason: str) -> None:
-        """Set the reason for aborting EFD for this session."""
+    @property
+    def abort_reason(self) -> Optional[str]:
+        """Reason for aborting EFD for this session."""
         ...
 
     def is_faulty_session(self) -> bool:
@@ -144,10 +145,6 @@ class EarlyFlakeDetectionService(Protocol):
     @property
     def abort_reason(self) -> Optional[str]:
         """The reason for aborting retries, if any."""
-        ...
-
-    def set_abort_reason(self, reason: str) -> None:
-        """Set the reason for aborting retries."""
         ...
 
     def should_retry(self) -> bool:
@@ -219,8 +216,12 @@ class EarlyFlakeDetectionSessionHandler:
         """Check if EFD is enabled for this session."""
         return self._session_settings.efd_settings.enabled
 
-    def set_abort_reason(self, reason: str) -> None:
-        """Set the reason for aborting EFD for this session."""
+    @property
+    def abort_reason(self) -> Optional[str]:
+        return self._abort_reason
+
+    @abort_reason.setter
+    def abort_reason(self, reason: str) -> None:
         self._abort_reason = reason
 
     def is_faulty_session(self) -> bool:
@@ -289,8 +290,10 @@ class EarlyFlakeDetectionSessionHandler:
         from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
         from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
 
-        if self.is_enabled():
-            self._session.set_tag(TEST_EFD_ENABLED, True)
+        if not self.is_enabled():
+            return
+
+        self._session.set_tag(TEST_EFD_ENABLED, True)
 
         if self._abort_reason is not None:
             # Allow any set abort reason to override faulty session abort reason
@@ -353,7 +356,8 @@ class EarlyFlakeDetectionHandler:
     def abort_reason(self) -> Optional[str]:
         return self._abort_reason
 
-    def set_abort_reason(self, reason: str) -> None:
+    @abort_reason.setter
+    def abort_reason(self, reason: str) -> None:
         self._abort_reason = reason
 
     def make_retry_from_test(self) -> "TestVisibilityTest":
@@ -613,6 +617,6 @@ class EarlyFlakeDetectionHandler:
             True if the test should abort EFD, False otherwise
         """
         if self.should_abort():
-            self.set_abort_reason(SLOW)
+            self.abort_reason = SLOW
             return True
         return False
