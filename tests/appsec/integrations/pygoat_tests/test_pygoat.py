@@ -65,7 +65,6 @@ def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> b
     traces = get_traces(agent_client)
     assert traces.status_code == 200, traces.text
     traces_list = json.loads(traces.text)
-    print("JJJ traces_list: ", traces_list)
 
     class InnerBreakException(Exception):
         pass
