@@ -9,8 +9,11 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-  - ASM: Fixed a NotImplementedError that occurred when trying to deepcopy wrapped builtin functions (like <span class="title-ref">open</span>) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the <span class="title-ref">\_\_deepcopy\_\_</span> method.
-  - CI Visibility: This fix resolves an issue where JUnit XML output would not count tests retried by Early Flake Detection, Auto Test Retries, and Attempt-to-Fix.
+  - ASM
+    - Fixed a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like `open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+
+  - CI Visibility
+    - This fix resolves an issue where JUnit XML output would not count tests retried by Early Flake Detection, Auto Test Retries, and Attempt-to-Fix.
 
 
 ---
