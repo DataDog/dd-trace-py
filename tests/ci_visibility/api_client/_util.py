@@ -47,6 +47,7 @@ def _get_setting_api_response(
     flaky_test_retries_enabled=False,
     efd_present=False,  # This controls whether a default EFD response is present (instead of only {"enabled": false}
     efd_detection_enabled=False,
+    known_tests_enabled=False,
     efd_5s=10,
     efd_10s=5,
     efd_30s=3,
@@ -66,6 +67,7 @@ def _get_setting_api_response(
                 "itr_enabled": itr_enabled,
                 "require_git": require_git,
                 "tests_skipping": tests_skipping,
+                "known_tests_enabled": known_tests_enabled,
             },
         }
     }
@@ -78,6 +80,7 @@ def _get_setting_api_response(
                 "faulty_session_threshold": faulty_session_threshold,
             }
         )
+        body["data"]["attributes"]["known_tests_enabled"] = efd_detection_enabled
 
     return Response(status=status_code, body=json.dumps(body))
 
