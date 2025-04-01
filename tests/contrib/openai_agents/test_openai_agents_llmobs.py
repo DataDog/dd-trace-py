@@ -66,11 +66,8 @@ def _assert_expected_agent_run(
             tool_call = tool_calls[i // 2]
             error_args = (
                 {
-                    "error": "Error running tool (non-fatal)",
-                    "error_message": (
-                        "Error running tool (non-fatal)\n"
-                        f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}'
-                    ),
+                    "error": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "error_message": "Error running tool (non-fatal)",
                 }
                 if tool_call["error"]
                 else {}
@@ -452,7 +449,5 @@ async def test_llmobs_single_agent_with_gaurdrail_errors(agents, llmobs_events, 
     assert llmobs_events[2]["meta"]["span.kind"] == "workflow"
 
     assert llmobs_events[0]["status"] == "error"
-    assert llmobs_events[0]["meta"]["error.type"] == "Guardrail tripwire triggered"
-    assert (
-        llmobs_events[0]["meta"]["error.message"] == 'Guardrail tripwire triggered\n{"guardrail": "simple_gaurdrail"}'
-    )
+    assert llmobs_events[0]["meta"]["error.message"] == "Guardrail tripwire triggered"
+    assert llmobs_events[0]["meta"]["error.type"] == '{"guardrail": "simple_gaurdrail"}'

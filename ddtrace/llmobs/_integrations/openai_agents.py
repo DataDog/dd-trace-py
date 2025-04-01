@@ -119,9 +119,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             error_data = oai_span.get_error_data()
             span.error = 1
             if error_msg:
-                span.set_tag("error.type", error_msg)
+                span.set_tag("error.type", json.dumps(error_data))
             if error_data and error_msg:
-                span.set_tag("error.message", error_msg + "\n" + json.dumps(error_data))
+                span.set_tag("error.message", error_msg)
 
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)
