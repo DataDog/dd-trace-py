@@ -19,7 +19,7 @@ def test_otel_compatible_tracer_is_returned_by_tracer_provider():
     assert isinstance(otel_compatible_tracer, opentelemetry.trace.Tracer)
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
+@pytest.mark.snapshot(wait_for_num_traces=2, ignores=["meta.error.stack"])
 def test_otel_start_span_record_exception(oteltracer):
     # Avoid mocking time_ns when Span is created. This is a workaround to resolve a rate limit bug.
     raised_span = oteltracer.start_span("test-raised-exception")
