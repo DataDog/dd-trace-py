@@ -13,7 +13,7 @@ build_pygoat:
   services:
     - docker:dind 
   script:
-    - docker build -t registry.ddbuild.io/images/mirror/pygoat:2.0.1 -f tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1 .
+    - docker build -t pygoat_image -f tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1 .
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"

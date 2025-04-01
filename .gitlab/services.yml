@@ -121,7 +121,7 @@
     variables:
       MOTO_PORT: 3000
   pygoat:
-    name: registry.ddbuild.io/images/mirror/pygoat:2.0.1
+    name: pygoat_image
     alias: pygoat
     variables:
       DD_IAST_ENABLED: "true"
