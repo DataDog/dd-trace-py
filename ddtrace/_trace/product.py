@@ -6,6 +6,7 @@ from envier import En
 
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings.http import HttpConfig
 
 
 requires = ["remote-configuration"]
@@ -108,5 +109,11 @@ def apm_tracing_rc(lib_config):
         base_rc_config["_trace_http_header_tags"] = tags
 
     config._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
-    # called unconditionally to handle the case where header tags have been unset
-    config._handle_remoteconfig_header_tags(base_rc_config)
+
+    # unconditionally handle the case where header tags have been unset
+    header_tags_conf = config._config["_trace_http_header_tags"]
+    env_headers = header_tags_conf._env_value or {}
+    code_headers = header_tags_conf._code_value or {}
+    non_rc_header_tags = {**code_headers, **env_headers}
+    selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
+    config._http = HttpConfig(header_tags=selected_header_tags)

@@ -803,15 +803,6 @@ class Config(object):
         # type: (str) -> str
         return self._config[item].source()
 
-    def _handle_remoteconfig_header_tags(self, base_rc_config):
-        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
-        header_tags_conf = self._config["_trace_http_header_tags"]
-        env_headers = header_tags_conf._env_value or {}
-        code_headers = header_tags_conf._code_value or {}
-        non_rc_header_tags = {**code_headers, **env_headers}
-        selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-        self._http = HttpConfig(header_tags=selected_header_tags)
-
     def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
