@@ -726,10 +726,13 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
     processor._update_rules([], CUSTOM_RULE_METHOD)
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         # first call must send all data to the waf

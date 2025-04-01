@@ -39,7 +39,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
-    "dd_trace_api": True,
+    "ddtrace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
@@ -161,7 +161,7 @@ _MODULES_FOR_CONTRIB = {
     ),
 }
 
-_NOT_PATCHABLE_VIA_ENVVAR = {"dd_trace_api"}
+_NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
 
 class PatchException(Exception):

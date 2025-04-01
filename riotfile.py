@@ -647,9 +647,9 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="dd_trace_api",
-            command="pytest {cmdargs} tests/contrib/dd_trace_api",
-            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            name="ddtrace_api",
+            command="pytest {cmdargs} tests/contrib/ddtrace_api",
+            pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
             pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
@@ -2740,7 +2740,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} tests/contrib/subprocess",
+            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
