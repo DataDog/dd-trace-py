@@ -97,7 +97,7 @@ class LoggingBucket:
 
 _MINF = float("-inf")
 
-key_type = Union[Tuple[str, int], str]
+key_type = Union[Tuple[str, int, str, int], str]
 _buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
 
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
@@ -115,18 +115,21 @@ def log_filter(record: logging.LogRecord) -> bool:
     """
     logger = logging.getLogger(record.name)
     rate_limit = _RATE_LIMITS.get(record.msg, _rate_limit)
-    # Allow 1 log record by pathname/lineno every X seconds or message/levelno for product logs
-    # This way each unique log message can get logged at least once per time period
-    if hasattr(record, "product"):
-        key: key_type = record.msg
-    else:
-        key = (record.pathname, record.lineno)
     # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
     # If the logger is set to debug, then do not apply any limits to any log
-    # Only log this message if the time bucket allows it
-    must_be_propagated = (
-        not rate_limit or logger.getEffectiveLevel() == logging.DEBUG or _buckets[key].is_sampled(record, rate_limit)
-    )
+    if not rate_limit or logger.getEffectiveLevel() == logging.DEBUG:
+        must_be_propagated = True
+    else:
+        # Allow 1 log record by pathname/lineno every X seconds or message/levelno for product logs
+        # This way each unique log message can get logged at least once per time period
+        if hasattr(record, "product"):
+            key: key_type = record.msg
+        else:
+            key = (record.name, record.levelno, record.pathname, record.lineno)
+        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+        # If the logger is set to debug, then do not apply any limits to any log
+        # Only log this message if the time bucket allows it
+        must_be_propagated = _buckets[key].is_sampled(record, rate_limit)
     if must_be_propagated:
         skipped = record.__dict__.pop("skipped", 0)
         if skipped:
