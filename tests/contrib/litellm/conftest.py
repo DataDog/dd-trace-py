@@ -35,7 +35,7 @@ def litellm(ddtrace_global_config, ddtrace_config_litellm):
         with override_config("litellm", ddtrace_config_litellm):
             with override_env(
                 dict(
-                    OPENAI=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
                 )
             ):
                 patch()
@@ -50,7 +50,7 @@ def mock_tracer(litellm):
     pin = Pin.get_from(litellm)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(litellm, tracer=mock_tracer)
-    pin.tracer._configure()
+    pin.tracer.configure()
     yield mock_tracer
 
 
