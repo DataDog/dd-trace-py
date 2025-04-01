@@ -13,7 +13,6 @@ variables:
 default:
   interruptible: true
 
-# trigger pipeline
 workflow:
   auto_cancel:
     on_new_commit: interruptible
