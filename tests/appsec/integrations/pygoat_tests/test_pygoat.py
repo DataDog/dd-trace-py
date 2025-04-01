@@ -26,11 +26,9 @@ TESTAGENT_TOKEN_PARAM = "?test_session_token=" + TESTAGENT_TOKEN
 def client():
     agent_client = requests.session()
     url = TESTAGENT_URL + "/test/session/start" + TESTAGENT_TOKEN_PARAM
-    print("JJJ url: ", url)
-    print("JJJ headers: ", TESTAGENT_HEADERS)
     reply = agent_client.get(url, headers=TESTAGENT_HEADERS)
 
-    assert reply.status_code == 200, "Status code: " + str(reply.status_code) + ": " + reply.text
+    assert reply.status_code == 200, f"Status code: {reply.status_code}: {reply.text}"
     pygoat_client, token, session_id = login_to_pygoat()
 
     class RetClient:
