@@ -170,7 +170,7 @@ class DatadogSampler:
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
-        span.context._update_tags(span)
+        span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
         agent_service_based = False
