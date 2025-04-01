@@ -10,6 +10,9 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   # CI_DEBUG_SERVICES: "true"
 
+default:
+  interruptible: true
+
 # trigger CI
 workflow:
   auto_cancel:
