@@ -437,8 +437,6 @@ class Config(object):
         self._integration_configs = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
-        # if self._debug_mode:
-        #     root_logger.setLevel(logging.DEBUG)
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
         self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)

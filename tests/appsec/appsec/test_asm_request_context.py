@@ -128,17 +128,13 @@ def test_blocking_exception_correctly_propagated():
 def test_log_waf_callback(caplog):
     import ddtrace.internal.logger as ddlogger
 
-    ddlogger.root_logger.propagate = True
-
-    caplog.handler.setFormatter(ddlogger.DDFormatter())
-
     with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
         _asm_request_context.call_waf_callback()
 
     # warning log
     assert len(caplog.records) == 1, f"expected 1 log record, got {len(caplog.records)}: {caplog.records}"
     assert caplog.records[0].levelname == "WARNING"
-    assert caplog.records[0].msg == "asm_context::call_waf_callback::not_set"
+    assert caplog.records[0].msg.startswith("appsec::asm_context::call_waf_callback::not_set")
 
     caplog.clear()
     # second time, the warning log should be filtered out
@@ -146,3 +142,12 @@ def test_log_waf_callback(caplog):
         _asm_request_context.call_waf_callback()
 
     assert len(caplog.records) == 0, f"expected 0 log record, got {len(caplog.records)}: {caplog.records}"
+    caplog.clear()
+    # third time, the warning log should be not filtered out
+    ddlogger.set_tag_rate_limit("asm_context::call_waf_callback::not_set", 0)
+    with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
+        _asm_request_context.call_waf_callback()
+        # warning log
+    assert len(caplog.records) == 1, f"expected 1 log record, got {len(caplog.records)}: {caplog.records}"
+    assert caplog.records[0].levelname == "WARNING"
+    assert caplog.records[0].msg.startswith("appsec::asm_context::call_waf_callback::not_set")

@@ -40,8 +40,6 @@ from typing import Tuple
 from typing import Union
 
 
-logging.basicConfig()
-
 SECOND = 1
 MINUTE = 60 * SECOND
 HOUR = 60 * MINUTE
@@ -116,22 +114,20 @@ def log_filter(record: logging.LogRecord) -> bool:
       - Rate limit log records based on the logger name, record level, filename, and line number
     """
     logger = logging.getLogger(record.name)
-    # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
-    # If the logger is set to debug, then do not apply any limits to any log
-    if not _rate_limit or logger.getEffectiveLevel() == logging.DEBUG:
-        return True
+    rate_limit = _RATE_LIMITS.get(record.msg, _rate_limit)
     # Allow 1 log record by pathname/lineno every X seconds or message/levelno for product logs
     # This way each unique log message can get logged at least once per time period
     if hasattr(record, "product"):
         key: key_type = record.msg
     else:
         key = (record.pathname, record.lineno)
+    # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+    # If the logger is set to debug, then do not apply any limits to any log
     # Only log this message if the time bucket allows it
-    return _buckets[key].is_sampled(record, _rate_limit)
-
-
-class DDFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
+    must_be_propagated = (
+        not rate_limit or logger.getEffectiveLevel() == logging.DEBUG or _buckets[key].is_sampled(record, rate_limit)
+    )
+    if must_be_propagated:
         skipped = getattr(record, "skipped", 0)
         if skipped:
             skip_str = f" [{skipped} skipped]"
@@ -142,27 +138,31 @@ class DDFormatter(logging.Formatter):
         if product:
             more_info = getattr(record, "more_info", "")
             stack_limit = getattr(record, "stack_limit", 0)
-            exec_limit = getattr(record, "stack_limit", 1)
+            exec_limit = getattr(record, "exec_limit", 1)
+            # format the stacks if they are present with the right depth
             if stack_limit and record.stack_info:
-                record.stack_info = self.format_stack(record.stack_info, stack_limit)
-            string_buffer = [f"{record.levelname} {product}::{record.msg % record.args}{more_info}{skip_str}"]
+                record.stack_info = format_stack(record.stack_info, stack_limit)
+            string_buffer = [f"{product}::{record.msg}{more_info}{skip_str}"]
             if record.stack_info:
                 string_buffer.append(record.stack_info)
             if record.exc_info:
                 string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
-            return "\n".join(string_buffer)
-        # legacy syntax
-        record.msg = f"{record.msg}{skip_str}"
-        return super().format(record)
+            record.msg = "\n".join(string_buffer)
+            # clean the record for any subsequent handlers
+            record.__dict__.pop("product", None)
+            record.__dict__.pop("more_info", None)
+            record.__dict__.pop("stack_limit", None)
+            record.__dict__.pop("exec_limit", None)
+            record.stack_info = None
+            record.exc_info = None
+        else:
+            record.msg = f"{record.msg}{skip_str}"
+    return must_be_propagated
 
-    def format_stack(self, stack_info, limit) -> str:
-        stack = stack_info.split("\n")
-        if len(stack) <= limit * 2 + 1:
-            return stack_info
-        stack_str = "\n".join(stack[-2 * limit :])
-        return f"{stack[0]}\n{stack_str}"
 
-
-# setup the default formatter for all ddtrace loggers
-root_logger = logging.getLogger("ddtrace")
-root_logger.propagate = False
+def format_stack(stack_info, limit) -> str:
+    stack = stack_info.split("\n")
+    if len(stack) <= limit * 2 + 1:
+        return stack_info
+    stack_str = "\n".join(stack[-2 * limit :])
+    return f"{stack[0]}\n{stack_str}"
