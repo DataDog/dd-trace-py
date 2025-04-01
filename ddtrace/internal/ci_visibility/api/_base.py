@@ -280,8 +280,8 @@ class TestVisibilityItemBase(abc.ABC):
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
 
-    def _set_known_tests_tags(self) -> None:
-        pass
+    # def _set_known_tests_tags(self) -> None:
+    #     pass
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
