@@ -32,6 +32,8 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import Binding_error
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
@@ -279,7 +281,7 @@ class AppSecSpanProcessor(SpanProcessor):
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
-    ) -> Optional["ddwaf.DDWaf_result"]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -334,9 +336,12 @@ class AppSecSpanProcessor(SpanProcessor):
         if not data and not ephemeral_data:
             return None
 
-        waf_results = self._ddwaf.run(
-            ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
-        )
+        try:
+            waf_results = self._ddwaf.run(
+                ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
+            )
+        except Exception:
+            waf_results = Binding_error
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
         root_span = span._local_root or span

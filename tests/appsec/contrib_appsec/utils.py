@@ -248,6 +248,8 @@ class Contrib_TestClass_For_Threats:
                         ("request_blocked", "false"),
                         ("waf_timeout", "false"),
                         ("input_truncated", "true"),
+                        ("waf_error", "0"),
+                        ("rate_limited", "false"),
                     ),
                 ),
             ]

@@ -85,6 +85,9 @@ class DDWaf_result:
         )
 
 
+Binding_error = DDWaf_result(-127, [], {}, 0.0, 0.0, False, _observator(), {})
+
+
 class DDWaf_info:
     __slots__ = ["loaded", "failed", "errors", "version"]
 
@@ -125,7 +128,18 @@ class Rasp_result:
 
 
 class Telemetry_result:
-    __slots__ = ["blocked", "triggered", "timeout", "version", "duration", "total_duration", "truncation", "rasp"]
+    __slots__ = [
+        "blocked",
+        "triggered",
+        "timeout",
+        "version",
+        "duration",
+        "total_duration",
+        "truncation",
+        "rasp",
+        "rate_limited",
+        "error",
+    ]
 
     def __init__(self):
         self.blocked = False
@@ -136,6 +150,8 @@ class Telemetry_result:
         self.total_duration = 0.0
         self.truncation = Truncation_result()
         self.rasp = Rasp_result()
+        self.rate_limited = False
+        self.error = 0
 
 
 def parse_response_body(raw_body):

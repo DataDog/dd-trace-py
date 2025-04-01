@@ -160,6 +160,8 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
+    from ddtrace.appsec._metrics import DDWAF_VERSION
+
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
         from ddtrace.trace import tracer
@@ -182,30 +184,28 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
-    if telemetry_results:
-        from ddtrace.appsec._metrics import DDWAF_VERSION
 
-        root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
-        if telemetry_results.total_duration:
-            update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results.duration)
-            telemetry_results.duration = 0.0
-            update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results.total_duration)
-            telemetry_results.total_duration = 0.0
-        if telemetry_results.timeout:
-            update_span_metrics(root_span, APPSEC.WAF_TIMEOUTS, telemetry_results.timeout)
-        rasp_timeouts = sum(telemetry_results.rasp.timeout.values())
-        if rasp_timeouts:
-            update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
-        if telemetry_results.rasp.sum_eval:
-            update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results.rasp.duration)
-            update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
-            update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
-        if telemetry_results.truncation.string_length:
-            root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
-        if telemetry_results.truncation.container_size:
-            root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results.truncation.container_size))
-        if telemetry_results.truncation.container_depth:
-            root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results.truncation.container_depth))
+    root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+    if telemetry_results.total_duration:
+        update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results.duration)
+        telemetry_results.duration = 0.0
+        update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results.total_duration)
+        telemetry_results.total_duration = 0.0
+    if telemetry_results.timeout:
+        update_span_metrics(root_span, APPSEC.WAF_TIMEOUTS, telemetry_results.timeout)
+    rasp_timeouts = sum(telemetry_results.rasp.timeout.values())
+    if rasp_timeouts:
+        update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
+    if telemetry_results.rasp.sum_eval:
+        update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results.rasp.duration)
+        update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
+        update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
+    if telemetry_results.truncation.string_length:
+        root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
+    if telemetry_results.truncation.container_size:
+        root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results.truncation.container_size))
+    if telemetry_results.truncation.container_depth:
+        root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results.truncation.container_depth))
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
@@ -420,6 +420,12 @@ def set_waf_telemetry_results(
     is_triggered = bool(waf_results.data)
     from ddtrace.appsec._metrics import _report_waf_truncations
 
+    result.rate_limited |= is_sampled
+    if waf_results.return_code:
+        if result.error:
+            result.error = max(result.error, waf_results.return_code)
+        else:
+            result.error = waf_results.return_code
     _report_waf_truncations(waf_results.truncation)
     for key in ["container_size", "container_depth", "string_length"]:
         res = getattr(waf_results.truncation, key)

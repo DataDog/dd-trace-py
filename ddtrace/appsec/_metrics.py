@@ -20,13 +20,18 @@ bool_str = ("false", "true")
 
 @deduplication
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
-    tags = {
+    log_tags = {
         "waf_version": DDWAF_VERSION,
         "event_rules_version": version or UNKNOWN_VERSION,
         "lib_language": "python",
     }
     level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
-    telemetry.telemetry_writer.add_log(level, msg, tags=tags)
+    telemetry.telemetry_writer.add_log(level, msg, tags=log_tags)
+    tags = (
+        ("waf_version", DDWAF_VERSION),
+        ("event_rules_version", version or UNKNOWN_VERSION),
+    )
+    telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
 
 
 def _set_waf_updates_metric(info, success: bool):
@@ -119,6 +124,8 @@ def _set_waf_request_metrics(*_args):
                 ("request_blocked", bool_str[result.blocked]),
                 ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
+                ("waf_error", str(result.error)),
+                ("rate_limited", bool_str[result.rate_limited]),
             )
 
             telemetry.telemetry_writer.add_count_metric(
