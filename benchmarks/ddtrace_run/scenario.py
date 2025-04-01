@@ -22,7 +22,7 @@ class DDtraceRun(bm.Scenario):
 
         # initialize subprocess args
         subp_cmd = []
-        code = "import ddtrace; ddtrace.patch_all()\n"
+        code = "import ddtrace; ddtrace._monkey._patch_all()\n"
         if self.ddtrace_run:
             subp_cmd = ["ddtrace-run"]
             code = ""

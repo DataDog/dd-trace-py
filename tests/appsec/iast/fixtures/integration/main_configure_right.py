@@ -24,5 +24,5 @@ def main():
 if __name__ == "__main__":
     iast_enabled = bool(os.environ.get("DD_IAST_ENABLED", "") == "true")
     logger.info("configuring IAST to %s", iast_enabled)
-    tracer._configure(iast_enabled=iast_enabled)
+    tracer.configure(iast_enabled=iast_enabled)
     main()
