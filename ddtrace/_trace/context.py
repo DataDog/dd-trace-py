@@ -1,7 +1,6 @@
 import base64
 import re
 import threading
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
 from typing import List
@@ -21,10 +20,6 @@ from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
 
 
 _ContextState = Tuple[
@@ -115,24 +110,12 @@ class Context(object):
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
-    def _with_span(self, span: "Span") -> "Context":
-        """Return a shallow copy of the context with the given span."""
-        return self.__class__(
-            trace_id=span.trace_id,
-            span_id=span.span_id,
-            meta=self._meta,
-            metrics=self._metrics,
-            lock=self._lock,
-            baggage=self._baggage,
-            is_remote=False,
-        )
+    def __enter__(self) -> "Context":
+        self._lock.acquire()
+        return self
 
-    def _update_tags(self, span: "Span") -> None:
-        with self._lock:
-            for tag in self._meta:
-                span._meta.setdefault(tag, self._meta[tag])
-            for metric in self._metrics:
-                span._metrics.setdefault(metric, self._metrics[metric])
+    def __exit__(self, *args: Any) -> None:
+        self._lock.release()
 
     @property
     def sampling_priority(self) -> Optional[NumericType]:
@@ -233,6 +216,18 @@ class Context(object):
         Note that this operation mutates the baggage of this span context
         """
         self._baggage[key] = value
+
+    def copy(self, trace_id: int, span_id: int) -> "Context":
+        """Return a shallow copy of the context with the given correlation IDs."""
+        return self.__class__(
+            trace_id=trace_id,
+            span_id=span_id,
+            meta=self._meta,
+            metrics=self._metrics,
+            lock=self._lock,
+            baggage=self._baggage,
+            is_remote=False,
+        )
 
     def _with_baggage_item(self, key: str, value: Any) -> "Context":
         """Returns a copy of this span with a new baggage item.
