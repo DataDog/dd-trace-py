@@ -1,7 +1,10 @@
+import typing as t
+
 from ddtrace import config
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.core.event_hub import on
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -14,23 +17,19 @@ requires = ["remote-configuration"]
 log = get_logger(__name__)
 
 
-def _rc_callback(data, test_tracer=None):
-    for metadata, data in zip(data["metadata"], data["config"]):
-        if metadata is None or not isinstance(data, dict):
+def _rc_callback(payloads: t.Sequence[Payload]) -> None:
+    for payload in payloads:
+        if payload.metadata is None or (content := payload.content) is None:
             continue
 
-        service_target = data.get("service_target")
-        if service_target is not None:
-            service = service_target.get("service")
-            if service is not None and service != config.service:
+        if (service_target := t.cast(t.Optional[dict], content.get("service_target"))) is not None:
+            if (service := t.cast(str, service_target.get("service"))) is not None and service != config.service:
                 continue
 
-            env = service_target.get("env")
-            if env is not None and env != config.env:
+            if (env := t.cast(str, service_target.get("env"))) is not None and env != config.env:
                 continue
 
-        lib_config = data.get("lib_config")
-        if lib_config is not None:
+        if (lib_config := t.cast(dict, content.get("lib_config"))) is not None:
             dispatch("apm-tracing.rc", (lib_config,))
 
 
