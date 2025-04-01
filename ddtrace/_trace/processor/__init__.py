@@ -8,6 +8,7 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
+from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -38,7 +39,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._agent import config as agent_config
-from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -227,7 +227,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        ctx._update_tags(chunk_root)
+        chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
         # for 128 bit trace ids

@@ -214,6 +214,7 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             assert len(list_metrics_logs) == 1
             assert list_metrics_logs[0]["message"] == "appsec.waf.request::error::-3"
             assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+            assert span.get_tag("_dd.appsec.waf.error") == "-3"
 
 
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):

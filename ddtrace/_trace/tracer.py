@@ -15,7 +15,8 @@ from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
-from ddtrace._hooks import Hooks
+from ddtrace import _hooks
+from ddtrace import config
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -50,7 +51,6 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import Config
-from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
 
@@ -211,7 +211,7 @@ class Tracer(object):
             self.data_streams_processor = DataStreamsProcessor()
             register_on_exit_signal(self._atexit)
 
-        self._hooks = Hooks()
+        self._hooks = _hooks.Hooks()
         forksafe.register_before_fork(self._sample_before_fork)
 
         # Non-global tracers require that we still register these hooks, until
