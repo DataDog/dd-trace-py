@@ -67,8 +67,7 @@ def _get_setting_api_response(
                 "itr_enabled": itr_enabled,
                 "require_git": require_git,
                 "tests_skipping": tests_skipping,
-                # "known_tests_enabled": known_tests_enabled,
-                "known_tests_enabled": True,
+                "known_tests_enabled": known_tests_enabled,
             },
         }
     }
@@ -81,6 +80,7 @@ def _get_setting_api_response(
                 "faulty_session_threshold": faulty_session_threshold,
             }
         )
+        body["data"]["attributes"]["known_tests_enabled"] = efd_detection_enabled
 
     return Response(status=status_code, body=json.dumps(body))
 
