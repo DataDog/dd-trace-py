@@ -826,9 +826,6 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "cmake",
-    "setuptools-rust",
-    "cython==0.29.32",
     "pyyaml==6.0.1",
 ]
 
