@@ -303,6 +303,10 @@ class CIVisibility(Service):
             "API-provided settings: Early Flake Detection enabled: %s",
             self._api_settings.early_flake_detection.enabled,
         )
+        log.info(
+            "API-provided settings: Known Tests enabled: %s",
+            self._api_settings.known_tests_enabled,
+        )
         log.info("API-provided settings: Auto Test Retries enabled: %s", self._api_settings.flaky_test_retries_enabled)
         log.info("Detected configurations: %s", str(self._configurations))
 
@@ -438,6 +442,12 @@ class CIVisibility(Service):
         ):
             return False
         return cls._instance._api_settings.skipping_enabled
+
+    @classmethod
+    def is_known_tests_enabled(cls) -> bool:
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.known_tests_enabled
 
     @classmethod
     def is_efd_enabled(cls) -> bool:
@@ -616,13 +626,13 @@ class CIVisibility(Service):
             log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
             log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
 
-        if CIVisibility.is_efd_enabled():
+        if CIVisibility.is_known_tests_enabled():
             known_test_ids = self._fetch_known_tests()
             if known_test_ids is None:
-                log.warning("Failed to fetch unique tests for Early Flake Detection")
+                log.warning("Failed to fetch known tests for Early Flake Detection / Known Tests")
             else:
                 self._known_test_ids = known_test_ids
-                log.info("Unique tests fetched for Early Flake Detection: %s", len(self._known_test_ids))
+                log.info("Known tests fetched for Early Flake Detection: %s", len(self._known_test_ids))
         else:
             if (
                 self._api_settings.early_flake_detection.enabled
@@ -1236,7 +1246,7 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     # New tests are currently only considered for EFD:
     # - if known tests were fetched properly (enforced by is_known_test)
     # - if they have no parameters
-    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
+    if CIVisibility.is_known_tests_enabled() and discover_args.test_id.parameters is None:
         is_new = not CIVisibility.is_known_test(discover_args.test_id)
     else:
         is_new = False

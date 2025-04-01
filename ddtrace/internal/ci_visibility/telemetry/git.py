@@ -61,6 +61,7 @@ def record_settings_response(
     require_git: Optional[bool] = False,
     itr_enabled: Optional[bool] = False,
     flaky_test_retries_enabled: Optional[bool] = False,
+    known_tests_enabled: Optional[bool] = False,
     early_flake_detection_enabled: Optional[bool] = False,
     test_management_enabled: Optional[bool] = False,
 ) -> None:
@@ -71,6 +72,7 @@ def record_settings_response(
         ", require_git=%s"
         ", itr_enabled=%s"
         ", flaky_test_retries_enabled=%s"
+        ", known_tests_enabled=%s"
         ", early_flake_detection_enabled=%s"
         ", test_management_enabled=%s",
         coverage_enabled,
