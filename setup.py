@@ -591,14 +591,21 @@ if not IS_PYSTON:
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._ast.iastpatch",
+                sources=[
+                    "ddtrace/appsec/_iast/_ast/iastpatch.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
         ext_modules.append(
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
