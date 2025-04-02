@@ -1,5 +1,4 @@
 # This module must not import other modules unconditionally that require iast
-
 import ctypes
 import os
 from typing import Any
@@ -36,10 +35,14 @@ _RASP_POPEN = "rasp_Popen"
 
 def patch_common_modules():
     global _is_patched
-    # ensure that the subprocess patch is applied even after one click activation
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
+    @ModuleWatchdog.after_module_imported("subprocess")
+    def _(module):
+        # ensure that the subprocess patch is applied even after one click activation
+        subprocess_patch.patch()
+        subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+        subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
     if _is_patched:
         return
 
@@ -317,6 +320,7 @@ def wrap_object(module, name, factory, args=(), kwargs=None):
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
+    wrapper.__deepcopy__ = lambda memo: wrapper
     return wrapper
 
 

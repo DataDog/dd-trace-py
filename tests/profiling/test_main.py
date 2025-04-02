@@ -5,7 +5,6 @@ import sys
 import pytest
 
 from tests.utils import call_program
-from tests.utils import flaky
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -16,8 +15,6 @@ def test_fork_gevent(monkeypatch):
     assert exitcode == 0
 
 
-@flaky(1742580778)  # Marking as flaky so it will show up in flaky reports
-@pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),
