@@ -1,21 +1,15 @@
 from typing import Any
 from typing import Dict
-from typing import List
+from typing import Sequence
 from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
-
-# from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
+from ddtrace.appsec._ddwaf.waf_stubs import PayloadType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-
-# from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
-# from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
-# from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
-# from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 
@@ -52,7 +46,9 @@ class DDWaf(WAF):
         LOGGER.debug("DDWaf features disabled. dry run")
         return DDWaf_result(0, [], {}, 0.0, 0.0, False, self.empty_observator, {})
 
-    def update_rules(self, new_rules: List[Tuple[str, str, Any]]) -> bool:
+    def update_rules(
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+    ) -> bool:
         LOGGER.debug("DDWaf features disabled. dry update")
         return False
 

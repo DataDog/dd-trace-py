@@ -2,6 +2,7 @@ import atexit
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 
@@ -28,10 +29,12 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
@@ -65,6 +68,20 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+
+
+def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
+    """Determine whether to use agentless mode based on agent availability and capabilities."""
+    if user_defined_agentless_enabled is not None:
+        return user_defined_agentless_enabled
+
+    agent_info: Optional[Dict[str, Any]] = agent.info()
+
+    if agent_info is None:
+        return True
+
+    endpoints = agent_info.get("endpoints", [])
+    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
 
 
 class BaseLLMObsWriter(PeriodicService):
@@ -214,7 +231,14 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        """
+        Send a batch of events, where each event contains a single span in the `spans` field. This allows us to
+        fully take advantage of EVP event/payload size limits.
+        """
+        data = [
+            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            for event in events
+        ]
         try:
             enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
@@ -266,7 +290,7 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent_config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
         self.agentless_url = agentless_url

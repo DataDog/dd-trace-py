@@ -1,7 +1,7 @@
-#include "Aspects/Helpers.h"
+#include "aspects/helpers.h"
 
-#include <Aspects/AspectOperatorAdd.h>
-#include <Initializer/Initializer.h>
+#include <aspects/aspect_operator_add.h>
+#include <initializer/initializer.h>
 #include <tests/test_common.hpp>
 
 using AspectAddCheck = PyEnvWithContext;
