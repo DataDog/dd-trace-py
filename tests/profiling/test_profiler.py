@@ -120,4 +120,3 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling.collector import _traceback  # noqa:F401
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
-        from ddtrace.profiling.collector import stack_event  # noqa:F401

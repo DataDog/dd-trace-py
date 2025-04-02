@@ -6,7 +6,6 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -104,13 +103,9 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    class Exporter(exporter.Exporter):
-        def export(self, events, *args, **kwargs):
-            pass
-
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return [Exporter()]
+            return []
 
     p = TestProfiler()
     err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
@@ -165,11 +160,9 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling import _threading  # noqa:F401
         from ddtrace.profiling import event  # noqa:F401
         from ddtrace.profiling import profiler  # noqa:F401
-        from ddtrace.profiling import recorder  # noqa:F401
         from ddtrace.profiling import scheduler  # noqa:F401
         from ddtrace.profiling.collector import _lock  # noqa:F401
         from ddtrace.profiling.collector import _task  # noqa:F401
         from ddtrace.profiling.collector import _traceback  # noqa:F401
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
-        from ddtrace.profiling.collector import stack_event  # noqa:F401

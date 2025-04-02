@@ -90,7 +90,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id = _threading.get_thread_native_id(thread_id)
 
@@ -149,7 +149,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 else:
                     frame = task_frame
 
-                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+                frames, _ = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
 
                 thread_native_id = _threading.get_thread_native_id(thread_id)
 

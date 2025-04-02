@@ -3,18 +3,13 @@ import logging
 import time
 from typing import Any  # noqa F401
 from typing import Callable
-from typing import Dict  # noqa F401
-from typing import List
 from typing import Optional
-from typing import Sequence  # noqa F401
 
 import ddtrace
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
-
-from .exporter import Exporter
 
 
 LOG = logging.getLogger(__name__)
@@ -25,13 +20,11 @@ class Scheduler(periodic.PeriodicService):
 
     def __init__(
         self,
-        exporters: Optional[List[Exporter]] = None,
         before_flush: Optional[Callable] = None,
         tracer: Optional[Tracer] = ddtrace.tracer,
         interval: float = config.upload_interval,
     ):
         super(Scheduler, self).__init__(interval=interval)
-        self.exporters: Optional[List[Exporter]] = exporters
         self.before_flush: Optional[Callable] = before_flush
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
@@ -47,7 +40,7 @@ class Scheduler(periodic.PeriodicService):
 
     def flush(self):
         # type: (...) -> None
-        """Flush events to exporters."""
+        """Flush events to the libdatadog exporter"""
         LOG.debug("Flushing events")
         if self.before_flush is not None:
             try:

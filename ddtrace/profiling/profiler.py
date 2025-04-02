@@ -155,8 +155,6 @@ class _ProfilerInstance(service.Service):
         return True
 
     def _build_default_exporters(self):
-        # type: (...) -> List[exporter.Exporter]
-
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
@@ -186,9 +184,9 @@ class _ProfilerInstance(service.Service):
             return []
         except Exception as e:
             try:
-                LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                LOG.error("Failed to load libdd (%s) (%s), turning off profiling", e, ddup.failure_msg)
             except Exception as ee:
-                LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
+                LOG.error("Failed to load libdd (%s) (%s), turning off profiling", e, ee)
 
             # also disable other features that might be enabled
             if self._stack_v2_enabled:
@@ -208,22 +206,7 @@ class _ProfilerInstance(service.Service):
                 config.pytorch.enabled = False
                 self._pytorch_collector_enabled = False
 
-        # DEV: Import this only if needed to avoid importing protobuf
-        # unnecessarily
-        from ddtrace.profiling.exporter import http
-
-        return [
-            http.PprofHTTPExporter(
-                tracer=self.tracer,
-                service=self.service,
-                env=self.env,
-                tags=self.tags,
-                version=self.version,
-                api_key=self.api_key,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            )
-        ]
+        return []
 
     def __post_init__(self):
         # type: (...) -> None
@@ -300,14 +283,13 @@ class _ProfilerInstance(service.Service):
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
 
-        exporters = self._build_default_exporters()
+        self._build_default_exporters()
 
         scheduler_class = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
         self._scheduler = scheduler_class(
-            exporters=exporters,
             before_flush=self._collectors_snapshot,
             tracer=self.tracer,
         )
