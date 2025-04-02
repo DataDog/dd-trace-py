@@ -38,6 +38,7 @@ def patch():
     Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+    _w("azure.functions", "FunctionApp.timer_trigger", _patched_timer_trigger)
 
 
 def _patched_function_name(wrapped, instance, args, kwargs):
@@ -83,6 +84,45 @@ def _patched_route(wrapped, instance, args, kwargs):
                     core.dispatch(
                         "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
                     )
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_timer_trigger(wrapped, instance, args, kwargs):
+    trigger = "Timer"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        if pin.tags and pin.tags.get("function_name"):
+            function_name = pin.tags.get("function_name")
+            Pin.override(instance, tags={"function_name": ""})
+        else:
+            function_name = func.__name__
+
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            operation_name = schematize_cloud_faas_operation(
+                "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
+            )
+            with core.context_with_data(
+                "azure.functions.patched_timer",
+                span_name=operation_name,
+                pin=pin,
+                resource=function_name,
+                service=int_service(pin, config.azure_functions),
+                span_type=SpanTypes.SERVERLESS,
+            ) as ctx, ctx.span:
+                ctx.set_item("timer_span", ctx.span)
+                core.dispatch(
+                    "azure.functions.timer_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger),
+                )
+                func(*args, **kwargs)
 
         return wrapped(*args, **kwargs)(wrap_function)
 
