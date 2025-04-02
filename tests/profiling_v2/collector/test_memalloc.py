@@ -301,3 +301,68 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
         # probably too generous for low sampling intervals but at least won't be
         # flaky.
         assert abs(rel - actual_rel) < 0.10
+
+
+@pytest.mark.skip(reason="too slow, indeterministic")
+@pytest.mark.subprocess(
+    env=dict(
+        # Turn off other profilers so that we're just testing memalloc
+        DD_PROFILING_STACK_ENABLED="false",
+        DD_PROFILING_LOCK_ENABLED="false",
+        # Upload a lot, since rotating out memalloc profiler state can race with profiling
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+    ),
+)
+def test_memealloc_data_race_regression():
+    import gc
+    import threading
+    import time
+
+    from ddtrace.profiling import Profiler
+
+    gc.enable()
+    gc.set_threshold(100)
+
+    class Thing:
+        def __init__(self):
+            # Self reference so this gets deallocated in GC vs via refcount
+            self.ref = self
+
+        def __del__(self):
+            # Force GIL yield,  so if/when memalloc triggers GC, this is
+            # deallocated, releases GIL while memalloc is sampling, allowing
+            # something else to run
+            time.sleep(0)
+
+    def do_alloc():
+        def f():
+            return Thing()
+
+        return f
+
+    def lotsa_allocs(ev):
+        while not ev.is_set():
+            f = do_alloc()
+            f()
+            time.sleep(0.01)
+
+    p = Profiler()
+    p.start()
+
+    threads = []
+    ev = threading.Event()
+    for i in range(4):
+        t = threading.Thread(target=lotsa_allocs, args=(ev,))
+        t.start()
+        threads.append(t)
+
+    # Arbitrary sleep. This typically crashes in about a minute.
+    # But for local development, either let it run way longer or
+    # figure out sanitizer instrumentation
+    time.sleep(120)
+
+    p.stop()
+
+    ev.set()
+    for t in threads:
+        t.join()
