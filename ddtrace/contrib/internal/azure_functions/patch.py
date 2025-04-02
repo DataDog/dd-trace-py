@@ -67,7 +67,7 @@ def _patched_route(wrapped, instance, args, kwargs):
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None
                 try:
-                    res = func(req)
+                    res = func(*args, **kwargs)
                     return res
                 finally:
                     core.dispatch(
