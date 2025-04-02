@@ -1,11 +1,7 @@
 # -*- encoding: utf-8 -*-
-import typing  # noqa:F401
-
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.settings.profiling import config
-
-from .. import event  # noqa:F401
 
 
 class CollectorError(Exception):
@@ -41,11 +37,7 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
         self.collect()
 
     def collect(self):
-        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
-        """Collect the actual data.
-
-        :return: A list of event list to push in the recorder.
-        """
+        """Export the data."""
         raise NotImplementedError
 
 
