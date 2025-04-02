@@ -17,12 +17,12 @@ class TestPatching(SubprocessTestCase):
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_sqlite_none(self):
         # Make sure sqlite is enabled by default.
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "sqlite3" in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_sqlite_disabled(self):
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "sqlite3" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
@@ -43,12 +43,12 @@ class TestPatching(SubprocessTestCase):
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_httplib_none(self):
         # Make sure httplib is disabled by default.
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "httplib" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_HTTPLIB_ENABLED="true"))
     def test_patch_all_env_override_httplib_enabled(self):
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
 
     @run_in_subprocess()

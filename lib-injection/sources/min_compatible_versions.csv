@@ -25,7 +25,6 @@ avro,0
 azure.functions,0
 blinker,0
 bottle,>=0.12
-bytecode,0
 cassandra-driver,~=3.24.0
 cattrs,<23.1.1
 celery,~=5.2
@@ -40,6 +39,7 @@ cryptography,<39
 daphne,0
 databases,0
 datadog-lambda,>=6.105.0
+ddtrace-api,==0.0.1
 django,>=2.2
 django-pylibmc,>=0.6
 django-q,0
@@ -121,7 +121,7 @@ opentelemetry-api,~=1.0.0
 opentelemetry-instrumentation-flask,0
 opentracing,0
 pinecone-client,0
-protobuf,>=3
+protobuf,>3
 psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
@@ -169,7 +169,6 @@ tests/contrib/pyramid/pserve_app,0
 tiktoken,0
 tornado,~=4.5.0
 typing-extensions,0
-typing_extensions,0
 urllib3,~=1.0
 uwsgi,0
 valkey,0
@@ -180,7 +179,6 @@ websockets,<11.0
 webtest,0
 werkzeug,<1.0
 wheel,0
-xmltodict,>=0.12
 yaaredis,~=2.0.0
 yarl,~=1.0
 zeep,0

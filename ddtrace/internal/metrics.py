@@ -1,8 +1,8 @@
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace.internal import agent
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.settings._agent import config as agent_config
 
 
 class Metrics(object):
@@ -30,7 +30,7 @@ class Metrics(object):
         self.namespace = namespace
         self.enabled = False
 
-        self._client = get_dogstatsd_client(dogstats_url or agent.get_stats_url(), namespace=namespace)
+        self._client = get_dogstatsd_client(dogstats_url or agent_config.dogstatsd_url, namespace=namespace)
 
     class Meter(object):
         def __init__(self, metrics, name):
