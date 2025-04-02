@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "GET /api/httpgetfunctionname",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67ed2b9d00000000",
+      "aas.function.name": "functionnamedecorator",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "GET",
+      "http.route": "/api/httpgetfunctionname",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httpgetfunctionname",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "d7e45ba450674ad2a75655cf55abc31a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 29681
+    },
+    "duration": 327750,
+    "start": 1743596445542072088
+  }]]
