@@ -172,7 +172,7 @@ class _ProfilerInstance(service.Service):
                 env=self.env,
                 service=self.service,
                 version=self.version,
-                tags=self.tags,  # type: ignore
+                tags=self.tags,
                 max_nframes=profiling_config.max_frames,
                 timeline_enabled=profiling_config.timeline_enabled,
                 output_filename=profiling_config.output_pprof,
