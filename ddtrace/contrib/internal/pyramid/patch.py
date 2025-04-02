@@ -1,3 +1,4 @@
+import importlib.metadata as importlib_metadata
 import os
 
 import pyramid
@@ -27,11 +28,6 @@ DD_PATCH = "_datadog_patch"
 
 def get_version():
     # type: () -> str
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
     return str(importlib_metadata.version(pyramid.__package__))
 
 

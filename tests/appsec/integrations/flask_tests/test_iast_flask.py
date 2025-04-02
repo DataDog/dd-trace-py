@@ -1,8 +1,8 @@
+from importlib.metadata import version
 import json
 import traceback
 
 from flask import request
-from importlib_metadata import version
 import pytest
 
 from ddtrace.appsec._constants import IAST

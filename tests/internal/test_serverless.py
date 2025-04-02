@@ -87,7 +87,6 @@ standard_blocklist = [
     "email.mime.multipart",
     "logging.handlers",
     "multiprocessing",
-    "importlib_metadata",
     "ddtrace._trace.utils_botocore.span_pointers",
     "ddtrace._trace.utils_botocore.span_tags",
     # These modules must not be imported because their source files are

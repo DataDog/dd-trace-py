@@ -1,3 +1,4 @@
+import importlib.metadata as importlib_metadata
 import typing  # noqa:F401
 
 from ddtrace.ext.ci import _filter_sensitive_info
@@ -67,11 +68,6 @@ def _get_tags_from_package(main_package):
     if not main_package:
         return "", ""
     try:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
-
         source_code_link = ""
         for val in importlib_metadata.metadata(main_package).get_all("Project-URL"):
             capt_val = val.split(", ")

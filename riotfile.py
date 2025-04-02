@@ -853,7 +853,6 @@ venv = Venv(
                 "werkzeug": "~=2.0",
                 "urllib3": "~=1.0",
                 "pytest-randomly": latest,
-                "importlib_metadata": latest,
                 "flask-openapi3": latest,
             },
             venvs=[

@@ -1,6 +1,7 @@
 import collections
 from functools import lru_cache as cached
 from functools import singledispatch
+import importlib.metadata as importlib_metadata
 import inspect
 import logging
 from os import fspath  # noqa:F401
@@ -27,11 +28,6 @@ _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
     pkgs = set()
     for dist in importlib_metadata.distributions():
         # Get the root path of all files in a distribution
@@ -51,11 +47,6 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
-
         # Prefer the official API if available, otherwise fallback to the vendored version
         if hasattr(importlib_metadata, "packages_distributions"):
             _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
@@ -68,11 +59,6 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
     names: t.List[str] = []
     pkgs = get_package_distributions()
     while names == []:
@@ -104,11 +90,6 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
     try:
         return importlib_metadata.version(name)
     except Exception:
@@ -290,11 +271,6 @@ def _(path: str) -> bool:
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
     try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    try:
         importlib_metadata.distribution(name)
     except importlib_metadata.PackageNotFoundError:
         return False
@@ -316,11 +292,6 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):

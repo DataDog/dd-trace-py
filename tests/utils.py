@@ -4,6 +4,7 @@ import dataclasses
 import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
+import importlib.metadata as importlib_metadata
 import inspect
 import json
 import os
@@ -43,11 +44,6 @@ from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
-
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:
-    import importlib_metadata
 
 NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[1]
