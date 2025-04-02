@@ -171,7 +171,7 @@ static const char* static_denylist[] = { "django.apps.config.",
                                          "django_filters.utils.",
                                          "django_filters.widgets." };
 
-static size_t static_stdlib_count = 216;
+static size_t static_stdlib_count = 215;
 static const char* static_stdlib_denylist[] = {
     "__future__",
     "_ast",
@@ -320,7 +320,6 @@ static const char* static_stdlib_denylist[] = {
     "select",
     "selectors",
     "shelve",
-    "shlex",
     "shutil",
     "signal",
     "site",
