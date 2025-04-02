@@ -106,7 +106,7 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = core.get_local_item("activate_distributed_headers")
+    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
