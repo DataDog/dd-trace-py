@@ -81,7 +81,6 @@ httpx,~=0.17.0
 huggingface-hub,0
 hypothesis,<6.45.1
 importlib-metadata,0
-importlib_metadata,0
 itsdangerous,<2.0
 jinja2,~=2.10.0
 kombu,>=4.2.0
