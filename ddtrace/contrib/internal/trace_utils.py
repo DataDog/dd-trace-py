@@ -192,7 +192,7 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
             if parsed_url.hostname:
                 return parsed_url.hostname
         except (ValueError, AttributeError):
-            log.debug("Failed to parse referer value: %s", referrer)
+            return ""
     return ""
 
 
