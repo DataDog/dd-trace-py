@@ -13,7 +13,13 @@ from tests.utils import remote_config_build_payload as build_payload
 
 @pytest.fixture
 def config():
-    yield Config()
+    import ddtrace
+
+    original_config = ddtrace.config
+    ddtrace.config = Config()
+    yield ddtrace.config
+    # Reset the config to its original state
+    ddtrace.config = original_config
 
 
 def _base_rc_config(cfg):
