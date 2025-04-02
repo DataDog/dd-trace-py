@@ -33,16 +33,25 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 @deduplication
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
     try:
-        tags = {
+        log_tags = {
             "waf_version": DDWAF_VERSION,
             "event_rules_version": version or UNKNOWN_VERSION,
             "lib_language": "python",
         }
         level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
-        telemetry.telemetry_writer.add_log(level, msg, tags=tags)
+        telemetry.telemetry_writer.add_log(level, msg, tags=log_tags)
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "waf_error"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:error"}
         logger.warning(WARNING_TAGS.TELEMETRY_LOGS, extra=extra, exc_info=True)
+    try:
+        tags = (
+            ("waf_version", DDWAF_VERSION),
+            ("event_rules_version", version or UNKNOWN_VERSION),
+        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
+    except Exception:
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:config_errors"}
+        logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
 def _set_waf_updates_metric(info, success: bool):
@@ -58,7 +67,7 @@ def _set_waf_updates_metric(info, success: bool):
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "waf_updates"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:updates"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
@@ -75,7 +84,7 @@ def _set_waf_init_metric(info, success: bool):
 
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "waf_init"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:init"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
@@ -118,7 +127,7 @@ def _report_waf_truncations(observator):
                 tags=(("truncation_reason", str(bitfield)),),
             )
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "waf_truncations"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:truncations"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
@@ -129,26 +138,26 @@ def _set_waf_request_metrics(*_args):
             # TODO: enable it when Telemetry intake accepts this tag
             # is_truncation = any((result.truncation for result in list_results))
 
-            truncation = result["truncation"]
-            input_truncated = bool(
-                truncation["string_length"] or truncation["container_size"] or truncation["container_depth"]
-            )
+            truncation = result.truncation
+            input_truncated = bool(truncation.string_length or truncation.container_size or truncation.container_depth)
             tags_request = (
-                ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                ("event_rules_version", result.version or UNKNOWN_VERSION),
                 ("waf_version", DDWAF_VERSION),
-                ("rule_triggered", bool_str[result["triggered"]]),
-                ("request_blocked", bool_str[result["blocked"]]),
-                ("waf_timeout", bool_str[bool(result["timeout"])]),
+                ("rule_triggered", bool_str[result.triggered]),
+                ("request_blocked", bool_str[result.blocked]),
+                ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
+                ("waf_error", str(result.error)),
+                ("rate_limited", bool_str[result.rate_limited]),
             )
 
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
-            rasp = result["rasp"]
-            if rasp["sum_eval"]:
+            rasp = result.rasp
+            if rasp.sum_eval:
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
-                    for rule_type, value in rasp[t].items():
+                    for rule_type, value in getattr(rasp, t).items():
                         if value:
                             telemetry.telemetry_writer.add_count_metric(
                                 TELEMETRY_NAMESPACE.APPSEC,
@@ -157,11 +166,11 @@ def _set_waf_request_metrics(*_args):
                                 tags=_TYPES_AND_TAGS.get(rule_type, ())
                                 + (
                                     ("waf_version", DDWAF_VERSION),
-                                    ("event_rules_version", result["version"] or UNKNOWN_VERSION),
+                                    ("event_rules_version", result.version or UNKNOWN_VERSION),
                                 ),
                             )
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "waf_request"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:request"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
@@ -178,5 +187,5 @@ def _report_api_security(route: bool, schemas: int) -> None:
                 TELEMETRY_NAMESPACE.APPSEC, "api_security.missing_route", 1, tags=(("framework", framework),)
             )
     except Exception:
-        extra = {"product": "appsec", "exec_limit": 6, "more_info": "api_security"}
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": ":api_security"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
