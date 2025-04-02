@@ -155,18 +155,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_integrations_pygoat",
-            pys=select_pys(min_version="3.10"),
-            command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
-            pkgs={
-                "requests": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-            },
-        ),
-        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -653,9 +641,9 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="dd_trace_api",
-            command="pytest {cmdargs} tests/contrib/dd_trace_api",
-            pkgs={"git+https://github.com/DataDog/dd-trace-api-py": latest, "requests": latest},
+            name="ddtrace_api",
+            command="pytest {cmdargs} tests/contrib/ddtrace_api",
+            pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
             pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
@@ -2730,7 +2718,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} tests/contrib/subprocess",
+            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -2785,7 +2773,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2807,7 +2795,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent

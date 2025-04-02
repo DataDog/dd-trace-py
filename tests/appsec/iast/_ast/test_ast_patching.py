@@ -210,7 +210,10 @@ def test_module_path_none(caplog):
         assert ("", None) == astpatch_module(
             __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
         )
-        assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
+        assert (
+            "iast::instrumentation::ast_patching::compiling::"
+            "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
+        )
 
 
 @pytest.mark.parametrize(
