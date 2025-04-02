@@ -100,7 +100,7 @@ def addition_agent_with_tool_errors():
 
 
 @input_guardrail
-async def simple_gaurdrail(
+async def simple_guardrail(
     context,
     agent,
     inp,
@@ -112,12 +112,12 @@ async def simple_gaurdrail(
 
 
 @pytest.fixture
-def simple_agent_with_gaurdrail():
-    """An agent with addition tools and a gaurdrail"""
+def simple_agent_with_guardrail():
+    """An agent with addition tools and a guardrail"""
     yield Agent(
         name="Simple Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
-        input_guardrails=[simple_gaurdrail],
+        input_guardrails=[simple_guardrail],
     )
 
 

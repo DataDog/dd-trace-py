@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    LLM Observability: Introduces tracing support for OpenAI Agents SDK. Agent, gaurdrail, tool, handoff, response, and custom operations are traced.
+    LLM Observability: Introduces tracing support for OpenAI Agents SDK. Agent, guardrail, tool, handoff, response, and custom operations are traced.
   - |
-    openai_agents: Introduces tracing support for OpenAI Agents SDK. Agent, gaurdrail, tool, handoff, response, and custom operations are traced.
+    openai_agents: Introduces tracing support for OpenAI Agents SDK. Agent, guardrail, tool, handoff, response, and custom operations are traced.
     See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#openai-agents>`_ for more information.

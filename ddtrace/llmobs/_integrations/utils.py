@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 
 
 logger = get_logger(__name__)
@@ -390,7 +391,7 @@ class OaiSpanAdapter:
         data = self.data
         if not data:
             return {}
-        return load_span_data_value(data)
+        return load_oai_span_data_value(data)
 
     @property
     def response_output_text(self) -> str:
@@ -442,23 +443,23 @@ class OaiSpanAdapter:
                 if hasattr(self.response, field):
                     value = getattr(self.response, field)
                     if value is not None:
-                        metadata[field] = load_span_data_value(value)
+                        metadata[field] = load_oai_span_data_value(value)
 
             if hasattr(self.response, "text") and self.response.text:
-                metadata["text"] = load_span_data_value(self.response.text)
+                metadata["text"] = load_oai_span_data_value(self.response.text)
 
             if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
                 metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
 
         if self.span_type == "agent":
-            agent_metadata = {
+            agent_metadata: Dict[str, List[str]] = {
                 "handoffs": [],
                 "tools": [],
-            }  # type: Dict[str, List[str]]
+            }
             if self.handoffs:
-                agent_metadata["handoffs"] = load_span_data_value(self.handoffs)
+                agent_metadata["handoffs"] = load_oai_span_data_value(self.handoffs)
             if self.tools:
-                agent_metadata["tools"] = load_span_data_value(self.tools)
+                agent_metadata["tools"] = load_oai_span_data_value(self.tools)
             metadata.update(agent_metadata)
 
         if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
@@ -506,12 +507,8 @@ class OaiSpanAdapter:
                 processed_item_content = ""
                 if isinstance(item["content"], list):
                     for content in item["content"]:
-                        if content.get("text"):
-                            processed_item_content += content.get("text")
-                        elif content.get("refusal"):
-                            processed_item_content += content.get("refusal")
-                        else:
-                            processed_item_content += str(content)
+                        processed_item_content += content.get("text", "")
+                        processed_item_content += content.get("refusal", "")
                 else:
                     processed_item_content = item["content"]
                 if processed_item_content:
@@ -578,12 +575,9 @@ class OaiSpanAdapter:
             if hasattr(item, "content"):
                 text = ""
                 for content in item.content:
-                    if hasattr(content, "text"):
-                        text += content.text
-                    elif hasattr(content, "refusal"):
-                        text += content.refusal
-                    else:
-                        text += str(content)
+                    if hasattr(content, "text") or hasattr(content, "refusal"):
+                        text += getattr(content, "text", "")
+                        text += getattr(content, "refusal", "")
                 message.update({"role": getattr(item, "role", "assistant"), "content": text})
             # Handle tool calls
             elif hasattr(item, "call_id") and hasattr(item, "arguments"):
@@ -667,16 +661,20 @@ class OaiTraceAdapter:
         return self._trace
 
 
-def load_span_data_value(value):
-    """Helper function to load values stored in span data in a consistent way"""
+def load_oai_span_data_value(value):
+    """Helper function to load values stored in openai span data in a consistent way"""
     if isinstance(value, list):
-        return [load_span_data_value(item) for item in value]
+        return [load_oai_span_data_value(item) for item in value]
     elif hasattr(value, "model_dump"):
         return value.model_dump()
     elif is_dataclass(value):
         return asdict(value)
     else:
-        return json.loads(json.dumps(value))
+        value_str = safe_json(value)
+        try:
+            return json.loads(value_str)
+        except json.JSONDecodeError:
+            return value_str
 
 
 @dataclass

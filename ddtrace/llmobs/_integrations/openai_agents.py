@@ -70,17 +70,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             )
         elif oai_span:
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
-            trace_info = self._llmobs_get_trace_info(oai_span)
-            if trace_info:
-                if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
-                    trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
-                if (
-                    oai_span.span_type == "response"
-                    and not trace_info.input_oai_span
-                    and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
-                ):
-                    trace_info.input_oai_span = oai_span
-
+            self._llmobs_update_trace_info_input(oai_span, llmobs_span)
         return llmobs_span
 
     def _llmobs_set_tags(
@@ -125,21 +115,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)
-            trace_info = self._llmobs_get_trace_info(oai_span)
-            if not trace_info:
-                return
-
-            llmobs_span = self.oai_to_llmobs_span.get(oai_span.span_id)
-            if not llmobs_span:
-                return
-
-            current_top_level_agent_span_id = trace_info.current_top_level_agent_span_id
-            if (
-                current_top_level_agent_span_id
-                and llmobs_span._get_ctx_item(PARENT_ID_KEY) == current_top_level_agent_span_id
-            ):
-                trace_info.output_oai_span = oai_span
-
+            self._llmobs_update_trace_info_output(oai_span)
         elif span_type in ("function", "tool"):
             self._llmobs_set_tool_attributes(span, oai_span)
         elif span_type == "handoff":
@@ -150,6 +126,44 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             custom_data = oai_span.formatted_custom_data
             if custom_data:
                 span._set_ctx_item(METADATA, custom_data)
+
+    def _llmobs_update_trace_info_input(self, oai_span: OaiSpanAdapter, llmobs_span: Span) -> None:
+        """
+        Store the openai span we are using as the input to the top level trace. Since the openai trace
+        itself does not have input / output data, we use the input to the first LLM call of the first
+        agent invocation as the top level trace input.
+        """
+        trace_info = self._llmobs_get_trace_info(oai_span)
+        if trace_info:
+            if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
+                trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
+            if (
+                oai_span.span_type == "response"
+                and not trace_info.input_oai_span
+                and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
+            ):
+                trace_info.input_oai_span = oai_span
+
+    def _llmobs_update_trace_info_output(self, oai_span: OaiSpanAdapter) -> None:
+        """
+        Store the openai span we are using as the output to the top level trace. Since the openai trace
+        itself does not have input / output data, we use the output of the last LLM call of the last
+        agent invocation as the top level trace output.
+        """
+        trace_info = self._llmobs_get_trace_info(oai_span)
+        if not trace_info:
+            return
+
+        llmobs_span = self.oai_to_llmobs_span.get(oai_span.span_id)
+        if not llmobs_span:
+            return
+
+        current_top_level_agent_span_id = trace_info.current_top_level_agent_span_id
+        if (
+            current_top_level_agent_span_id
+            and llmobs_span._get_ctx_item(PARENT_ID_KEY) == current_top_level_agent_span_id
+        ):
+            trace_info.output_oai_span = oai_span
 
     def _llmobs_set_trace_attributes(self, span: Span, oai_trace: OaiTraceAdapter) -> None:
         trace_info = self._llmobs_get_trace_info(oai_trace)

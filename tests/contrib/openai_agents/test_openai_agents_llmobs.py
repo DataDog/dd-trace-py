@@ -160,6 +160,40 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
     )
 
 
+def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
+    """Test tracing with a simple agent with no tools or handoffs"""
+    with request_vcr.use_cassette("test_simple_agent.yaml"):
+        result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
+
+    spans = mock_tracer.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 3
+
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        input_value="What is the capital of France?",
+        output_value=result.final_output,
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    _assert_expected_agent_run(
+        spans[1:],
+        llmobs_events[1:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                [{"role": "user", "content": "What is the capital of France?"}],
+                [{"role": "assistant", "content": result.final_output}],
+            )
+        ],
+        tool_calls=[],
+    )
+
+
 @pytest.mark.asyncio
 async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, llmobs_events, simple_agent):
     from agents.tracing import custom_span
@@ -432,14 +466,14 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_gaurdrail_errors(agents, llmobs_events, simple_agent_with_gaurdrail):
+async def test_llmobs_single_agent_with_guardrail_errors(agents, llmobs_events, simple_agent_with_guardrail):
     from agents.exceptions import InputGuardrailTripwireTriggered
 
     with pytest.raises(InputGuardrailTripwireTriggered):
-        await agents.Runner.run(simple_agent_with_gaurdrail, "What is the sum of 1 and 2?")
+        await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
 
     # NOTE: there is an issue where APM spans are not enqeued to the mock tracer
-    # NOTE: gaurdrails are executed in parallel so sorting by time is unreliable
+    # NOTE: guardrails are executed in parallel so sorting by time is unreliable
     llmobs_events.sort(key=lambda event: event["meta"]["span.kind"])
 
     assert len(llmobs_events) == 3
@@ -450,4 +484,4 @@ async def test_llmobs_single_agent_with_gaurdrail_errors(agents, llmobs_events, 
 
     assert llmobs_events[0]["status"] == "error"
     assert llmobs_events[0]["meta"]["error.message"] == "Guardrail tripwire triggered"
-    assert llmobs_events[0]["meta"]["error.type"] == '{"guardrail": "simple_gaurdrail"}'
+    assert llmobs_events[0]["meta"]["error.type"] == '{"guardrail": "simple_guardrail"}'
