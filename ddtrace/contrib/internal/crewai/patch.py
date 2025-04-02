@@ -85,7 +85,7 @@ def traced_task_get_context(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     span = pin.tracer.current_span()
     result = func(*args, **kwargs)
-    integration._llmobs_set_span_link_on_task(span, args[0], args[1], instance)
+    integration._llmobs_set_span_link_on_task(span, args, kwargs)
     return result
 
 

@@ -5,4 +5,4 @@ features:
       See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#crewai>`_
       for more information.
   - |
-    LLM Observability: Adds support to automatically submit CrewAI crew, task, agent, and tool executions to LLM Observability.
+    LLM Observability: Introduces tracing support for CrewAI crew, task, agent, and tool executions.
