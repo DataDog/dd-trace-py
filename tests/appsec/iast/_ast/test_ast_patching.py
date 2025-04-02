@@ -185,8 +185,9 @@ def test_should_iast_patch_deny_by_default_if_third_party():
 def test_should_iast_patch_allow_by_default_if_third_party():
     # note that modules here must be in the ones returned by get_package_distributions()
     # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
-    assert iastpatch.should_iast_patch("psycopg2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
-    assert iastpatch.should_iast_patch("psycopg2.extensions") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule.submodule2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_not_in_static_allowlist():
