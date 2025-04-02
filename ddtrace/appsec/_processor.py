@@ -341,6 +341,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
             )
         except Exception:
+            log.debug("appsec::processor::waf::run", exc_info=True)
             waf_results = Binding_error
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
