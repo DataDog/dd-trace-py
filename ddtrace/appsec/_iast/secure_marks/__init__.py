@@ -5,21 +5,21 @@ It includes both sanitizers (which transform and secure values) and validators (
 verify values are secure).
 """
 
-from .sanitizers import command_quote_sanitizer
-from .sanitizers import secure_filename_sanitizer
-from .sanitizers import sql_quote_sanitizer
-from .validators import command_quote_validator
-from .validators import secure_filename_validator
-from .validators import sql_quote_validator
+from .sanitizers import cmdi_sanitizer
+from .sanitizers import path_traversal_sanitizer
+from .sanitizers import sqli_sanitizer
+from .validators import cmdi_validator
+from .validators import path_traversal_validator
+from .validators import sqli_validator
 
 
 __all__ = [
     # Sanitizers
-    "secure_filename_sanitizer",
-    "sql_quote_sanitizer",
-    "command_quote_sanitizer",
+    "path_traversal_sanitizer",
+    "sqli_sanitizer",
+    "cmdi_sanitizer",
     # Validators
-    "secure_filename_validator",
-    "sql_quote_validator",
-    "command_quote_validator",
+    "path_traversal_validator",
+    "sqli_validator",
+    "cmdi_validator",
 ]

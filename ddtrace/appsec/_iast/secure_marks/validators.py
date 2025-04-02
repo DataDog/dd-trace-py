@@ -35,7 +35,7 @@ def create_validator(
     return result
 
 
-def secure_filename_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def path_traversal_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
     """Validator for secure filename functions.
 
     Args:
@@ -50,7 +50,7 @@ def secure_filename_validator(wrapped: Callable, instance: Any, args: Sequence, 
     return create_validator(VulnerabilityType.PATH_TRAVERSAL, wrapped, instance, args, kwargs)
 
 
-def sql_quote_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def sqli_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
     """Validator for SQL quoting functions.
 
     Args:
@@ -65,7 +65,7 @@ def sql_quote_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs
     return create_validator(VulnerabilityType.SQL_INJECTION, wrapped, instance, args, kwargs)
 
 
-def command_quote_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+def cmdi_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
     """Validator for command quoting functions.
 
     Args:

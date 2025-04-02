@@ -7,9 +7,9 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast.secure_marks.sanitizers import command_quote_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import secure_filename_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import sql_quote_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -18,7 +18,7 @@ mod = _iast_patched_module("tests.appsec.iast.fixtures.secure_marks.sanitizers")
 
 
 def test_secure_filename_sanitizer():
-    """Test that secure_filename_sanitizer marks filenames as safe from path traversal."""
+    """Test that path_traversal_sanitizer marks filenames as safe from path traversal."""
     # Create a tainted filename
     filename = "../../etc/passwd"
     tainted = taint_pyobject(
@@ -32,7 +32,7 @@ def test_secure_filename_sanitizer():
     secure_filename = mock.Mock(return_value=tainted)
 
     # Apply the sanitizer
-    result = secure_filename_sanitizer(secure_filename, None, [tainted], {})
+    result = path_traversal_sanitizer(secure_filename, None, [tainted], {})
 
     assert result is tainted
     # Verify the result is marked as secure
@@ -43,7 +43,7 @@ def test_secure_filename_sanitizer():
 
 
 def test_sql_quote_sanitizer():
-    """Test that sql_quote_sanitizer marks values as safe from SQL injection."""
+    """Test that sqli_sanitizer marks values as safe from SQL injection."""
     # Create a tainted SQL value
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
@@ -57,7 +57,7 @@ def test_sql_quote_sanitizer():
     quote = mock.Mock(return_value=tainted)
 
     # Apply the sanitizer
-    result = sql_quote_sanitizer(quote, None, [tainted], {})
+    result = sqli_sanitizer(quote, None, [tainted], {})
 
     # Verify the result is marked as secure
     ranges = get_ranges(result)
@@ -67,7 +67,7 @@ def test_sql_quote_sanitizer():
 
 
 def test_command_quote_sanitizer():
-    """Test that command_quote_sanitizer marks values as safe from command injection."""
+    """Test that cmdi_sanitizer marks values as safe from command injection."""
     # Create a tainted command
     cmd = "; rm -rf /"
     tainted = taint_pyobject(
@@ -81,7 +81,7 @@ def test_command_quote_sanitizer():
     quote = mock.Mock(return_value=tainted)
 
     # Apply the sanitizer
-    result = command_quote_sanitizer(quote, None, [tainted], {})
+    result = cmdi_sanitizer(quote, None, [tainted], {})
 
     # Verify the result is marked as secure
     ranges = get_ranges(result)

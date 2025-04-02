@@ -6,13 +6,13 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast.secure_marks.validators import command_quote_validator
-from ddtrace.appsec._iast.secure_marks.validators import secure_filename_validator
-from ddtrace.appsec._iast.secure_marks.validators import sql_quote_validator
+from ddtrace.appsec._iast.secure_marks.validators import cmdi_validator
+from ddtrace.appsec._iast.secure_marks.validators import path_traversal_validator
+from ddtrace.appsec._iast.secure_marks.validators import sqli_validator
 
 
-def test_secure_filename_validator():
-    """Test that secure_filename_validator marks filenames as safe from path traversal."""
+def test_path_traversal_validator():
+    """Test that path_traversal_validator marks filenames as safe from path traversal."""
     # Create a tainted filename
     filename = "../../etc/passwd"
     tainted = taint_pyobject(
@@ -26,7 +26,7 @@ def test_secure_filename_validator():
     validator = mock.Mock(return_value=True)
 
     # Apply the validator
-    secure_filename_validator(validator, None, [tainted], {})
+    path_traversal_validator(validator, None, [tainted], {})
 
     # Verify the argument is marked as secure
     ranges = get_ranges(tainted)
@@ -36,7 +36,7 @@ def test_secure_filename_validator():
 
 
 def test_sql_quote_validator():
-    """Test that sql_quote_validator marks values as safe from SQL injection."""
+    """Test that sqli_validator marks values as safe from SQL injection."""
     # Create a tainted SQL value
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
@@ -50,7 +50,7 @@ def test_sql_quote_validator():
     validator = mock.Mock(return_value=True)
 
     # Apply the validator
-    sql_quote_validator(validator, None, [tainted], {})
+    sqli_validator(validator, None, [tainted], {})
 
     # Verify the argument is marked as secure
     ranges = get_ranges(tainted)
@@ -60,7 +60,7 @@ def test_sql_quote_validator():
 
 
 def test_command_quote_validator():
-    """Test that command_quote_validator marks values as safe from command injection."""
+    """Test that cmdi_validator marks values as safe from command injection."""
     # Create a tainted command
     cmd = "; rm -rf /"
     tainted = taint_pyobject(
@@ -74,7 +74,7 @@ def test_command_quote_validator():
     validator = mock.Mock(return_value=True)
 
     # Apply the validator
-    command_quote_validator(validator, None, [tainted], {})
+    cmdi_validator(validator, None, [tainted], {})
 
     # Verify the argument is marked as secure
     ranges = get_ranges(tainted)

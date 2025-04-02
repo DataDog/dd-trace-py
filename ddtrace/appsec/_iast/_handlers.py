@@ -19,7 +19,7 @@ from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import taint_structure
-from ddtrace.appsec._iast.secure_marks.sanitizers import command_quote_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -163,7 +163,7 @@ def _on_django_patch():
                     functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
                 )
             )
-            try_wrap_function_wrapper("django.utils.shlex", "quote", command_quote_sanitizer)
+            try_wrap_function_wrapper("django.utils.shlex", "quote", cmdi_sanitizer)
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)

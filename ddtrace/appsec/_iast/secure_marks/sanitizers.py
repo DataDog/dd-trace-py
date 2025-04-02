@@ -28,7 +28,7 @@ def create_sanitizer(
     return result
 
 
-def secure_filename_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
     """Sanitizer for werkzeug.utils.secure_filename that marks filenames as safe from path traversal.
 
     Args:
@@ -43,7 +43,7 @@ def secure_filename_sanitizer(wrapped: Callable, instance: Any, args: Sequence, 
     return create_sanitizer(VulnerabilityType.PATH_TRAVERSAL, wrapped, instance, args, kwargs)
 
 
-def sql_quote_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
     """Sanitizer for SQL quoting functions that mark output as safe from SQL injection.
 
     Args:
@@ -58,7 +58,7 @@ def sql_quote_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs
     return create_sanitizer(VulnerabilityType.SQL_INJECTION, wrapped, instance, args, kwargs)
 
 
-def command_quote_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
     """Sanitizer for shell command quoting functions that mark output as safe from command injection.
 
     Args:
