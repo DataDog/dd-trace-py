@@ -321,6 +321,12 @@ def test_memealloc_data_race_regression():
     from ddtrace.profiling import Profiler
 
     gc.enable()
+    # This threshold is controls when garbage collection is triggered. The
+    # threshold is on the count of live allocations, which is checked when doing
+    # a new allocation. This test is ultimately trying to get the allocation of
+    # frame objects during the memory profiler's traceback function to trigger
+    # garbage collection. We want a lower threshold to improve the odds that
+    # this happens.
     gc.set_threshold(100)
 
     class Thing:
@@ -330,8 +336,9 @@ def test_memealloc_data_race_regression():
 
         def __del__(self):
             # Force GIL yield,  so if/when memalloc triggers GC, this is
-            # deallocated, releases GIL while memalloc is sampling, allowing
-            # something else to run
+            # deallocated, releasing GIL while memalloc is sampling and allowing
+            # something else to run and possibly modify memalloc's internal
+            # state concurrently
             time.sleep(0)
 
     def do_alloc():
