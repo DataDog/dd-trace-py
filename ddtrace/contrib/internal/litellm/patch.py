@@ -27,7 +27,6 @@ def get_version() -> str:
 
 
 def _create_span(litellm, pin, func, instance, args, kwargs):
-    """Helper function to create and configure a traced span."""
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     span = integration.trace(
