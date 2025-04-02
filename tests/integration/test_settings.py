@@ -183,7 +183,7 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
-from tests.internal.test_settings import call_call_apm_tracing_rc
+from tests.internal.test_settings import call_apm_tracing_rc
 
 call_apm_tracing_rc(
     _base_rc_config(
@@ -232,7 +232,7 @@ def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_
 from ddtrace import config, tracer
 from ddtrace.contrib import trace_utils
 from tests.internal.test_settings import _base_rc_config
-from tests.internal.test_settings import call_call_apm_tracing_rc
+from tests.internal.test_settings import call_apm_tracing_rc
 
 call_apm_tracing_rc(_base_rc_config({
     "tracing_header_tags": [
