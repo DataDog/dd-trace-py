@@ -118,6 +118,7 @@ class TestVisibilityAPISettings:
     require_git: bool = False
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
+    known_tests_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
@@ -386,6 +387,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
                 os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
+            known_tests_enabled = attributes["known_tests_enabled"]
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -426,6 +428,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=require_git,
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
+            known_tests_enabled=known_tests_enabled,
             early_flake_detection=early_flake_detection,
             test_management=test_management,
         )
@@ -436,6 +439,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=api_settings.require_git,
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
+            known_tests_enabled=api_settings.known_tests_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
             test_management_enabled=api_settings.test_management.enabled,
         )

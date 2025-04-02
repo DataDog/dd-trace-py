@@ -70,6 +70,7 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    known_tests_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
     test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
@@ -77,6 +78,7 @@ class TestVisibilitySessionSettings:
     is_auto_injected: bool = False
 
     def __post_init__(self):
+        self.known_tests_enabled = self.efd_settings.enabled
         if not isinstance(self.tracer, Tracer):
             raise TypeError("tracer must be a ddtrace.trace.Tracer")
         if not isinstance(self.workspace_path, Path):
@@ -208,6 +210,10 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
 
+        # FIXME: TEST
+        # if self._session_settings.known_tests_enabled:
+        #     self._set_known_tests_tags()
+
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
@@ -273,6 +279,9 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
         self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
+
+    # def _set_known_tests_tags(self) -> None:
+    #     pass
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
