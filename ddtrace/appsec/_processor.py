@@ -339,6 +339,18 @@ class AppSecSpanProcessor(SpanProcessor):
         )
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+        root_span = span._local_root or span
+        if waf_results.return_code < 0:
+            error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
+            previous = root_span.get_tag(error_tag)
+            if previous is None:
+                root_span.set_tag_str(error_tag, str(waf_results.return_code))
+            else:
+                try:
+                    int_previous = int(previous)
+                except ValueError:
+                    int_previous = -128
+                root_span.set_tag_str(error_tag, str(max(int_previous, waf_results.return_code)))
 
         blocked = {}
         for action, parameters in waf_results.actions.items():
@@ -356,7 +368,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # FingerPrinting
         for key, value in waf_results.derivatives.items():
             if key.startswith(FINGERPRINTING.PREFIX):
-                (span._local_root or span).set_tag_str(key, value)
+                root_span.set_tag_str(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

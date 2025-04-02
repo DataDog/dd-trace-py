@@ -2,6 +2,7 @@ import atexit
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 
@@ -14,6 +15,7 @@ import http.client as httplib
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._encoding import BufferedEncoder
@@ -27,6 +29,7 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
@@ -65,6 +68,20 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+
+
+def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
+    """Determine whether to use agentless mode based on agent availability and capabilities."""
+    if user_defined_agentless_enabled is not None:
+        return user_defined_agentless_enabled
+
+    agent_info: Optional[Dict[str, Any]] = agent.info()
+
+    if agent_info is None:
+        return True
+
+    endpoints = agent_info.get("endpoints", [])
+    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
 
 
 class BaseLLMObsWriter(PeriodicService):
