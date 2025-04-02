@@ -36,7 +36,7 @@ impl PyConfigurator {
         let res_config = self.configurator.get_config_from_file(
             self.local_file.as_ref(),
             self.fleet_file.as_ref(),
-            ProcessInfo::detect_global("python".to_string()),
+            &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
             Ok(config) => {
