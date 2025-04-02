@@ -68,6 +68,7 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
 "iast" = "ddtrace.internal.iast.product"
+"tracer" = "ddtrace._trace.product"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"

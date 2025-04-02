@@ -5,7 +5,6 @@ import os
 import re
 import shlex
 from shlex import join
-from threading import RLock
 from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -20,6 +19,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin

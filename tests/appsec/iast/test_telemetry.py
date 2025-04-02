@@ -27,7 +27,7 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
