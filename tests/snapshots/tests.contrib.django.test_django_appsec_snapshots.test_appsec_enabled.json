@@ -9,7 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.14.1",
+      "_dd.appsec.event_rules.version": "1.14.2",
       "_dd.appsec.waf.version": "1.24.0",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
