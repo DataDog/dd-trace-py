@@ -71,6 +71,10 @@ def daphne_client(django_asgi, additional_env=None):
         "metrics._dd.appsec.rasp.duration_ext",
         "metrics._dd.appsec.rasp.rule.eval",
         APPSEC_JSON_TAG,
+        "meta." + FINGERPRINTING.NETWORK,
+        "meta." + FINGERPRINTING.HEADER,
+        "meta." + FINGERPRINTING.ENDPOINT,
+        "meta." + FINGERPRINTING.SESSION,
     ]
 )
 def test_appsec_enabled():

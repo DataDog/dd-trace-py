@@ -13,7 +13,8 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._utils import _observator
+from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
 
@@ -25,56 +26,6 @@ T = TypeVar("T")
 
 
 DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
-
-
-class DDWaf_result:
-    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
-
-    def __init__(
-        self,
-        return_code: int,
-        data: List[Dict[str, Any]],
-        actions: Dict[str, Any],
-        runtime: float,
-        total_runtime: float,
-        timeout: bool,
-        truncation: _observator,
-        derivatives: Dict[str, Any],
-    ):
-        self.return_code = return_code
-        self.data = data
-        self.actions = actions
-        self.runtime = runtime
-        self.total_runtime = total_runtime
-        self.timeout = timeout
-        self.truncation = truncation
-        self.derivatives = derivatives
-
-    def __repr__(self):
-        return (
-            f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
-            f" actions: {self.actions}, runtime: {self.runtime},"
-            f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
-            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
-        )
-
-
-class DDWaf_info:
-    __slots__ = ["loaded", "failed", "errors", "version"]
-
-    def __init__(self, loaded: int, failed: int, errors: str, version: str):
-        self.loaded = loaded
-        self.failed = failed
-        self.errors = errors
-        self.version = version
-
-    def __repr__(self):
-        return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
-            self.loaded,
-            self.failed,
-            self.errors,
-            self.version,
-        )
 
 
 class ddwaf_handle_capsule(Generic[T]):

@@ -1,9 +1,12 @@
+import enum
 import os
+import typing as t
 
 from envier import En
 
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings.http import HttpConfig
 
 
 requires = ["remote-configuration"]
@@ -63,3 +66,54 @@ def at_exit(join=False):
 
     if tracer.enabled:
         tracer._atexit()
+
+
+class APMCapabilities(enum.IntFlag):
+    APM_TRACING_SAMPLE_RATE = 1 << 12
+    APM_TRACING_LOGS_INJECTION = 1 << 13
+    APM_TRACING_HTTP_HEADER_TAGS = 1 << 14
+    APM_TRACING_CUSTOM_TAGS = 1 << 15
+    APM_TRACING_ENABLED = 1 << 19
+    APM_TRACING_SAMPLE_RULES = 1 << 29
+
+
+def apm_tracing_rc(lib_config):
+    from ddtrace import config
+
+    base_rc_config: t.Dict[str, t.Any] = {n: None for n in config._config}
+
+    if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
+        global_sampling_rate = lib_config.get("tracing_sampling_rate")
+        trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
+        # returns None if no rules
+        trace_sampling_rules = config._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
+        if trace_sampling_rules:
+            base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+
+    if "log_injection_enabled" in lib_config:
+        base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
+
+    if "tracing_tags" in lib_config:
+        tags = lib_config["tracing_tags"]
+        if tags:
+            tags = config._format_tags(lib_config["tracing_tags"])
+        base_rc_config["tags"] = tags
+
+    if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
+        base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])
+
+    if "tracing_header_tags" in lib_config:
+        tags = lib_config["tracing_header_tags"]
+        if tags:
+            tags = config._format_tags(lib_config["tracing_header_tags"])
+        base_rc_config["_trace_http_header_tags"] = tags
+
+    config._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+
+    # unconditionally handle the case where header tags have been unset
+    header_tags_conf = config._config["_trace_http_header_tags"]
+    env_headers = header_tags_conf._env_value or {}
+    code_headers = header_tags_conf._code_value or {}
+    non_rc_header_tags = {**code_headers, **env_headers}
+    selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
+    config._http = HttpConfig(header_tags=selected_header_tags)
