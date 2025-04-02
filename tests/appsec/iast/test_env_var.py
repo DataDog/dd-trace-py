@@ -224,6 +224,7 @@ def test_env_var_iast_modules_to_patch(module_name, expected_result):
     finally:
         os.environ[IAST.PATCH_MODULES] = default
 
+
 def assert_configure_wrong(monkeypatch, capfd, iast_enabled, env):
     _run_python_file(iast_enabled, env=env, filename="main_configure_wrong.py", no_ddtracerun=True)
     captured = capfd.readouterr()
