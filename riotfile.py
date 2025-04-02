@@ -2766,7 +2766,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2788,7 +2788,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent

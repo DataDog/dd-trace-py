@@ -120,7 +120,7 @@ opentelemetry-api,~=1.0.0
 opentelemetry-instrumentation-flask,0
 opentracing,0
 pinecone-client,0
-protobuf,==3.19.0
+protobuf,>3
 psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
