@@ -13,7 +13,7 @@ from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_span_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-root") as root:
         time.sleep(0.02)
@@ -36,7 +36,7 @@ def test_otel_span_parenting(oteltracer):
         orphan1.end()
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_ddtrace_mixed_parenting(oteltracer):
     with oteltracer.start_as_current_span("otel-top-level"):
         with ddtrace.tracer.trace("ddtrace-top-level"):
@@ -51,7 +51,7 @@ def test_otel_ddtrace_mixed_parenting(oteltracer):
                         time.sleep(0.02)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_otel_multithreading(oteltracer):
     def target(parent_context):
         ctx = opentelemetry.trace.set_span_in_context(opentelemetry.trace.NonRecordingSpan(parent_context))
@@ -92,7 +92,7 @@ def _subprocess_task(parent_span_context, errors):
         ot_tracer._tracer.flush()
 
 
-@pytest.mark.snapshot(ignores=["meta.tracestate"])
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.tracestate"])
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_otel_trace_across_fork():
     import multiprocessing
@@ -146,7 +146,7 @@ def test_sampling_decisions_across_processes():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_otel_trace_multiple_coroutines(oteltracer):
     async def coro(i):
         with oteltracer.start_as_current_span("corountine %s" % (i,)):
