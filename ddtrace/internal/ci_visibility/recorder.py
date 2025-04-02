@@ -454,7 +454,8 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return (
-            cls._instance._api_settings.early_flake_detection.enabled
+            cls._instance._api_settings.known_tests_enabled  # Known Tests Enabled takes precedence over EFD
+            and cls._instance._api_settings.early_flake_detection.enabled
             and ddconfig._test_visibility_early_flake_detection_enabled
         )
 
