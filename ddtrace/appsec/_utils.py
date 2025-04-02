@@ -1,8 +1,11 @@
 # this module must not load any other unsafe appsec module directly
 
+import collections
 import logging
 import typing
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 import uuid
 
@@ -48,6 +51,107 @@ class _observator:
             self.container_depth = depth
         else:
             self.container_depth = max(self.container_depth, depth)
+
+
+class DDWaf_result:
+    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
+
+    def __init__(
+        self,
+        return_code: int,
+        data: List[Dict[str, Any]],
+        actions: Dict[str, Any],
+        runtime: float,
+        total_runtime: float,
+        timeout: bool,
+        truncation: _observator,
+        derivatives: Dict[str, Any],
+    ):
+        self.return_code = return_code
+        self.data = data
+        self.actions = actions
+        self.runtime = runtime
+        self.total_runtime = total_runtime
+        self.timeout = timeout
+        self.truncation = truncation
+        self.derivatives = derivatives
+
+    def __repr__(self):
+        return (
+            f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
+            f" actions: {self.actions}, runtime: {self.runtime},"
+            f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
+            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+        )
+
+
+Binding_error = DDWaf_result(-127, [], {}, 0.0, 0.0, False, _observator(), {})
+
+
+class DDWaf_info:
+    __slots__ = ["loaded", "failed", "errors", "version"]
+
+    def __init__(self, loaded: int, failed: int, errors: str, version: str):
+        self.loaded = loaded
+        self.failed = failed
+        self.errors = errors
+        self.version = version
+
+    def __repr__(self):
+        return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
+            self.loaded,
+            self.failed,
+            self.errors,
+            self.version,
+        )
+
+
+class Truncation_result:
+    __slots__ = ["string_length", "container_size", "container_depth"]
+
+    def __init__(self):
+        self.string_length = []
+        self.container_size = []
+        self.container_depth = []
+
+
+class Rasp_result:
+    __slots__ = ["sum_eval", "duration", "total_duration", "eval", "match", "timeout"]
+
+    def __init__(self):
+        self.sum_eval = 0
+        self.duration = 0.0
+        self.total_duration = 0.0
+        self.eval = collections.defaultdict(int)
+        self.match = collections.defaultdict(int)
+        self.timeout = collections.defaultdict(int)
+
+
+class Telemetry_result:
+    __slots__ = [
+        "blocked",
+        "triggered",
+        "timeout",
+        "version",
+        "duration",
+        "total_duration",
+        "truncation",
+        "rasp",
+        "rate_limited",
+        "error",
+    ]
+
+    def __init__(self):
+        self.blocked = False
+        self.triggered = False
+        self.timeout = 0
+        self.version: Optional[str] = None
+        self.duration = 0.0
+        self.total_duration = 0.0
+        self.truncation = Truncation_result()
+        self.rasp = Rasp_result()
+        self.rate_limited = False
+        self.error = 0
 
 
 def parse_response_body(raw_body):
