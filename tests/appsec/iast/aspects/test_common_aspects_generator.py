@@ -13,10 +13,9 @@ try:
 except (ImportError, AttributeError):
     pytest.skip("IAST not supported for this Python version", allow_module_level=True)
 
-
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
 import tests.appsec.iast.fixtures.aspects.obj_callees
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 def generate_callers_from_callees(functions_module, callees_module, callers_file="", callees_module_str=""):

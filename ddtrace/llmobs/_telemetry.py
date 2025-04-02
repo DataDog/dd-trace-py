@@ -63,7 +63,13 @@ def _base_tags(error: Optional[str]):
 
 def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool):
     tags = _base_tags(error)
-    tags.extend([("agentless", str(int(agentless_enabled))), ("site", site), ("auto", str(int(auto)))])
+    tags.extend(
+        [
+            ("agentless", str(int(agentless_enabled) if agentless_enabled is not None else "N/A")),
+            ("site", site),
+            ("auto", str(int(auto))),
+        ]
+    )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.INIT_TIME, value=init_time_ms, tags=tuple(tags)

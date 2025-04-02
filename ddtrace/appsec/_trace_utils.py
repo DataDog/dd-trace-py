@@ -1,6 +1,5 @@
 from typing import Optional
 
-from ddtrace import constants
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -9,6 +8,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
+import ddtrace.constants as constants
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
