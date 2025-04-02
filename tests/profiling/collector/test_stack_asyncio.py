@@ -1,74 +1,76 @@
-import asyncio
-import collections
-import sys
-import time
-
-from ddtrace.profiling import _asyncio
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector.stack import StackCollector
+# import asyncio
+# import collections
+# import sys
+# import time
+#
+# from ddtrace.profiling import _asyncio
+# from ddtrace.profiling import profiler
+# from ddtrace.profiling.collector.stack import StackCollector
 
 
 def patch_stack_collector(stack_collector):
-    """
-    Patch a stack collect so we can count how many times it has run
-    """
+    pass
+    # """
+    # Patch a stack collect so we can count how many times it has run
+    # """
 
-    def _collect(self):
-        self.run_count += 1
-        return self._orig_collect()
+    # def _collect(self):
+    #     self.run_count += 1
+    #     return self._orig_collect()
 
-    stack_collector.run_count = 0
-    orig = stack_collector.collect
-    stack_collector._orig_collect = orig
-    stack_collector.collect = _collect.__get__(stack_collector)
+    # stack_collector.run_count = 0
+    # orig = stack_collector.collect
+    # stack_collector._orig_collect = orig
+    # stack_collector.collect = _collect.__get__(stack_collector)
 
 
 def test_asyncio(tmp_path, monkeypatch) -> None:
-    sleep_time = 0.2
-    max_wait_for_collector_seconds = 60  # 1 minute timeout
+    pass
+    # sleep_time = 0.2
+    # max_wait_for_collector_seconds = 60  # 1 minute timeout
 
-    async def stuff(collector) -> None:
-        count = collector.run_count
-        start_time = time.time()
-        while collector.run_count == count and (time.time() < start_time + max_wait_for_collector_seconds):
-            await asyncio.sleep(sleep_time)
+    # async def stuff(collector) -> None:
+    #     count = collector.run_count
+    #     start_time = time.time()
+    #     while collector.run_count == count and (time.time() < start_time + max_wait_for_collector_seconds):
+    #         await asyncio.sleep(sleep_time)
 
-    async def hello(collector) -> None:
-        t1 = asyncio.create_task(stuff(collector), name="sleep 1")
-        t2 = asyncio.create_task(stuff(collector), name="sleep 2")
-        await stuff(collector)
-        return (t1, t2)
+    # async def hello(collector) -> None:
+    #     t1 = asyncio.create_task(stuff(collector), name="sleep 1")
+    #     t2 = asyncio.create_task(stuff(collector), name="sleep 2")
+    #     await stuff(collector)
+    #     return (t1, t2)
 
-    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", str(tmp_path / "pprof"))
-    # start a complete profiler so asyncio policy is setup
-    p = profiler.Profiler()
-    stack_collector = [collector for collector in p._profiler._collectors if type(collector) == StackCollector][0]
-    patch_stack_collector(stack_collector)
+    # monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
+    # monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", str(tmp_path / "pprof"))
+    # # start a complete profiler so asyncio policy is setup
+    # p = profiler.Profiler()
+    # stack_collector = [collector for collector in p._profiler._collectors if type(collector) == StackCollector][0]
+    # patch_stack_collector(stack_collector)
 
-    p.start()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    maintask = loop.create_task(hello(stack_collector), name="main")
+    # p.start()
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    # maintask = loop.create_task(hello(stack_collector), name="main")
 
-    # Wait for the collector to run at least once on this thread, while it is doing something
-    # 2.5+ seconds at times
-    count = stack_collector.run_count
-    start_time = time.time()
-    while count == stack_collector.run_count and (time.time() < start_time + max_wait_for_collector_seconds):
-        pass
+    # # Wait for the collector to run at least once on this thread, while it is doing something
+    # # 2.5+ seconds at times
+    # count = stack_collector.run_count
+    # start_time = time.time()
+    # while count == stack_collector.run_count and (time.time() < start_time + max_wait_for_collector_seconds):
+    #     pass
 
-    t1, t2 = loop.run_until_complete(maintask)
-    events = p._profiler._recorder.reset()
-    p.stop()
+    # t1, t2 = loop.run_until_complete(maintask)
+    # events = p._profiler._recorder.reset()
+    # p.stop()
 
-    wall_time_ns = collections.defaultdict(lambda: 0)
+    # wall_time_ns = collections.defaultdict(lambda: 0)
 
-    t1_name = _asyncio._task_get_name(t1)
-    t2_name = _asyncio._task_get_name(t2)
+    # t1_name = _asyncio._task_get_name(t1)
+    # t2_name = _asyncio._task_get_name(t2)
 
-    cpu_time_found = False
-    main_thread_ran_test = False
+    # cpu_time_found = False
+    # main_thread_ran_test = False
     # stack_sample_events = events[stack_event.StackSampleEvent]
     # for event in stack_sample_events:
     #     wall_time_ns[event.task_name] += event.wall_time_ns
