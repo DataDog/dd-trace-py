@@ -229,7 +229,8 @@ class FalconTestCase(FalconTestMixin):
         """OpenTracing version of test_200."""
         writer = self.tracer._writer
         ot_tracer = init_tracer("my_svc", self.tracer)
-        ot_tracer._dd_tracer._configure(writer=writer)
+        ot_tracer._dd_tracer._writer = writer
+        ot_tracer._dd_tracer._recreate()
 
         with ot_tracer.start_active_span("ot_span"):
             out = self.make_test_call("/200", expected_status_code=200)

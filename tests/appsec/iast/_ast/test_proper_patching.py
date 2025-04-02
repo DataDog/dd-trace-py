@@ -4,7 +4,7 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 mod = _iast_patched_module("tests.appsec.iast._ast.fixtures.misleading_methods")

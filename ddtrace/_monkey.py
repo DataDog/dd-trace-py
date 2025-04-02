@@ -9,10 +9,12 @@ from ddtrace import config
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 
 from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -37,7 +39,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
-    "dd_trace_api": True,
+    "ddtrace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
@@ -159,7 +161,7 @@ _MODULES_FOR_CONTRIB = {
     ),
 }
 
-_NOT_PATCHABLE_VIA_ENVVAR = {"dd_trace_api"}
+_NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
 
 class PatchException(Exception):
@@ -225,8 +227,18 @@ def patch_all(**patch_modules: bool) -> None:
 
     :param dict patch_modules: Override whether particular modules are patched or not.
 
-        >>> patch_all(redis=False, cassandra=False)
+        >>> _patch_all(redis=False, cassandra=False)
     """
+    deprecate(
+        "patch_all is deprecated and will be removed in a future version of the tracer.",
+        message="""patch_all is deprecated in favor of ``import ddtrace.auto`` and ``DD_PATCH_MODULES``
+        environment variable if needed.""",
+        category=DDTraceDeprecationWarning,
+    )
+    _patch_all(**patch_modules)
+
+
+def _patch_all(**patch_modules: bool) -> None:
     modules = PATCH_MODULES.copy()
 
     # The enabled setting can be overridden by environment variables

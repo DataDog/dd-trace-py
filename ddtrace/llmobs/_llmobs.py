@@ -40,6 +40,7 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -68,6 +69,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -238,6 +240,8 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
+        if span._get_ctx_item(INTEGRATION):
+            tags["integration"] = span._get_ctx_item(INTEGRATION)
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
         existing_tags = span._get_ctx_item(TAGS)
@@ -306,7 +310,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
-        agentless_enabled: bool = False,
+        agentless_enabled: Optional[bool] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -350,7 +354,12 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+            config._llmobs_agentless_enabled = should_use_agentless(
+                user_defined_agentless_enabled=agentless_enabled
+                if agentless_enabled is not None
+                else config._llmobs_agentless_enabled
+            )
+
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs
                 if not config._dd_api_key:

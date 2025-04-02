@@ -314,3 +314,44 @@ class ExceptionReplayTestCase(TracerTestCase):
             assert all(
                 s.line_capture["locals"]["nonloc"] == {"type": "int", "value": "4"} for s in uploader.collector.queue
             )
+
+    def test_debugger_max_frames(self):
+        config = ExceptionReplayConfig()
+        root = None
+
+        def r(n=config.max_frames * 2, c=None):
+            if n == 0:
+                if c is None:
+                    raise ValueError("hello")
+                else:
+                    c()
+            r(n - 1, c)
+
+        def a():
+            with self.trace("a"):
+                r()
+
+        def b():
+            with self.trace("b"):
+                r(10, a)
+
+        def c():
+            nonlocal root
+
+            with self.trace("c") as root:
+                r(10, b)
+
+        with exception_replay() as uploader:
+            rate_limiter = RateLimiter(
+                limit_rate=float("inf"),  # no rate limit
+                raise_on_exceed=False,
+            )
+            with with_rate_limiter(rate_limiter):
+                with pytest.raises(ValueError):
+                    c()
+
+            self.assert_span_count(3)
+            n = uploader.collector.queue
+            assert len(n) == config.max_frames
+
+            assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames

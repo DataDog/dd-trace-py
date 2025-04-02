@@ -180,13 +180,22 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
 
-        start = None
-        if hasattr(self, "_self_acquired_at"):
-            # _self_acquired_at is only set when the acquire was captured
-            # if it's not set, we're not capturing the release
-            start = self._self_acquired_at
+        # The underlying threading.Lock class is implemented using C code, and
+        # it doesn't have the __dict__ attribute. So we can't do
+        # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
+        # Instead, we need to use the following workaround to retrieve and
+        # remove the attribute.
+        start = getattr(self, "_self_acquired_at", None)
+        try:
+            # Though it should generally be avoided to call release() from
+            # multiple threads, it is possible to do so. In that scenario, the
+            # following statement code will raise an AttributeError. This should
+            # not be propagated to the caller and to the users. The inner_func
+            # will raise an RuntimeError as the threads are trying to release()
+            # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
-
+        except AttributeError:
+            LOG.debug("Failed to delete _self_acquired_at")
         try:
             return inner_func(*args, **kwargs)
         finally:

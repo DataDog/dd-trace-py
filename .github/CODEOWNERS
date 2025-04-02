@@ -42,6 +42,7 @@ docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+scripts/bump_ddtrace.py             @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
@@ -57,6 +58,10 @@ ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_bdd                            @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_benchmark                      @DataDog/ci-app-libraries
 ddtrace/contrib/unittest                              @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/pytest                                  @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
@@ -197,3 +202,4 @@ tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 
 # Serverless
 tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless
+tests/contrib/aws_lambda            @DataDog/apm-serverless
