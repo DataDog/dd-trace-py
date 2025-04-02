@@ -555,12 +555,6 @@ py_should_iast_patch(PyObject* self, PyObject* args)
     if (is_first_party(module_name)) {
         return PyLong_FromLong(ALLOWED_FIRST_PARTY_ALLOWLIST);
     }
-    printf("\nmodule_name!!!!!!!\n");
-    printf(module_name);
-    printf("\nlower_module!!!!!!!!!!!!\n");
-    printf(lower_module);
-    printf("\nfirst_part!!!!!!!\n");
-    printf(first_part);
 
     /* Check in the static allow/deny lists */
     if (str_in_list(lower_module, static_allowlist, static_allowlist_count)) {
