@@ -113,7 +113,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90)
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                known_tests_enabled=True,
             ),
         ):
             yield
