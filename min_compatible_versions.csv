@@ -123,7 +123,7 @@ opentracing,>=2.0.0
 peewee,0
 pinecone-client,0
 pony,0
-protobuf,>=3
+protobuf,>3
 psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
