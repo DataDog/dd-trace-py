@@ -26,7 +26,7 @@ suites:
     retry: 2
     runner: riot
     snapshot: true
-  appsec_iast:
+  appsec_iast_default:
     env:
       TEST_POSTGRES_HOST: postgres
     parallelism: 6
@@ -38,17 +38,15 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
-    pattern: appsec_iast$
     retry: 2
-    runner: riot
+    runner: hatch
     services:
       - postgres
     snapshot: true
-    timeout: 25m
+    timeout: 40m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-      PYTEST_ADDOPTS: '-v -s'
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -60,7 +58,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: riot
+    runner: hatch
     snapshot: true
   appsec_iast_native:
     parallelism: 6
@@ -73,14 +71,44 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
-  appsec_iast_packages:
-    parallelism: 4
+  iast_aggregated_leak_testing:
+    parallelism: 3
     paths:
       - '@appsec_iast'
-      - tests/appsec/iast_packages/*
-    retry: 2
+      - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
+#  appsec_iast_packages:
+#    env:
+#      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+#    paths:
+#      - '@appsec_iast'
+#      - tests/appsec/iast_packages/*
+#    runner: hatch
+#    timeout: 50m
+#    cache:
+#      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
+#      paths:
+#        - .cache
+#    python_versions:
+#      - "3.9"
+#      - "3.10"
+#      - "3.11"
+#      - "3.12"
+  iast_tdd_propagation:
+    parallelism: 5
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast_tdd_propagation/*
+    retry: 2
+    runner: hatch
+    snapshot: true
+    timeout: 40m
   appsec_integrations_pygoat:
     parallelism: 3
     paths:
@@ -96,7 +124,7 @@ suites:
     runner: hatch
     snapshot: true
   appsec_integrations_flask:
-    parallelism: 6
+    parallelism: 17
     paths:
       - '@bootstrap'
       - '@core'
@@ -107,9 +135,11 @@ suites:
       - tests/appsec/integrations/flask_tests/*
     retry: 2
     runner: hatch
-    timeout: 30m
+    services:
+      - testagent
+    timeout: 40m
   appsec_integrations_django:
-    parallelism: 6
+    parallelism: 12
     paths:
       - '@bootstrap'
       - '@core'
@@ -120,6 +150,8 @@ suites:
       - tests/appsec/integrations/django_tests/*
     retry: 2
     runner: hatch
+    services:
+      - testagent
     timeout: 30m
   appsec_threats_django:
     parallelism: 12

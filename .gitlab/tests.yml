@@ -28,6 +28,7 @@ include:
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
+    - export DD_FAST_BUILD="1"
     - |
       envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#envs[@]} -eq 0 ]]; then
@@ -39,6 +40,11 @@ include:
         echo "Running hatch env: ${env}:test"
         hatch run ${env}:test
       done
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL = "12"
+    CARGO_BUILD_JOBS = "12"
+    DD_FAST_BUILD = "1"
+
 
 
 .test_base_hatch_snapshot:
@@ -59,12 +65,14 @@ build_base_venvs:
     matrix:
       - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
     PIP_VERBOSE: 1
     DD_PROFILING_NATIVE_TESTS: 1
+    DD_FAST_BUILD: 1
   script:
     - pip install riot==0.20.1
     - riot -P -v generate --python=$PYTHON_VERSION
+    - echo "Running smoke tests"
+    - riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
