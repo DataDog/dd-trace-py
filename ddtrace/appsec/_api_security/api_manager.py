@@ -5,10 +5,10 @@ import json
 import time
 from typing import Optional
 
-from ddtrace import constants
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+import ddtrace.constants as constants
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
