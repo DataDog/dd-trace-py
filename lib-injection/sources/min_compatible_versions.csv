@@ -39,6 +39,7 @@ cryptography,<39
 daphne,0
 databases,0
 datadog-lambda,>=6.105.0
+ddtrace-api,==0.0.1
 django,>=2.2
 django-pylibmc,>=0.6
 django-q,0

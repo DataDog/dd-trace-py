@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Fix for release script causing lib injection OCI images to not get published.
