@@ -159,11 +159,13 @@ def test_astpatch_source_unchanged(module_name):
 
 
 def test_should_iast_patch_allow_first_party():
-    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
-    assert (
-        iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str")
-        == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
-    )
+    assert iastpatch.should_iast_patch("file_in_my_project.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("file_in_my_project.print_str") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+
+
+def test_should_iast_patch_allow_user_allowlist():
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_USER_ALLOWLIST
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str") == iastpatch.ALLOWED_USER_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_vendored():
@@ -174,7 +176,17 @@ def test_should_not_iast_patch_if_vendored():
 def test_should_iast_patch_deny_by_default_if_third_party():
     # note that modules here must be in the ones returned by get_package_distributions()
     # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
-    assert iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list") == iastpatch.DENIED_NOT_FOUND
+    assert (
+        iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list")
+        == iastpatch.DENIED_BUILTINS_DENYLIST
+    )
+
+
+def test_should_iast_patch_allow_by_default_if_third_party():
+    # note that modules here must be in the ones returned by get_package_distributions()
+    # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
+    assert iastpatch.should_iast_patch("psycopg2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("psycopg2.extensions") == iastpatch.ALLOWED_STATIC_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_not_in_static_allowlist():
