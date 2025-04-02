@@ -80,7 +80,6 @@ def _get_setting_api_response(
                 "faulty_session_threshold": faulty_session_threshold,
             }
         )
-        body["data"]["attributes"]["known_tests_enabled"] = efd_detection_enabled
 
     return Response(status=status_code, body=json.dumps(body))
 
