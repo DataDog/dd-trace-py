@@ -34,7 +34,7 @@ class BaseLLMIntegration:
 
     @property
     def span_linking_enabled(self) -> bool:
-        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false"))
+        return config._llmobs_auto_span_linking_enabled
 
     @property
     def llmobs_enabled(self) -> bool:
