@@ -110,7 +110,7 @@ suites:
     snapshot: true
     timeout: 40m
   appsec_integrations_pygoat:
-    parallelism: 7
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -121,7 +121,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: riot
+    runner: hatch
     snapshot: true
   appsec_integrations_flask:
     parallelism: 17
@@ -213,8 +213,6 @@ suites:
     runner: riot
     skip: true  # TODO: No environment available
   webbrowser:
-    # services:
-    # - pygoat
     paths:
       - '@bootstrap'
       - '@core'
