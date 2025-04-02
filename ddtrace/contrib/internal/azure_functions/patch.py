@@ -51,10 +51,11 @@ def _patched_route(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrapper(func):
-        if not pin.tags:
-            function_name = func.__name__
-        else:
+        if pin.tags and pin.tags.get("function_name"):
             function_name = pin.tags.get("function_name")
+            Pin.override(instance, tags={"function_name": ""})
+        else:
+            function_name = func.__name__
 
         def wrap_function(req: azure_functions.HttpRequest, context: azure_functions.Context):
             operation_name = schematize_cloud_faas_operation(

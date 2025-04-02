@@ -65,5 +65,10 @@ def test_http_post_ok(azure_functions_client: Client) -> None:
 
 
 @pytest.mark.snapshot
-def test_http_get_function_name(azure_functions_client: Client) -> None:
-    assert azure_functions_client.get("/api/httpgetfunctionname", headers=DEFAULT_HEADERS).status_code == 200
+def test_http_get_function_name_decorator(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetfunctionnamedecorator", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetfunctionnamenodecorator", headers=DEFAULT_HEADERS).status_code == 200
