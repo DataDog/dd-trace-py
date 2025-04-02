@@ -15,6 +15,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
+from ddtrace import config
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
@@ -53,7 +54,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import _JSONType
-from ddtrace.settings._config import config
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -206,7 +206,7 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._context: Optional[Context] = context._with_span(self) if context else None
+        self._context = context.copy(self.trace_id, self.span_id) if context else None
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
@@ -218,6 +218,17 @@ class Span(object):
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
+
+    def _update_tags_from_context(self) -> None:
+        context = self._context
+        if context is None:
+            return
+
+        with context:
+            for tag in context._meta:
+                self._meta.setdefault(tag, context._meta[tag])
+            for metric in context._metrics:
+                self._metrics.setdefault(metric, context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
