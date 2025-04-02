@@ -211,18 +211,14 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
 )
 def test_env_var_iast_modules_to_patch(module_name, expected_result):
     # type: (...) -> None
-    default = os.environ[IAST.PATCH_MODULES]
-    try:
-        os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
-            ["ddtrace.allowed.", "please_patch.", "also.that.", "please_patch.do_not.but_yes."]
-        )
-        os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not.", "also.that.but.not.that."])
-        iastpatch.build_list_from_env(IAST.PATCH_MODULES)
-        iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    os.environ[IAST.PATCH_MODULES] = IAST.SEP_MODULES.join(
+        ["ddtrace.allowed.", "please_patch.", "also.that.", "please_patch.do_not.but_yes."]
+    )
+    os.environ[IAST.DENY_MODULES] = IAST.SEP_MODULES.join(["please_patch.do_not.", "also.that.but.not.that."])
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
-        assert iastpatch.should_iast_patch(module_name) == expected_result, module_name
-    finally:
-        os.environ[IAST.PATCH_MODULES] = default
+    assert iastpatch.should_iast_patch(module_name) == expected_result, module_name
 
 
 def assert_configure_wrong(monkeypatch, capfd, iast_enabled, env):
