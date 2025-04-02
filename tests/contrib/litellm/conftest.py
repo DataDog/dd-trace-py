@@ -37,7 +37,7 @@ def litellm(ddtrace_global_config, ddtrace_config_litellm):
                 dict(
                     OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
                     ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                    GOOGLE_APPLICATION_CREDENTIALS=os.getenv("GOOGLE_APPLICATION_CREDENTIALS", 'credentials/google_credentials.json'),
+                    COHERE_API_KEY=os.getenv("CO_API_KEY", "gCzwKBz4deJXLFgzcZ6Oe7eA8XRFjh6AwklNP7Lt"),
                 )
             ):
                 patch()
