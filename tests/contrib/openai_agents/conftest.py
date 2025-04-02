@@ -136,7 +136,10 @@ def agents(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     import agents
 
-    # remove default trace processor to avoid errors sending to OpenAI backend
+    """
+    Remove the default trace processor to avoid errors sending to OpenAI backend
+    `patch` will add the LLMObs trace processor.
+    """
     from agents.tracing import set_trace_processors
 
     set_trace_processors([])

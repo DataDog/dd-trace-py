@@ -134,15 +134,16 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         agent invocation as the top level trace input.
         """
         trace_info = self._llmobs_get_trace_info(oai_span)
-        if trace_info:
-            if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
-                trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
-            if (
-                oai_span.span_type == "response"
-                and not trace_info.input_oai_span
-                and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
-            ):
-                trace_info.input_oai_span = oai_span
+        if not trace_info:
+            return
+        if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
+            trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
+        if (
+            oai_span.span_type == "response"
+            and not trace_info.input_oai_span
+            and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
+        ):
+            trace_info.input_oai_span = oai_span
 
     def _llmobs_update_trace_info_output(self, oai_span: OaiSpanAdapter) -> None:
         """

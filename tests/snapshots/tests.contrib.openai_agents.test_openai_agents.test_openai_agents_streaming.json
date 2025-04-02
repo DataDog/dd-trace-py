@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "Agent workflow",
+    "service": "tests.contrib.openai_agents",
+    "resource": "Agent workflow",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67ed62bc00000000",
+      "language": "python",
+      "runtime-id": "d891ce7651f442458b2cdbcfe2248c2f"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 19979
+    },
+    "duration": 75781000,
+    "start": 1743610556051114000
+  },
+     {
+       "name": "simple_agent",
+       "service": "tests.contrib.openai_agents",
+       "resource": "simple_agent",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 75112000,
+       "start": 1743610556051704000
+     },
+        {
+          "name": "openai_agents.response",
+          "service": "tests.contrib.openai_agents",
+          "resource": "openai_agents.response",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 69376000,
+          "start": 1743610556056880000
+        }]]
