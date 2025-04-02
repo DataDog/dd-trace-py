@@ -37,3 +37,10 @@ many-traces-with-dd-origin:
   ntags: 10
   ltags: 16
   dd_origin: true
+one-trace-span-event:
+  <<: *base_variant
+  span_events: true
+one-trace-top-level-span-event:
+  <<: *base_variant
+  span_events: true
+  top_level_span_events: true

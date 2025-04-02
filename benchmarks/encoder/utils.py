@@ -39,7 +39,6 @@ def gen_traces(config):
     random.seed(1)
 
     traces = []
-
     # choose from a set of randomly generated span attributes
     span_names = _random_values(256, 16)
     resources = _random_values(256, 16)
@@ -73,6 +72,8 @@ def gen_traces(config):
                             )
                         )
                     )
+                if config.span_events:
+                    span._add_event(name="test", attributes={"foo": "foo", "test-key": 1, "bar": True})
                 trace.append(span)
         traces.append(trace)
     return traces
