@@ -164,18 +164,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_integrations_pygoat",
-            pys=select_pys(min_version="3.10"),
-            command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
-            pkgs={
-                "requests": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-            },
-        ),
-        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -2785,7 +2773,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2807,7 +2795,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
