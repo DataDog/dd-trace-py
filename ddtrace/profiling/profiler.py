@@ -196,7 +196,7 @@ class _ProfilerInstance(service.Service):
 
             # If this instance of ddtrace was injected, then do not enable profiling, since that will load
             # protobuf, breaking some environments.
-            if profiling_config._injected:
+            if profiling_config._profiling_injected:
                 LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
                 return []
 
