@@ -91,6 +91,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_tool(span, args, kwargs, response)
 
     def _llmobs_set_tags_crew(self, span, args, kwargs, response):
+        crew_instance = kwargs.get("instance")
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
         if self.span_linking_enabled and task_span_ids:
@@ -102,9 +103,15 @@ class CrewAIIntegration(BaseLLMIntegration):
             }
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
-        # TODO: Add metadata if relevant?
+        metadata = {
+            "process": crew_instance.process,
+            "planning": crew_instance.planning,
+            "cache": crew_instance.cache,
+            "verbose": crew_instance.verbose,
+            "memory": crew_instance.memory,
+        }
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or ""
-        span._set_ctx_items({INPUT_VALUE: inputs, NAME: "CrewAI Crew"})
+        span._set_ctx_items({INPUT_VALUE: inputs, NAME: "CrewAI Crew", METADATA: metadata})
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
