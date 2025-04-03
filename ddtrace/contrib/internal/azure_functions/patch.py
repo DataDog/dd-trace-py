@@ -1,3 +1,5 @@
+import functools
+
 import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
@@ -39,6 +41,7 @@ def patch():
 
 def _patched_route(wrapped, instance, args, kwargs):
     trigger = "Http"
+    trigger_arg_name = kwargs.get("trigger_arg_name", "req")
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -47,7 +50,9 @@ def _patched_route(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = func.__name__
 
-        def wrap_function(req: azure_functions.HttpRequest, context: azure_functions.Context):
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            req = kwargs.get(trigger_arg_name)
             operation_name = schematize_cloud_faas_operation(
                 "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
             )
@@ -62,15 +67,12 @@ def _patched_route(wrapped, instance, args, kwargs):
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None
                 try:
-                    res = func(req)
+                    res = func(*args, **kwargs)
                     return res
                 finally:
                     core.dispatch(
                         "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
                     )
-
-        # Needed to correctly display function name when running 'func start' locally
-        wrap_function.__name__ = function_name
 
         return wrapped(*args, **kwargs)(wrap_function)
 
