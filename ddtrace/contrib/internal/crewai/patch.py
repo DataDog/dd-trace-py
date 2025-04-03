@@ -10,8 +10,7 @@ from ddtrace.llmobs._integrations import CrewAIIntegration
 from ddtrace.trace import Pin
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(crewai, "__version__", "")
 
 

@@ -161,7 +161,6 @@ def hierarchical_crew(crewai):
 
 @pytest.fixture
 def crewai(monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
     patch()
     import crewai

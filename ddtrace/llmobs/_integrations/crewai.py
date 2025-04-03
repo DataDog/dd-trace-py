@@ -23,8 +23,6 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-CREW_INSTANCE_ID_KEY = "_crew_instance_id"
-
 
 class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
@@ -49,7 +47,6 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._crews_to_tasks[crew_id] = {}
             if kwargs.get("planning", False):
                 self._planning_crew_ids.append(crew_id)
-            span._set_ctx_item(CREW_INSTANCE_ID_KEY, crew_id)
             return span
         if kwargs.get("operation") == "task":
             crew_id = _get_crew_id(span, "task")
@@ -94,7 +91,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_instance = kwargs.get("instance")
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
-        if self.span_linking_enabled and task_span_ids:
+        if task_span_ids:
             last_task_span_id = task_span_ids[-1]
             span_link = {
                 "span_id": last_task_span_id,
@@ -104,11 +101,11 @@ class CrewAIIntegration(BaseLLMIntegration):
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
         metadata = {
-            "process": crew_instance.process,
-            "planning": crew_instance.planning,
-            "cache": crew_instance.cache,
-            "verbose": crew_instance.verbose,
-            "memory": crew_instance.memory,
+            "process": getattr(crew_instance, "process", ""),
+            "planning": getattr(crew_instance, "planning", ""),
+            "cache": getattr(crew_instance, "cache", ""),
+            "verbose": getattr(crew_instance, "verbose", ""),
+            "memory": getattr(crew_instance, "memory", ""),
         }
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or ""
         span._set_ctx_items({INPUT_VALUE: inputs, NAME: "CrewAI Crew", METADATA: metadata})
@@ -129,7 +126,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             "human_input": getattr(task_instance, "human_input", False),
             "output_file": getattr(task_instance, "output_file", ""),
         }
-        if self.span_linking_enabled and task_id:
+        if task_id:
             span_links = self._crews_to_tasks[crew_id].get(str(task_id), {}).get("span_links", [])
             if self._is_planning_task(span):
                 parent_span = _get_nearest_llmobs_ancestor(span)
@@ -158,27 +155,27 @@ class CrewAIIntegration(BaseLLMIntegration):
         agent_backstory = getattr(agent_instance, "backstory", "")
         task_description = getattr(kwargs.get("task"), "description", "")
         context = get_argument_value(args, kwargs, 1, "context", optional=True) or ""
-        if self.span_linking_enabled:
-            parent_span = _get_nearest_llmobs_ancestor(span)
-            parent_span_link = {
-                "span_id": str(span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "attributes": {"from": "output", "to": "output"},
-            }
-            curr_span_links = parent_span._get_ctx_item(SPAN_LINKS) or []
-            parent_span._set_ctx_item(SPAN_LINKS, curr_span_links + [parent_span_link])
-            span_link = {
-                "span_id": str(parent_span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "attributes": {"from": "input", "to": "input"},
-            }
-            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
-            span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
+
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        parent_span_link = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "attributes": {"from": "output", "to": "output"},
+        }
+        curr_span_links = parent_span._get_ctx_item(SPAN_LINKS) or []
+        parent_span._set_ctx_item(SPAN_LINKS, curr_span_links + [parent_span_link])
+        span_link = {
+            "span_id": str(parent_span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "attributes": {"from": "input", "to": "input"},
+        }
+        curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
         span._set_ctx_items(
             {
                 NAME: agent_role if agent_role else "CrewAI Agent",
                 METADATA: {"description": agent_goal, "backstory": agent_backstory},
                 INPUT_VALUE: {"context": context, "input": task_description},
+                SPAN_LINKS: curr_span_links + [span_link]
             }
         )
         if span.error:
@@ -211,7 +208,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         3. queued_task.context is empty, but there are n finished task outputs,
             meaning that the last n task outputs should be the pre-requisite tasks for the queued task.
         """
-        if not self.llmobs_enabled or not self.span_linking_enabled:
+        if not self.llmobs_enabled:
             return
         queued_task = get_argument_value(args, kwargs, 0, "task", optional=True)
         finished_task_outputs = get_argument_value(args, kwargs, 1, "task_outputs", optional=True)
