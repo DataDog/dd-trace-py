@@ -12,8 +12,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def _set_base_span_tags(
         self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
-        if "host" in kwargs.get("metadata", {}).get("headers", {}):
-            host = kwargs["metadata"]["headers"]["host"]
         if model is not None:
             span.set_tag_str("litellm.request.model", model)
         if host is not None:
