@@ -18,6 +18,8 @@ For C++, requirements vary by system, but you’ll need a C++ compiler and `cmak
 
 - On Ubuntu:
 
+  When using GCC, you need versions that have fixes for [this bug](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95189).
+
 .. code-block:: bash
 
     sudo apt-get install build-essential cmake
