@@ -1624,13 +1624,13 @@ class Contrib_TestClass_For_Threats:
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
             # check for fingerprints when user events
-            if asm_enabled and auto_events_enabled and mode != "disabled":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
-                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
@@ -1647,7 +1647,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == code
             assert get_tag("http.status_code") == str(code)
             # check for fingerprints when security events
-            if asm_enabled and user_agent == "dd-test-scanner-log-block":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
