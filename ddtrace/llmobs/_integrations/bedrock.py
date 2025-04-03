@@ -180,7 +180,7 @@ class BedrockIntegration(BaseLLMIntegration):
         for chunk in streamed_body:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
-                for token_type in ["input", "output", "total"]:
+                for token_type in ("input", "output", "total"):
                     if "{}Tokens".format(token_type) in usage:
                         usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
 
