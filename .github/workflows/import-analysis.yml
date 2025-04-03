@@ -16,7 +16,7 @@ jobs:
           path: dd-trace-py
 
       - name: Install Python 3.12
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: '3.12'
 
@@ -72,7 +72,7 @@ jobs:
           deactivate
 
       - name: Report analysis result on PR
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           filePath: import_analysis.txt
           comment_tag: import_analysis
@@ -86,7 +86,7 @@ jobs:
        pull-requests: write
     steps:
       - name: "Install Python 3.12"
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: '3.12'
 
@@ -126,7 +126,7 @@ jobs:
         run: python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
 
       - name: "Report analysis result on PR"
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           filePath: cycles_report.txt
           comment_tag: import_cycles

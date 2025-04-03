@@ -1,5 +1,5 @@
-#include <tests/test_common.hpp>
 #include <taint_tracking/taint_range.h>
+#include <tests/test_common.hpp>
 
 using SecureMarksTest = ::testing::Test;
 
