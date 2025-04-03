@@ -189,3 +189,11 @@ def configuration_endpoint():
 
     yield
     process.kill()
+
+
+@pytest.fixture(autouse=True)
+def clear_iast_env_vars():
+    os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
+    if IAST.DENY_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_DENY_MODULES")
+    yield
