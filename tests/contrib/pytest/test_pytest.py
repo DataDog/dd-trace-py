@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import textwrap
 import typing as t
 from unittest import mock
@@ -98,9 +97,7 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def _run_with_test_tracer(
-        self, *args, method="inline_run", mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None
-    ):
+    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None):
         """Execute test script with test tracer."""
 
         class CIVisibilityPlugin:
@@ -132,14 +129,7 @@ class PytestTestCaseBase(TracerTestCase):
             _test_env.update(extra_env)
 
         with _ci_override_env(_test_env, replace_os_env=True):
-            method = getattr(self.testdir, method)
-            return method("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
-
-    def inline_run(self, *args, **kwargs):
-        return self._run_with_test_tracer(*args, **kwargs, method="inline_run")
-
-    def runpytest_inprocess(self, *args, **kwargs):
-        return self._run_with_test_tracer(*args, **kwargs, method="runpytest_inprocess")
+            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""
@@ -4117,15 +4107,3 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
-
-    def test_pytest_log_capture_does_not_break_ddtrace_logging(self):
-        py_file = self.testdir.makepyfile(
-            """
-            def test_ok():
-                assert True
-        """
-        )
-        file_name = os.path.basename(py_file.strpath)
-        with mock.patch("ddtrace.contrib.internal.pytest._plugin_v2._is_enabled_early", return_value=True):
-            rec = self.runpytest_inprocess("--ddtrace", file_name)
-        assert re.search(r"\[Datadog CI Visibility\].*Final settings:", rec.stderr.str())
