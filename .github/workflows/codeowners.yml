@@ -31,8 +31,8 @@ jobs:
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          filePath: resolved.txt
-          comment_tag: codeowners_resolved
+          file-path: resolved.txt
+          comment-tag: codeowners_resolved
           mode: upsert
           message: |
             `CODEOWNERS` have been resolved as:
