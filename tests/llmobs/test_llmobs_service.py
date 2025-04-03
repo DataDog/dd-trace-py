@@ -713,6 +713,8 @@ def test_annotate_prompt_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "name": "test_prompt",
+            "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
@@ -736,6 +738,8 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "name": "test_prompt",
+            "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -755,10 +759,77 @@ def test_annotate_prompt_typed_dict(llmobs):
             ),
         )
         assert span._get_ctx_item(INPUT_PROMPT) == {
+            "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "name": "test_prompt",
+            "_dd_context_variable_keys": ["var1", "var2"],
+            "_dd_query_variable_keys": ["user_input"],
+        }
+
+
+def test_prompt_strict_validation(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="test_model") as span:
+        prompt_with_no_id = Prompt(template="{var1} {var3}", version="1.0.0")
+        llmobs.annotate(span=span, prompt=prompt_with_no_id)
+        assert span._get_ctx_item(INPUT_PROMPT) is None
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
+        mock_llmobs_logs.reset_mock()
+
+        prompt_with_invalid_version = Prompt(template="{var1} {var3}", id="test_prompt", version="version")
+        llmobs.annotate(span=span, prompt=prompt_with_invalid_version)
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
+        mock_llmobs_logs.reset_mock()
+
+        prompt_with_no_template = Prompt(id="test_prompt", version="1.0.0")
+        llmobs.annotate(span=span, prompt=prompt_with_no_template)
+        mock_llmobs_logs.warning.assert_called_once_with("Failed to validate prompt with error: ", exc_info=True)
+        mock_llmobs_logs.reset_mock()
+
+
+def test_prompt_instance_id_generation(llmobs):
+    with llmobs.llm(
+        model_name="test_model",
+        prompt=Prompt(
+            template="{var1} {var3}",
+            chat_template=[{"role": "user", "content": "{var1} {var3}"}],
+            variables={"var1": "var1", "var2": "var3"},
+            version="1.0.0",
+            id="test_prompt",
+            name="my-prompt",
+            rag_context_variables=["var1", "var2"],
+            rag_query_variables=["user_input"],
+        ),
+    ) as span:
+        assert (
+            span._get_ctx_item(INPUT_PROMPT)["instance_id"]
+            == "7f4e0b5bc6a4d6218fe9bec81727b3919c9856d14bf3e9cacf6648016ff21f0f"
+        )
+
+
+def test_prompt_in_llm_annotation(llmobs):
+    with llmobs.llm(
+        model_name="test_model",
+        prompt=Prompt(
+            template="{var1} {var3}",
+            chat_template=[{"role": "user", "content": "{var1} {var3}"}],
+            variables={"var1": "var1", "var2": "var3"},
+            version="1.0.0",
+            id="test_prompt",
+            rag_context_variables=["var1", "var2"],
+            rag_query_variables=["user_input"],
+        ),
+    ) as span:
+        assert span._get_ctx_item(INPUT_PROMPT) == {
+            "template": "{var1} {var3}",
+            "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
+            "chat_template": [{"role": "user", "content": "{var1} {var3}"}],
+            "variables": {"var1": "var1", "var2": "var3"},
+            "version": "1.0.0",
+            "id": "test_prompt",
+            "name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -1619,12 +1690,17 @@ def test_annotation_context_modifies_span_tags(llmobs):
 
 
 def test_annotation_context_modifies_prompt(llmobs):
-    with llmobs.annotation_context(prompt={"template": "test_template"}):
+    prompt = {"template": "test_template"}
+    with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
+                "id": "unnamed_prompt",
+                "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
+                "name": "unnamed_prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
+                "version": "1.0.0",
             }
 
 
@@ -1762,12 +1838,17 @@ async def test_annotation_context_async_modifies_span_tags(llmobs):
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):
-    async with llmobs.annotation_context(prompt={"template": "test_template"}):
+    prompt = {"template": "test_template"}
+    async with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
+                "id": "unnamed_prompt",
+                "instance_id": span._get_ctx_item(INPUT_PROMPT)["instance_id"],
+                "name": "unnamed_prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
+                "version": "1.0.0",
             }
 
 

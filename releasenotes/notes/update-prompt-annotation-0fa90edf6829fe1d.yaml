@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLMObs : This introduces prompt annotation at @llm and a new @prompt_context annotation to add prompts
+upgrade:
+  - |
+    LLMObs : Extends the prompt structure to add instance_id and prompt_name as well as chat_template.

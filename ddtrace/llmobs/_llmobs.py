@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 import ddtrace
@@ -72,7 +73,9 @@ from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
+from ddtrace.llmobs.utils import Message
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -172,13 +175,13 @@ class LLMObs(Service):
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:
-            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
+            prompt_dict = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = prompt_json_str
+                meta["input"]["prompt"] = prompt_dict
         if span.error:
             meta.update(
                 {
@@ -476,7 +479,10 @@ class LLMObs(Service):
 
     @classmethod
     def annotation_context(
-        cls, tags: Optional[Dict[str, Any]] = None, prompt: Optional[dict] = None, name: Optional[str] = None
+        cls,
+        tags: Optional[Dict[str, Any]] = None,
+        prompt: Optional[Union[dict, Prompt]] = None,
+        name: Optional[str] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -485,10 +491,16 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "name":"my-prompt",
+                            "version": "...",
+                            "id": "...",
+                            "template": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...],
+                            "variables": {"variable_1": "...", ...}}`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
-                        - The dictionary may contain two optional keys relevant to RAG applications:
+                        - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
@@ -631,6 +643,7 @@ class LLMObs(Service):
         self,
         operation_kind: str,
         name: Optional[str] = None,
+        prompt: Optional[Prompt] = None,
         session_id: Optional[str] = None,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
@@ -650,6 +663,12 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
         if ml_app is None:
             ml_app = _get_ml_app(span)
+        if prompt is not None:
+            try:
+                validated_prompt = validate_prompt(prompt, _get_ml_app(span))
+                self._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
+            except TypeError:
+                log.warning("Failed to validate prompt with error: ", exc_info=True)
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
 
@@ -658,6 +677,7 @@ class LLMObs(Service):
         cls,
         model_name: Optional[str] = None,
         name: Optional[str] = None,
+        prompt: Optional[Prompt] = None,
         model_provider: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
@@ -685,6 +705,7 @@ class LLMObs(Service):
         return cls._instance._start_span(
             "llm",
             name,
+            prompt=prompt,
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
@@ -867,7 +888,13 @@ class LLMObs(Service):
         :param Span span: Span to annotate. If no span is provided, the current active span will be used.
                           Must be an LLMObs-type span, i.e. generated by the LLMObs SDK.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
-                        `{"template": "...", "id": "...", "version": "...", "variables": {"variable_1": "...", ...}}`.
+                        `{
+                            "template": "...",
+                            "chat_template": [{"content": "...", "role": "..."}, ...], (or [("...", "..."), ...])
+                            "id": "...",
+                            "version": "...",
+                            "variables": {"variable_1": "...", ...}
+                        }`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain two optional keys relevant to RAG applications:
@@ -934,7 +961,7 @@ class LLMObs(Service):
                 span.name = _name
             if prompt is not None:
                 try:
-                    validated_prompt = validate_prompt(prompt)
+                    validated_prompt = validate_prompt(prompt, _get_ml_app(span), strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                 except TypeError:
                     error = "invalid_prompt"
@@ -1407,6 +1434,38 @@ class LLMObs(Service):
         cls._instance.tracer.context_provider.activate(context)
         error = cls._instance._activate_llmobs_distributed_context(request_headers, context)
         telemetry.record_activate_distributed_headers(error)
+
+    @classmethod
+    def prompt_context(
+        cls,
+        name: str,
+        version: str = "1.0.0",
+        prompt_id: Optional[str] = None,
+        template: Optional[str] = None,
+        chat_template: Optional[Union[List[Tuple[str, str]], List[Message]]] = None,
+        variables: Optional[Dict[str, Any]] = None,
+        rag_context_variable_keys: Optional[List[str]] = None,
+        rag_query_variable_keys: Optional[List[str]] = None,
+    ) -> AnnotationContext:
+        """
+        shortcut to create a prompt object and annotate it
+
+        """
+        prompt = Prompt(
+            name=name,
+            version=version,
+            id=prompt_id,
+            template=template,
+            chat_template=chat_template,
+            variables=variables,
+            rag_context_variables=rag_context_variable_keys,
+            rag_query_variables=rag_query_variable_keys,
+        )
+        if prompt_id is None:
+            raise ValueError("Prompt id is required")
+        if template and chat_template is None:
+            raise ValueError("At least one of template or chat_template is required for a Prompt")
+        return cls.annotation_context(prompt=prompt)
 
 
 # initialize the default llmobs instance
