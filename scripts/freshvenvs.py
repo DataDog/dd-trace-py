@@ -40,6 +40,25 @@ suite_to_package = {
     "vertica": "vertica_python",
 }
 
+lockfiles = {
+    "confluent-kafka": "kafka",
+    "python-consul": "consul",
+    "snowflake-connector-python": "snowflake",
+    "flask-caching": "flask_cache",
+    "graphql-core": "graphql",
+    "mysql-connector-python": "mysql",
+    "pytest-asyncio": "asyncio",
+    "pysqlite3-binary": "sqlite3",
+    "grpcio": "grpc",
+    "google-generativeai": "google_generativeai",
+    "psycopg2-binary": "psycopg2",
+    "cassandra-driver": "cassandra",
+    "redis-py-cluster": "rediscluster",
+    "dogpile-cache": "dogpile_cache",
+    "vertica-python": "vertica",
+}
+
+
 
 # mapping the name of the module to the name of the package (on pypi and as defined in lockfiles)
 mapping_module_to_package = {
@@ -173,6 +192,7 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
     # Returns [(package, version), (package, versions)]
+    print("_get_package_versions_from packages: ", packages)
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     for line in lockfile_content:
@@ -180,7 +200,10 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
         # remap the package -> module name
         if package in packages:
             lock_packages.append((package, versions))
+        elif package in lockfiles and lockfiles[package] in packages:
+            lock_packages.append((lockfiles[package], versions))
 
+    print("lock pages:", lock_packages)
     return lock_packages
 
 
@@ -223,9 +246,12 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 
 def _get_all_used_versions(envs, packages) -> dict:
     # Returns dict(module, set(versions)) for a venv, as defined in riotfiles.
+    print(packages)
+    print(envs)
     all_used_versions = defaultdict(set)
     for env in envs:
         versions_used = _get_package_versions_from(env, packages)  # returns list of (package, versions)
+        print(versions_used)
         for package, version in versions_used:
             all_used_versions[package].add(version)
     return all_used_versions
@@ -272,6 +298,7 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
     # Generate supported versions
     for package in contrib_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
+        print(ordered)
         if not ordered:
             continue
         json_format = {
@@ -300,6 +327,7 @@ def main():
     patched = {}
 
     contrib_packages = contrib_modules
+    print("contrib packages: ", contrib_packages)
     all_used_versions = _get_all_used_versions(envs, contrib_packages)
     bounds = _get_version_bounds(contrib_packages)
 
