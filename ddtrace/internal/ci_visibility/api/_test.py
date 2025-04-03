@@ -135,10 +135,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         session = self.get_session()
         if session is not None and self._session_settings.efd_settings.enabled:
-            # If a session is considered faulty, we do not want to tag the
-            # test as new.
-            if not session.efd_is_faulty_session():
-                self.set_tag(TEST_IS_NEW, self._is_new)
+            self.set_tag(TEST_IS_NEW, self._is_new)
 
         elif self._is_known_tests_enabled:
             self.set_tag(TEST_IS_NEW, self._is_new)
