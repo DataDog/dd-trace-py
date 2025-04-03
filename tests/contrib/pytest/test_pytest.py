@@ -135,7 +135,6 @@ class PytestTestCaseBase(TracerTestCase):
             return method("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def inline_run(self, *args, **kwargs):
-        """Execute test script with test tracer."""
         return self._run_with_test_tracer(*args, **kwargs, method="inline_run")
 
     def runpytest_inprocess(self, *args, **kwargs):
