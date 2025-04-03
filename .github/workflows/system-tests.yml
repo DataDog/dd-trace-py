@@ -162,6 +162,10 @@ jobs:
           sudo sysctl -p
           ./run.sh PROFILING
 
+      - name: Run AGENT_SUPPORTING_SPAN_EVENTS
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh AGENT_SUPPORTING_SPAN_EVENTS
+
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
         run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
