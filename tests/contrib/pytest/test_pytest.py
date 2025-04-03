@@ -30,7 +30,6 @@ from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
