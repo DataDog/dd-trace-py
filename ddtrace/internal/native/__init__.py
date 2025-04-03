@@ -1,17 +1,16 @@
 import os
-import sys
 from typing import Dict
-from typing import List
-
-from ddtrace.internal.utils.formats import asbool
+from typing import Tuple
 
 from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
+from ._native import PyTracerMetadata  # noqa: F401
+from ._native import store_metadata  # noqa: F401
 
 
 def get_configuration_from_disk(
-    debug_logs: bool = False, local_file_override="", managed_file_override=""
-) -> List[Dict[str, str]]:
+    debug_logs: bool = False,
+) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Retrieves the tracer configuration from disk. Calls the PyConfigurator object
     to read the configuration from the disk using the libdatadog shared library
@@ -21,39 +20,28 @@ def get_configuration_from_disk(
     """
     configurator = PyConfigurator(debug_logs)
 
-    # Set the file override if provided. Only used for testing purposes.
+    # Check if the file override is provided via environment variables
+    # This is only used for testing purposes
+    local_file_override = os.getenv("_DD_SC_LOCAL_FILE_OVERRIDE", "")
+    managed_file_override = os.getenv("_DD_SC_MANAGED_FILE_OVERRIDE", "")
     if local_file_override:
         configurator.set_local_file_override(local_file_override)
     if managed_file_override:
         configurator.set_managed_file_override(managed_file_override)
 
-    config = []
+    fleet_config = {}
+    local_config = {}
     try:
-        config = configurator.get_configuration()
+        for entry in configurator.get_configuration():
+            env = entry["name"]
+            source = entry["source"]
+            if source == "fleet_stable_config":
+                fleet_config[env] = entry["value"]
+            elif source == "local_stable_config":
+                local_config[env] = entry["value"]
+            else:
+                print(f"Unknown configuration source: {source}, for {env}")
     except Exception as e:
         # No logger at this point, so we rely on good old print
-        if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):
-            print("Error reading configuration from disk, skipping: %s" % e, file=sys.stderr)
-    return config
-
-
-def _apply_configuration_from_disk(debug_logs: bool = False, local_file_override="", managed_file_override=""):
-    """
-    Sets the configuration from disk as environment variables.
-    This is not ideal and we should consider a better mechanism to
-    apply this configuration to the tracer.
-    Currently here is the order of precedence (higher takes precedence):
-    1. Dynamic remote configuration
-    2. Runtime configuration (ie fields set manually by customers / from the ddtrace code)
-    3. Managed configuration from disk ("fleet stable config")
-    4. Environment variables
-    5. Local configuration from disk ("local stable config")
-    5. Default values
-    """
-    for entry in get_configuration_from_disk(
-        debug_logs=debug_logs, local_file_override=local_file_override, managed_file_override=managed_file_override
-    ):
-        if entry["source"] == "fleet_stable_config" or (
-            entry["source"] == "local_stable_config" and entry["name"] not in list(os.environ.keys())
-        ):
-            os.environ[entry["name"]] = str(entry["value"])
+        print(f"Failed to load configuration from disk, skipping: {e}")
+    return fleet_config, local_config

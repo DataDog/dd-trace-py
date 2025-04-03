@@ -1,3 +1,11 @@
+// Reading locals can trigger side effects; this protects about recursive reading of the locals potentially
+// caused by them
+#if defined(_MSC_VER)
+__declspec(thread) static int in_stacktrace = 0;
+#else
+static __thread int in_stacktrace = 0;
+#endif
+
 #include <Python.h>
 #include <frameobject.h>
 #include <patchlevel.h>
@@ -17,8 +25,8 @@
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
-#define FRAME_DECREF(frame) Py_DecRef(frame)
-#define FRAME_XDECREF(frame) Py_XDECREF(frame)
+#define FRAME_DECREF(frame) Py_DecRef((PyObject*)frame)
+#define FRAME_XDECREF(frame) Py_XDECREF((PyObject*)frame)
 #define FILENAME_DECREF(filename) Py_DecRef(filename)
 #define FILENAME_XDECREF(filename)                                                                                     \
     if (filename)                                                                                                      \
@@ -31,17 +39,47 @@ GET_FILENAME(PyFrameObject* frame)
         return NULL;
     }
     PyObject* filename = PyObject_GetAttrString((PyObject*)code, "co_filename");
-    Py_DecRef(code);
+    Py_DecRef((PyObject*)code);
     return filename;
 }
+
+static inline PyObject*
+GET_LOCALS(PyFrameObject* frame)
+{
+    return PyFrame_GetLocals(frame);
+}
+
+static inline PyObject*
+GET_FUNCTION(PyFrameObject* frame)
+{
+    PyCodeObject* code = PyFrame_GetCode(frame);
+    if (!code) {
+        return PyUnicode_FromString("");
+    }
+    PyObject* func = PyObject_GetAttrString((PyObject*)code, "co_name");
+    Py_DecRef((PyObject*)code);
+    if (!func) {
+        return PyUnicode_FromString("");
+    }
+    return func;
+}
+
 #else
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
-#define GET_FILENAME(frame) frame->f_code->co_filename
+#define GET_FILENAME(frame) ((PyObject*)(frame->f_code->co_filename))
 #define FRAME_DECREF(frame)
 #define FRAME_XDECREF(frame)
 #define FILENAME_DECREF(filename)
 #define FILENAME_XDECREF(filename)
+#define GET_LOCALS(frame) ((PyObject*)(frame->f_locals))
+static inline PyObject*
+GET_FUNCTION(PyFrameObject* frame)
+{
+    PyObject* func = frame->f_code->co_name;
+    Py_INCREF(func);
+    return func;
+}
 #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
 /* See: https://bugs.python.org/issue44964 */
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
@@ -50,17 +88,53 @@ GET_FILENAME(PyFrameObject* frame)
 #endif
 #endif
 
+static inline PyObject*
+SAFE_GET_LOCALS(PyFrameObject* frame)
+{
+    if (in_stacktrace) {
+        // Return a nullptr to avoid triggering reentrant native calls.
+        return NULL;
+    }
+    return GET_LOCALS(frame);
+}
+
+static inline PyObject*
+GET_CLASS(PyFrameObject* frame)
+{
+    if (frame) {
+        PyObject* locals = SAFE_GET_LOCALS(frame);
+        if (locals) {
+            PyObject* self_obj = PyDict_GetItemString(locals, "self");
+            if (self_obj) {
+                PyObject* self_class = PyObject_GetAttrString(self_obj, "__class__");
+                if (self_class) {
+                    PyObject* class_name = PyObject_GetAttrString(self_class, "__name__");
+                    Py_DecRef(self_class);
+                    if (class_name) {
+                        return class_name;
+                    }
+                }
+            }
+        }
+    }
+    return PyUnicode_FromString("");
+}
+
 /**
  * get_file_and_line
  *
- * Get the filename (path + filename) and line number of the original wrapped
- *function to report it.
+ * Get the filename, line number, function name and class name of the original wrapped
+ * function to report it.
  *
- * @return Tuple, string and integer.
+ * Returns a tuple:
+ *     (filename, line_number, function name, class name)
  **/
 static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
 {
+    // Mark that we are now capturing a stack trace to avoid reentrant calls on GET_LOCALS
+    in_stacktrace = 1;
+
     PyThreadState* tstate = PyThreadState_Get();
     if (!tstate) {
         goto exit_0;
@@ -108,7 +182,21 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
         if (!line_obj) {
             goto exit;
         }
-        result = PyTuple_Pack(2, filename_o, line_obj);
+        PyObject* func_name = GET_FUNCTION(frame);
+        if (!func_name) {
+            Py_DecRef(line_obj);
+            goto exit;
+        }
+        PyObject* class_name = GET_CLASS(frame);
+        if (!class_name) {
+            Py_DecRef(line_obj);
+            Py_DecRef(func_name);
+            goto exit;
+        }
+        result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
+        Py_DecRef(func_name);
+        Py_DecRef(class_name);
+        Py_DecRef(line_obj);
         break;
     }
     if (result == NULL) {
@@ -119,24 +207,31 @@ exit:
     Py_DecRef(cwd_bytes);
     FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
+    in_stacktrace = 0;
     return result;
 
-exit_0:; // fix: "a label can only be part of a statement and a declaration is not a statement" error
-    // Return "", -1
+exit_0:; /* Label must be followed by a statement */
+    // Return "", -1, "", ""
     PyObject* line_obj = Py_BuildValue("i", -1);
     filename_o = PyUnicode_FromString("");
-    result = PyTuple_Pack(2, filename_o, line_obj);
+    PyObject* func_name = PyUnicode_FromString("");
+    PyObject* class_name = PyUnicode_FromString("");
+    result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
     Py_DecRef(cwd_bytes);
     FRAME_XDECREF(frame);
     FILENAME_XDECREF(filename_o);
     Py_DecRef(line_obj);
+    Py_DecRef(func_name);
+    Py_DecRef(class_name);
+    in_stacktrace = 0;
     return result;
 }
 
-static PyMethodDef StacktraceMethods[] = {
-    { "get_info_frame", (PyCFunction)get_file_and_line, METH_O, "stacktrace functions" },
-    { NULL, NULL, 0, NULL }
-};
+static PyMethodDef StacktraceMethods[] = { { "get_info_frame",
+                                             (PyCFunction)get_file_and_line,
+                                             METH_O,
+                                             "Stacktrace function: returns (filename, line, method, class)" },
+                                           { NULL, NULL, 0, NULL } };
 
 static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
                                          "ddtrace.appsec._iast._stacktrace",

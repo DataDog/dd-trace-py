@@ -150,8 +150,6 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
         WeakCipher.report(
             evidence_value=evidence,
         )
-    print("@WeakCipher.wrap.wrapped_function!!!!!!!!!!!!!!!!!")
-    print(wrapped)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)

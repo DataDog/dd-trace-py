@@ -60,6 +60,12 @@ class _Class:
     async def async_test_method2(self):
         await self.async_test_method()
 
+    async def _nested_async_test_method(self):
+        await asyncio.sleep(0.01)
+        # Call other async method to confirm nested spans work
+        await _async_test_method()
+        await _async_test_method2()
+
     class NestedClass:
         def test_method(self):
             pass
@@ -128,5 +134,40 @@ asyncio.run(main())
 """,
         env=env,
     )
+    assert status == 0, err
+    assert out == b""
+
+
+@pytest.mark.snapshot()
+def test_ddtrace_run_trace_methods_async_nested(ddtrace_run_python_code_in_subprocess):
+    """
+    This test ensures that async spans remain open for the duration of nested awaits
+    in _Class._nested_async_test_method, which calls additional async functions.
+    """
+    import os
+
+    env = os.environ.copy()
+    env["DD_TRACE_METHODS"] = (
+        "tests.integration.test_tracemethods:_Class._nested_async_test_method,"
+        "tests.integration.test_tracemethods:_async_test_method,"
+        "tests.integration.test_tracemethods:_async_test_method2"
+    )
+
+    tests_dir = os.path.dirname(os.path.dirname(__file__))
+    env["PYTHONPATH"] = os.pathsep.join([tests_dir, env.get("PYTHONPATH", "")])
+
+    code = r"""
+import asyncio
+from tests.integration.test_tracemethods import _Class
+
+async def main():
+    c = _Class()
+    await c._nested_async_test_method()
+
+asyncio.run(main())
+"""
+
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+
     assert status == 0, err
     assert out == b""

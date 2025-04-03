@@ -6,7 +6,6 @@ import sys
 import pytest
 
 from tests.utils import call_program
-from tests.utils import flaky
 
 from . import utils
 
@@ -106,8 +105,6 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
 
 
-@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
-@pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),
@@ -122,6 +119,7 @@ def test_memalloc_no_init_error_on_fork():
     os.waitpid(pid, 0)
 
 
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="This test is flaky on Python 3.9")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(

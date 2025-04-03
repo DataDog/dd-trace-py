@@ -1,7 +1,8 @@
 import logging
-import os
+from os import path
 from typing import Optional
 
+from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -37,7 +38,7 @@ def configure_ddtrace_logger():
 
     """
     ddtrace_logger = logging.getLogger("ddtrace")
-    if asbool(os.environ.get("DD_TRACE_LOG_STREAM_HANDLER", "true")):
+    if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
         ddtrace_logger.addHandler(logging.StreamHandler())
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
@@ -45,13 +46,13 @@ def configure_ddtrace_logger():
 
 
 def _configure_ddtrace_debug_logger(logger):
-    if asbool(os.environ.get("DD_TRACE_DEBUG", "false")):
+    if get_config("DD_TRACE_DEBUG", False, asbool):
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
 def _configure_ddtrace_file_logger(logger):
-    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
+    log_file_level = get_config("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
@@ -59,21 +60,21 @@ def _configure_ddtrace_file_logger(logger):
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             log_file_level,
         )
-    max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
-    log_path = os.environ.get("DD_TRACE_LOG_FILE")
+    max_file_bytes = get_config("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES, int)
+    log_path = get_config("DD_TRACE_LOG_FILE")
     _add_file_handler(logger=logger, log_path=log_path, log_level=file_log_level_value, max_file_bytes=max_file_bytes)
 
 
 def _add_file_handler(
     logger: logging.Logger,
-    log_path: str,
+    log_path: Optional[str],
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
 ):
     ddtrace_file_handler = None
     if log_path is not None:
-        log_path = os.path.abspath(log_path)
+        log_path = path.abspath(log_path)
         num_backup = 1
         from logging.handlers import RotatingFileHandler
 
@@ -89,15 +90,3 @@ def _add_file_handler(
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
     return ddtrace_file_handler
-
-
-def _configure_log_injection():
-    """
-    Ensures that logging is patched before we inject trace information into logs.
-    """
-    from ddtrace import patch
-
-    patch(logging=True)
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))

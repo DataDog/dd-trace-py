@@ -3,6 +3,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.logger import get_logger
@@ -118,18 +119,14 @@ def record_manual_api_event_created(event_type: EVENT_TYPES):
     # Note: _created suffix is added in cases we were to change the metric name in the future.
     # The current metric applies to event creation even though it does not specify it
     telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.CIVISIBILITY,
-        EVENTS_TELEMETRY.MANUAL_API_EVENT,
-        1,
-        (("event_type", event_type),)
+        TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.MANUAL_API_EVENT, 1, (("event_type", event_type),)
     )
 
 
 def record_events_enqueued_for_serialization(events_count: int):
     telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE.CIVISIBILITY,
-        EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION,
-        events_count)
+        TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.ENQUEUED_FOR_SERIALIZATION, events_count
+    )
 
 
 def record_event_created_test(
@@ -160,6 +157,10 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
+    is_attempt_to_fix: bool = False,
+    has_failed_all_retries: bool = False,
+    ci_provider_name: str = UNSUPPORTED_PROVIDER,
+    is_auto_injected: bool = False,
 ):
     log.debug(
         "Recording test event finished: test_framework=%s"
@@ -169,8 +170,12 @@ def record_event_finished_test(
         ", is_rum=%s"
         ", browser_driver=%s"
         ", is_benchmark=%s"
-        ", is_quarantined=%s",
-        ", is_disabled=%s",
+        ", is_quarantined=%s"
+        ", is_disabled=%s"
+        ", is_attempt_to_fix=%s"
+        ", has_failed_all_retries=%s"
+        ", provider_name=%s"
+        ", is_auto_injected=%s",
         test_framework,
         is_new,
         is_retry,
@@ -178,7 +183,12 @@ def record_event_finished_test(
         is_rum,
         browser_driver,
         is_benchmark,
+        is_quarantined,
         is_disabled,
+        is_attempt_to_fix,
+        has_failed_all_retries,
+        ci_provider_name,
+        is_auto_injected,
     )
 
     tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
@@ -201,5 +211,13 @@ def record_event_finished_test(
         tags.append(("is_quarantined", "true"))
     if is_disabled:
         tags.append(("is_disabled", "true"))
+    if is_attempt_to_fix:
+        tags.append(("is_attempt_to_fix", "true"))
+    if has_failed_all_retries:
+        tags.append(("has_failed_all_retries", "true"))
+    if ci_provider_name:
+        tags.append(("provider_name", ci_provider_name))
+    if is_auto_injected:
+        tags.append(("auto_injected", "true"))
 
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, EVENTS_TELEMETRY.FINISHED, 1, tuple(tags))

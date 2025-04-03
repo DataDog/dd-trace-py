@@ -7,6 +7,7 @@
 
 from dataclasses import dataclass
 import os
+import subprocess
 import typing as t
 
 
@@ -45,19 +46,37 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for: t.Set[str] = services.copy()
+        wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
+
+        lines.append("  before_script:")
+        lines.append(f"    - !reference [{base}, before_script]")
+        lines.append("    - pip cache info")
         if wait_for:
-            lines.append("  before_script:")
-            lines.append(f"    - !reference [{base}, before_script]")
-            if self.runner == "riot":
+            if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
             env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
+
+        suite_name = env["SUITE_NAME"]
+        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
+        if self.runner == "riot":
+            env["PIP_CACHE_KEY"] = (
+                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            )
+            lines.append("  cache:")
+            lines.append("    key: v0-pip-${PIP_CACHE_KEY}-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
+        else:
+            lines.append("  cache:")
+            lines.append("    key: v0-${CI_JOB_NAME}-pip-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -96,27 +115,45 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
-    # Exclude the suites that are run in CircleCI. These likely don't run in
-    # GitLab yet.
-    with YAML() as yaml:
-        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
-        circleci_jobs = set(circleci_config["jobs"].keys())
-
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
-                LOGGER.debug("Skipping CircleCI suite %s", suite)
-                continue
-
             jobspec = JobSpec(suite, **suites[suite])
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
             print(str(jobspec), file=f)
+
+
+def gen_build_docs() -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns(
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+    ):
+        with TESTS_GEN.open("a") as f:
+            print("build_docs:", file=f)
+            print("  extends: .testrunner", file=f)
+            print("  stage: hatch", file=f)
+            print("  needs: []", file=f)
+            print("  variables:", file=f)
+            print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
+            print("  script:", file=f)
+            print("    - |", file=f)
+            print("      hatch run docs:build", file=f)
+            print("      mkdir -p /tmp/docs", file=f)
+            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  cache:", file=f)
+            print("    key: v1-build_docs-pip-cache", file=f)
+            print("    paths:", file=f)
+            print("      - .cache", file=f)
+            print("  artifacts:", file=f)
+            print("    paths:", file=f)
+            print("      - '/tmp/docs'", file=f)
 
 
 def gen_pre_checks() -> None:
@@ -130,8 +167,15 @@ def gen_pre_checks() -> None:
                 print("  extends: .testrunner", file=f)
                 print("  stage: precheck", file=f)
                 print("  needs: []", file=f)
+                print("  variables:", file=f)
+                print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
                 print("  script:", file=f)
+                print("    - pip cache info", file=f)
                 print(f"    - {command}", file=f)
+                print("  cache:", file=f)
+                print("    key: v1-precheck-pip-cache", file=f)
+                print("    paths:", file=f)
+                print("      - .cache", file=f)
 
     check(
         name="Style",
@@ -170,6 +214,39 @@ def gen_pre_checks() -> None:
     )
 
 
+def gen_appsec_iast_packages() -> None:
+    """Generate the list of jobs for the appsec_iast_packages tests."""
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            """
+appsec_iast_packages:
+  extends: .test_base_hatch
+  timeout: 50m
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '0'
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    PYTEST_ADDOPTS: '-s'
+  cache:
+    # Share pip between jobs of the same Python version
+      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
+      paths:
+        - .cache
+  before_script:
+    - !reference [.test_base_hatch, before_script]
+    - pyenv global "${PYTHON_VERSION}"
+  script:
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
+    - export DD_FAST_BUILD="1"
+    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
+    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+        """
+        )
+
+
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
@@ -192,6 +269,12 @@ build_base_venvs:
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_FAST_BUILD: '1'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+      variables:
+        DD_FAST_BUILD: '0'
+    - when: always
   script: |
     set -e -o pipefail
     if [ ! -f cache_used.txt ];
@@ -200,6 +283,8 @@ build_base_venvs:
       apt update && apt install -y sccache
       pip install riot==0.20.1
       riot -P -v generate --python=$PYTHON_VERSION
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
       touch cache_used.txt
     else
       echo "Skipping build, using compiled files/venv from cache"
@@ -246,7 +331,6 @@ from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
 from time import monotonic_ns as time  # noqa
 
-from ruamel.yaml import YAML  # noqa
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)

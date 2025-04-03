@@ -1,8 +1,12 @@
 # this module must not load any other unsafe appsec module directly
 
+import collections
 import logging
-import sys
+import typing
 from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -18,6 +22,136 @@ from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+
+_TRUNC_STRING_LENGTH = 1
+_TRUNC_CONTAINER_DEPTH = 4
+_TRUNC_CONTAINER_SIZE = 2
+
+
+class _observator:
+    def __init__(self):
+        self.string_length: Optional[int] = None
+        self.container_size: Optional[int] = None
+        self.container_depth: Optional[int] = None
+
+    def set_string_length(self, length: int):
+        if self.string_length is None:
+            self.string_length = length
+        else:
+            self.string_length = max(self.string_length, length)
+
+    def set_container_size(self, size: int):
+        if self.container_size is None:
+            self.container_size = size
+        else:
+            self.container_size = max(self.container_size, size)
+
+    def set_container_depth(self, depth: int):
+        if self.container_depth is None:
+            self.container_depth = depth
+        else:
+            self.container_depth = max(self.container_depth, depth)
+
+
+class DDWaf_result:
+    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
+
+    def __init__(
+        self,
+        return_code: int,
+        data: List[Dict[str, Any]],
+        actions: Dict[str, Any],
+        runtime: float,
+        total_runtime: float,
+        timeout: bool,
+        truncation: _observator,
+        derivatives: Dict[str, Any],
+    ):
+        self.return_code = return_code
+        self.data = data
+        self.actions = actions
+        self.runtime = runtime
+        self.total_runtime = total_runtime
+        self.timeout = timeout
+        self.truncation = truncation
+        self.derivatives = derivatives
+
+    def __repr__(self):
+        return (
+            f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
+            f" actions: {self.actions}, runtime: {self.runtime},"
+            f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
+            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+        )
+
+
+Binding_error = DDWaf_result(-127, [], {}, 0.0, 0.0, False, _observator(), {})
+
+
+class DDWaf_info:
+    __slots__ = ["loaded", "failed", "errors", "version"]
+
+    def __init__(self, loaded: int, failed: int, errors: str, version: str):
+        self.loaded = loaded
+        self.failed = failed
+        self.errors = errors
+        self.version = version
+
+    def __repr__(self):
+        return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
+            self.loaded,
+            self.failed,
+            self.errors,
+            self.version,
+        )
+
+
+class Truncation_result:
+    __slots__ = ["string_length", "container_size", "container_depth"]
+
+    def __init__(self):
+        self.string_length = []
+        self.container_size = []
+        self.container_depth = []
+
+
+class Rasp_result:
+    __slots__ = ["sum_eval", "duration", "total_duration", "eval", "match", "timeout"]
+
+    def __init__(self):
+        self.sum_eval = 0
+        self.duration = 0.0
+        self.total_duration = 0.0
+        self.eval = collections.defaultdict(int)
+        self.match = collections.defaultdict(int)
+        self.timeout = collections.defaultdict(int)
+
+
+class Telemetry_result:
+    __slots__ = [
+        "blocked",
+        "triggered",
+        "timeout",
+        "version",
+        "duration",
+        "total_duration",
+        "truncation",
+        "rasp",
+        "rate_limited",
+        "error",
+    ]
+
+    def __init__(self):
+        self.blocked = False
+        self.triggered = False
+        self.timeout = 0
+        self.version: Optional[str] = None
+        self.duration = 0.0
+        self.total_duration = 0.0
+        self.truncation = Truncation_result()
+        self.rasp = Rasp_result()
+        self.rate_limited = False
+        self.error = 0
 
 
 def parse_response_body(raw_body):
@@ -103,17 +237,17 @@ class _UserInfoRetriever:
             "FIRST_NAME",
         ]
 
-    def find_in_user_model(self, possible_fields):
+    def find_in_user_model(self, possible_fields: typing.Sequence[str]) -> typing.Optional[str]:
         for field in possible_fields:
             value = getattr(self.user, field, None)
-            if value:
+            if value is not None:
                 return value
 
         return None  # explicit to make clear it has a meaning
 
     def get_userid(self):
         user_login = getattr(self.user, asm_config._user_model_login_field, None)
-        if user_login:
+        if user_login is not None:
             return user_login
 
         user_login = self.find_in_user_model(self.possible_user_id_fields)
@@ -121,7 +255,7 @@ class _UserInfoRetriever:
 
     def get_username(self):
         username = getattr(self.user, asm_config._user_model_name_field, None)
-        if username:
+        if username is not None:
             return username
 
         if hasattr(self.user, "get_username"):
@@ -134,14 +268,14 @@ class _UserInfoRetriever:
 
     def get_user_email(self):
         email = getattr(self.user, asm_config._user_model_email_field, None)
-        if email:
+        if email is not None:
             return email
 
         return self.find_in_user_model(self.possible_email_fields)
 
     def get_name(self):
         name = getattr(self.user, asm_config._user_model_name_field, None)
-        if name:
+        if name is not None:
             return name
 
         return self.find_in_user_model(self.possible_name_fields)
@@ -155,7 +289,7 @@ class _UserInfoRetriever:
         user_extra_info = {}
 
         user_id = self.get_userid()
-        if not user_id:
+        if user_id is None:
             return None, {}
 
         if login:
@@ -188,7 +322,5 @@ def get_triggers(span) -> Any:
 
 
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
-    if sys.version_info < (3, 8):
-        return msg
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"

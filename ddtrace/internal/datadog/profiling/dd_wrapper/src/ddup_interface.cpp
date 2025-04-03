@@ -10,7 +10,12 @@
 
 #include <cstdlib>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
+#include <unordered_map>
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -141,9 +146,13 @@ ddup_start() // cppcheck-suppress unusedFunction
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
+#ifdef _WIN32
+        // NOTE: Windows does not have fork(), leaving this empty for now
+#else
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+#endif
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -350,7 +359,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
 
 void
 ddup_profile_set_endpoints(
-  std::map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
+  std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
@@ -367,7 +376,7 @@ ddup_profile_set_endpoints(
 }
 
 void
-ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {

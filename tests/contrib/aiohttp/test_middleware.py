@@ -14,7 +14,6 @@ from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 from .app.web import noop_middleware
@@ -386,7 +385,6 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
-@flaky(1735812000)
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -413,7 +411,6 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
     assert 1 == span.get_metric(_SAMPLING_PRIORITY_KEY)
 
 
-@flaky(1735812000)
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -464,7 +461,6 @@ async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
     assert span.parent_id != 42
 
 
-@flaky(1735812000)
 async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -529,7 +525,6 @@ def _assert_200_parenting(client, traces):
     assert 0 == inner_span.error
 
 
-@flaky(1735812000)
 async def test_parenting_200_dd(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
@@ -543,7 +538,6 @@ async def test_parenting_200_dd(app_tracer, aiohttp_client):
     _assert_200_parenting(client, traces)
 
 
-@flaky(1735812000)
 async def test_parenting_200_ot(app_tracer, aiohttp_client):
     """OpenTracing version of test_handler."""
     app, tracer = app_tracer
@@ -637,7 +631,6 @@ async def test_inferred_spans_api_gateway(app_tracer, aiohttp_client, test_app, 
                 api_gateway_service_name="local",
                 api_gateway_resource="GET /",
                 method="GET",
-                route="/",
                 status_code=str(test_app["status_code"]),
                 url="local/",
                 start=1736973768,

@@ -1,8 +1,8 @@
 import logging
 import os
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -12,7 +12,7 @@ from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 
@@ -165,7 +165,7 @@ def test_propagate_ranges_with_no_context(caplog):
         result = mod.do_os_path_join(string_input, "bar")
         assert result == "abcde/bar"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
 
 
 # TODO: add tests for os.path.splitdrive and os.path.normcase under Windows

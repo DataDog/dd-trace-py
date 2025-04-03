@@ -704,19 +704,16 @@ class TestAPIGatewayTracing(TornadoTestCase):
                         "endpoint": "/success/",
                         "status": 200,
                         "resource_name": "tests.contrib.tornado.web.app.SuccessHandler",
-                        "http.route": "/success/",
                     },
                     {
                         "endpoint": "/exception/",
                         "status": 500,
                         "resource_name": "tests.contrib.tornado.web.app.ExceptionHandler",
-                        "http.route": "/exception/",
                     },
                     {
                         "endpoint": "/status_code/500",
                         "status": 500,
                         "resource_name": "tests.contrib.tornado.web.app.ResponseStatusHandler",
-                        "http.route": "^$",
                     },
                 ]:
                     self.fetch(test_endpoint["endpoint"], headers=test_headers)
@@ -735,7 +732,6 @@ class TestAPIGatewayTracing(TornadoTestCase):
                             api_gateway_service_name="local",
                             api_gateway_resource="GET /",
                             method="GET",
-                            route="/",
                             status_code=test_endpoint["status"],
                             url="local/",
                             start=1736973768,

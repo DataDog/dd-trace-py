@@ -457,19 +457,16 @@ class TestMolten(TracerTestCase):
                         "endpoint": "/greet",
                         "status": 200,
                         "resource_name": "GET /greet",
-                        "http.route": "/greet",
                     },
                     {
                         "endpoint": "/unhandlederror",
                         "status": 500,
                         "resource_name": "GET /unhandlederror",
-                        "http.route": "/unhandlederror",
                     },
                     {
                         "endpoint": "/404",
                         "status": 404,
                         "resource_name": "GET /404",
-                        "http.route": "/404",
                     },
                 ]:
                     with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
@@ -493,7 +490,6 @@ class TestMolten(TracerTestCase):
                                 api_gateway_service_name="local",
                                 api_gateway_resource="GET /",
                                 method="GET",
-                                route="/",
                                 status_code=test_endpoint["status"],
                                 url="local/",
                                 start=1736973768,

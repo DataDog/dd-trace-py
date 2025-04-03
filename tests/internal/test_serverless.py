@@ -1,4 +1,5 @@
 import mock
+import pytest
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -78,12 +79,49 @@ def test_not_azure_function_consumption_plan():
     assert in_azure_function() is False
 
 
-def test_slow_imports():
+standard_blocklist = [
+    "ddtrace.appsec._api_security.api_manager",
+    "ddtrace.appsec._iast._ast.ast_patching",
+    "ddtrace.internal.telemetry.telemetry_writer",
+    "email.mime.application",
+    "email.mime.multipart",
+    "logging.handlers",
+    "multiprocessing",
+    "importlib_metadata",
+    "ddtrace._trace.utils_botocore.span_pointers",
+    "ddtrace._trace.utils_botocore.span_tags",
+    # These modules must not be imported because their source files are
+    # specifically removed from the serverless python layer.
+    # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
+    "ddtrace.appsec._iast._taint_tracking._native",
+    "ddtrace.appsec._iast._stacktrace",
+    "ddtrace.internal.datadog.profiling.libdd_wrapper",
+    "ddtrace.internal.datadog.profiling.ddup._ddup",
+    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    "ddtrace.internal._file_queue",
+    "secrets",
+]
+expanded_blocklist = standard_blocklist + [
+    "importlib.metadata",
+]
+
+
+@pytest.mark.parametrize(
+    "package,blocklist",
+    [
+        ("ddtrace", expanded_blocklist),
+        ("ddtrace.contrib.internal.aws_lambda", expanded_blocklist),
+        ("ddtrace.contrib.internal.psycopg", expanded_blocklist),
+        # requests imports urlib3 which imports importlib.metadata
+        # TODO: Fix the requests parameter in a future PR
+        # ("ddtrace.contrib.internal.requests", standard_blocklist),
+    ],
+)
+def test_slow_imports(package, blocklist, run_python_code_in_subprocess):
     # We should lazy load certain modules to avoid slowing down the startup
     # time when running in a serverless environment.  This test will fail if
     # any of those modules are imported during the import of ddtrace.
     import os
-    import sys
 
     os.environ.update(
         {
@@ -93,32 +131,32 @@ def test_slow_imports():
         }
     )
 
-    blocklist = [
-        "ddtrace.appsec._api_security.api_manager",
-        "ddtrace.appsec._iast._ast.ast_patching",
-        "ddtrace.internal.telemetry.telemetry_writer",
-        "email.mime.application",
-        "email.mime.multipart",
-        "logging.handlers",
-        "multiprocessing",
-        "importlib.metadata",
-        "importlib_metadata",
-    ]
+    env = os.environ.copy()
+    env.update(
+        {
+            "AWS_LAMBDA_FUNCTION_NAME": "foobar",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "False",
+            "DD_API_SECURITY_ENABLED": "False",
+        }
+    )
 
-    class BlockListFinder:
-        def find_spec(self, fullname, *args):
-            for lib in blocklist:
-                if fullname == lib:
-                    raise ImportError(f"module {fullname} was imported!")
-            return None
+    code = f"""
+import sys
 
-    try:
-        sys.meta_path.insert(0, BlockListFinder())
+blocklist = {blocklist}
 
-        import ddtrace
-        import ddtrace.contrib.internal.aws_lambda  # noqa:F401
-        import ddtrace.contrib.internal.psycopg  # noqa:F401
+class BlockListFinder:
+    def find_spec(self, fullname, *args):
+        if fullname in blocklist:
+            raise ImportError(f"module {{fullname}} was imported!")
+        return None
 
-    finally:
-        if isinstance(sys.meta_path[0], BlockListFinder):
-            sys.meta_path = sys.meta_path[1:]
+sys.meta_path = [BlockListFinder()] + sys.meta_path
+
+import {package}
+"""
+
+    stderr, stdout, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert stdout.decode() == ""
+    assert stderr.decode() == ""
+    assert status == 0

@@ -1,3 +1,3 @@
 #include "_memalloc_reentrant.h"
 
-bool _MEMALLOC_ON_THREAD = false;
+MEMALLOC_TLS bool _MEMALLOC_ON_THREAD = false;

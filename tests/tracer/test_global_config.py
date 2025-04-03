@@ -4,7 +4,8 @@ import mock
 import pytest
 
 from ddtrace import config as global_config
-from ddtrace.settings import Config
+from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._config import Config
 
 from ..utils import DummyTracer
 from ..utils import override_env
@@ -15,6 +16,7 @@ class GlobalConfigTestCase(TestCase):
 
     def setUp(self):
         self.config = Config()
+        self.config.web = IntegrationConfig(self.config, "web")
         self.tracer = DummyTracer()
 
     def test_registration(self):
@@ -47,9 +49,19 @@ class GlobalConfigTestCase(TestCase):
         # that is not available is retrieved in the configuration
         # object
         with pytest.raises(KeyError) as e:
-            self.config.new_integration["some_key"]
+            self.config.web["some_key"]
 
         assert isinstance(e.value, KeyError)
+
+    def test_missing_integration(self):
+        with pytest.raises(AttributeError) as e:
+            self.config.integration_that_does_not_exist
+
+        assert isinstance(e.value, AttributeError)
+        assert e.value.args[0] == (
+            "<class 'ddtrace.settings._config.Config'> object has no attribute "
+            "integration_that_does_not_exist, integration_that_does_not_exist is not a valid configuration"
+        )
 
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module

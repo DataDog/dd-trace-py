@@ -1,9 +1,12 @@
+from io import StringIO
 import os
 import re
 import sys
 import traceback
 from typing import TYPE_CHECKING
+from typing import Dict
 from typing import List
+from typing import Optional
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span
@@ -11,9 +14,7 @@ from ddtrace.trace import Span
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import Iterable  # noqa:F401
-    from typing import Tuple  # noqa:F401
     from typing import Union  # noqa:F401
 
 
@@ -58,13 +59,23 @@ def get_version():
     return _graphql_version_str
 
 
+def _parse_error_extensions(error_extensions: Optional[str]):
+    """Parse the user provided error extensions."""
+    if error_extensions is not None:
+        fields = [e.strip() for e in error_extensions.split(",")]
+        return fields
+    return None
+
+
 config._add(
     "graphql",
     dict(
         _default_service=schematize_service_name("graphql"),
         resolvers_enabled=asbool(os.getenv("DD_TRACE_GRAPHQL_RESOLVERS_ENABLED", default=False)),
+        _error_extensions=_parse_error_extensions(os.getenv("DD_TRACE_GRAPHQL_ERROR_EXTENSIONS")),
     ),
 )
+
 
 _GRAPHQL_SOURCE = "graphql.source"
 _GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
@@ -291,6 +302,22 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
+def _validate_error_extensions(error: GraphQLError, error_extension_fields: List) -> Dict:
+    """Validate user-provided extensions format and return the formatted extensions.
+    All extensions values MUST be stringified, EXCEPT for numeric values and
+    boolean values, which remain in their original type.
+    """
+    error_extensions = {}
+    for field in error_extension_fields:
+        if field in error.extensions:
+            if isinstance(error.extensions[field], (int, float, bool)):
+                error_extensions[field] = error.extensions[field]
+            else:
+                error_extensions[field] = str(error.extensions[field])
+
+    return error_extensions
+
+
 def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     """
     Set tags on error span and set span events on each error.
@@ -298,33 +325,40 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
     if not errors:
         # do nothing if the list of graphql errors is empty
         return
-
     span.error = 1
+
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
     span.set_tag_str(ERROR_TYPE, exc_type_str)
     error_msgs = "\n".join([str(error) for error in errors])
     span.set_tag_str(ERROR_MSG, error_msgs)
     for error in errors:
-        locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
         attributes = {
             "message": error.message,
             "type": span.get_tag("error.type"),
-            "locations": locations,
         }
+        if error.locations:
+            locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
+            attributes["locations"] = locations
 
         if error.__traceback__:
-            stacktrace = "\n".join(
-                traceback.format_exception(
-                    type(error), error, error.__traceback__, limit=config._span_traceback_max_size
-                )
-            )
-            attributes["stacktrace"] = stacktrace
-            span.set_tag_str(ERROR_STACK, stacktrace)
+            exc_type, exc_val, exc_tb = type(error), error, error.__traceback__
+            buff = StringIO()
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
+            tb = buff.getvalue()
+
+            attributes["stacktrace"] = tb
+            span.set_tag_str(ERROR_STACK, tb)
 
         if error.path is not None:
             path = ",".join([str(path_obj) for path_obj in error.path])
             attributes["path"] = path
 
+        error_extension_fields = config.graphql._error_extensions
+        if error_extension_fields is not None:
+            extensions = _validate_error_extensions(error, error_extension_fields)
+            if extensions:
+                for key in extensions:
+                    attributes[f"extensions.{key}"] = extensions[key]
         span._add_event(
             name="dd.graphql.query.error",
             attributes=attributes,

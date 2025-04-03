@@ -67,11 +67,12 @@ class Operation(object):
 
     @classmethod
     def is_not_reported(cls, filename: Text, lineno: int) -> bool:
-        vulnerability_id = (filename, lineno)
-        if vulnerability_id in cls._reported_vulnerabilities:
-            return False
+        if asm_config._iast_deduplication_enabled:
+            vulnerability_id = (filename, lineno)
+            if vulnerability_id in cls._reported_vulnerabilities:
+                return False
 
-        cls._reported_vulnerabilities.add(vulnerability_id)
+            cls._reported_vulnerabilities.add(vulnerability_id)
         return True
 
 
@@ -99,7 +100,7 @@ class OverheadControl(object):
 
         if span and not self._sampler.sample(span):
             if _is_iast_debug_enabled():
-                log.debug("[IAST] Skip request by sampling rate")
+                log.debug("iast::propagation::context::Skip request by sampling rate")
             return False
 
         with self._lock:

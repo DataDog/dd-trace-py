@@ -1,50 +1,74 @@
+from collections import ChainMap
+from enum import Enum
 import os
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import List  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from envier.env import EnvVariable
-from envier.env import _normalized
+from envier import Env
 
-from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.native import get_configuration_from_disk
 
 
-def report_telemetry(env: Any) -> None:
-    for name, e in list(env.__class__.__dict__.items()):
-        if isinstance(e, EnvVariable) and not e.private:
-            env_name = env._full_prefix + _normalized(e.name)
-            env_val = e(env, env._full_prefix)
-            raw_val = env.source.get(env_name)
-            if env_name in env.source and env_val == e._cast(e.type, raw_val, env):
-                source = "env_var"
+FLEET_CONFIG, LOCAL_CONFIG = get_configuration_from_disk()
+
+
+class ValueSource(str, Enum):
+    FLEET_STABLE_CONFIG = "fleet_stable_config"
+    ENV_VAR = "env_var"
+    LOCAL_STABLE_CONFIG = "local_stable_config"
+    CODE = "code"
+    DEFAULT = "default"
+    UNKNOWN = "unknown"
+
+
+class DDConfig(Env):
+    """Provides support for loading configurations from multiple sources."""
+
+    def __init__(
+        self,
+        source: Optional[Dict[str, str]] = None,
+        parent: Optional["Env"] = None,
+        dynamic: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.fleet_source = FLEET_CONFIG
+        self.local_source = LOCAL_CONFIG
+        self.env_source = os.environ
+
+        # Order of precedence: provided source < local stable config < environment variables < fleet stable config
+        full_source = ChainMap(self.fleet_source, self.env_source, self.local_source, source or {})
+
+        # Parse the configuration and initialize the values
+        super().__init__(source=full_source, parent=parent, dynamic=dynamic)
+
+        # Initialize the value sources
+        self._value_source = {}
+
+        for name, e in type(self).items(recursive=True):
+            if e.private:
+                continue
+
+            env_name = e.full_name
+
+            # Get the item value recursively
+            env_val = self
+            for p in name.split("."):
+                env_val = getattr(env_val, p)
+
+            if env_name in self.fleet_source:
+                value_source = ValueSource.FLEET_STABLE_CONFIG
+            elif env_name in self.env_source:
+                value_source = ValueSource.ENV_VAR
+            elif env_name in self.local_source:
+                value_source = ValueSource.LOCAL_STABLE_CONFIG
+            elif env_name in self.source:
+                value_source = ValueSource.CODE
             elif env_val == e.default:
-                source = "default"
+                value_source = ValueSource.DEFAULT
             else:
-                source = "unknown"
-            telemetry_writer.add_configuration(env_name, env_val, source)
+                value_source = ValueSource.UNKNOWN
 
+            self._value_source[env_name] = value_source
 
-def get_config(
-    envs: Union[str, List[str]],
-    default: Any = None,
-    modifier: Optional[Callable[[Any], Any]] = None,
-    report_telemetry=True,
-):
-    if isinstance(envs, str):
-        envs = [envs]
-    val = default
-    source = "default"
-    effective_env = envs[0]
-    for env in envs:
-        if env in os.environ:
-            val = os.environ[env]
-            if modifier:
-                val = modifier(val)
-            source = "env_var"
-            effective_env = env
-            break
-    if report_telemetry:
-        telemetry_writer.add_configuration(effective_env, val, source)
-    return val
+    def value_source(self, env_name: str) -> ValueSource:
+        return self._value_source.get(env_name, ValueSource.UNKNOWN)

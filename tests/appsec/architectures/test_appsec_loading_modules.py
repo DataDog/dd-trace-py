@@ -12,7 +12,7 @@ import pytest
 from ddtrace.settings.asm import config as asm_config
 
 
-MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._capabilities", "ddtrace.appsec._constants"]
+MODULES_ALWAYS_LOADED = ["ddtrace.appsec", "ddtrace.appsec._constants"]
 MODULE_ASM_ONLY = ["ddtrace.appsec._processor", "ddtrace.appsec._ddwaf"]
 MODULE_IAST_ONLY = [
     "ddtrace.appsec._iast",
@@ -82,6 +82,69 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                 raise
             except BaseException:
                 print(f"Server not started yet {i}", flush=True)
+                continue
+    finally:
+        try:
+            urlopen("http://localhost:8475/shutdown", timeout=1)
+        except BaseException:
+            time.sleep(1)
+        process.wait()
+
+    raise AssertionError("Server did not start.")
+
+
+@pytest.mark.parametrize("module, expected", [("asgiref", "asgiref"), ("botocore", "botocore"), ("dns", "dnspython")])
+def test_package(module, expected):
+    """test if third parties packages are correctly detected and reported through telemetry"""
+    if sys.version_info[:2] == (3, 10) and module == "dns":
+        pytest.skip("dns package is not properly found in Python 3.10")
+
+    flask_app = pathlib.Path(__file__).parent / "mini.py"
+
+    print(f"\nStarting server {sys.executable} {str(flask_app)}", flush=True)
+
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "4"
+    process = subprocess.Popen([sys.executable, str(flask_app)], env=env)
+    try:
+        print("process started", flush=True)
+        for i in range(24):
+            time.sleep(1)
+            try:
+                with urlopen(f"http://localhost:8475/import?module={module}", timeout=1) as response:
+                    print(f"got a response {response.status}", flush=True)
+                    assert response.status == 200
+                    payload = response.read().decode()
+                    data = json.loads(payload)
+                    print("got data", flush=True)
+
+                    assert "dependencies" in data
+                    # appsec is always enabled
+                    res = {}
+                    for m in data["dependencies"]:
+                        if m["name"] == expected:
+                            print(f">>> found {m}")
+                            res = m
+                            break
+                    else:
+                        assert False, f"{expected} not in {data['dependencies']}"
+                # Waiting for telemetry to be generated
+                time.sleep(8)
+                with urlopen("http://localhost:8475/telemetrydependencies", timeout=1) as response:
+                    payload = response.read().decode()
+                    data = json.loads(payload)
+                    print(data)
+                    assert res in data["dependencies"], f"{res} not in {data}"
+                print(f"Test passed {i}", flush=True)
+                return
+            except HTTPError as e:
+                print(f"HTTP error {i} [{e.status}]", flush=True)
+                raise AssertionError(e.status, e.read().decode())
+            except AssertionError:
+                print(f"Test failed {i}", flush=True)
+                raise
+            except BaseException as e:
+                print(f"Server not started yet {i} {e!r}", flush=True)
                 continue
     finally:
         try:

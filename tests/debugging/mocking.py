@@ -8,8 +8,6 @@ from typing import Any
 from typing import Generator
 from typing import List
 
-from envier import En
-
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._exception.replay import SpanExceptionHandler
@@ -19,6 +17,7 @@ from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
+from ddtrace.settings._core import DDConfig
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 
@@ -175,7 +174,7 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def _debugger(config_to_override: En, config_overrides: Any) -> Generator[TestDebugger, None, None]:
+def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:

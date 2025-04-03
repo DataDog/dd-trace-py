@@ -106,7 +106,6 @@ def test_inferred_spans_api_gateway_default(client, test_spans, test_endpoint, i
                     api_gateway_service_name="local",
                     api_gateway_resource="GET /",
                     method="GET",
-                    route="/",
                     status_code=test_endpoint["status_code"],
                     url="local/",
                     start=1736973768,

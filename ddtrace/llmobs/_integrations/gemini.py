@@ -48,7 +48,7 @@ class GeminiIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(input_contents, system_instruction)
 
         output_messages = [{"content": ""}]
-        if not span.error and response is not None:
+        if response is not None:
             output_messages = self._extract_output_message(response)
 
         span._set_ctx_items(

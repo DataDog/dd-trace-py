@@ -39,7 +39,6 @@ from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
-from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -1454,45 +1453,6 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
-@flaky(1735812000)
-@pytest.mark.django_db
-def test_cached_template(client, test_spans):
-    # make the first request so that the view is cached
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-
-    # check the first call for a non-cached view
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    assert len(spans) == 2
-    # the cache miss
-    assert spans[0].resource == "django.core.cache.backends.locmem.get"
-    # store the result in the cache
-    assert spans[1].resource == "django.core.cache.backends.locmem.set"
-
-    # check if the cache hit is traced
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    # Should have 1 more span
-    assert len(spans) == 3
-
-    span_template_cache = spans[2]
-    assert span_template_cache.service == "django"
-    assert span_template_cache.resource == "django.core.cache.backends.locmem.get"
-    assert span_template_cache.name == "django.cache"
-    assert span_template_cache.span_type == "cache"
-    assert span_template_cache.error == 0
-
-    expected_meta = {
-        "component": "django",
-        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.base_service": "",
-    }
-
-    assert span_template_cache.get_tags() == expected_meta
-
-
 """
 Configuration tests
 """
@@ -1803,7 +1763,6 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
             api_gateway_service_name="local",
             api_gateway_resource="GET /",
             method="GET",
-            route="/",
             status_code="200",
             url="local/",
             start=1736973768.0,
@@ -1827,7 +1786,6 @@ def test_inferred_spans_api_gateway_default(client, test_spans):
                 api_gateway_service_name="local",
                 api_gateway_resource="GET /",
                 method="GET",
-                route="/",
                 status_code="500",
                 url="local/",
                 start=1736973768.0,
@@ -1888,7 +1846,6 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
             api_gateway_service_name="local",
             api_gateway_resource="GET /",
             method="GET",
-            route="/",
             status_code="200",
             url="local/",
             start=1736973768.0,
@@ -2163,7 +2120,8 @@ def test_django_use_handler_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_resource_format; print('Test success')"
                 ),
@@ -2182,7 +2140,8 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
@@ -2262,7 +2221,8 @@ def test_django_use_legacy_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_legacy_resource_format; print('Test success')"
                 ),

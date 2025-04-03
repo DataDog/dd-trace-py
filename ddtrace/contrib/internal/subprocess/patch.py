@@ -4,7 +4,7 @@ from fnmatch import fnmatch
 import os
 import re
 import shlex
-from threading import RLock
+from shlex import join
 from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -14,13 +14,13 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
-from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import shjoin
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -289,7 +289,7 @@ class SubprocessCmdLine:
 
     def _as_list_and_string(self) -> Tuple[List[str], str]:
         total_list = self.env_vars + [self.binary] + self.arguments
-        truncated_str = self.truncate_string(shjoin(total_list))
+        truncated_str = self.truncate_string(join(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 

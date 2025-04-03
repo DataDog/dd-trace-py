@@ -3,6 +3,7 @@ from functools import partial
 import re
 import sys
 import time
+import traceback
 from unittest.case import SkipTest
 
 import mock
@@ -19,6 +20,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
@@ -286,11 +288,21 @@ class SpanTestCase(TracerTestCase):
             assert stack, "No error stack collected"
             # one header "Traceback (most recent call last):" and one footer "ZeroDivisionError: division by zero"
             header_and_footer_lines = 2
-            # Python 3.13 adds extra lines to the traceback:
-            #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
-            #     wrapper()
-            #     ~~~~~~~^^
-            multiplier = 3 if "~~" in stack else 2
+            multiplier = 2
+            if PYTHON_VERSION_INFO >= (3, 13):
+                # Python 3.13 adds extra lines to the traceback:
+                #   File dd-trace-py/tests/tracer/test_span.py", line 279, in test_custom_traceback_size_with_error
+                #     wrapper()
+                #     ~~~~~~~^^
+                multiplier = 3
+            elif PYTHON_VERSION_INFO >= (3, 11):
+                # Python 3.11 adds one extra line to the traceback:
+                #   File dd-trace-py/tests/tracer/test_span.py", line 272, in divide_by_zero
+                #      1 / 0
+                #      ~~^~~
+                #      ZeroDivisionError: division by zero
+                header_and_footer_lines += 1
+
             assert (
                 len(stack.splitlines()) == tb_length_limit * multiplier + header_and_footer_lines
             ), "stacktrace should contain two lines per entry"
@@ -532,6 +544,61 @@ class SpanTestCase(TracerTestCase):
                 },
             },
         ]
+
+    def test_span_record_exception(self):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(e)
+        span.finish()
+
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
+        )
+
+    def test_span_record_multiple_exceptions(self):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(e)
+
+        try:
+            raise RuntimeError("bam")
+        except RuntimeError as e:
+            span.record_exception(e)
+        span.finish()
+
+        span.assert_span_event_count(2)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
+        )
+        span.assert_span_event_attributes(
+            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": False}
+        )
+
+    def test_span_record_escaped_exception(self):
+        exc = RuntimeError("bim")
+        span = self.start_span("span")
+        try:
+            raise exc
+        except RuntimeError as e:
+            span.record_exception(e, escaped=True)
+        span.finish()
+
+        span.assert_matches(
+            error=1,
+            meta={
+                "error.message": str(exc),
+                "error.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
+            },
+        )
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": True}
+        )
 
 
 @pytest.mark.parametrize(
@@ -899,3 +966,81 @@ def test_span_exception_core_event():
         raise AssertionError("should have raised")
     finally:
         core.reset_listeners("span.exception")
+
+
+def test_get_traceback_exceeds_max_value_length():
+    """Test with a long traceback that should be truncated."""
+
+    def deep_error(n):
+        if n > 0:
+            deep_error(n - 1)
+        else:
+            raise RuntimeError("Deep recursion error")
+
+    exc_type, exc_val, exc_tb = None, None, None
+    try:
+        deep_error(100)  # Create a large traceback
+    except Exception as e:
+        exc_type, exc_val, exc_tb = e.__class__, e, e.__traceback__
+
+    span = Span("test.span")
+    with mock.patch("ddtrace._trace.span.MAX_SPAN_META_VALUE_LEN", 260):
+        result = span._get_traceback(exc_type, exc_val, exc_tb, limit=100)
+    assert "Deep recursion error" in result
+    assert len(result) <= 260  # Should be truncated
+
+
+def test_get_traceback_exact_limit():
+    """Test a case where the traceback length is exactly at the limit."""
+
+    def deep_error(n):
+        if n > 0:
+            deep_error(n - 1)
+        else:
+            raise RuntimeError("Deep recursion error")
+
+    exc_type, exc_val, exc_tb = None, None, None
+    try:
+        deep_error(100)  # Create a large traceback
+    except Exception as e:
+        exc_type, exc_val, exc_tb = e.__class__, e, e.__traceback__
+
+    span = Span("test.span")
+    formatted_exception = traceback.format_exception(exc_type, exc_val, exc_tb)
+    formatted_exception = [s + "\n" for item in formatted_exception for s in item.split("\n") if s]
+    exc_len = len(formatted_exception)
+    result = span._get_traceback(exc_type, exc_val, exc_tb, limit=exc_len)
+    split_result = result.splitlines()
+    split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
+
+    if PYTHON_VERSION_INFO >= (3, 11):
+        exc_len -= 1  # From Python 3.11, adds an extra line to the traceback
+
+    assert len(split_result) == exc_len - 2  # Should be exactly the same length as the traceback
+
+
+def test_get_traceback_honors_config_traceback_max_size():
+    class CustomConfig:
+        _span_traceback_max_size = 2  # Force a zero limit
+
+    def deep_error(n):
+        if n > 0:
+            deep_error(n - 1)
+        else:
+            raise RuntimeError("Deep recursion error")
+
+    exc_type, exc_val, exc_tb = None, None, None
+    try:
+        deep_error(100)  # Create a large traceback
+    except Exception as e:
+        exc_type, exc_val, exc_tb = e.__class__, e, e.__traceback__
+
+    span = Span("test.span")
+    with mock.patch("ddtrace._trace.span.config", CustomConfig):
+        result = span._get_traceback(exc_type, exc_val, exc_tb)
+
+    assert isinstance(result, str)
+    split_result = result.splitlines()
+    split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
+    assert len(split_result) < 8  # Value is 5 for Python 3.10
+    assert len(result) < 410  # Value is 377 for Python 3.10

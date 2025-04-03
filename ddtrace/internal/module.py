@@ -1,18 +1,23 @@
 import abc
 from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
-from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
 import sys
 from types import CodeType
+from types import FunctionType
 from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.wrapping.context import WrappingContext
+
+
+if t.TYPE_CHECKING:
+    from importlib.abc import Loader
 
 
 ModuleHookType = t.Callable[[ModuleType], None]
@@ -137,7 +142,7 @@ def _resolve(path: Path) -> t.Optional[Path]:
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
 
-def find_loader(fullname: str) -> t.Optional[Loader]:
+def find_loader(fullname: str) -> t.Optional["Loader"]:
     return getattr(find_spec(fullname), "loader", None)
 
 
@@ -150,7 +155,7 @@ def is_namespace_spec(spec: ModuleSpec) -> bool:
 
 
 class _ImportHookChainedLoader:
-    def __init__(self, loader: t.Optional[Loader], spec: t.Optional[ModuleSpec] = None) -> None:
+    def __init__(self, loader: t.Optional["Loader"], spec: t.Optional[ModuleSpec] = None) -> None:
         self.loader = loader
         self.spec = spec
 
@@ -354,7 +359,7 @@ class BaseModuleWatchdog(abc.ABC):
     def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
         return code
 
-    def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional[Loader]:
+    def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional["Loader"]:
         if fullname in self._finding:
             return None
 
@@ -372,7 +377,7 @@ class BaseModuleWatchdog(abc.ABC):
                 loader.add_callback(type(self), self.after_import)
                 loader.add_transformer(type(self), self.transform)
 
-                return t.cast(Loader, loader)
+                return t.cast("Loader", loader)
 
         finally:
             self._finding.remove(fullname)
@@ -400,7 +405,7 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = t.cast(Loader, _ImportHookChainedLoader(loader, spec))
+                spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
             t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(self), self.transform)
@@ -409,11 +414,6 @@ class BaseModuleWatchdog(abc.ABC):
 
         finally:
             self._finding.remove(fullname)
-
-    @classmethod
-    def _check_installed(cls) -> None:
-        if cls.is_installed():
-            return
 
     @classmethod
     def install(cls) -> None:
@@ -436,7 +436,9 @@ class BaseModuleWatchdog(abc.ABC):
         This will uninstall only the most recently installed instance of this
         class.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
+
         cls._remove_from_meta_path()
 
         cls._instance = None
@@ -522,7 +524,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
     @classmethod
     def get_by_origin(cls, _origin: Path) -> t.Optional[ModuleType]:
         """Lookup a module by its origin."""
-        cls._check_installed()
+        if not cls.is_installed():
+            return None
 
         instance = t.cast(ModuleWatchdog, cls._instance)
 
@@ -550,7 +553,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         The hook will be called with the module object as argument.
         """
-        cls._check_installed()
+        cls.install()
 
         # DEV: Under the hypothesis that this is only ever called by the probe
         # poller thread, there are no further actions to take. Should this ever
@@ -591,7 +594,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """Unregister the hook registered with the given module origin and
         argument.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
 
         resolved_path = _resolve(origin)
         if resolved_path is None:
@@ -622,7 +626,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         The hook will be called with the module object as argument.
         """
-        cls._check_installed()
+        cls.install()
 
         log.debug("Registering hook '%r' on module '%s'", hook, module)
         instance = t.cast(ModuleWatchdog, cls._instance)
@@ -642,7 +646,8 @@ class ModuleWatchdog(BaseModuleWatchdog):
         """Unregister the hook registered with the given module name and
         argument.
         """
-        cls._check_installed()
+        if not cls.is_installed():
+            return
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         if module not in instance._hook_map:
@@ -677,7 +682,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
         that the hook is applied only to the modules that are required,
         the condition is evaluated against the module name.
         """
-        cls._check_installed()
+        cls.install()
 
         log.debug("Registering pre_exec module hook '%r' on condition '%s'", hook, cond)
         instance = t.cast(ModuleWatchdog, cls._instance)
@@ -695,7 +700,33 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def register_import_exception_hook(
         cls: t.Type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
     ):
-        cls._check_installed()
+        cls.install()
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._import_exception_hooks.add((cond, hook))
+
+
+class LazyWrappingContext(WrappingContext):
+    def __return__(self, value: t.Any) -> t.Any:
+        # Update the global (i.e. the module) scope with the local scope of the
+        # wrapped function.
+        self.__frame__.f_globals.update(self.__frame__.f_locals)
+
+        return super().__return__(value)
+
+
+def lazy(f: t.Callable[[], None]) -> None:
+    LazyWrappingContext(t.cast(FunctionType, f)).wrap()
+
+    _globals = sys._getframe(1).f_globals
+
+    def __getattr__(name: str) -> t.Any:
+        f()
+        try:
+            return _globals[name]
+        except KeyError:
+            h = AttributeError(f"module {_globals['__name__']!r} has no attribute {name!r}")
+            h.__suppress_context__ = True
+            raise h
+
+    _globals["__getattr__"] = __getattr__

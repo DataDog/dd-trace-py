@@ -9,8 +9,8 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.appsec.event_rules.version": "1.13.3",
-      "_dd.appsec.waf.version": "1.22.0",
+      "_dd.appsec.event_rules.version": "1.14.2",
+      "_dd.appsec.waf.version": "1.24.0",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "654a694400000000",
@@ -42,7 +42,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 159,
+      "_dd.appsec.event_rules.loaded": 166,
       "_dd.appsec.waf.duration": 96.626,
       "_dd.appsec.waf.duration_ext": 147.81951904296875,
       "_dd.measured": 1,

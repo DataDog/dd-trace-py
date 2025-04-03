@@ -46,7 +46,7 @@ def test_otel_span_attributes(oteltracer):
         span.set_attribute("should_not_be_set", "attributes can not be added after a span is ended")
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=2)
 def test_otel_span_events(oteltracer):
     with oteltracer.start_span("webpage.load") as span1:
         span1.add_event(
@@ -63,7 +63,7 @@ def test_otel_span_events(oteltracer):
     span2.add_event("Event on finished span, event won't be added")
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 @pytest.mark.parametrize(
     "override",
     [
@@ -81,7 +81,7 @@ def test_otel_span_attributes_overrides(oteltracer, override):
         span.set_attribute(otel, value)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=5)
 def test_otel_span_kind(oteltracer):
     with oteltracer.start_span("otel-client", kind=OtelSpanKind.CLIENT):
         pass

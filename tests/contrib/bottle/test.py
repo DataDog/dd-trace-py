@@ -597,7 +597,6 @@ class TraceBottleTest(TracerTestCase):
                         api_gateway_service_name="local",
                         api_gateway_resource="GET /",
                         method="GET",
-                        route="/",
                         status_code=str(test_endpoint["status"]),
                         url="local/",
                         start=1736973768,

@@ -7,14 +7,14 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal._file_queue import File_Queue
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
 from .._trace.pin import Pin
@@ -33,20 +33,13 @@ from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
+from ..internal.telemetry import get_config as _get_config
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ._core import get_config as _get_config
 from ._inferred_base_service import detect_service
-from ._otel_remapper import otel_remapping as _otel_remapping
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
 from .integration import IntegrationConfig
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal
 
 
 log = get_logger(__name__)
@@ -96,6 +89,108 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"|(?:ssh-(?:rsa|dss)|ecdsa-[a-z0-9]+-[a-z0-9]+)(?:\s|%20|%09)+(?:[a-z0-9/.+]"
     r"|%2F|%5C|%2B){100,}(?:=|%3D)*(?:(?:\s|%20|%09)+[a-z0-9._-]+)?"
     r")"
+)
+
+# All integration config names must be set here.
+# This allows users to set integration configs before an integration is patched.
+INTEGRATION_CONFIGS = frozenset(
+    {
+        "pyodbc",
+        "dramatiq",
+        "flask",
+        "google_generativeai",
+        "urllib3",
+        "subprocess",
+        "kafka",
+        "futures",
+        "unittest",
+        "falcon",
+        "langgraph",
+        "aioredis",
+        "test_visibility",
+        "redis",
+        "mako",
+        "sqlite3",
+        "aws_lambda",
+        "gevent",
+        "sanic",
+        "snowflake",
+        "pymemcache",
+        "azure_functions",
+        "protobuf",
+        "aiohttp_jinja2",
+        "pymongo",
+        "freezegun",
+        "vertica",
+        "rq_worker",
+        "elasticsearch",
+        "sqlalchemy",
+        "langchain",
+        "pymysql",
+        "psycopg",
+        "graphql",
+        "aiomysql",
+        "pyramid",
+        "dbapi2",
+        "vertexai",
+        "cherrypy",
+        "flask_cache",
+        "grpc",
+        "aiohttp_client",
+        "loguru",
+        "pytest",
+        "bottle",
+        "selenium",
+        "kombu",
+        "sqlite",
+        "structlog",
+        "celery",
+        "coverage",
+        "mysqldb",
+        "pynamodb",
+        "anthropic",
+        "aiopg",
+        "dogpile_cache",
+        "pylibmc",
+        "mongoengine",
+        "httpx",
+        "httplib",
+        "rq",
+        "jinja2",
+        "aredis",
+        "algoliasearch",
+        "asgi",
+        "tornado",
+        "avro",
+        "fastapi",
+        "consul",
+        "asyncio",
+        "requests",
+        "logbook",
+        "genai",
+        "openai",
+        "logging",
+        "cassandra",
+        "boto",
+        "mariadb",
+        "aiohttp",
+        "wsgi",
+        "botocore",
+        "rediscluster",
+        "asyncpg",
+        "django",
+        "aiobotocore",
+        "pytest_bdd",
+        "starlette",
+        "valkey",
+        "molten",
+        "mysql",
+        "grpc_server",
+        "grpc_client",
+        "grpc_aio_client",
+        "grpc_aio_server",
+        "yaaredis",
+    }
 )
 
 
@@ -194,10 +289,10 @@ _JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JS
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
-    def __init__(self, default, envs):
-        # type: (Union[_JSONType, Callable[[], _JSONType]], List[Tuple[str, Callable[[str], Any]]]) -> None
+    def __init__(self, default, envs, modifier, otel_env=None):
+        # type: (Union[_JSONType, Callable[[], _JSONType]], List[str], Callable[[str], Any], Optional[str]) -> None
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
-        self._name = envs[0][0]
+        self._name = envs[0]
         self._env_value: _JSONType = None
         self._code_value: _JSONType = None
         self._rc_value: _JSONType = None
@@ -206,11 +301,10 @@ class _ConfigItem:
         else:
             self._default_value = default
         self._envs = envs
-        for env_var, parser in envs:
-            if env_var in os.environ:
-                self._env_value = parser(os.environ[env_var])
-                break
-        telemetry_writer.add_configuration(self._name, self.value(), self.source())
+
+        val = _get_config(envs, self._default_value, modifier, otel_env)
+        if val is not self._default_value:
+            self._env_value = val
 
     def set_value_source(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
@@ -255,54 +349,40 @@ class _ConfigItem:
         )
 
 
-def _parse_global_tags(s):
-    # cleanup DD_TAGS, because values will be inserted back in the optimal way (via _dd.git.* tags)
-    return gitmetadata.clean_tags(parse_tags_str(s))
-
-
 def _default_config() -> Dict[str, _ConfigItem]:
     return {
-        # Remove the _trace_sample_rate property, _trace_sampling_rules should be the source of truth
-        "_trace_sample_rate": _ConfigItem(
-            default=1.0,
-            # trace_sample_rate is placeholder, this code will be removed up after v3.0
-            envs=[("trace_sample_rate", float)],
-        ),
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
-            envs=[("DD_TRACE_SAMPLING_RULES", str)],
+            envs=["DD_TRACE_SAMPLING_RULES"],
+            otel_env="OTEL_TRACES_SAMPLER",
+            modifier=str,
         ),
         "_logs_injection": _ConfigItem(
             default=False,
-            envs=[("DD_LOGS_INJECTION", asbool)],
+            envs=["DD_LOGS_INJECTION"],
+            modifier=asbool,
         ),
         "_trace_http_header_tags": _ConfigItem(
             default=lambda: {},
-            envs=[("DD_TRACE_HEADER_TAGS", parse_tags_str)],
+            envs=["DD_TRACE_HEADER_TAGS"],
+            modifier=parse_tags_str,
         ),
         "tags": _ConfigItem(
             default=lambda: {},
-            envs=[("DD_TAGS", _parse_global_tags)],
+            envs=["DD_TAGS"],
+            otel_env="OTEL_RESOURCE_ATTRIBUTES",
+            modifier=lambda x: gitmetadata.clean_tags(parse_tags_str(x)),
         ),
         "_tracing_enabled": _ConfigItem(
             default=True,
-            envs=[("DD_TRACE_ENABLED", asbool)],
-        ),
-        "_profiling_enabled": _ConfigItem(
-            default=False,
-            envs=[("DD_PROFILING_ENABLED", asbool)],
-        ),
-        "_asm_enabled": _ConfigItem(
-            default=False,
-            envs=[("DD_APPSEC_ENABLED", asbool)],
+            envs=["DD_TRACE_ENABLED"],
+            otel_env="OTEL_TRACES_EXPORTER",
+            modifier=asbool,
         ),
         "_sca_enabled": _ConfigItem(
             default=None,
-            envs=[("DD_APPSEC_SCA_ENABLED", asbool)],
-        ),
-        "_dsm_enabled": _ConfigItem(
-            default=False,
-            envs=[("DD_DATA_STREAMS_ENABLED", asbool)],
+            envs=["DD_APPSEC_SCA_ENABLED"],
+            modifier=asbool,
         ),
     }
 
@@ -346,8 +426,9 @@ class Config(object):
             return False
 
     def __init__(self):
-        # Must map Otel configurations to Datadog configurations before creating the config object.
-        _otel_remapping()
+        # Must validate Otel configurations before creating the config object.
+        validate_otel_envs()
+
         # Must come before _integration_configs due to __setattr__
         self._from_endpoint = ENDPOINT_FETCHED_CONFIG
         self._config = _default_config()
@@ -355,18 +436,17 @@ class Config(object):
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs = {}
 
-        self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool)
+        self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        rate_limit = os.getenv("DD_TRACE_RATE_LIMIT")
-        if rate_limit is not None and self._trace_sampling_rules in ("", "[]"):
+        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
                 "Tracer rate limiting is only applied to spans that match tracer sampling rules. "
                 "All other spans will be rate limited by the Datadog Agent via DD_APM_MAX_TPS.",
-                rate_limit,
+                self._trace_rate_limit,
             )
-        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
         self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
 
@@ -392,13 +472,8 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        self._trace_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_TRACE_AGENT_HOSTNAME"])
-        self._trace_agent_port = _get_config(["DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"])
+        # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
-
-        self._stats_agent_hostname = _get_config(["DD_AGENT_HOST", "DD_DOGSTATSD_HOST"])
-        self._stats_agent_port = _get_config("DD_DOGSTATSD_PORT")
-        self._stats_agent_url = _get_config("DD_DOGSTATSD_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
@@ -411,7 +486,9 @@ class Config(object):
         self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service = _get_config("DD_SERVICE", self.tags.get("service", None))
+        self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
+
+        self._is_user_provided_service = self.service is not None
 
         self._inferred_base_service = detect_service(sys.argv)
 
@@ -423,9 +500,15 @@ class Config(object):
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
         self._extra_services = set()
-        self._extra_services_queue = None if in_aws_lambda() or not self._remote_config_enabled else File_Queue()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
+
+        self._extra_services_queue = None
+        if self._remote_config_enabled and not in_aws_lambda():
+            # lazy load slow import
+            from ddtrace.internal._file_queue import File_Queue
+
+            self._extra_services_queue = File_Queue()
 
         self._unparsed_service_mapping = _get_config("DD_SERVICE_MAPPING", "")
         self.service_mapping = parse_tags_str(self._unparsed_service_mapping)
@@ -447,7 +530,15 @@ class Config(object):
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
-        self._runtime_metrics_enabled = _get_config("DD_RUNTIME_METRICS_ENABLED", False, asbool)
+        self._runtime_metrics_enabled = _get_config(
+            "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
+        )
+        self._runtime_metrics_runtime_id_enabled = _get_config(
+            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
+        )
+        self._experimental_features_enabled = _get_config(
+            "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
+        )
 
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
@@ -466,7 +557,9 @@ class Config(object):
         if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
             self._propagation_style_extract = _parse_propagation_styles(
                 _get_config(
-                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT
+                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"],
+                    _PROPAGATION_STYLE_DEFAULT,
+                    otel_env="OTEL_PROPAGATORS",
                 )
             )
         else:
@@ -476,7 +569,11 @@ class Config(object):
             )
             self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
-            _get_config(["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"], _PROPAGATION_STYLE_DEFAULT)
+            _get_config(
+                ["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"],
+                _PROPAGATION_STYLE_DEFAULT,
+                otel_env="OTEL_PROPAGATORS",
+            )
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
@@ -485,10 +582,7 @@ class Config(object):
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
             log.warning(
-                (
-                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values allowed"
-                ),
+                ("Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, only non-negative values allowed"),
                 x_datadog_tags_max_length,
             )
             x_datadog_tags_max_length = 0
@@ -527,7 +621,7 @@ class Config(object):
         self._test_visibility_early_flake_detection_enabled = _get_config(
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
-        self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool)
+        self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
@@ -548,7 +642,7 @@ class Config(object):
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
-        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", False, asbool)
+        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
@@ -559,11 +653,13 @@ class Config(object):
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
-
-        if name not in self._integration_configs:
+        elif name in self._integration_configs:
+            return self._integration_configs[name]
+        elif name in INTEGRATION_CONFIGS:
+            # Allows for accessing integration configs before an integration is patched
             self._integration_configs[name] = IntegrationConfig(self, name)
-
-        return self._integration_configs[name]
+            return self._integration_configs[name]
+        raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
@@ -605,6 +701,12 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
+        if integration not in INTEGRATION_CONFIGS:
+            log.error(
+                "%s not found in INTEGRATION_CONFIGS, the following settings will be ignored: %s", integration, settings
+            )
+            return
+
         # DEV: Use `getattr()` to call our `__getattr__` helper
         existing = getattr(self, integration)
         settings = deepcopy(settings)
@@ -644,7 +746,10 @@ class Config(object):
         # use the inferred base service value, and instead use the default if included. If we
         # didn't do this, we would have a massive breaking change from adding inferred_base_service,
         # which would be replacing any integration defaults since service is no longer None.
-        if self.service and self.service == self._inferred_base_service:
+        # We also check if the service was user provided since an edge case may be that
+        # DD_SERVICE == inferred base service, which would force the default to be returned
+        # even though we want config.service in this case.
+        if self.service and self.service == self._inferred_base_service and not self._is_user_provided_service:
             return default if default is not None else self.service
 
         # TODO: This method can be replaced with `config.service`.
@@ -652,8 +757,9 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._integration_config.keys())
-        return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+        integrations = ", ".join(self._integration_configs.keys())
+        rc_configs = ", ".join(self._config.keys())
+        return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
     def _subscribe(self, items, handler):
         # type: (List[str], Callable[[Config, List[str]], None]) -> None
@@ -684,6 +790,8 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
+                from ddtrace.internal.telemetry import telemetry_writer
+
                 telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
@@ -695,86 +803,6 @@ class Config(object):
         # type: (str) -> str
         return self._config[item].source()
 
-    def _remoteconfigPubSub(self):
-        from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-        from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-        from ddtrace.internal.remoteconfig._pubsub import PubSub
-        from ddtrace.internal.remoteconfig._pubsub import RemoteConfigSubscriber
-
-        class _GlobalConfigPubSub(PubSub):
-            __publisher_class__ = RemoteConfigPublisher
-            __subscriber_class__ = RemoteConfigSubscriber
-            __shared_data__ = PublisherSubscriberConnector()
-
-            def __init__(self, callback):
-                self._publisher = self.__publisher_class__(self.__shared_data__, None)
-                self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "GlobalConfig")
-
-        return _GlobalConfigPubSub
-
-    def _handle_remoteconfig(self, data, test_tracer=None):
-        # type: (Any, Any) -> None
-        if not isinstance(data, dict) or (isinstance(data, dict) and "config" not in data):
-            log.warning("unexpected RC payload %r", data)
-            return
-        if len(data["config"]) == 0:
-            log.warning("unexpected number of RC payloads %r", data)
-            return
-
-        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
-        config = None
-        for config_item in data["config"]:
-            if isinstance(config_item, Dict):
-                if "lib_config" in config_item:
-                    config = config_item
-                    break
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        base_rc_config = {n: None for n in self._config}
-
-        if config and "lib_config" in config:
-            lib_config = config["lib_config"]
-            if "tracing_sampling_rate" in lib_config:
-                base_rc_config["_trace_sample_rate"] = lib_config["tracing_sampling_rate"]
-
-            if "tracing_sampling_rules" in lib_config:
-                trace_sampling_rules = lib_config["tracing_sampling_rules"]
-                if trace_sampling_rules:
-                    # returns None if no rules
-                    trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules)
-                    if trace_sampling_rules:
-                        base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
-
-            if "log_injection_enabled" in lib_config:
-                base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
-
-            if "tracing_tags" in lib_config:
-                tags = lib_config["tracing_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_tags"])
-                base_rc_config["tags"] = tags
-
-            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
-
-            if "tracing_header_tags" in lib_config:
-                tags = lib_config["tracing_header_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_header_tags"])
-                base_rc_config["_trace_http_header_tags"] = tags
-        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
-        # called unconditionally to handle the case where header tags have been unset
-        self._handle_remoteconfig_header_tags(base_rc_config)
-
-    def _handle_remoteconfig_header_tags(self, base_rc_config):
-        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
-        header_tags_conf = self._config["_trace_http_header_tags"]
-        env_headers = header_tags_conf._env_value or {}
-        code_headers = header_tags_conf._code_value or {}
-        non_rc_header_tags = {**code_headers, **env_headers}
-        selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-        self._http = HttpConfig(header_tags=selected_header_tags)
-
     def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
@@ -783,21 +811,6 @@ class Config(object):
         else:
             pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
         return {k: v for k, v in pairs}
-
-    def _enable_remote_configuration(self):
-        # type: () -> None
-        """Enable fetching configuration from Datadog."""
-        from ddtrace.internal.flare.flare import Flare
-        from ddtrace.internal.flare.handler import _handle_tracer_flare
-        from ddtrace.internal.flare.handler import _tracerFlarePubSub
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-
-        remoteconfig_pubsub = self._remoteconfigPubSub()(self._handle_remoteconfig)
-        flare = Flare(trace_agent_url=self._trace_agent_url, api_key=self._dd_api_key, ddconfig=self.__dict__)
-        tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
-        remoteconfig_poller.register("APM_TRACING", remoteconfig_pubsub)
-        remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
-        remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
     def _remove_invalid_rules(self, rc_rules: List) -> List:
         """Remove invalid sampling rules from the given list"""
@@ -821,7 +834,9 @@ class Config(object):
             return {tag["key"]: tag["value_glob"] for tag in tags}
         return tags
 
-    def _convert_rc_trace_sampling_rules(self, rc_rules: List[Dict[str, Any]]) -> Optional[str]:
+    def _convert_rc_trace_sampling_rules(
+        self, rc_rules: List[Dict[str, Any]], global_sample_rate: Optional[float]
+    ) -> Optional[str]:
         """Example of an incoming rule:
         [
           {
@@ -851,6 +866,10 @@ class Config(object):
             tags = rule.get("tags")
             if tags:
                 rule["tags"] = self._tags_to_dict(tags)
+
+        if global_sample_rate is not None:
+            rc_rules.append({"sample_rate": global_sample_rate})
+
         if rc_rules:
             return json.dumps(rc_rules)
         else:
@@ -858,3 +877,6 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+config = Config()

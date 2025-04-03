@@ -2,6 +2,7 @@ import contextlib
 from contextlib import contextmanager
 import dataclasses
 import datetime as dt
+import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
 import json
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+from urllib import parse
 import urllib.parse
 
 import pytest
@@ -20,15 +22,13 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -36,6 +36,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
@@ -128,7 +129,6 @@ def override_global_config(values):
         "_128_bit_trace_id_enabled",
         "_x_datadog_tags_enabled",
         "_startup_logs_enabled",
-        "_propagate_service",
         "env",
         "version",
         "service",
@@ -138,14 +138,12 @@ def override_global_config(values):
         "_global_query_string_obfuscation_disabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
-        "_subexec_sensitive_user_wildcards",
         "_remote_config_enabled",
         "_remote_config_poll_interval",
         "_sampling_rules",
         "_sampling_rules_file",
         "_trace_rate_limit",
         "_trace_sampling_rules",
-        "_trace_sample_rate",
         "_trace_api",
         "_trace_writer_buffer_size",
         "_trace_writer_payload_size",
@@ -566,7 +564,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent.get_trace_url()
+            kwargs["agent_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -594,6 +592,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
+    def recreate(self):
+        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
@@ -605,7 +606,8 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        self._encoded = self._encoder._build_payload()
+        if spans:
+            self._encoded = self._encoder._build_payload([spans])
 
 
 class DummyTracer(Tracer):
@@ -617,7 +619,11 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self._configure(*args, **kwargs)
+        # Ensure DummyTracer is always initialized with a DummyWriter
+        self._writer = DummyWriter(
+            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+        )
+        self._recreate()
 
     @property
     def agent_url(self):
@@ -647,22 +653,6 @@ class DummyTracer(Tracer):
         if self._trace_flush_enabled:
             flush_test_tracer_spans(self._writer)
         return traces
-
-    def configure(self, *args, **kwargs):
-        self._configure(*args, **kwargs)
-
-    def _configure(self, *args, **kwargs):
-        assert isinstance(
-            kwargs.get("writer"), (DummyWriterMixin, type(None))
-        ), "cannot configure writer of DummyTracer"
-
-        if not kwargs.get("writer"):
-            # if no writer is present, check if test agent is running to determine if we
-            # should emit traces.
-            kwargs["writer"] = DummyWriter(
-                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-            )
-        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
@@ -849,6 +839,29 @@ class TestSpan(Span):
                 assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
                     self, key, self._metrics[key], value
                 )
+
+    def assert_span_event_count(self, count):
+        """Assert this span has the expected number of span_events"""
+        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
+
+    def assert_span_event_attributes(self, event_idx, attrs):
+        """
+        Assertion method to ensure this span's span event match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_span_event(0, {"exception.type": "builtins.RuntimeError"})
+
+        :param event_idx: id of the span event
+        :type event_idx: integer
+        """
+        span_event_attrs = self._events[event_idx].attributes
+        for name, value in attrs.items():
+            assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
+            assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
+                span_event_attrs, name, span_event_attrs[name], value
+            )
 
 
 class TracerSpanContainer(TestSpanContainer):
@@ -1210,6 +1223,11 @@ class AnyFloat(object):
 
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
+    if "env" in kwargs:
+        # Remove all keys with the value None from env, None is used to unset an environment variable
+        env = kwargs.pop("env")
+        cleaned_env = {env: val for env, val in env.items() if val is not None}
+        kwargs["env"] = cleaned_env
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:
@@ -1275,9 +1293,8 @@ def git_repo(git_repo_empty):
 
 
 def check_test_agent_status():
-    agent_url = agent.get_trace_url()
     try:
-        parsed = parse.urlparse(agent_url)
+        parsed = parse.urlparse(agent_config.trace_agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/info")
         response = conn.getresponse()
@@ -1336,25 +1353,20 @@ def _get_skipped_item(item, skip_reason):
     return item
 
 
-def _should_skip(condition=None, until: int = None):
-    if until is None:
-        until = dt.datetime(3000, 1, 1)
-    else:
-        until = dt.datetime.fromtimestamp(until)
+def _should_skip(until: int, condition=None):
+    until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
-    if condition is not None and not condition:
-        return False
-    return True
+    return condition is not None and condition
 
 
-def flaky(until: int = None, condition: bool = None, reason: str = None):
+def flaky(until: int, condition: bool = None, reason: str = None):
     return skip_if_until(until, condition=condition, reason=reason)
 
 
 def skip_if_until(until: int, condition=None, reason=None):
     """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(condition=condition, until=until)
+    skip = _should_skip(until=until, condition=condition)
 
     def decorator(function_or_class):
         if not skip:
@@ -1381,3 +1393,24 @@ def _build_env(env=None, file_path=FILE_PATH):
         for k, v in env.items():
             environ[k] = v
     return environ
+
+
+_ID = 0
+
+
+def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_content=False):
+    global _ID
+    if not id_based_on_content:
+        _ID += 1
+    hash_key = str(sha_hash or hash(str(data)))
+    return Payload(
+        {
+            "id": hash_key if id_based_on_content else _ID,
+            "product_name": product,
+            "sha256_hash": hash_key,
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )

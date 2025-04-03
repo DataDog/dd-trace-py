@@ -6,9 +6,6 @@ import sys
 from typing import List
 from typing import Optional
 
-from envier import Env
-
-from ddtrace import config as tracer_config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -19,7 +16,8 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._config import config as tracer_config
+from ddtrace.settings._core import DDConfig
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -60,37 +58,35 @@ def build_libddwaf_filename() -> str:
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
 
 
-class ASMConfig(Env):
-    _asm_enabled = Env.var(bool, APPSEC_ENV, default=False)
-    _asm_static_rule_file = Env.var(Optional[str], APPSEC.RULE_FILE, default=None)
+class ASMConfig(DDConfig):
+    _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
+    _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = tracer_config._from_endpoint.get(  # type: ignore
-        "iast_enabled", Env.var(bool, IAST.ENV, default=False)
-    )
-    _iast_request_sampling = Env.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
-    _iast_debug = Env.var(bool, IAST.ENV_DEBUG, default=False, private=True)
-    _iast_propagation_debug = Env.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
-    _iast_telemetry_report_lvl = Env.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
-    _appsec_standalone_enabled = Env.var(bool, APPSEC.STANDALONE_ENV, default=False)
+    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
+    _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
+    _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
+    _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
+    _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
+    _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
 
-    _auto_user_instrumentation_local_mode = Env.var(
+    _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
         APPSEC.AUTO_USER_INSTRUMENTATION_MODE,
         default=LOGIN_EVENTS_MODE.IDENT,
         parser=_parse_options([LOGIN_EVENTS_MODE.DISABLED, LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON]),
     )
     _auto_user_instrumentation_rc_mode: Optional[str] = None
-    _auto_user_instrumentation_enabled = Env.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
+    _auto_user_instrumentation_enabled = DDConfig.var(bool, APPSEC.AUTO_USER_INSTRUMENTATION_MODE_ENABLED, default=True)
 
-    _user_model_login_field = Env.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
-    _user_model_email_field = Env.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
-    _user_model_name_field = Env.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
-    _api_security_enabled = Env.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
-    _api_security_sample_delay = Env.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
-    _api_security_parse_response_body = Env.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _user_model_login_field = DDConfig.var(str, APPSEC.USER_MODEL_LOGIN_FIELD, default="")
+    _user_model_email_field = DDConfig.var(str, APPSEC.USER_MODEL_EMAIL_FIELD, default="")
+    _user_model_name_field = DDConfig.var(str, APPSEC.USER_MODEL_NAME_FIELD, default="")
+    _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
+    _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
+    _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
 
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
@@ -98,23 +94,23 @@ class ASMConfig(Env):
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
 
-    _waf_timeout = Env.var(
+    _waf_timeout = DDConfig.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
         default=DEFAULT.WAF_TIMEOUT,
         help_type=float,
         help="Timeout in milliseconds for WAF computations",
     )
-    _asm_deduplication_enabled = Env.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
-    _asm_obfuscation_parameter_key_regexp = Env.var(
+    _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
+    _asm_obfuscation_parameter_key_regexp = DDConfig.var(
         str, APPSEC.OBFUSCATION_PARAMETER_KEY_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
     )
-    _asm_obfuscation_parameter_value_regexp = Env.var(
+    _asm_obfuscation_parameter_value_regexp = DDConfig.var(
         str, APPSEC.OBFUSCATION_PARAMETER_VALUE_REGEXP, default=DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
     )
 
-    _iast_redaction_enabled = Env.var(bool, IAST.REDACTION_ENABLED, default=True)
-    _iast_redaction_name_pattern = Env.var(
+    _iast_redaction_enabled = DDConfig.var(bool, IAST.REDACTION_ENABLED, default=True)
+    _iast_redaction_name_pattern = DDConfig.var(
         str,
         IAST.REDACTION_NAME_PATTERN,
         default=r"(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|"
@@ -122,50 +118,50 @@ class ASMConfig(Env):
         + r"consumer_?(?:id|key|secret)|"
         + r"sign(?:ed|ature)?|auth(?:entication|orization)?)",
     )
-    _iast_redaction_value_pattern = Env.var(
+    _iast_redaction_value_pattern = DDConfig.var(
         str,
         IAST.REDACTION_VALUE_PATTERN,
         default=r"(?i)bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|"
         + r"ey[I-L][\w=-]+\.ey[I-L][\w=-]+(\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY"
         + r"[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}",
     )
-    _iast_max_concurrent_requests = Env.var(
+    _iast_max_concurrent_requests = DDConfig.var(
         int,
         IAST.DD_IAST_MAX_CONCURRENT_REQUESTS,
         default=2,
     )
-    _iast_max_vulnerabilities_per_requests = Env.var(
+    _iast_max_vulnerabilities_per_requests = DDConfig.var(
         int,
         IAST.DD_IAST_VULNERABILITIES_PER_REQUEST,
         default=2,
     )
-    _iast_lazy_taint = Env.var(bool, IAST.LAZY_TAINT, default=False)
-    _iast_deduplication_enabled = Env.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
+    _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
 
     # default will be set to True once the feature is GA. For now it's always False
-    _ep_enabled = Env.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
-    _ep_stack_trace_enabled = Env.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
+    _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
+    _ep_stack_trace_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.STACK_TRACE_ENABLED, default=True)
     # for max_stack_traces, 0 == unlimited
-    _ep_max_stack_traces = Env.var(
+    _ep_max_stack_traces = DDConfig.var(
         int, EXPLOIT_PREVENTION.MAX_STACK_TRACES, default=2, validator=_validate_non_negative_int
     )
     # for max_stack_trace_depth, 0 == unlimited
-    _ep_max_stack_trace_depth = Env.var(
+    _ep_max_stack_trace_depth = DDConfig.var(
         int, EXPLOIT_PREVENTION.MAX_STACK_TRACE_DEPTH, default=32, validator=_validate_non_negative_int
     )
 
     # percentage of stack trace reported on top, in case depth is larger than max_stack_trace_depth
-    _ep_stack_top_percent = Env.var(
+    _ep_stack_top_percent = DDConfig.var(
         float, EXPLOIT_PREVENTION.STACK_TOP_PERCENT, default=75.0, validator=_validate_percentage
     )
 
-    _iast_stack_trace_enabled = Env.var(bool, IAST.STACK_TRACE_ENABLED, default=True)
+    _iast_stack_trace_enabled = DDConfig.var(bool, IAST.STACK_TRACE_ENABLED, default=True)
 
     # Django ATO
-    _django_include_user_name = Env.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
-    _django_include_user_email = Env.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
-    _django_include_user_login = Env.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
-    _django_include_user_realname = Env.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
+    _django_include_user_name = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_NAME", default=True)
+    _django_include_user_email = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_EMAIL", default=False)
+    _django_include_user_login = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
+    _django_include_user_realname = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
 
     # for tests purposes
     _asm_config_keys = [
@@ -174,7 +170,7 @@ class ASMConfig(Env):
         "_asm_static_rule_file",
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
-        "_appsec_standalone_enabled",
+        "_apm_tracing_enabled",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
@@ -211,7 +207,7 @@ class ASMConfig(Env):
         "_django_include_user_login",
         "_django_include_user_realname",
     ]
-    _iast_redaction_numeral_pattern = Env.var(
+    _iast_redaction_numeral_pattern = DDConfig.var(
         str,
         IAST.REDACTION_VALUE_NUMERAL,
         default=r"^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\d+\.?\d*(?:[Ee][+-]?\d+)?|\.\d+(?:[Ee][+-]"
@@ -223,6 +219,8 @@ class ASMConfig(Env):
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 14, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
+
+    _rc_client_id: Optional[str] = None
 
     def __init__(self):
         super().__init__()
@@ -261,7 +259,7 @@ class ASMConfig(Env):
     def _apm_opt_out(self) -> bool:
         return (
             self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
-        ) and self._appsec_standalone_enabled
+        ) and not self._apm_tracing_enabled
 
     @property
     def _user_event_mode(self) -> str:
@@ -280,4 +278,3 @@ class ASMConfig(Env):
 
 
 config = ASMConfig()
-_report_telemetry(config)

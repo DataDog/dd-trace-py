@@ -5,14 +5,14 @@ from types import ModuleType
 import typing as t
 
 from _config import config as expl_config
-from debugger import COLS
-from debugger import CWD
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_line_probe
 from output import log
+from utils import COLS
+from utils import CWD
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe

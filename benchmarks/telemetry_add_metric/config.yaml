@@ -1,0 +1,33 @@
+# The scenario expects specific names:
+#   - create-1-<type>-metric: {}
+#   - create-100-<type>-metrics: {}
+#   - increment-1-<type>-metric-100-times: {}
+#   - increment-100-<type>-metrics-100-times: {}
+#
+# The create/increment-<num> is assumed to be a static name, it is not parsed.
+# The "100-times" is assumed as a static name, it is not parsed.
+
+
+# Count metrics
+create-1-count-metric: {}
+create-100-count-metrics: {}
+increment-1-count-metric-100-times: {}
+increment-100-count-metrics-100-times: {}
+
+# Gauge metrics
+create-1-gauge-metric: {}
+create-100-gauge-metrics: {}
+increment-1-gauge-metric-100-times: {}
+increment-100-gauge-metrics-100-times: {}
+
+# Distribution metrics
+create-1-distribution-metric: {}
+create-100-distribution-metrics: {}
+increment-1-distribution-metric-100-times: {}
+increment-100-distribution-metrics-100-times: {}
+
+# Rate metrics
+create-1-rate-metric: {}
+create-100-rate-metrics: {}
+increment-1-rate-metric-100-times: {}
+increment-100-rate-metrics-100-times: {}
