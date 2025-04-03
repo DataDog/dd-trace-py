@@ -1,47 +1,33 @@
-from importlib.metadata import version
 import sys
 
 import litellm
 
 from ddtrace import config
-from ddtrace.contrib.internal.litellm.utils import tag_request
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.trace import Pin
+from ddtrace.internal.utils import get_argument_value
 
 
-config._add(
-    "litellm",
-    {},
-)
+config._add("litellm", {})
 
 
 def get_version() -> str:
-    try:
-        return version("litellm")
-    except Exception:
-        return ""
-
-
-def _create_span(litellm, pin, func, instance, args, kwargs):
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    span = integration.trace(
-        pin,
-        "litellm.%s" % func.__name__,
-        model=model,
-        submit_to_llmobs=False,
-    )
-    return span
+    return str(getattr(litellm, "_version", ""))
 
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
-    span = _create_span(litellm, pin, func, instance, args, kwargs)
-    tag_request(span, kwargs)
+    integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        submit_to_llmobs=False,
+    )
     try:
         return func(*args, **kwargs)
     except Exception:
@@ -53,8 +39,14 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
-    span = _create_span(litellm, pin, func, instance, args, kwargs)
-    tag_request(span, kwargs)
+    integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        submit_to_llmobs=False,
+    )
     try:
         return await func(*args, **kwargs)
     except Exception:

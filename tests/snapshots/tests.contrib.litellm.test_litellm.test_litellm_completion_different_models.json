@@ -2,7 +2,7 @@
   {
     "name": "litellm.request",
     "service": "tests.contrib.litellm",
-    "resource": "litellm.completion",
+    "resource": "completion",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,18 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67ed5e0000000000",
+      "_dd.p.tid": "67eedc0500000000",
       "language": "python",
       "litellm.request.model": "command-r",
-      "runtime-id": "78c56aea71ab4e25bc5879f786e2ed72"
+      "runtime-id": "d305d955990344b7b0c36d88756ba920"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 6822
+      "process_id": 44922
     },
-    "duration": 11024000,
-    "start": 1743609344883126000
+    "duration": 7468000,
+    "start": 1743707141922689000
   }]]

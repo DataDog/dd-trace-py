@@ -21,7 +21,7 @@ def test_global_tags(ddtrace_config_litellm, litellm, request_vcr, mock_tracer):
             )
 
     span = mock_tracer.pop_traces()[0][0]
-    assert span.resource == "litellm.completion"
+    assert span.resource == "completion"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
