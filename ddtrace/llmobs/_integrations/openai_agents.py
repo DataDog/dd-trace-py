@@ -99,11 +99,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span_kind = oai_span.llmobs_span_kind
         span._set_ctx_item(SPAN_KIND, span_kind)
 
-        if span_kind == "llm":
-            parent = _get_nearest_llmobs_ancestor(span)
-            if parent and parent._get_ctx_item(SPAN_KIND) == "agent" and _get_span_name(parent):
-                span._set_ctx_item(NAME, _get_span_name(parent) + " (LLM)")
-
         if oai_span.error:
             error_msg = oai_span.get_error_message()
             error_data = oai_span.get_error_data()
@@ -196,6 +191,11 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not oai_span.response:
             return
 
+        parent = _get_nearest_llmobs_ancestor(span)
+        trace_info = self._llmobs_get_trace_info(oai_span)
+        if parent and trace_info and span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id:
+            span.name = _get_span_name(parent) + " (LLM)"
+
         if oai_span.llmobs_model_name:
             span._set_ctx_item(MODEL_NAME, oai_span.llmobs_model_name)
             span._set_ctx_item(MODEL_PROVIDER, "openai")
@@ -221,6 +221,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
 
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+        handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
+        span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
 
