@@ -1,11 +1,17 @@
+from .._hooks import Hooks
+from .exceptions import ConfigException
+from .http import HttpConfig
+from .integration import IntegrationConfig
+
 from ddtrace.vendor.debtcollector import deprecate
-_deprecated_names = [
+__all__ = [
     "ConfigException",
     "HttpConfig",
     "Hooks",
     "IntegrationConfig",
 ]
 
+_deprecated_names = __all__
 
 def __getattr__(name):
     if name in _deprecated_names:
