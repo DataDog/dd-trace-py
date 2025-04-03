@@ -186,19 +186,19 @@ class PytestEFDTestCase(PytestTestCaseBase):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4)
             spans = self.pop_spans()
-            
+
             # Verify no retries happened since EFD should be disabled when KTE is disabled
             new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
             assert len(new_flaky_spans) == 1
             assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is NOT set when KTE is disabled, even for new tests
             assert new_flaky_spans[0].get_tag("test.is_new") != "true"
-            
+
             new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
             assert len(new_passes_spans) == 1
             assert new_passes_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is NOT set for new passing tests either when KTE is disabled
             assert new_passes_spans[0].get_tag("test.is_new") != "true"
 
@@ -217,22 +217,22 @@ class PytestEFDTestCase(PytestTestCaseBase):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4)
             spans = self.pop_spans()
-            
+
             # Verify no retries happened since EFD is disabled even though KTE is enabled
             new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
             assert len(new_flaky_spans) == 1
             assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is still being set even when EFD is disabled but KTE is enabled
             assert new_flaky_spans[0].get_tag("test.is_new") == "true"
-            
+
             new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
             assert len(new_passes_spans) == 1
             assert new_passes_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is still being set for new passing tests too
             assert new_passes_spans[0].get_tag("test.is_new") == "true"
-            
+
             # Verify that known tests are not tagged as new
             known_passes_spans = _get_spans_from_list(spans, "test", "test_known_passes_01")
             assert len(known_passes_spans) == 1
@@ -255,20 +255,20 @@ class PytestEFDTestCase(PytestTestCaseBase):
             # Instead of checking the outcome, which might include custom EFD statuses,
             # directly check the spans to verify retries happened
             spans = self.pop_spans()
-            
+
             # Verify retries happened since both KTE and EFD are enabled
             new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
             assert len(new_flaky_spans) == 11  # 1 original + 10 retries
-            
+
             flaky_retries = 0
             for span in new_flaky_spans:
                 if span.get_tag("test.is_retry") == "true":
                     flaky_retries += 1
             assert flaky_retries == 10
-            
+
             new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
             assert len(new_passes_spans) == 11  # 1 original + 10 retries
-            
+
             passes_retries = 0
             for span in new_passes_spans:
                 if span.get_tag("test.is_retry") == "true":
@@ -292,22 +292,22 @@ class PytestEFDTestCase(PytestTestCaseBase):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4)
             spans = self.pop_spans()
-            
+
             # Verify no retries happened since EFD env var is disabled even though both API settings are enabled
             new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
             assert len(new_flaky_spans) == 1
             assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is still set because KTE is enabled, even though EFD is disabled by env var
             assert new_flaky_spans[0].get_tag("test.is_new") == "true"
-            
+
             new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
             assert len(new_passes_spans) == 1
             assert new_passes_spans[0].get_tag("test.is_retry") != "true"
-            
+
             # Verify that test.is_new is set for new passing tests too
             assert new_passes_spans[0].get_tag("test.is_new") == "true"
-            
+
             # Verify that known tests are not tagged as new
             known_passes_spans = _get_spans_from_list(spans, "test", "test_known_passes_01")
             assert len(known_passes_spans) == 1
