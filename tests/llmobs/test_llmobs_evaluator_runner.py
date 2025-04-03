@@ -27,7 +27,6 @@ def active_evaluator_runner(llmobs):
 
 
 def test_evaluator_runner_start(mock_evaluator_logs, active_evaluator_runner):
-    mock_evaluator_logs.reset_mock()
     mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
