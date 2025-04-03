@@ -251,7 +251,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
                 known_tests_enabled=True,
             ),
         ):
-            rec = self.inline_run("--ddtrace")
+            self.inline_run("--ddtrace")
             # Instead of checking the outcome, which might include custom EFD statuses,
             # directly check the spans to verify retries happened
             spans = self.pop_spans()
