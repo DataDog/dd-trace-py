@@ -10,7 +10,9 @@ from ddtrace.trace import Span
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
 
-    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: Dict[str, Any]) -> None:
+    def _set_base_span_tags(
+        self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: Dict[str, Any]
+    ) -> None:
         if "host" in kwargs.get("metadata", {}).get("headers", {}):
             host = kwargs["metadata"]["headers"]["host"]
         if model is not None:
