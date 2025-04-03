@@ -95,27 +95,39 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
-    # Exclude the suites that are run in CircleCI. These likely don't run in
-    # GitLab yet.
-    with YAML() as yaml:
-        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
-        circleci_jobs = set(circleci_config["jobs"].keys())
-
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
-                LOGGER.debug("Skipping CircleCI suite %s", suite)
-                continue
-
             jobspec = JobSpec(suite, **suites[suite])
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
             print(str(jobspec), file=f)
+
+
+def gen_build_docs() -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns(
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs", "releasenotes/*", "benchmarks/README.rst"}
+    ):
+        with TESTS_GEN.open("a") as f:
+            print("build_docs:", file=f)
+            print("  extends: .testrunner", file=f)
+            print("  stage: hatch", file=f)
+            print("  needs: []", file=f)
+            print("  script:", file=f)
+            print("    - |", file=f)
+            print("      hatch run docs:build", file=f)
+            print("      mkdir -p /tmp/docs", file=f)
+            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  artifacts:", file=f)
+            print("    paths:", file=f)
+            print("      - '/tmp/docs'", file=f)
 
 
 def gen_pre_checks() -> None:
@@ -213,7 +225,6 @@ from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
 from time import monotonic_ns as time  # noqa
 
-from ruamel.yaml import YAML  # noqa
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)

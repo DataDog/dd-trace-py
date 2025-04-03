@@ -112,15 +112,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/meta",
         ),
         Venv(
-            name="circleci-gen-config",
-            command="python scripts/gen_circleci_config.py {cmdargs}",
-            pys=["3"],
-            pkgs={
-                "ruamel.yaml": latest,
-                "lxml": latest,
-            },
-        ),
-        Venv(
             name="gitlab-gen-config",
             command="python scripts/gen_gitlab_config.py {cmdargs}",
             pys=["3"],
@@ -167,18 +158,6 @@ venv = Venv(
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_integrations_pygoat",
-            pys=select_pys(min_version="3.10"),
-            command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
-            pkgs={
-                "requests": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
         Venv(
@@ -2959,7 +2938,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2981,7 +2960,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
