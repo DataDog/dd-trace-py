@@ -16,7 +16,7 @@ from ddtrace import config as ddconfig
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.writer import AgentWriter
-from ddtrace.settings import ConfigException
+from ddtrace.settings.exceptions import ConfigException
 from ddtrace.trace import Context as DatadogContext  # noqa:F401
 from ddtrace.trace import Span as DatadogSpan
 from ddtrace.trace import Tracer as DatadogTracer
