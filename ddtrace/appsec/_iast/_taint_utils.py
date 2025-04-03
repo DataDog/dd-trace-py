@@ -520,7 +520,7 @@ def supported_dbapi_integration(integration_name):
     return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
 
 
-def check_tainted_dbapi_args(args, kwargs, tracer, integration_name, method):
+def check_tainted_dbapi_args(args, kwargs, integration_name, method):
     if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
         return len(args) and args[0] and is_pyobject_tainted(args[0])
 
