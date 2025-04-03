@@ -486,7 +486,7 @@ class OaiSpanAdapter:
             return None
         return self.error.get("data")
 
-    def llmobs_input_messages(self) -> List[Dict[str, Any]]:
+    def llmobs_input_messages(self) -> Tuple[List[Dict[str, Any]], List[str]]:
         """Returns processed input messages for LLM Obs LLM spans.
 
         Returns:
@@ -494,11 +494,13 @@ class OaiSpanAdapter:
         """
         messages = self.input
         processed: List[Dict[str, Any]] = []
+        tool_call_ids: List[str] = []
+
         if not messages:
-            return processed
+            return processed, tool_call_ids
 
         if isinstance(messages, str):
-            return [{"content": messages, "role": "user"}]
+            return [{"content": messages, "role": "user"}], tool_call_ids
 
         for item in messages:
             processed_item: Dict[str, Union[str, List[Dict[str, str]]]] = {}
@@ -541,6 +543,7 @@ class OaiSpanAdapter:
                         output = json.loads(output)
                     except json.JSONDecodeError:
                         output = {"output": output}
+                tool_call_ids.append(item["call_id"])
                 processed_item["tool_calls"] = [
                     {
                         "tool_id": item["call_id"],
@@ -550,21 +553,22 @@ class OaiSpanAdapter:
             if processed_item:
                 processed.append(processed_item)
 
-        return processed
+        return processed, tool_call_ids
 
-    def llmobs_output_messages(self) -> List[Dict[str, Any]]:
+    def llmobs_output_messages(self) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str]]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
             A list of processed messages
         """
         if not self.response or not self.response.output:
-            return []
+            return [], []
 
         messages: List[Any] = self.response.output
         processed: List[Dict[str, Any]] = []
+        tool_call_outputs: List[Tuple[str, str, str]] = []
         if not messages:
-            return processed
+            return processed, tool_call_outputs
 
         if not isinstance(messages, list):
             messages = [messages]
@@ -581,6 +585,7 @@ class OaiSpanAdapter:
                 message.update({"role": getattr(item, "role", "assistant"), "content": text})
             # Handle tool calls
             elif hasattr(item, "call_id") and hasattr(item, "arguments"):
+                tool_call_outputs.append((item.call_id, item.name, item.arguments if item.arguments else "{}"))
                 message.update(
                     {
                         "tool_calls": [
@@ -599,7 +604,7 @@ class OaiSpanAdapter:
                 message.update({"content": str(item)})
             processed.append(message)
 
-        return processed
+        return processed, tool_call_outputs
 
     def llmobs_trace_input(self) -> Optional[str]:
         """Converts Response span data to an input value for top level trace.
@@ -611,7 +616,7 @@ class OaiSpanAdapter:
             return None
 
         try:
-            messages = self.llmobs_input_messages()
+            messages, _ = self.llmobs_input_messages()
             if messages and len(messages) > 0:
                 return messages[0].get("content")
         except (AttributeError, IndexError):

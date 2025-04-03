@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 import json
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -16,6 +19,7 @@ from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.trace import Span
 
@@ -197,3 +201,89 @@ def safe_json(obj, ensure_ascii=True):
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
+
+
+def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+    current_span_links = span._get_ctx_item(SPAN_LINKS)
+    if current_span_links is None:
+        current_span_links = []
+    current_span_links.append(
+        {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "attributes": {"from": from_io, "to": to_io},
+        }
+    )
+    span._set_ctx_item(SPAN_LINKS, current_span_links)
+
+
+@dataclass
+class ToolCall:
+    """Tool call and its associated llmobs spans."""
+
+    tool_id: str
+    tool_name: str
+    arguments: str
+    llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
+    tool_kind: str = "function"  # one of "function", "handoff"
+    tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
+    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
+
+
+class ToolCallTracker:
+    """Used to track tool data and their associated llm/tool spans for span linking."""
+
+    def __init__(self):
+        self._tool_calls: Dict[str, ToolCall] = {}  # tool_id -> ToolCall
+        self._input_lookup: Dict[Tuple[str, str], str] = {}  # (name, args) -> tool_id
+
+    def on_llm_tool_choice(
+        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
+    ) -> None:
+        tool_call = ToolCall(
+            tool_id=tool_id,
+            tool_name=tool_name,
+            arguments=arguments,
+            llm_span_context=llm_span_context,
+        )
+        self._tool_calls[tool_id] = tool_call
+        self._input_lookup[(tool_name, arguments)] = tool_id
+
+    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span) -> None:
+        tool_id = self._input_lookup.get((tool_name, tool_arg))
+        if not tool_id:
+            return
+        tool_call = self._tool_calls.get(tool_id)
+        if not tool_call:
+            return
+        add_span_link(
+            tool_span,
+            tool_call.llm_span_context["span_id"],
+            tool_call.llm_span_context["trace_id"],
+            "output",
+            "input",
+        )
+        self._tool_calls[tool_id].tool_span_context = {
+            "span_id": str(tool_span.span_id),
+            "trace_id": format_trace_id(tool_span.trace_id),
+        }
+        self._tool_calls[tool_id].tool_kind = tool_kind
+        self._input_lookup.pop((tool_name, tool_arg))
+
+    def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
+        tool_call = self._tool_calls.get(tool_id)
+        if not tool_call or not tool_call.tool_span_context or tool_call.is_handoff_completed:
+            return
+
+        if tool_call.tool_kind == "handoff":
+            # we need to mark when a hand-off is completed since we only want to link the output of a
+            # handoff tool span to the FIRST llm call that has that hand-off as input.
+            self._tool_calls[tool_id].is_handoff_completed = True
+
+        add_span_link(
+            llm_span,
+            tool_call.tool_span_context["span_id"],
+            tool_call.tool_span_context["trace_id"],
+            "output",
+            "input",
+        )
