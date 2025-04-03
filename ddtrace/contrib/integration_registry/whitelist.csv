@@ -1,0 +1,17 @@
+Directory Name
+__pycache__
+asgi
+asyncio
+aws_lambda
+dbapi
+dbapi_async
+ddtrace_api
+futures
+httplib
+logging
+pydantic
+sqlite3
+subprocess
+unittest
+urllib
+wsgi

@@ -41,6 +41,19 @@ IGNORED_PACKAGES = {
     "ddtrace",
 }
 
+# Define the core dependencies of the ddtrace package itself
+# These are the only packages that should end up in min_compatible_versions.csv
+CORE_TRACER_DEPENDENCIES = {
+    # List core dependencies here, e.g.:
+    "wrapt",
+    "protobuf",
+    "envier",
+    "typing_extensions", # Often needed for compatibility
+    "importlib_metadata", # Used by core features
+    "packaging", # Used by core features
+    # Add any other direct, essential dependencies of ddtrace core
+}
+
 
 def _flatten(items):
     """Flatten one level of nesting"""
@@ -169,10 +182,10 @@ def write_out(
 
 
 def main():
-    """Discover the minimum version of packages referenced in the riotfile.
+    """Discover minimum versions for packages referenced in the riotfile.
 
-    Separates integration packages from other dependencies and writes
-    them to different CSV files.
+    Separates integration packages from core tracer dependencies and writes
+    them to different CSV files. Transitive dependencies of integrations are ignored.
     """
     all_pkgs = tree_pkgs_from_riot()
 
@@ -188,9 +201,14 @@ def main():
     for pkg_name, versions in all_pkgs.items():
         if pkg_name in integration_package_names:
             integration_pkgs[pkg_name] = versions
-        elif pkg_name not in IGNORED_PACKAGES: # Ensure ignored packages are not in other_pkgs either
+        # Only include core tracer dependencies in the 'other' list
+        elif pkg_name in CORE_TRACER_DEPENDENCIES and pkg_name not in IGNORED_PACKAGES:
              other_pkgs[pkg_name] = versions
+        elif pkg_name not in IGNORED_PACKAGES:
+            # This package is neither an integration nor a core dependency we track
+            print(f"Ignoring non-core, non-integration package: {pkg_name}")
         else:
+            # This package was explicitly ignored
             print(f"Ignoring package: {pkg_name}")
 
 
@@ -212,7 +230,7 @@ def main():
         write_out(
             other_pkgs,
             output_dir / OTHER_OUT_FILENAME,
-            "Minimum compatible dependency versions",
+            "Minimum core tracer dependency versions", # Updated title
         )
 
 main()
