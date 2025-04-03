@@ -6,9 +6,9 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.trace import Pin
-from ddtrace.internal.utils import get_argument_value
 
 
 config._add("litellm", {})
