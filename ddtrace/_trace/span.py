@@ -359,20 +359,6 @@ class Span(object):
             self.set_metric(key, value)
             return
 
-        # Key should explicitly be converted to a float if needed
-        elif key in _NUMERIC_TAGS:
-            if value is None:
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
-            try:
-                # DEV: `set_metric` will try to cast to `float()` for us
-                self.set_metric(key, value)
-            except (TypeError, ValueError):
-                log.warning("error setting numeric metric %s:%s", key, value)
-
-            return
-
         elif key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
