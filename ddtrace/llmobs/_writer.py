@@ -274,6 +274,8 @@ class LLMObsSpanWriter(HTTPWriter):
             intake_url = agent.get_trace_url()
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
+        self.agentless_url = agentless_url
+
         super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
@@ -326,6 +328,7 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url=self.agentless_url,
         )
 
 
