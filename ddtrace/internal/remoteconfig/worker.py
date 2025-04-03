@@ -12,7 +12,6 @@ from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
-from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import StopWatch
 
@@ -30,13 +29,13 @@ class RemoteConfigPoller(periodic.PeriodicService):
     _enable = True
 
     def __init__(self):
-        super(RemoteConfigPoller, self).__init__(interval=get_poll_interval_seconds())
+        super(RemoteConfigPoller, self).__init__(interval=ddconfig._remote_config_poll_interval)
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
         self._products_to_restart_on_fork = set()
         self._capabilities_map: Dict[enum.IntFlag, str] = dict()
-        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
+        log.debug("RemoteConfigWorker created with polling interval %d", ddconfig._remote_config_poll_interval)
 
     def _agent_check(self) -> None:
         try:

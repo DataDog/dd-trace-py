@@ -26,7 +26,7 @@ def _hack_test_duration(test_id: api.InternalTestId, duration: float):
 
 
 def _make_test_ids():
-    _unique_test_ids = {
+    _known_test_ids = {
         "m1": {
             "m1_s1": [
                 ["m1_s1_t3"],
@@ -55,7 +55,7 @@ def _make_test_ids():
     }
 
     test_ids = set()
-    for module, suites in _unique_test_ids.items():
+    for module, suites in _known_test_ids.items():
         module_id = ext_api.TestModuleId(module)
         for suite, tests in suites.items():
             suite_id = ext_api.TestSuiteId(module_id, suite)
@@ -287,7 +287,7 @@ def main():
         ext_api.enable_test_visibility()
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._unique_test_ids",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._known_test_ids",
             _make_test_ids(),
         ):
             run_tests()

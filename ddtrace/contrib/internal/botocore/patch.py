@@ -195,7 +195,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    is_bedrock_converse = endpoint_name == "bedrock-runtime" and operation == "Converse"
+    is_bedrock_converse = endpoint_name == "bedrock-runtime" and operation in ("Converse", "ConverseStream")
     is_bedrock_invoke = endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel")
 
     if is_bedrock_converse or is_bedrock_invoke:

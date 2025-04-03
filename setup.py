@@ -106,14 +106,14 @@ def interpose_sccache():
         )
         if cc_path:
             os.environ["DD_CC_OLD"] = cc_path
-            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+            os.environ["CC"] = str(sccache_path) + " " + str(cc_path)
 
         cxx_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
         )
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
-            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
+            os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -652,7 +652,9 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (platform.system() == "Linux" or platform.system() == "Darwin") and is_64_bit_python():
+    if (
+        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
+    ) or CURRENT_OS == "Windows":
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -661,6 +663,7 @@ if not IS_PYSTON:
             )
         )
 
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
@@ -676,6 +679,7 @@ if not IS_PYSTON:
                 optional=False,
             ),
         )
+
 
 else:
     ext_modules = []
