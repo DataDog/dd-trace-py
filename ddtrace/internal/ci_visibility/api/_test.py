@@ -129,15 +129,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def _set_known_tests_tags(self) -> None:
         # NOTE: The `is_new` tag is currently being set in the context of:
         # - Known tests enabled
-        # - EFD
+        # - EFD (subset of known tests)
         if not self.is_new():
             return
 
-        session = self.get_session()
-        if session is not None and self._session_settings.efd_settings.enabled:
-            self.set_tag(TEST_IS_NEW, self._is_new)
-
-        elif self._is_known_tests_enabled:
+        if self._is_known_tests_enabled:
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_efd_tags(self) -> None:
