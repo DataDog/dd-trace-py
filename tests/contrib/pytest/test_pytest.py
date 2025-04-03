@@ -30,6 +30,7 @@ from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_env
 
@@ -4107,3 +4108,19 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_log_capture_does_not_break_ddtrace_logging(self):
+        class DummyTracerWithShutdownError(DummyTracer):
+            def shutdown(self):
+                breakpoint()
+                raise Exception("error during shutdown")
+
+        self.tracer = DummyTracerWithShutdownError()
+        py_file = self.testdir.makepyfile("""
+            def test_ok():
+                assert True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        breakpoint()

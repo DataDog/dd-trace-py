@@ -1,8 +1,5 @@
 ---
 fixes:
   - |
-    For reporting bug fixes.
-    Use past tense for the problem and present tense for the fix and solution in the following format:
-    Format: <scope>: This fix resolves an issue where <ABC_bug> caused <XYZ_situation>.
     CI Visibility: This fix resolves an issue where an ``I/O operation on closed file`` error was raised while printing
     ``ddtrace`` logs during a pytest session, due to a conflict with pytest's log capture.
