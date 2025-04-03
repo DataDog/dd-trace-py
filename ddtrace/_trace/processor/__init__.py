@@ -12,7 +12,6 @@ from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -190,7 +189,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
-        if _is_top_level(span):
+        if span.is_top_level:
             span.set_metric("_dd.top_level", 1)
 
 

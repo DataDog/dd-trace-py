@@ -14,7 +14,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -1771,20 +1770,20 @@ def test_tracer_memory_leak_span_processors():
 
 def test_top_level(tracer):
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span.is_top_level
         with tracer.trace("child") as child_span:
-            assert not _is_top_level(child_span)
+            assert not child_span.is_top_level
             with tracer.trace("subchild") as subchild_span:
-                assert not _is_top_level(subchild_span)
+                assert not subchild_span.is_top_level
             with tracer.trace("subchild2", service="svc-2") as subchild_span2:
-                assert _is_top_level(subchild_span2)
+                assert subchild_span2.is_top_level
 
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span.is_top_level
         with tracer.trace("child", service="child-svc") as child_span:
-            assert _is_top_level(child_span)
+            assert child_span.is_top_level
         with tracer.trace("child2", service="child-svc") as child_span2:
-            assert _is_top_level(child_span2)
+            assert child_span2.is_top_level
 
 
 def test_finish_span_with_ancestors(tracer):
