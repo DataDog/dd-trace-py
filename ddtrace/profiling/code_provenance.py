@@ -4,7 +4,7 @@ import sysconfig
 from typing import List
 
 from ddtrace.internal.packages import get_distributions
-from ddtrace.settings import profiling
+from ddtrace.settings.profiling import config
 
 
 class Library:
@@ -41,10 +41,10 @@ class CodeProvenance:
         )
 
         for dist in get_distributions():
-            self.libraries.append(Library(kind="library", name=dist.name, version=dist.version, paths=[dist.path]))
+            self.libraries.append(Library(kind="library", name=dist.name, version=dist.version, paths=[dist.paths]))
 
     def enabled(self):
-        return profiling.code_provenance
+        return config.code_provenance
 
     def to_dict(self):
         if not self.enabled():
@@ -56,3 +56,6 @@ class CodeProvenance:
 def json_str_to_export():
     cp = CodeProvenance()
     return json.dumps(cp.to_dict())
+
+
+JSON_STR = json_str_to_export()

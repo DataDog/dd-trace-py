@@ -3,7 +3,7 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
-from os import fspath  # noqa:F401
+import os
 import sys
 import sysconfig
 from types import ModuleType
@@ -18,12 +18,38 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.List[str])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
-@callonce
+def get_unique_directories(dist):
+    """Retrieve top-level package paths for this distribution:
+    1. Directories containing .py files
+    2. .py files directly in site-packages/
+    """
+    files = dist.files or []
+    site_packages = dist._path.parent.resolve()
+
+    # Keep only .py files that exist within site-packages
+    py_files = [
+        (site_packages / file).resolve()
+        for file in files
+        if file.name.endswith(".py") and (site_packages / file).exists()
+    ]
+
+    # Normalize and collect their parent directories
+    dirpaths = {f.parent for f in py_files}
+
+    # Get the shortest set of directories that are NOT nested in each other
+    result = set()
+    for dirpath in sorted(dirpaths):
+        if not any(other != dirpath and str(dirpath).startswith(str(other) + os.sep) for other in result):
+            result.add(str(dirpath))
+
+    return tuple(result)
+
+
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
@@ -35,14 +61,14 @@ def get_distributions():
     pkgs = set()
     for dist in importlib_metadata.distributions():
         # Get the root path of all files in a distribution
-        path = str(dist.locate_file(""))
+        paths = get_unique_directories(dist)
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
+            pkgs.add(Distribution(paths=paths, name=name.lower(), version=version))
 
     return pkgs
 
