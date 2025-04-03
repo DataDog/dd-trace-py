@@ -127,14 +127,16 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             self.set_tag(test.SUITE, self._overwritten_suite_name)
 
     def _set_known_tests_tags(self) -> None:
-        # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
-        # test as new.
+        # NOTE: The `is_new` tag is currently being set in the context of:
+        # - Known tests enabled
+        # - EFD
         if not self.is_new():
             return
 
         session = self.get_session()
         if session is not None and self._session_settings.efd_settings.enabled:
+            # If a session is considered faulty, we do not want to tag the
+            # test as new.
             if not session.efd_is_faulty_session():
                 self.set_tag(TEST_IS_NEW, self._is_new)
 
