@@ -49,7 +49,9 @@ class TestTestVisibilityAPIClientSettingResponses(TestTestVisibilityAPIClientBas
             ],
             # EFD defaults
             [
-                _get_setting_api_response(tests_skipping=True, itr_enabled=True, efd_detection_enabled=True),
+                _get_setting_api_response(
+                    tests_skipping=True, itr_enabled=True, efd_detection_enabled=True, known_tests_enabled=True
+                ),
                 TestVisibilityAPISettings(
                     skipping_enabled=True,
                     itr_enabled=True,
