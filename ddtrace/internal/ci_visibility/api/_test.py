@@ -130,10 +130,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         # NOTE: The `is_new` tag is currently being set in the context of:
         # - Known tests enabled
         # - EFD (subset of known tests)
-        if not self.is_new():
-            return
-
-        if self._is_known_tests_enabled:
+        if self._is_known_tests_enabled and self.is_new():
             self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_efd_tags(self) -> None:
