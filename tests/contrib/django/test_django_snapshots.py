@@ -8,7 +8,6 @@ import django
 import pytest
 
 from tests.utils import _build_env
-from tests.utils import flaky
 from tests.utils import package_installed
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -258,7 +257,6 @@ def test_asgi_200(django_asgi):
         assert resp.content == b"Hello, test app."
 
 
-@flaky(1735812000)
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(ignores=SNAPSHOT_IGNORES + ["meta.http.useragent"])
 def test_asgi_200_simple_app():

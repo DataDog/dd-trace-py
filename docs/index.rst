@@ -232,6 +232,7 @@ Indices and tables
     integrations
     basic_usage
     advanced_usage
+    build_system
     benchmarks
     contributing
     troubleshooting

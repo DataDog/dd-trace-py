@@ -240,8 +240,8 @@ def test_utf_non_ascii_io(llmobs, llmobs_backend):
             llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
-    assert events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
-    assert events[0]["spans"][1]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+    assert events[0][0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert events[0][1]["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
 
 
 def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
@@ -255,7 +255,7 @@ def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert (
-        events[0]["spans"][0]["meta"]["input"]["messages"][0]["content"]
+        events[0][0]["spans"][0]["meta"]["input"]["messages"][0]["content"]
         == "The first Super Bowl (aka First AFL–NFL World Championship Game), was played in 1967."
     )
 
@@ -267,8 +267,8 @@ def test_structured_io_data(llmobs, llmobs_backend):
             llmobs.annotate(span, input_data={"data": "test1"}, output_data={"data": "test2"})
         events = llmobs_backend.wait_for_num_events(num=1)
         assert len(events) == 1
-        assert events[0]["spans"][0]["meta"]["input"]["value"] == '{"data": "test1"}'
-        assert events[0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
+        assert events[0][0]["spans"][0]["meta"]["input"]["value"] == '{"data": "test1"}'
+        assert events[0][0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
 
 
 def test_structured_prompt_data(llmobs, llmobs_backend):
@@ -276,7 +276,7 @@ def test_structured_prompt_data(llmobs, llmobs_backend):
         llmobs.annotate(span, prompt={"template": "test {{value}}"})
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
-    assert events[0]["spans"][0]["meta"]["input"] == {
+    assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
             "template": "test {{value}}",
             "_dd_context_variable_keys": ["context"],
@@ -289,10 +289,11 @@ def test_structured_io_data_unserializable(llmobs, llmobs_backend):
     class CustomObj:
         pass
 
+    expected_repr = '"<tests.llmobs.test_llmobs.test_structured_io_data_unserializable.<locals>.CustomObj object at 0x'
     for m in [llmobs.workflow, llmobs.task, llmobs.llm, llmobs.retrieval]:
         with m() as span:
             llmobs.annotate(span, input_data=CustomObj(), output_data=CustomObj())
         events = llmobs_backend.wait_for_num_events(num=1)
         assert len(events) == 1
-        assert "[Unserializable object:" in events[0]["spans"][0]["meta"]["input"]["value"]
-        assert "[Unserializable object:" in events[0]["spans"][0]["meta"]["output"]["value"]
+        assert expected_repr in events[0][0]["spans"][0]["meta"]["input"]["value"]
+        assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]

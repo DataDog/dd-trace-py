@@ -2,22 +2,19 @@
 
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
-
-import abc
 import json
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from json.decoder import JSONDecodeError
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.settings._config import config
 
 from ..constants import ENV_KEY
-from ..internal.constants import _PRIORITY_CATEGORY
-from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
-from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
 from ..internal.sampling import _get_highest_precedence_rule_matching
@@ -27,56 +24,14 @@ from .sampling_rule import SamplingRule
 
 PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
-
 
 log = get_logger(__name__)
 
-# All references to MAX_TRACE_ID were replaced with _MAX_UINT_64BITS.
-# Now that ddtrace supports generating 128bit trace_ids,
-# the max trace id should be 2**128 - 1 (not 2**64 -1)
-# MAX_TRACE_ID is no longer used and should be removed.
-MAX_TRACE_ID = _MAX_UINT_64BITS
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
 
 
-class SamplingError(Exception):
-    pass
-
-
-class BaseSampler(metaclass=abc.ABCMeta):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def sample(self, span):
-        # type: (Span) -> bool
-        pass
-
-
-class BasePrioritySampler(BaseSampler):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def update_rate_by_service_sample_rates(self, sample_rates):
-        pass
-
-
-class AllSampler(BaseSampler):
-    """Sampler sampling all the traces"""
-
-    def sample(self, span):
-        return True
-
-
-class RateSampler(BaseSampler):
+class RateSampler:
     """Sampler based on a rate
 
     Keep (100 * `sample_rate`)% of the traces.
@@ -91,200 +46,102 @@ class RateSampler(BaseSampler):
 
     def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * _MAX_UINT_64BITS
+        self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
-    def sample(self, span):
-        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self.sampling_id_threshold
+    def sample(self, span: Span) -> bool:
+        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % MAX_UINT_64BITS) <= self.sampling_id_threshold
         return sampled
 
 
-class _AgentRateSampler(RateSampler):
-    pass
-
-
-class RateByServiceSampler(BasePrioritySampler):
-    """Sampler based on a rate, by service
-
-    Keep (100 * `sample_rate`)% of the traces.
-    The sample rate is kept independently for each service/env tuple.
+class DatadogSampler:
     """
+    The DatadogSampler samples traces based on the following (in order of precedence):
+       - A list of sampling rules, applied in the order they are provided. The first matching rule is used.
+       - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
+       - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
+       - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
+       - By default, spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing
+         the agent to determine the final sample rate and sampling decision.
 
-    __slots__ = ("sample_rate", "_by_service_samplers", "_default_sampler")
-
-    _default_key = "service:,env:"
-
-    @staticmethod
-    def _key(
-        service=None,  # type: Optional[str]
-        env=None,  # type: Optional[str]
-    ):
-        # type: (...) -> str
-        """Compute a key with the same format used by the Datadog agent API."""
-        service = service or ""
-        env = env or ""
-        return "service:" + service + ",env:" + env
-
-    def __init__(self, sample_rate=1.0):
-        # type: (float) -> None
-        self.sample_rate = sample_rate
-        self._default_sampler = RateSampler(self.sample_rate)
-        self._by_service_samplers = {}  # type: Dict[str, RateSampler]
-
-    def set_sample_rate(
-        self,
-        sample_rate,  # type: float
-        service=None,  # type: Optional[str]
-        env=None,  # type: Optional[str]
-    ):
-        # type: (...) -> None
-
-        # if we have a blank service, we need to match it to the config.service
-        if service is None:
-            service = config.service
-        if env is None:
-            env = config.env
-
-        self._by_service_samplers[self._key(service, env)] = _AgentRateSampler(sample_rate)
-
-    def sample(self, span):
-        sampled, sampler = self._make_sampling_decision(span)
-        _set_sampling_tags(
-            span,
-            sampled,
-            sampler.sample_rate,
-            self._choose_priority_category(sampler),
-        )
-        return sampled
-
-    def _choose_priority_category(self, sampler):
-        # type: (BaseSampler) -> str
-        if sampler is self._default_sampler:
-            return _PRIORITY_CATEGORY.DEFAULT
-        elif isinstance(sampler, _AgentRateSampler):
-            return _PRIORITY_CATEGORY.AUTO
-        else:
-            return _PRIORITY_CATEGORY.RULE_DEF
-
-    def _make_sampling_decision(self, span):
-        # type: (Span) -> Tuple[bool, BaseSampler]
-        env = span.get_tag(ENV_KEY)
-        key = self._key(span.service, env)
-        sampler = self._by_service_samplers.get(key) or self._default_sampler
-        sampled = sampler.sample(span)
-        return sampled, sampler
-
-    def update_rate_by_service_sample_rates(self, rate_by_service):
-        # type: (Dict[str, float]) -> None
-        samplers = {}  # type: Dict[str, RateSampler]
-        for key, sample_rate in rate_by_service.items():
-            samplers[key] = _AgentRateSampler(sample_rate)
-
-        self._by_service_samplers = samplers
-
-
-class DatadogSampler(RateByServiceSampler):
-    """
-    By default, this sampler relies on dynamic sample rates provided by the trace agent
-    to determine which traces are kept or dropped.
-
-    You can also configure a static sample rate via ``default_sample_rate`` to use for sampling.
-    When a ``default_sample_rate`` is configured, that is the only sample rate used, and the agent
-    provided rates are ignored.
-
-    You may also supply a list of ``SamplingRule`` instances to set sample rates for specific
-    services.
-
-    Example rules::
+    Example sampling rules::
 
         DatadogSampler(rules=[
             SamplingRule(sample_rate=1.0, service="my-svc"),
             SamplingRule(sample_rate=0.0, service="less-important"),
+            SamplingRule(sample_rate=0.5), # sample all remaining services at 50%
         ])
-
-    Rules are evaluated in the order they are provided, and the first rule that matches is used.
-    If no rule matches, then the agent sample rates are used.
-
-    This sampler can be configured with a rate limit. This will ensure the max number of
-    sampled traces per second does not exceed the supplied limit. The default is 100 traces kept
-    per second.
     """
 
-    __slots__ = ("limiter", "rules", "default_sample_rate", "_rate_limit_always_on")
-
-    NO_RATE_LIMIT = -1
-    # deprecate and remove the DEFAULT_RATE_LIMIT field from DatadogSampler
-    DEFAULT_RATE_LIMIT = DEFAULT_SAMPLING_RATE_LIMIT
+    __slots__ = (
+        "limiter",
+        "rules",
+        "_rate_limit_always_on",
+        "_by_service_samplers",
+    )
+    _default_key = "service:,env:"
 
     def __init__(
         self,
-        rules=None,  # type: Optional[List[SamplingRule]]
-        default_sample_rate=None,  # type: Optional[float]
-        rate_limit=None,  # type: Optional[int]
-        rate_limit_window=1e9,  # type: float
-        rate_limit_always_on=False,  # type: bool
+        rules: Optional[List[SamplingRule]] = None,
+        rate_limit: Optional[int] = None,
+        rate_limit_window: float = 1e9,
+        rate_limit_always_on: bool = False,
     ):
-        # type: (...) -> None
         """
         Constructor for DatadogSampler sampler
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
-        :param default_sample_rate: The default sample rate to apply if no rules matched (default: ``None`` /
-            Use :class:`RateByServiceSampler` only)
+        :param default_sample_rate: The default sample rate to apply if no rules matched
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
         """
-        # Use default sample rate of 1.0
-        super(DatadogSampler, self).__init__()
-        self.default_sample_rate = default_sample_rate
-        effective_sample_rate = default_sample_rate
-        if default_sample_rate is None:
-            if config._get_source("_trace_sample_rate") != "default":
-                effective_sample_rate = float(config._trace_sample_rate)
-
+        # Set sampling rules
+        global_sampling_rules = config._trace_sampling_rules
+        if rules is None and global_sampling_rules:
+            self.set_sampling_rules(global_sampling_rules)
+        else:
+            self.rules: List[SamplingRule] = rules or []
+        # Set Agent based samplers
+        self._by_service_samplers: Dict[str, RateSampler] = {}
+        # Set rate limiter
+        self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
             rate_limit = int(config._trace_rate_limit)
-
-        self._rate_limit_always_on = rate_limit_always_on
-
-        if rules is None:
-            env_sampling_rules = config._trace_sampling_rules
-            if env_sampling_rules:
-                rules = self._parse_rules_from_str(env_sampling_rules)
-            else:
-                rules = []
-            self.rules = rules
-        else:
-            self.rules = []
-            # Validate that rules is a list of SampleRules
-            for rule in rules:
-                if isinstance(rule, SamplingRule):
-                    self.rules.append(rule)
-                elif config._raise:
-                    raise TypeError(
-                        "Rule {!r} must be a sub-class of type ddtrace._trace.sampler.SamplingRules".format(rule)
-                    )
-
-        # DEV: sampling rule must come last
-        if effective_sample_rate is not None:
-            self.rules.append(SamplingRule(sample_rate=effective_sample_rate))
-
-        # Configure rate limiter
-        self.limiter = RateLimiter(rate_limit, rate_limit_window)
+        self.limiter: RateLimiter = RateLimiter(rate_limit, rate_limit_window)
 
         log.debug("initialized %r", self)
 
+    @staticmethod
+    def _key(service: Optional[str], env: Optional[str]):
+        """Compute a key with the same format used by the Datadog agent API."""
+        return f"service:{service or ''},env:{env or ''}"
+
+    def update_rate_by_service_sample_rates(self, rate_by_service: Dict[str, float]) -> None:
+        samplers: Dict[str, RateSampler] = {}
+        for key, sample_rate in rate_by_service.items():
+            samplers[key] = RateSampler(sample_rate)
+        self._by_service_samplers = samplers
+
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
-        return "{}(agent_rates={!r}, limiter={!r}, rules={!r})".format(
-            self.__class__.__name__, rates, self.limiter, self.rules
+        return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
+            self.__class__.__name__,
+            rates,
+            self.limiter,
+            self.rules,
+            self._rate_limit_always_on,
         )
 
     __repr__ = __str__
 
-    @staticmethod
-    def _parse_rules_from_str(rules):
-        # type: (str) -> List[SamplingRule]
+    def set_sampling_rules(self, rules: str) -> None:
+        """Sets the trace sampling rules from a JSON string"""
+        if not rules:
+            self.rules = []
+            return
+
         sampling_rules = []
+        json_rules = []
         try:
             json_rules = json.loads(rules)
         except JSONDecodeError:
@@ -295,47 +152,41 @@ class DatadogSampler(RateByServiceSampler):
                 if config._raise:
                     raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
                 continue
-            sample_rate = float(rule["sample_rate"])
-            service = rule.get("service", SamplingRule.NO_RULE)
-            name = rule.get("name", SamplingRule.NO_RULE)
-            resource = rule.get("resource", SamplingRule.NO_RULE)
-            tags = rule.get("tags", SamplingRule.NO_RULE)
-            provenance = rule.get("provenance", "default")
             try:
                 sampling_rule = SamplingRule(
-                    sample_rate=sample_rate,
-                    service=service,
-                    name=name,
-                    resource=resource,
-                    tags=tags,
-                    provenance=provenance,
+                    sample_rate=float(rule["sample_rate"]),
+                    service=rule.get("service", SamplingRule.NO_RULE),
+                    name=rule.get("name", SamplingRule.NO_RULE),
+                    resource=rule.get("resource", SamplingRule.NO_RULE),
+                    tags=rule.get("tags", SamplingRule.NO_RULE),
+                    provenance=rule.get("provenance", "default"),
                 )
+                sampling_rules.append(sampling_rule)
             except ValueError as e:
                 if config._raise:
                     raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-                continue
-            sampling_rules.append(sampling_rule)
 
         # Sort the sampling_rules list using a lambda function as the key
-        sampling_rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
-        return sampling_rules
+        self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
-    def sample(self, span):
-        span.context._update_tags(span)
-
+    def sample(self, span: Span) -> bool:
+        span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
-
-        sampler = self._default_sampler  # type: BaseSampler
-        sample_rate = self.sample_rate
+        # Default sampling
+        agent_service_based = False
+        sampled = True
+        sample_rate = 1.0
         if matched_rule:
-            # Client based sampling
+            # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
         else:
-            # Agent based sampling
-            sampled, sampler = super(DatadogSampler, self)._make_sampling_decision(span)
-            if isinstance(sampler, RateSampler):
-                sample_rate = sampler.sample_rate
+            key = self._key(span.service, span.get_tag(ENV_KEY))
+            if key in self._by_service_samplers:
+                # Agent service based sampling
+                agent_service_based = True
+                sampled = self._by_service_samplers[key].sample(span)
+                sample_rate = self._by_service_samplers[key].sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -344,26 +195,28 @@ class DatadogSampler(RateByServiceSampler):
             if sampled:
                 sampled = self.limiter.is_allowed()
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+
+        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
-            self._choose_priority_category_with_rule(matched_rule, sampler),
+            sampling_mechanism,
         )
-
         return sampled
 
-    def _choose_priority_category_with_rule(self, rule, sampler):
-        # type: (Optional[SamplingRule], BaseSampler) -> str
-        if rule:
-            provenance = rule.provenance
-            if provenance == "customer":
-                return _PRIORITY_CATEGORY.RULE_CUSTOMER
-            if provenance == "dynamic":
-                return _PRIORITY_CATEGORY.RULE_DYNAMIC
-            return _PRIORITY_CATEGORY.RULE_DEF
+    def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
+        if matched_rule and matched_rule.provenance == "customer":
+            return SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE
+        elif matched_rule and matched_rule.provenance == "dynamic":
+            return SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE
+        elif matched_rule:
+            return SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE
         elif self._rate_limit_always_on:
             # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
             # we want spans to be set to a MANUAL priority to avoid agent based sampling
-            return _PRIORITY_CATEGORY.USER
-        return super(DatadogSampler, self)._choose_priority_category(sampler)
+            return SamplingMechanism.MANUAL
+        elif agent_service_based:
+            return SamplingMechanism.AGENT_RATE_BY_SERVICE
+        else:
+            return SamplingMechanism.DEFAULT

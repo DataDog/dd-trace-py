@@ -9,6 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -31,6 +32,8 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import Binding_error
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
@@ -39,6 +42,7 @@ from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 
@@ -180,10 +184,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info)
+                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
+
         self._update_required()
 
     def _update_required(self):
@@ -195,14 +200,16 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
-    def _update_rules(self, new_rules: Dict[str, Any]) -> bool:
+    def _update_rules(
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+    ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
-        result = self._ddwaf.update_rules(new_rules)
-        self.metrics._set_waf_updates_metric(self._ddwaf.info)
+        result = self._ddwaf.update_rules(removals, updates)
+        self.metrics._set_waf_updates_metric(self._ddwaf.info, result)
         self._update_required()
         return result
 
@@ -274,7 +281,7 @@ class AppSecSpanProcessor(SpanProcessor):
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
-    ) -> Optional["ddwaf.DDWaf_result"]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -329,11 +336,27 @@ class AppSecSpanProcessor(SpanProcessor):
         if not data and not ephemeral_data:
             return None
 
-        waf_results = self._ddwaf.run(
-            ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
-        )
+        try:
+            waf_results = self._ddwaf.run(
+                ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
+            )
+        except Exception:
+            log.debug("appsec::processor::waf::run", exc_info=True)
+            waf_results = Binding_error
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+        root_span = span._local_root or span
+        if waf_results.return_code < 0:
+            error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
+            previous = root_span.get_tag(error_tag)
+            if previous is None:
+                root_span.set_tag_str(error_tag, str(waf_results.return_code))
+            else:
+                try:
+                    int_previous = int(previous)
+                except ValueError:
+                    int_previous = -128
+                root_span.set_tag_str(error_tag, str(max(int_previous, waf_results.return_code)))
 
         blocked = {}
         for action, parameters in waf_results.actions.items():
@@ -351,31 +374,32 @@ class AppSecSpanProcessor(SpanProcessor):
         # FingerPrinting
         for key, value in waf_results.derivatives.items():
             if key.startswith(FINGERPRINTING.PREFIX):
-                (span._local_root or span).set_tag_str(key, value)
+                root_span.set_tag_str(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
-        _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version,
-            bool(waf_results.data),
-            bool(blocked),
-            waf_results.timeout,
-            rule_type,
-            waf_results.runtime,
-            waf_results.total_runtime,
-        )
         if blocked:
             _asm_request_context.set_blocked(blocked)
 
+        allowed = True
         if waf_results.data or blocked:
-            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
-            # events
+            # We run the rate limiter only if there is an attack,
+            # its goal is to limit the number of collected asm events
             allowed = self._rate_limiter.is_allowed()
-            if not allowed:
-                # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results
 
+        _asm_request_context.set_waf_telemetry_results(
+            self._ddwaf.info.version,
+            bool(blocked),
+            waf_results,
+            rule_type,
+            not allowed,
+        )
+
+        if not allowed:
+            return waf_results
+
+        if waf_results.data or blocked:
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),

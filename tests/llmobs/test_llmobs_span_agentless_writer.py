@@ -64,13 +64,13 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
         mock_writer_logs.warning.assert_has_calls(
             [
                 mock.call(
-                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400720
+                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724
                 ),
                 mock.call(
-                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400460
+                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464
                 ),
                 mock.call(
-                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400441
+                    "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445
                 ),
             ]
         )
