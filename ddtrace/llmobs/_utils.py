@@ -198,15 +198,20 @@ def _inject_llmobs_parent_id(span_context):
 
 
 def _unserializable_default_repr(obj):
-    default_repr = "[Unserializable object: {}]".format(repr(obj))
-    log.warning("I/O object is not JSON serializable. Defaulting to placeholder value instead.")
-    return default_repr
+    try:
+        return str(obj)
+    except Exception:
+        log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
+        return "[Unserializable object: {}]".format(repr(obj))
 
 
 def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
+        # If object is a Pydantic model, convert to JSON serializable dict first using model_dump()
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            obj = obj.model_dump()
         return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
