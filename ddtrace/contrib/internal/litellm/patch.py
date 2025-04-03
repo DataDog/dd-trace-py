@@ -40,10 +40,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     span = integration.trace(
-        pin,
-        func.__name__,
-        model=model,
-        submit_to_llmobs=False,
+        pin, func.__name__, model=model, submit_to_llmobs=False,
     )
     try:
         return await func(*args, **kwargs)
