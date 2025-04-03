@@ -28,7 +28,7 @@ class Profile
     std::mutex profile_mtx{};
 
     // Configuration
-    SampleType type_mask{ 0 };
+    SampleType type_mask{ SampleType::All };
     unsigned int max_nframes{ g_default_max_nframes };
     ddog_prof_Period default_period{};
 
@@ -46,9 +46,12 @@ class Profile
     ddog_prof_Profile cur_profile{};
     ddog_prof_Profile last_profile{};
 
+
+
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
+    void one_time_init_impl(SampleType type, unsigned int _max_nframes);
     bool cycle_buffers();
     void reset();
     void postfork_child();

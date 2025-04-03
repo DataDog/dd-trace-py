@@ -4,7 +4,7 @@
 void
 Datadog::SampleManager::add_type(unsigned int type)
 {
-    type_mask = static_cast<SampleType>((type_mask | type) & SampleType::All);
+    type_mask = static_cast<SampleType>((static_cast<unsigned int>(type_mask) | type)) & SampleType::All;
 }
 
 void
@@ -80,6 +80,8 @@ Datadog::SampleManager::postfork_child()
         // and the fork happened in the middle of that operation.
         sample_pool = std::make_unique<SynchronizedSamplePool>(sample_pool_capacity);
     }
+
+    Datadog::Sample::profile_state.one_time_init_impl(type_mask, max_nframes);
 }
 
 void

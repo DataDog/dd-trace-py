@@ -179,7 +179,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 {
     // NB all push-type operations return bool for semantic uniformity,
     // even if they can't error.  This should promote generic code.
-    if (0U != (type_mask & SampleType::CPU)) {
+    if (mask_has_type(type_mask, SampleType::CPU)) {
         values[profile_state.val().cpu_time] += cputime * count;
         values[profile_state.val().cpu_count] += count;
         return true;
@@ -191,7 +191,7 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 bool
 Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 {
-    if (0U != (type_mask & SampleType::Wall)) {
+      if (mask_has_type(type_mask, SampleType::Wall)) {
         values[profile_state.val().wall_time] += walltime * count;
         values[profile_state.val().wall_count] += count;
         return true;
@@ -203,7 +203,7 @@ Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 bool
 Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t count)
 {
-    if (0U != (type_mask & SampleType::Exception)) {
+      if (mask_has_type(type_mask, SampleType::Exception)) {
         push_label(ExportLabelKey::exception_type, exception_type);
         values[profile_state.val().exception_count] += count;
         return true;
@@ -215,7 +215,7 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
 bool
 Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
-    if (0U != (type_mask & SampleType::LockAcquire)) {
+      if (mask_has_type(type_mask, SampleType::LockAcquire)) {
         values[profile_state.val().lock_acquire_time] += acquire_time;
         values[profile_state.val().lock_acquire_count] += count;
         return true;
@@ -227,7 +227,7 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bu
 bool
 Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
-    if (0U != (type_mask & SampleType::LockRelease)) {
+      if (mask_has_type(type_mask, SampleType::LockRelease)) {
         values[profile_state.val().lock_release_time] += lock_time;
         values[profile_state.val().lock_release_count] += count;
         return true;
@@ -244,7 +244,7 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
         return false;
     }
 
-    if (0U != (type_mask & SampleType::Allocation)) {
+    if (mask_has_type(type_mask, SampleType::Allocation)) {
         values[profile_state.val().alloc_space] += size;
         values[profile_state.val().alloc_count] += count;
         return true;
@@ -261,7 +261,7 @@ Datadog::Sample::push_heap(int64_t size)
         return false;
     }
 
-    if (0U != (type_mask & SampleType::Heap)) {
+      if (mask_has_type(type_mask, SampleType::Heap)) {
         values[profile_state.val().heap_space] += size;
         return true;
     }
@@ -272,7 +272,7 @@ Datadog::Sample::push_heap(int64_t size)
 bool
 Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
-    if (0U != (type_mask & SampleType::GPUTime)) {
+      if (mask_has_type(type_mask, SampleType::GPUTime)) {
         values[profile_state.val().gpu_time] += time * count;
         values[profile_state.val().gpu_count] += count;
         return true;
@@ -284,7 +284,7 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 bool
 Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
 {
-    if (0U != (type_mask & SampleType::GPUMemory)) {
+      if (mask_has_type(type_mask, SampleType::GPUMemory)) {
         values[profile_state.val().gpu_alloc_space] += size * count;
         values[profile_state.val().gpu_alloc_count] += count;
         return true;
@@ -296,7 +296,7 @@ Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
 bool
 Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 {
-    if (0U != (type_mask & SampleType::GPUFlops)) {
+      if (mask_has_type(type_mask, SampleType::GPUFlops)) {
         values[profile_state.val().gpu_flops] += size * count;
         values[profile_state.val().gpu_flops_samples] += count;
         return true;
