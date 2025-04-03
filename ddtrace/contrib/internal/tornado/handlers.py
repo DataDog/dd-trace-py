@@ -39,9 +39,6 @@ def execute(func, handler, args, kwargs):
             distributed_headers_config=config.tornado,
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
-            # DEV: tornado is special case maintains separate configuration from config api
-            analytics_enabled=settings["analytics_enabled"],
-            analytics_sample_rate=settings.get("analytics_sample_rate", True),
         ) as ctx:
             req_span = ctx.span
 

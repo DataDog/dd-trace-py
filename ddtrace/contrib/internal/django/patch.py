@@ -68,8 +68,6 @@ config._add(
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
-        analytics_enabled=None,  # None allows the value to be overridden by the global config
-        analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
@@ -176,8 +174,6 @@ def patch_conn(django, conn):
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
             trace_fetch_methods=config.django.trace_fetch_methods,
-            analytics_enabled=config.django.analytics_enabled,
-            analytics_sample_rate=config.django.analytics_sample_rate,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)

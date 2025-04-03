@@ -25,7 +25,6 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -55,8 +54,6 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import _JSONType
 
-
-_NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 
 
 class SpanEvent:

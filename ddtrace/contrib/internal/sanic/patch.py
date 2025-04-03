@@ -210,7 +210,6 @@ def _create_sanic_request_span(request):
         distributed_headers=headers,
         distributed_headers_config=config.sanic,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.sanic.get_analytics_sample_rate(use_global_config=True),
     ) as ctx:
         req_span = ctx.span
 

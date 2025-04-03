@@ -48,7 +48,6 @@ class TracePlugin(object):
                 distributed_headers=request.headers,
                 distributed_headers_config=config.bottle,
                 headers_case_sensitive=True,
-                analytics_sample_rate=config.bottle.get_analytics_sample_rate(use_global_config=True),
             ) as ctx, ctx.span as req_span:
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.bottle))

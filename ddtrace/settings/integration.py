@@ -38,10 +38,6 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
 
-        # Trace Analytics was removed in v3.0.0
-        # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
-        self.setdefault("analytics_enabled", False)
-        self.setdefault("analytics_sample_rate", 1.0)
         service = os.getenv(
             "DD_%s_SERVICE" % name.upper(),
             default=os.getenv(
