@@ -36,7 +36,13 @@ def patch():
     azure_functions._datadog_patch = True
 
     Pin().onto(azure_functions.FunctionApp)
+    _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+
+
+def _patched_function_name(wrapped, instance, args, kwargs):
+    Pin.override(instance, tags={"function_name": kwargs.get("name")})
+    return wrapped(*args, **kwargs)
 
 
 def _patched_route(wrapped, instance, args, kwargs):
@@ -48,7 +54,11 @@ def _patched_route(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrapper(func):
-        function_name = func.__name__
+        if pin.tags and pin.tags.get("function_name"):
+            function_name = pin.tags.get("function_name")
+            Pin.override(instance, tags={"function_name": ""})
+        else:
+            function_name = func.__name__
 
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
