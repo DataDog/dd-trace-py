@@ -20,6 +20,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -320,8 +321,8 @@ def serialize_key(instance, topic, key, headers):
             try:
                 key = instance._key_serializer(key, ctx)
                 return key
-            except Exception:
-                log.debug("Failed to set Kafka Consumer key tag: %s", str(key))
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("Failed to set Kafka Consumer key tag: %s" % str(key), e)
                 return None
         else:
             log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))

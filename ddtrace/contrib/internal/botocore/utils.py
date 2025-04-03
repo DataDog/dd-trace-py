@@ -12,6 +12,7 @@ from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 log = get_logger(__name__)
@@ -42,22 +43,26 @@ def get_kinesis_data_object(data: str) -> Tuple[Optional[str], Optional[Dict[str
     # check if data is a json string
     try:
         return get_json_from_str(data)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string. Trying Byte encoded JSON string.")
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Kinesis data is not a JSON string. Trying Byte encoded JSON string", e
+        )
 
     # check if data is an encoded json string
     try:
         data_str = data.decode("ascii")
         return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string.")
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Kinesis data is not a JSON string encoded. Trying Base64 encoded JSON string", e
+        )
 
     # check if data is a base64 encoded json string
     try:
         data_str = base64.b64decode(data).decode("ascii")
         return get_json_from_str(data_str)
-    except Exception:
-        log.debug("Unable to parse payload, unable to inject trace context.")
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Unable to parse payload, unable to inject trace context", e)
 
     return None, None
 
@@ -73,8 +78,8 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
         if "Detail" in entry:
             try:
                 detail = json.loads(entry["Detail"])
-            except ValueError:
-                log.warning("Detail is not a valid JSON string")
+            except ValueError as e:
+                telemetry_writer.add_integration_error_log("Detail is not a valid JSON string", e, warning=True)
                 continue
 
         detail["_datadog"] = {}
@@ -99,14 +104,18 @@ def update_client_context(ctx: ExecutionContext) -> None:
         try:
             client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
             client_context_object = json.loads(client_context_json)
-        except Exception:
-            log.warning("malformed client_context=%s", params["ClientContext"], exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log(
+                "malformed client_context=%s" % params["ClientContext"], e, warning=True
+            )
             return
     modify_client_context(client_context_object, trace_headers)
     try:
         json_context = json.dumps(client_context_object).encode("utf-8")
-    except Exception:
-        log.warning("unable to encode modified client context as json: %s", client_context_object, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "unable to encode modified client context as json: %s" % client_context_object, e, warning=True
+        )
         return
     params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")
 
@@ -159,8 +168,8 @@ def extract_DD_json(message):
                 try:
                     body = json.loads(message["Body"])
                     return extract_DD_json(body)
-                except ValueError:
-                    log.debug("Unable to parse AWS message body.")
-    except Exception:
-        log.debug("Unable to parse AWS message attributes for Datadog Context.")
+                except ValueError as e:
+                    telemetry_writer.add_integration_error_log("Unable to parse AWS message body", e)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Unable to parse AWS message attributes for Datadog Context", e)
     return context_json

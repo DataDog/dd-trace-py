@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 log = get_logger(__name__)
@@ -27,8 +28,8 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
     if isinstance(input_obj, str):
         try:
             input_obj = json.loads(params["input"])
-        except ValueError:
-            log.warning("Input is not a valid JSON string")
+        except ValueError as e:
+            telemetry_writer.add_integration_error_log("Input is not a valid JSON string", e, warning=True)
             return
 
     if not isinstance(input_obj, dict) or "_datadog" in input_obj:

@@ -28,6 +28,7 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
@@ -260,8 +261,8 @@ def _get_address_tags(*args, **kwargs):
             tags[net.TARGET_HOST] = host
             tags[net.TARGET_PORT] = port
             tags[net.SERVER_ADDRESS] = host
-    except Exception:
-        log.debug("Error collecting client address tags")
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Error collecting client address tags", e)
 
     return tags
 
@@ -331,8 +332,8 @@ def _trace(func, p, method_name, *args, **kwargs):
                 vals = _get_query_string(args)
                 query = "{}{}{}".format(method_name, " " if vals else "", vals)
                 span.set_tag_str(memcachedx.QUERY, query)
-        except Exception:
-            log.debug("Error setting relevant pymemcache tags")
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error setting relevant pymemcache tags", e)
 
         try:
             result = func(*args, **kwargs)

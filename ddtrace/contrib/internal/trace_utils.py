@@ -30,6 +30,7 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
@@ -203,8 +204,10 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
         try:
             _ = ipaddress.ip_address(str(ip_header_value))
-        except ValueError:
-            log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
+        except ValueError as e:
+            telemetry_writer.add_integration_error_log(
+                "Invalid IP address from configured %s header: %s" % (user_configured_ip_header, ip_header_value), e
+            )
             return ""
 
     else:
@@ -482,8 +485,8 @@ def set_http_meta(
     if status_code is not None:
         try:
             int_status_code = int(status_code)
-        except (TypeError, ValueError):
-            log.debug("failed to convert http status code %r to int", status_code)
+        except (TypeError, ValueError) as e:
+            telemetry_writer.add_integration_error_log("failed to convert http status code %r to int" % status_code, e)
         else:
             span.set_tag_str(http.STATUS_CODE, str(status_code))
             if config._http_server.is_error_code(int_status_code):

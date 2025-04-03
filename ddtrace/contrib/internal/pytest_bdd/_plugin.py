@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.pytest_bdd.patch import get_version
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 log = get_logger(__name__)
@@ -49,11 +50,11 @@ def _extract_step_func_args(step, step_func, step_func_args):
                     try:
                         if arg in converters:
                             value = converters[arg](value)
-                    except Exception:
-                        log.debug("argument conversion failed.")
+                    except Exception as e:
+                        telemetry_writer.add_integration_error_log("argument conversion failed", e)
                     parameters[arg] = value
-            except Exception:
-                log.debug("argument parsing failed.")
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("argument parsing failed", e)
 
     return parameters or None
 
@@ -66,7 +67,7 @@ def _get_step_func_args_json(step, step_func, step_func_args):
             return json.dumps(extracted_step_func_args)
         return None
     except TypeError as err:
-        log.debug("Could not serialize arguments", exc_info=True)
+        telemetry_writer.add_integration_error_log("Could not serialize arguments", err)
         return json.dumps({"error_serializing_args": str(err)})
 
 

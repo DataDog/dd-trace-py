@@ -27,6 +27,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
@@ -92,9 +93,11 @@ def _done_callback_stream(span):
                         _handle_error(span, code, details)
             else:
                 log.warning("Grpc call has not completed, unable to set status code and details on span.")
-        except ValueError:
+        except ValueError as e:
             # ValueError is thrown from _parse_rpc_repr_string
-            log.warning("Unable to parse async grpc string for status code and details.")
+            telemetry_writer.add_integration_error_log(
+                "Unable to parse async grpc string for status code and details.", e, warning=True
+            )
         finally:
             span.finish()
 

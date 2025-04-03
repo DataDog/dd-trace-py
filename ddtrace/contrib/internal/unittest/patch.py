@@ -47,6 +47,7 @@ from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -240,10 +241,8 @@ def _extract_module_file_path(item) -> str:
     if _is_test(item):
         try:
             test_module_object = inspect.getfile(item.__class__)
-        except TypeError:
-            log.debug(
-                "Tried to collect module file path but it is a built-in Python function",
-            )
+        except TypeError as e:
+            telemetry_writer.add_integration_error_log("Failed to get test name", e)
             return ""
         return get_relative_or_absolute_path_for_path(test_module_object, os.getcwd())
 

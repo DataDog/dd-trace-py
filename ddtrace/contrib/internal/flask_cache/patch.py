@@ -13,6 +13,7 @@ from ddtrace.ext import db
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 
 from .utils import _extract_client
 from .utils import _extract_conn_tags
@@ -99,8 +100,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             if client is not None:
                 try:
                     s.set_tags(_extract_conn_tags(client))
-                except Exception:
-                    log.debug("error parsing connection tags", exc_info=True)
+                except Exception as e:
+                    telemetry_writer.add_integration_error_log("error parsing connection tags", e)
 
             return s
 

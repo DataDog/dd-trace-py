@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 
 from ..utils import extract_DD_json
 from ..utils import get_kinesis_data_object
@@ -43,8 +44,8 @@ def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context
 
         try:
             data_json = json.dumps(data_obj)
-        except Exception:
-            log.warning("Unable to update kinesis record", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Unable to update kinesis record", e, warning=True)
 
         if line_break is not None:
             data_json += line_break

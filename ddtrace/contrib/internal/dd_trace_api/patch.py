@@ -11,6 +11,7 @@ import dd_trace_api
 
 import ddtrace
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -45,8 +46,8 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
         """Always return the original value no matter what our instrumentation does"""
         try:
             self._handle_return()
-        except Exception:  # noqa: E722
-            log.debug("Error handling instrumentation return", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error handling instrumentation return", e)
 
         return value
 

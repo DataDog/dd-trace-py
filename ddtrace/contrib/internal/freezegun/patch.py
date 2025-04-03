@@ -1,4 +1,5 @@
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -18,8 +19,8 @@ class FreezegunConfigWrappingContext(WrappingContext):
         super().__enter__()
         try:
             default_ignore_list = self.get_local("default_ignore_list")
-        except KeyError:
-            log.debug("Could not get default_ignore_list on call to configure()")
+        except KeyError as e:
+            telemetry_writer.add_integration_error_log("Could not get default_ignore_list on call to configure()", e)
             return
 
         if default_ignore_list is not None and DDTRACE_MODULE_NAME not in default_ignore_list:
@@ -33,8 +34,8 @@ def get_version() -> str:
 
     try:
         return freezegun.__version__
-    except AttributeError:
-        log.debug("Could not get freezegun version")
+    except AttributeError as e:
+        telemetry_writer.add_integration_error_log("Could not get freezegun version", e)
         return ""
 
 

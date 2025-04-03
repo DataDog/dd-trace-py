@@ -13,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 log = get_logger(__name__)
@@ -268,8 +269,12 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
         elif provider == _STABILITY:
             # TODO: request/response formats are different for image-based models. Defer for now
             pass
-    except (IndexError, AttributeError, TypeError):
-        log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
+    except (IndexError, AttributeError, TypeError) as e:
+        telemetry_writer.add_integration_error_log(
+            "Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.",
+            e,
+            warning=True,
+        )
 
     if not isinstance(text, list):
         text = [text]
@@ -323,8 +328,12 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
             finish_reason = streamed_body[-1]["stop_reason"]
         elif provider == _STABILITY:
             pass  # DEV: we do not yet support image modality models
-    except (IndexError, AttributeError):
-        log.warning("Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.")
+    except (IndexError, AttributeError) as e:
+        telemetry_writer.add_integration_error_log(
+            "Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.",
+            e,
+            warning=True,
+        )
 
     if not isinstance(text, list):
         text = [text]

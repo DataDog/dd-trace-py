@@ -58,6 +58,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
@@ -186,8 +187,8 @@ def _handle_coverage_dependencies(suite_id) -> None:
 def _disable_ci_visibility():
     try:
         disable_test_visibility()
-    except Exception:  # noqa: E722
-        log.debug("encountered error during disable_ci_visibility", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("encountered error during disable_ci_visibility", e)
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
@@ -211,8 +212,10 @@ def pytest_load_initial_conftests(early_config, parser, args):
                 workspace_path = Path.cwd().absolute()
             log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
-    except Exception:  # noqa: E722
-        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "encountered error during configure, disabling Datadog CI Visibility", e
+        )
         _disable_ci_visibility()
 
 
@@ -242,8 +245,10 @@ def pytest_configure(config: pytest_Config) -> None:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
             _disable_ci_visibility()
-    except Exception:  # noqa: E722
-        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "encountered error during configure, disabling Datadog CI Visibility", e, warning=True
+        )
         _disable_ci_visibility()
 
 
@@ -289,8 +294,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
-    except Exception:  # noqa: E722
-        log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "encountered error during session start, disabling Datadog CI Visibility", e
+        )
         _disable_ci_visibility()
 
 
@@ -347,8 +354,10 @@ def pytest_collection_finish(session) -> None:
 
     try:
         return _pytest_collection_finish(session)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during collection finish, disabling Datadog CI Visibility", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "encountered error during collection finish, disabling Datadog CI Visibility", e
+        )
         _disable_ci_visibility()
 
 
@@ -414,16 +423,16 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during pre-test", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("encountered error during pre-test", e)
 
     # Yield control back to pytest to run the test
     yield
 
     try:
         return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during post-test", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("encountered error during post-test", e)
         return
 
 
@@ -556,8 +565,8 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
 
     try:
         return _pytest_runtest_makereport(item, call, outcome)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during makereport", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("encountered error during makereport", e)
 
 
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
@@ -616,8 +625,8 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
             from ddtrace.appsec._iast._pytest_plugin import print_iast_report
 
             print_iast_report(terminalreporter)
-    except Exception:  # noqa: E722
-        log.debug("Encountered error during code security summary", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Encountered error during code security summary", e)
 
     if not is_test_visibility_enabled():
         yield
@@ -626,15 +635,15 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     failed_reports_initial_size = None
     try:
         failed_reports_initial_size = _pytest_terminal_summary_pre_yield(terminalreporter)
-    except Exception:  # noqa: E722
-        log.debug("Encountered error during terminal summary pre-yield", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Encountered error during terminal summary pre-yield", e)
 
     yield
 
     try:
         _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size)
-    except Exception:  # noqa: E722
-        log.debug("Encountered error during terminal summary post-yield", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Encountered error during terminal summary post-yield", e)
 
     return
 
@@ -674,8 +683,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     try:
         _pytest_sessionfinish(session, exitstatus)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during session finish", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("encountered error during session finish", e)
 
 
 def pytest_report_teststatus(

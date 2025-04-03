@@ -8,6 +8,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
@@ -113,8 +114,8 @@ class TracedCursor(wrapt.ObjectProxy):
                     _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
                     if check_tainted_dbapi_args(args, kwargs, pin.tracer, self._self_config.integration_name, method):
                         SqlInjection.report(evidence_value=args[0], dialect=self._self_config.integration_name)
-                except Exception:
-                    log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+                except Exception as e:
+                    telemetry_writer.add_integration_error_log("Unexpected exception while reporting vulnerability", e)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -344,8 +345,8 @@ def _get_vendor(conn):
     """
     try:
         name = _get_module_name(conn)
-    except Exception:
-        log.debug("couldn't parse module name", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("couldn't parse module name", e)
         name = "sql"
     return sql.normalize_vendor(name)
 

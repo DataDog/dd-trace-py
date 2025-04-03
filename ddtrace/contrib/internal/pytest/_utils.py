@@ -20,6 +20,7 @@ from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
@@ -103,14 +104,16 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
     for param_name, param_val in item.callspec.params.items():
         try:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
-        except Exception:  # noqa: E722
+        except Exception as e:
             parameters["arguments"][param_name] = "Could not encode"
-            log.warning("Failed to encode %r", param_name, exc_info=True)
+            telemetry_writer.add_integration_error_log("Failed to encode %r" % param_name, e, warning=True)
 
     try:
         return json.dumps(parameters, sort_keys=True)
     except TypeError:
-        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        telemetry_writer.add_integration_error_log(
+            "Failed to serialize parameters for test %s" % item, None, warning=True
+        )
         return None
 
 
@@ -144,8 +147,10 @@ def _get_source_file_info(item, item_path) -> t.Optional[TestSourceFileInfo]:
         else:
             source_file_info = TestSourceFileInfo(item_path, item.reportinfo()[1])
         return source_file_info
-    except Exception:
-        log.debug("Unable to get source file info for item %s (path %s)", item, item_path, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Unable to get source file info for item %s (path %s)" % (item, item_path), e
+        )
         return None
 
 

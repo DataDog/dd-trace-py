@@ -36,6 +36,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.trace import Pin
@@ -86,8 +87,8 @@ def _close_span_on_success(result, future):
         return
     try:
         span.set_tags(_extract_result_metas(cassandra_cluster.ResultSet(future, result)))
-    except Exception:
-        log.debug("an exception occurred while setting tags", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("an exception occurred while setting tags", e)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)
@@ -110,8 +111,10 @@ def _close_span_on_error(exc, future):
         span.error = 1
         span.set_tag_str(ERROR_MSG, exc.args[0])
         span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
-    except Exception:
-        log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "traced_set_final_exception was not able to set the error, failed with error", e
+        )
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)

@@ -40,6 +40,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -191,8 +192,8 @@ def instrument_dbs(django):
         conn = wrapped(*args, **kwargs)
         try:
             patch_conn(django, conn)
-        except Exception:
-            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error instrumenting database connection %r" % conn, e)
         return conn
 
     if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
@@ -257,8 +258,8 @@ def instrument_caches(django):
                 # DEV: this can be removed when we add an idempotent `wrap`
                 if not trace_utils.iswrapped(cls, method):
                     trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
-            except Exception:
-                log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("Error instrumenting cache %r" % cache_path, e)
 
 
 @trace_utils.with_traced_module
@@ -293,15 +294,15 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     if config.django.instrument_databases:
         try:
             instrument_dbs(django)
-        except Exception:
-            log.debug("Error instrumenting Django database connections", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error instrumenting Django database connections", e)
 
     # Instrument caches
     if config.django.instrument_caches:
         try:
             instrument_caches(django)
-        except Exception:
-            log.debug("Error instrumenting Django caches", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error instrumenting Django caches", e)
 
     # Instrument Django Rest Framework if it's installed
     INSTALLED_APPS = getattr(settings, "INSTALLED_APPS", [])
@@ -311,8 +312,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
             from .restframework import patch_restframework
 
             patch_restframework(django)
-        except Exception:
-            log.debug("Error patching rest_framework", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Error patching rest_framework", e)
 
     return ret
 
@@ -439,7 +440,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+        telemetry_writer.add_integration_error_log("Could not gather some metadata on blocked request", e, warning=True)
     core.dispatch("django.block_request_callback", (ctx, metadata, config.django, url, query))
 
 
@@ -628,8 +629,10 @@ def _instrument_view(django, view):
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
             trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
-        except Exception:
-            log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log(
+                "Failed to instrument Django view %r function %s" % (view, name), e
+            )
 
     # Patch response methods
     response_cls = getattr(view, "response_class", None)
@@ -645,8 +648,10 @@ def _instrument_view(django, view):
                 resource = "{0}.{1}".format(func_name(response_cls), name)
                 op_name = "django.response.{0}".format(name)
                 trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
-            except Exception:
-                log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
+            except Exception as e:
+                telemetry_writer.add_integration_error_log(
+                    "Failed to instrument Django response %r function %s" % (response_cls, name), e
+                )
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
@@ -674,8 +679,8 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
             args = tuple(args)
         else:
             kwargs["view"] = instrument_view(django, view)
-    except Exception:
-        log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Failed to instrument Django url path %r %r" % (args, kwargs), e)
     return wrapped(*args, **kwargs)
 
 
@@ -686,8 +691,8 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     """
     try:
         instrument_view(django, instance)
-    except Exception:
-        log.debug("Failed to instrument Django view %r", instance, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Failed to instrument Django view %r" % instance, e)
     view = func(*args, **kwargs)
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
@@ -704,8 +709,8 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
         exc_value = get_argument_value(args, kwargs, 2, "exc_value")
         tb = get_argument_value(args, kwargs, 3, "tb")
         core.dispatch("django.technical_500_response", (request, response, exc_type, exc_value, tb))
-    except Exception:
-        log.debug("Error while trying to trace Django technical 500 response", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Error while trying to trace Django technical 500 response", e)
     return response
 
 
@@ -732,16 +737,16 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
 
         try:
             from django.contrib.auth import get_user_model
-        except ImportError:
-            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
+        except ImportError as e:
+            telemetry_writer.add_integration_error_log("user_exist: Could not import Django get_user_model", e)
             return
 
         try:
             self.user_model = get_user_model()
             if not self.user_model:
                 return
-        except Exception:
-            log.debug("user_exist: Could not get the user model", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("user_exist: Could not get the user model", e)
             return
 
         login_field = asm_config._user_model_login_field
@@ -756,13 +761,15 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
                     break
             else:
                 # Could not get what the login field, so we can't check if the user exists
-                log.debug("try_load_user_model: could not get the login field from the credentials")
+                telemetry_writer.add_integration_error_log(
+                    "try_load_user_model: could not get the login field from the credentials"
+                )
                 return
 
         try:
             self.user = self.user_model.objects.get(**{login_field: login_field_value})
-        except self.user_model.DoesNotExist:
-            log.debug("try_load_user_model: could not load user model", exc_info=True)
+        except self.user_model.DoesNotExist as e:
+            telemetry_writer.add_integration_error_log("try_load_user_model: could not load user model", e)
 
     def user_exists(self):
         return self.user is not None
@@ -779,8 +786,10 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
             if hasattr(self.user, "get_full_name"):
                 try:
                     return self.user.get_full_name()
-                except Exception:
-                    log.debug("User model get_full_name member produced an exception: ", exc_info=True)
+                except Exception as e:
+                    telemetry_writer.add_integration_error_log(
+                        "User model get_full_name member produced an exception", e
+                    )
 
             if hasattr(self.user, "first_name") and hasattr(self.user, "last_name"):
                 return "%s %s" % (self.user.first_name, self.user.last_name)
@@ -805,8 +814,8 @@ def traced_login(django, pin, func, instance, args, kwargs):
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
         core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config.django))
-    except Exception:
-        log.debug("Error while trying to trace Django login", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Error while trying to trace Django login", e)
 
 
 @trace_utils.with_traced_module
@@ -822,8 +831,8 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         ).user
         if result and result.value[0]:
             return result.value[1]
-    except Exception:
-        log.debug("Error while trying to trace Django authenticate", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Error while trying to trace Django authenticate", e)
 
     return result_user
 
@@ -876,8 +885,10 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                         config.django,
                     ),
                 )
-        except Exception:
-            log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log(
+                "Error while trying to trace Django AuthenticationMiddleware process_request", e
+            )
 
 
 @trace_utils.with_traced_module

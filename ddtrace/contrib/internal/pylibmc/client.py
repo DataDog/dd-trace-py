@@ -21,6 +21,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 # Original Client class
@@ -58,8 +59,8 @@ class TracedClient(ObjectProxy):
         # attempt to collect the pool of urls this client talks to
         try:
             self._addresses = parse_addresses(client.addresses)
-        except Exception:
-            log.debug("error setting addresses", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("error setting addresses", e)
 
     def clone(self, *args, **kwargs):
         # rewrap new connections.
@@ -177,8 +178,8 @@ class TracedClient(ObjectProxy):
 
         try:
             self._tag_span(span)
-        except Exception:
-            log.debug("error tagging span", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("error tagging span", e)
         return span
 
     def _tag_span(self, span):

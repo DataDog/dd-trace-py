@@ -6,6 +6,7 @@ from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
 
@@ -37,7 +38,7 @@ def _get_flush_sleep_ms() -> int:
     try:
         return int(env_flush_sleep_ms)
     except Exception:  # noqa E722
-        log.warning(
+        telemetry_writer.add_integration_error_log(
             "Could not convert DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS value %s to int, using default: %s",
             env_flush_sleep_ms,
             _DEFAULT_FLUSH_SLEEP_MS,
@@ -61,8 +62,8 @@ class SeleniumWrappingContextBase(WrappingContext):
     def _get_webdriver_instance(self) -> "selenium.webdriver.remote.webdriver.WebDriver":
         try:
             return self.get_local("self")
-        except KeyError:
-            log.debug("Could not get Selenium WebDriver instance")
+        except KeyError as e:
+            telemetry_writer.add_integration_error_log("Could not get Selenium WebDriver instance", e)
             return None
 
     def __enter__(self) -> "SeleniumWrappingContextBase":
@@ -70,8 +71,8 @@ class SeleniumWrappingContextBase(WrappingContext):
 
         try:
             self._handle_enter()
-        except Exception:  # noqa: E722
-            log.debug("Error handling selenium instrumentation enter", exc_info=True)
+        except Exception as e:  # noqa: E722
+            telemetry_writer.add_integration_error_log("Error handling selenium instrumentation enter", e)
 
         return self
 
@@ -79,8 +80,8 @@ class SeleniumWrappingContextBase(WrappingContext):
         """Always return the original value no matter what our instrumentation does"""
         try:
             self._handle_return()
-        except Exception:  # noqa: E722
-            log.debug("Error handling instrumentation return", exc_info=True)
+        except Exception as e:  # noqa: E722
+            telemetry_writer.add_integration_error_log("Error handling instrumentation return", e)
 
         return value
 
@@ -151,8 +152,8 @@ def get_version() -> str:
 
     try:
         return selenium.__version__
-    except AttributeError:
-        log.debug("Could not get Selenium version")
+    except AttributeError as e:
+        telemetry_writer.add_integration_error_log("Could not get Selenium version", e)
         return ""
 
 

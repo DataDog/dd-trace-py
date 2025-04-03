@@ -5,6 +5,7 @@ from urllib import parse
 
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.ext import net
+from ddtrace.internal.telemetry import telemetry_writer
 
 
 log = logging.getLogger(__name__)
@@ -71,16 +72,17 @@ def _parse_target_from_args(args, kwargs):
         port = None
         try:
             port = parsed.port
-        except ValueError:
-            log.warning("Non-integer port in target '%s'", target)
+        except ValueError as e:
+            telemetry_writer.add_integration_error_log("Non-integer port in target '%s'" % target, e, warning=True)
 
         # an empty hostname in Python 2.7 will be an empty string rather than
         # None
         hostname = parsed.hostname if parsed.hostname is not None and len(parsed.hostname) > 0 else None
 
         return hostname, port
-    except ValueError:
-        log.warning("Malformed target '%s'.", target)
+    except ValueError as e:
+        telemetry_writer.add_integration_error_log("Malformed target '%s'." % target, e, warning=True)
+        return None
 
 
 def _parse_rpc_repr_string(rpc_string, module):

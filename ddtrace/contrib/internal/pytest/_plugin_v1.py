@@ -69,6 +69,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.vendor.debtcollector import deprecate
@@ -713,9 +714,9 @@ def pytest_runtest_protocol(item, nextitem):
             for param_name, param_val in item.callspec.params.items():
                 try:
                     parameters["arguments"][param_name] = encode_test_parameter(param_val)
-                except Exception:
+                except Exception as e:
                     parameters["arguments"][param_name] = "Could not encode"
-                    log.warning("Failed to encode %r", param_name, exc_info=True)
+                    telemetry_writer.add_integration_error_log("Failed to encode %r." % param_name, e, warning=True)
             span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
 
         if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:
@@ -913,5 +914,5 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         ModuleCodeCollector.report(workspace_path)
         try:
             ModuleCodeCollector.write_json_report_to_file("dd_coverage.json", workspace_path)
-        except Exception:
-            log.debug("Failed to write coverage report to file", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Failed to write coverage report to file", e)

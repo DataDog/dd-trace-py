@@ -3,6 +3,7 @@ import pytest
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest_benchmark.constants import PLUGIN_METRICS_V2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility.api import InternalTest
 
@@ -30,6 +31,6 @@ def _set_benchmark_data_from_item(item: pytest.Item) -> None:
 
         InternalTest.set_benchmark_data(test_id, benchmark_data, is_benchmark=True)
 
-    except Exception:  # noqa: E722
-        log.debug("Unable to set benchmark data for item %s", item, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("Unable to set benchmark data for item %s" % item, e)
         return None

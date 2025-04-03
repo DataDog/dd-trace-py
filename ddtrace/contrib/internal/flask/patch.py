@@ -14,6 +14,7 @@ from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
@@ -235,13 +236,17 @@ def patch():
     if werkzeug_version >= (2, 1, 0):
         try:
             _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
-        except AttributeError:
-            log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
+        except AttributeError as e:
+            telemetry_writer.add_integration_error_log(
+                "Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version", e
+            )
     else:
         try:
             _w("werkzeug.debug.tbtools", "Traceback.render_summary", patched_render_debugger_html)
-        except AttributeError:
-            log.debug("Failed to patch Traceback.render_summary, not supported by this werkzeug version")
+        except AttributeError as e:
+            telemetry_writer.add_integration_error_log(
+                "Failed to patch Traceback.render_summary, not supported by this werkzeug version", e
+            )
 
     bp_hooks = [
         "after_app_request",

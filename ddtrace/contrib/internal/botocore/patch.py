@@ -29,6 +29,7 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
@@ -72,19 +73,21 @@ def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
             if not isinstance(table, str):
                 raise ValueError(f"expected string table name: {table}")
 
-            if not isinstance(primary_keys, list):
-                raise ValueError(f"expected list of primary keys: {primary_keys}")
+        if not isinstance(primary_keys, list):
+            raise ValueError(f"expected list of primary keys: {primary_keys}")
 
-            unique_primary_keys = set(primary_keys)
-            if not len(unique_primary_keys) == len(primary_keys):
-                raise ValueError(f"expected unique primary keys: {primary_keys}")
+        unique_primary_keys = set(primary_keys)
+        if not len(unique_primary_keys) == len(primary_keys):
+            raise ValueError(f"expected unique primary keys: {primary_keys}")
 
-            table_primary_keys[table] = unique_primary_keys
+        table_primary_keys[table] = unique_primary_keys
 
         return table_primary_keys
 
     except Exception as e:
-        log.warning("failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS: %s", e)
+        telemetry_writer.add_integration_error_log(
+            "failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", e, warning=True
+        )
         return {}
 
 

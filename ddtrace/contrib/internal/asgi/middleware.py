@@ -21,6 +21,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.trace import Span
@@ -98,8 +99,8 @@ def _parse_response_cookies(response_headers):
         if len(result) == 2:
             cookie_key, cookie_value = result
             cookies[cookie_key] = cookie_value
-    except Exception:
-        log.debug("failed to extract response cookies", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("failed to extract response cookies", e)
     return cookies
 
 
@@ -136,8 +137,10 @@ class TraceMiddleware:
             return await self.app(scope, receive, send)
         try:
             headers = _extract_headers(scope)
-        except Exception:
-            log.warning("failed to decode headers for distributed tracing", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log(
+                "failed to decode headers for distributed tracing", e, warning=True
+            )
             headers = {}
         else:
             trace_utils.activate_distributed_headers(
@@ -191,9 +194,9 @@ class TraceMiddleware:
                 if key.encode() == b"host":
                     try:
                         host_header = value
-                    except UnicodeDecodeError:
-                        log.warning(
-                            "failed to decode host header, host from http headers will not be considered", exc_info=True
+                    except UnicodeDecodeError as e:
+                        telemetry_writer.add_integration_error_log(
+                            "failed to decode host header, host from http headers will not be considered", e
                         )
                     break
             method = scope.get("method")
@@ -246,8 +249,8 @@ class TraceMiddleware:
             async def wrapped_send(message):
                 try:
                     response_headers = _extract_headers(message)
-                except Exception:
-                    log.warning("failed to extract response headers", exc_info=True)
+                except Exception as e:
+                    telemetry_writer.add_integration_error_log("failed to extract response headers", e, warning=True)
                     response_headers = None
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)

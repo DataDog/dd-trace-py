@@ -9,6 +9,7 @@ import wrapt
 
 from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -157,8 +158,10 @@ def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
         if integration.is_pc_sampled_span(span):
             _tag_streamed_chat_completion_response(integration, span, resp_message)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
-    except Exception:
-        log.warning("Error processing streamed completion/chat response.", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Error processing streamed completion/chat response", e, warning=True
+        )
 
 
 def _construct_message(streamed_chunks):

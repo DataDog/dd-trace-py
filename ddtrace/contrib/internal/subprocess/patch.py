@@ -21,6 +21,7 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -343,9 +344,9 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
-    except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]" % (args, kwargs), e
         )
         return wrapped(*args, **kwargs)
 
@@ -360,9 +361,9 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
         return ret
-    except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]" % (args, kwargs), e
         )
         return wrapped(*args, **kwargs)
 
@@ -389,9 +390,9 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 ret = wrapped(*args, **kwargs)
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
                 return ret
-    except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]" % (args, kwargs), e
         )
 
     return wrapped(*args, **kwargs)
@@ -425,8 +426,10 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             else:
                 core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Could not trace subprocess execution: [args: %s kwargs: %s]" % (args, kwargs), e
+        )
 
     return wrapped(*args, **kwargs)
 
@@ -451,6 +454,8 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Could not trace subprocess execution [args: %s kwargs: %s]" % (args, kwargs), e
+        )
         return wrapped(*args, **kwargs)
