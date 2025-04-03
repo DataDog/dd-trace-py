@@ -41,7 +41,7 @@ from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.settings import IntegrationConfig  # noqa:F401
+    from ddtrace.settings.integration import IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
