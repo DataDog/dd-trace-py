@@ -43,9 +43,8 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         finally:
+            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
             if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
                 self._kwargs["instance"] = self._model_instance
                 self._kwargs["history"] = self._history
@@ -74,9 +73,8 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
         finally:
+            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
             if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
                 self._kwargs["instance"] = self._model_instance
                 self._kwargs["history"] = self._history

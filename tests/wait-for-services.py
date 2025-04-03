@@ -9,6 +9,7 @@ from cassandra.cluster import NoHostAvailable
 from contrib.config import CASSANDRA_CONFIG
 from contrib.config import ELASTICSEARCH_CONFIG
 from contrib.config import HTTPBIN_CONFIG
+from contrib.config import MOTO_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import OPENSEARCH_CONFIG
 from contrib.config import POSTGRES_CONFIG
@@ -129,12 +130,18 @@ def check_httpbin(url):
     requests.get(url).raise_for_status()
 
 
+@try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://{host}:{port}/".format(**MOTO_CONFIG)})
+def check_moto(url):
+    requests.get(url).raise_for_status()
+
+
 if __name__ == "__main__":
     check_functions = {
         "cassandra": check_cassandra,
         "ddagent": check_agent,
         "elasticsearch": check_elasticsearch,
         "httpbin_local": check_httpbin,
+        "moto": check_moto,
         "mysql": check_mysql,
         "opensearch": check_opensearch,
         "postgres": check_postgres,

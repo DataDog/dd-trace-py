@@ -70,7 +70,7 @@ def test_ddtrace_iast_flask_patch_iast_disabled():
     import io
     import sys
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -97,7 +97,7 @@ def test_ddtrace_iast_flask_no_patch():
     import io
     import sys
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -128,7 +128,7 @@ def test_ddtrace_iast_flask_app_create_app_enable_iast_propagation():
     import io
     import sys
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -160,7 +160,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all():
     import io
     import sys
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -190,7 +190,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation():
     import io
     import sys
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 
@@ -220,7 +220,7 @@ def test_ddtrace_iast_flask_app_create_app_patch_all_enable_iast_propagation_dis
     import dis
     import io
 
-    from ddtrace import ModuleWatchdog
+    from ddtrace.internal.module import ModuleWatchdog
     from tests.utils import override_env
     from tests.utils import override_global_config
 

@@ -26,8 +26,6 @@
       "bedrock.response.choices.0.text": " I am very happy to assist you! A Long",
       "bedrock.response.duration": "347",
       "bedrock.response.id": "ff340d3e-475b-4774-92fa-56ee3d4702c8",
-      "bedrock.usage.completion_tokens": "10",
-      "bedrock.usage.prompt_tokens": "20",
       "language": "python",
       "runtime-id": "e2468c635ce44f8788acce3e9e569237"
     },
@@ -35,6 +33,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 10,
+      "bedrock.response.usage.prompt_tokens": 20,
       "process_id": 21816
     },
     "duration": 630536000,

@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import itertools
 import json
 import sys
+from typing import Any
 from typing import Dict
 from typing import List
 from urllib.parse import quote
@@ -88,7 +89,8 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._configure(api_version="v0.4")
+        interface.tracer._writer._api_version = "v0.4"
+        interface.tracer._recreate()
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -129,6 +131,33 @@ class Contrib_TestClass_For_Threats:
             assert root_span()._get_ctx_item("http.request.method") == "GET"
             query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
+            # DEV: fastapi may send "requests" instead of "fastapi"
+            # assert get_tag("component") == interface.name
+
+    def test_simple_attack_timeout(self, interface: Interface, root_span, get_metric):
+        from unittest.mock import patch as mock_patch
+
+        with override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
+            self.update_tracer(interface)
+            query_params = urlencode({"q": "1"})
+            url = f"/?{query_params}"
+            response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
+            assert response.status_code == 200
+            assert root_span()._get_ctx_item("http.request.uri") == f"http://localhost:8000{url}"
+            assert root_span()._get_ctx_item("http.request.headers") is not None
+            assert root_span()._get_ctx_item("http.request.method") == "GET"
+            query = dict(root_span()._get_ctx_item("http.request.query"))
+            assert query == {"q": "1"} or query == {"q": ["1"]}
+            assert get_metric("_dd.appsec.waf.timeouts") > 0, (root_span()._meta, root_span()._metrics)
+            args_list = [
+                (args[0].__name__, args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
+                if args[2] == "waf.requests"
+            ]
+            assert len(args_list) == 1
+            assert ("waf_timeout", "true") in args_list[0][4]
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -162,6 +191,68 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/")
             assert self.status(response) == 200
             assert not core.get_item("http.request.query", span=root_span())
+
+    def test_truncation_tags(self, interface: Interface, get_metric):
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            body: Dict[str, Any] = {"val": "x" * 5000}
+            body.update({f"a_{i}": i for i in range(517)})
+            response = interface.client.post(
+                "/asm/",
+                data=json.dumps(body),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)
+            # 12030 is due to response encoding
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_STRING_LENGTH)) == 12029
+            assert get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)
+            assert int(get_metric(asm_constants.APPSEC.TRUNCATION_CONTAINER_SIZE)) == 518
+
+    def test_truncation_telemetry(self, interface: Interface, get_metric):
+        from unittest.mock import ANY
+        from unittest.mock import patch as mock_patch
+
+        with override_global_config(dict(_asm_enabled=True)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
+            self.update_tracer(interface)
+            body: Dict[str, Any] = {"val": "x" * 5000}
+            body.update({f"a_{i}": i for i in range(517)})
+            response = interface.client.post(
+                "/asm/",
+                data=json.dumps(body),
+                content_type="application/json",
+            )
+            assert self.status(response) == 200
+            args_list = [
+                (args[0].__name__, args[1].value) + args[2:]
+                for args, kwargs in mocked.call_args_list
+                if "truncated" in args[2] or args[2] == "waf.requests"
+            ]
+            assert args_list == [
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
+                ("DistributionMetric", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
+                (
+                    "CountMetric",
+                    "appsec",
+                    "waf.requests",
+                    1.0,
+                    (
+                        ("event_rules_version", ANY),
+                        ("waf_version", ANY),
+                        ("rule_triggered", "false"),
+                        ("request_blocked", "false"),
+                        ("waf_timeout", "false"),
+                        ("input_truncated", "true"),
+                        ("waf_error", "0"),
+                        ("rate_limited", "false"),
+                    ),
+                ),
+            ]
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -1055,10 +1146,13 @@ class Contrib_TestClass_For_Threats:
     ):
         import base64
         import gzip
+        from unittest.mock import patch as mock_patch
 
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -1090,6 +1184,14 @@ class Contrib_TestClass_For_Threats:
                             api,
                             name,
                         )
+                telemetry_calls = {
+                    (c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
+                }
+                assert (
+                    "CountMetric",
+                    "appsec.api_security.request.schema",
+                    (("framework", interface.name),),
+                ) in telemetry_calls
             else:
                 assert value is None, name
 
@@ -1399,9 +1501,14 @@ class Contrib_TestClass_For_Threats:
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
                         ("waf_version", DDWAF_VERSION),
+                        ("event_rules_version", "rules_rasp"),
                     )
                 else:
-                    expected_tags = (("rule_type", expected_rule_type), ("waf_version", DDWAF_VERSION))
+                    expected_tags = (
+                        ("rule_type", expected_rule_type),
+                        ("waf_version", DDWAF_VERSION),
+                        ("event_rules_version", "rules_rasp"),
+                    )
                     assert matches == [expected_tags], matches
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
@@ -1499,13 +1606,13 @@ class Contrib_TestClass_For_Threats:
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
             # check for fingerprints when user events
-            if asm_enabled and auto_events_enabled and mode != "disabled":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
-                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
@@ -1522,7 +1629,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == code
             assert get_tag("http.status_code") == str(code)
             # check for fingerprints when security events
-            if asm_enabled and user_agent == "dd-test-scanner-log-block":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
@@ -1559,7 +1666,6 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer

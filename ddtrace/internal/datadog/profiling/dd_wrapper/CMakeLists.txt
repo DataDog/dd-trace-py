@@ -11,6 +11,11 @@ get_filename_component(dd_wrapper_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ddtr
 # Custom modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
+if(MSVC)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+    set(BUILD_SHARED_LIBS TRUE)
+endif()
+
 # Includes
 include(AnalysisFunc)
 include(FindClangtidy)
@@ -21,6 +26,9 @@ include(CheckSymbolExists)
 # Load libdatadog
 include(FindLibdatadog)
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
 # the parent scope.
 set(Datadog_INCLUDE_DIRS
@@ -30,35 +38,54 @@ set(Datadog_LIBRARIES
     ${Datadog_LIBRARIES}
     PARENT_SCOPE)
 
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+if(WIN32)
+    # Library sources
+    add_library(
+        dd_wrapper SHARED
+        src/code_provenance.cpp
+        src/code_provenance_interface.cpp
+        src/ddup_interface.cpp
+        src/profile.cpp
+        src/sample.cpp
+        src/sample_manager.cpp
+        src/synchronized_sample_pool.cpp
+        src/uploader.cpp
+        src/uploader_builder.cpp)
+else()
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
 
-if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
-    message(FATAL_ERROR "pthread compatible library not found")
+    if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
+        message(FATAL_ERROR "pthread compatible library not found")
+    endif()
+
+    # Library sources
+    add_library(
+        dd_wrapper SHARED
+        src/code_provenance.cpp
+        src/code_provenance_interface.cpp
+        src/crashtracker.cpp
+        src/crashtracker_interface.cpp
+        src/ddup_interface.cpp
+        src/profile.cpp
+        src/receiver_interface.cpp
+        src/sample.cpp
+        src/sample_manager.cpp
+        src/synchronized_sample_pool.cpp
+        src/uploader.cpp
+        src/uploader_builder.cpp)
 endif()
-
-# Library sources
-add_library(
-    dd_wrapper SHARED
-    src/code_provenance.cpp
-    src/code_provenance_interface.cpp
-    src/crashtracker.cpp
-    src/crashtracker_interface.cpp
-    src/ddup_interface.cpp
-    src/profile.cpp
-    src/receiver_interface.cpp
-    src/sample.cpp
-    src/sample_manager.cpp
-    src/synchronized_sample_pool.cpp
-    src/uploader.cpp
-    src/uploader_builder.cpp)
 
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
-target_link_libraries(dd_wrapper PRIVATE ${Datadog_LIBRARIES} Threads::Threads)
+if(WIN32)
+    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling)
+else()
+    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling Threads::Threads)
+endif()
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
 check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
@@ -84,17 +111,19 @@ set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 
-# The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be inferred
-# at runtime, so we set it here.  Any component which used dd_wrapper will have access to a uniform name.
-set(CRASHTRACKER_EXE_BASE_NAME "crashtracker_exe")
-set(CRASHTRACKER_EXE_TARGET_NAME ${CRASHTRACKER_EXE_BASE_NAME}-${PLATFORM_SUFFIX})
+if(NOT WIN32)
+    # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be
+    # inferred at runtime, so we set it here.  Any component which used dd_wrapper will have access to a uniform name.
+    set(CRASHTRACKER_EXE_BASE_NAME "crashtracker_exe")
+    set(CRASHTRACKER_EXE_TARGET_NAME ${CRASHTRACKER_EXE_BASE_NAME}-${PLATFORM_SUFFIX})
 
-target_compile_definitions(dd_wrapper PRIVATE CRASHTRACKER_EXE_TARGET_NAME="${CRASHTRACKER_EXE_TARGET_NAME}")
+    target_compile_definitions(dd_wrapper PRIVATE CRASHTRACKER_EXE_TARGET_NAME="${CRASHTRACKER_EXE_TARGET_NAME}")
 
-# Also propagate the target name to the parent scope, since it can be used for non-code purposes (e.g., filenames)
-set(CRASHTRACKER_EXE_TARGET_NAME
-    ${CRASHTRACKER_EXE_TARGET_NAME}
-    PARENT_SCOPE)
+    # Also propagate the target name to the parent scope, since it can be used for non-code purposes (e.g., filenames)
+    set(CRASHTRACKER_EXE_TARGET_NAME
+        ${CRASHTRACKER_EXE_TARGET_NAME}
+        PARENT_SCOPE)
+endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.
 # However, for an inplace build, setup.py will pass a temporary path as the extension output directory, so while it will

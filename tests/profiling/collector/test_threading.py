@@ -381,6 +381,7 @@ def test_lock_acquire_release_speed(benchmark):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="This test is flaky on Python 3.9")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="true"),

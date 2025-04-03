@@ -107,15 +107,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/meta",
         ),
         Venv(
-            name="circleci-gen-config",
-            command="python scripts/gen_circleci_config.py {cmdargs}",
-            pys=["3"],
-            pkgs={
-                "ruamel.yaml": latest,
-                "lxml": latest,
-            },
-        ),
-        Venv(
             name="gitlab-gen-config",
             command="python scripts/gen_gitlab_config.py {cmdargs}",
             pys=["3"],
@@ -134,106 +125,6 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-            },
-        ),
-        Venv(
-            name="appsec_iast",
-            pys=select_pys(max_version="3.12"),
-            command="pytest -v {cmdargs} tests/appsec/iast/",
-            pkgs={
-                "requests": latest,
-                "urllib3": latest,
-                "pycryptodome": latest,
-                "cryptography": latest,
-                "astunparse": latest,
-                "simplejson": latest,
-                "SQLAlchemy": "==2.0.22",
-                "psycopg2-binary": "~=2.9.9",
-                "pymysql": latest,
-                "mysqlclient": "==2.1.1",
-                "googleapis-common-protos": latest,
-                "grpcio": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_iast_memcheck",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
-            command="pytest {cmdargs} --memray --stacks=35 tests/appsec/iast_memcheck/",
-            pkgs={
-                "requests": latest,
-                "pycryptodome": latest,
-                "cryptography": latest,
-                "SQLAlchemy": "==2.0.22",
-                "psycopg2-binary": "~=2.9.9",
-                # Should be "pytest-memray": latest, but we need to pin to a specific commit in a fork
-                # while this PR gets merged: https://github.com/bloomberg/pytest-memray/pull/103
-                "pytest-memray": "~=1.7.0",
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_iast_packages",
-            pys=select_pys(min_version="3.8"),
-            command="pytest {cmdargs} tests/appsec/iast_packages/",
-            pkgs={
-                "requests": latest,
-                "astunparse": latest,
-                "flask": "~=3.0",
-                "virtualenv-clone": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_iast_tdd_propagation",
-            pys=select_pys(min_version="3.11"),
-            command="pytest tests/appsec/iast_tdd_propagation/",
-            pkgs={
-                "coverage": latest,
-                "pycryptodome": latest,
-                "flask": "~=3.0",
-                "sqlalchemy": "~=2.0.23",
-                "pony": latest,
-                "aiosqlite": latest,
-                "tortoise-orm": latest,
-                "peewee": latest,
-                "requests": latest,
-                "envier": "==0.5.2",
-                "cattrs": "<23.1.1",
-                "protobuf": ">=3",
-                "typing_extensions": latest,
-                "xmltodict": ">=0.12",
-                "opentracing": ">=2.0.0",
-                "bytecode": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-        ),
-        Venv(
-            name="appsec_integrations_pygoat",
-            pys=select_pys(min_version="3.10"),
-            command="pytest {cmdargs} tests/appsec/integrations/pygoat_tests/",
-            pkgs={
-                "requests": latest,
-            },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
         Venv(
@@ -308,7 +199,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -468,6 +359,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="smoke_test",
+            command="python tests/smoke_test.py {cmdargs}",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                )
+            ],
+        ),
+        Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
@@ -491,6 +391,14 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
             pys=select_pys(),
+        ),
+        Venv(
+            name="errortracker",
+            command="pytest {cmdargs} tests/errortracking/",
+            pkgs={
+                "flask": latest,
+            },
+            pys=select_pys(min_version="3.10"),
         ),
         Venv(
             name="vendor",
@@ -712,6 +620,12 @@ venv = Venv(
                     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
                 ),
             ],
+        ),
+        Venv(
+            name="ddtrace_api",
+            command="pytest {cmdargs} tests/contrib/ddtrace_api",
+            pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
+            pys=select_pys(min_version="3.8"),
         ),
         # Django  Python version support
         # 2.2     3.5, 3.6, 3.7, 3.8  3.9
@@ -1342,6 +1256,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
                 ),
             ],
         ),
@@ -2093,6 +2011,25 @@ venv = Venv(
             },
         ),
         Venv(
+            name="yaaredis",
+            command="pytest {cmdargs} tests/contrib/yaaredis",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"yaaredis": ["~=2.0.0", latest]},
+                ),
+                Venv(
+                    # yaaredis added support for Python 3.10 in 3.0
+                    pys="3.10",
+                    pkgs={"yaaredis": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
@@ -2535,6 +2472,7 @@ venv = Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
+                "vcrpy": "==7.0.0",
                 "pytest-asyncio": "==0.23.7",
                 "tiktoken": latest,
                 "huggingface-hub": latest,
@@ -2544,11 +2482,11 @@ venv = Venv(
                 "pytest-randomly": "==3.10.1",
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
+                "respx": latest,
             },
             venvs=[
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": "==0.1.20",
                         "langchain-community": "==0.0.38",
                         "langchain-core": "==0.1.52",
@@ -2569,7 +2507,6 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
@@ -2588,7 +2525,6 @@ venv = Venv(
                 ),
                 Venv(
                     pkgs={
-                        "vcrpy": "==5.1.0",
                         "langchain": latest,
                         "langchain-community": latest,
                         "langchain-core": latest,
@@ -2718,7 +2654,6 @@ venv = Venv(
                 "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
-                "envier": "==0.5.2",
             },
         ),
         Venv(
@@ -2767,7 +2702,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} tests/contrib/subprocess",
+            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
@@ -2822,7 +2757,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2844,7 +2779,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "protobuf": ["==3.19.0", latest],
+                                "protobuf": [">3", latest],
                             },
                         ),
                         # Gevent
@@ -2966,28 +2901,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.11
+                # Python >= 3.11
                 Venv(
-                    pys="3.11",
-                    pkgs={"uwsgi": latest},
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "protobuf": ["==4.22.0", latest],
-                            },
-                        ),
-                        # Gevent
-                        Venv(
-                            env={
-                                "DD_PROFILE_TEST_GEVENT": "1",
-                            },
-                            pkgs={"gunicorn[gevent]": latest, "gevent": latest},
-                        ),
-                    ],
-                ),
-                # Python 3.12
-                Venv(
-                    pys="3.12",
+                    pys=select_pys("3.11", "3.13"),
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(

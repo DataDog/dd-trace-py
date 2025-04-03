@@ -30,8 +30,6 @@
       "bedrock.response.choices.1.text": " Sure! A Long Short-Term Memory (L",
       "bedrock.response.duration": "346",
       "bedrock.response.id": "c158207e-8168-4e9f-927c-971b9e2d9d38",
-      "bedrock.usage.completion_tokens": "20",
-      "bedrock.usage.prompt_tokens": "40",
       "language": "python",
       "runtime-id": "88ca69f6cc694697b1289399e130da4e"
     },
@@ -39,6 +37,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 20,
+      "bedrock.response.usage.prompt_tokens": 40,
       "process_id": 3568
     },
     "duration": 810213000,

@@ -296,7 +296,7 @@ class PymongoCore(object):
 
         # confirm query tag find with query criteria on name
         assert spans[-1].resource == 'find teams {"name": "?"}'
-        assert spans[-1].get_tag("mongodb.query") == "{'name': '?'}"
+        assert spans[-1].get_tag("mongodb.query") == '{"name": "?"}'
 
     def test_update_ot(self):
         """OpenTracing version of test_update."""
@@ -406,9 +406,9 @@ class PymongoCore(object):
 
         # Assert resource names and mongodb.query
         assert one_row_span.resource == 'find songs {"name": "?"}'
-        assert one_row_span.get_tag("mongodb.query") == "{'name': '?'}"
+        assert one_row_span.get_tag("mongodb.query") == '{"name": "?"}'
         assert two_row_span.resource == 'find songs {"artist": "?"}'
-        assert two_row_span.get_tag("mongodb.query") == "{'artist': '?'}"
+        assert two_row_span.get_tag("mongodb.query") == '{"artist": "?"}'
 
         assert one_row_span.name == "pymongo.cmd"
         assert one_row_span.get_metric("db.row_count") == 1
@@ -711,7 +711,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
-        tracer._configure(enabled=False)
+        tracer.enabled = False
 
         db = client.testdb
         db.drop_collection("teams")

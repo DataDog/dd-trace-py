@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue with correlating traces between APM and LLM Observability where trace IDs were always being converted to hexadecimal values which broke APM links for 64-bit trace IDs.
+

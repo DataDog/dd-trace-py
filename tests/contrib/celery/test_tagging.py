@@ -140,3 +140,46 @@ def assert_traces(tracer, task_name, task, port):
     assert run_span.get_tag("component") == "celery"
     assert run_span.get_tag("span.kind") == "consumer"
     assert socket.gethostname() in run_span.get_tag("celery.hostname")
+
+
+@pytest.fixture(autouse=False)
+def list_broker_celery_app(instrument_celery, dummy_tracer):
+    app = Celery("list_broker_celery", broker=BROKER_URL, backend=BACKEND_URL)
+    # Set the broker URL to a list where the first URL is used for parsing
+    app.conf.broker_url = [BROKER_URL, "memory://"]
+
+    @app.task(name="tests.contrib.celery.test_tagging.subtract")
+    def subtract(x, y):
+        return x - y
+
+    # Ensure the app is instrumented with the dummy tracer
+    Pin.get_from(app)
+    Pin._override(app, tracer=dummy_tracer)
+    patch()
+    yield app
+    unpatch()
+
+
+def test_list_broker_urls(list_broker_celery_app):
+    """
+    Test that when the broker URL is provided as a list,
+    the instrumentation correctly parses the first URL in the list.
+    """
+    tracer = Pin.get_from(list_broker_celery_app).tracer
+
+    with start_worker(
+        list_broker_celery_app,
+        pool="solo",
+        loglevel="info",
+        perform_ping_check=False,
+        shutdown_timeout=30,
+    ):
+        t = list_broker_celery_app.tasks["tests.contrib.celery.test_tagging.subtract"].delay(10, 3)
+        assert t.get(timeout=2) == 7
+
+        # Allow time for the publish span to be recorded
+        time.sleep(3)
+
+        # assert_traces is assumed to be a helper function that checks that the
+        # span has the expected values (e.g. target port is 6379 for BROKER_URL)
+        assert_traces(tracer, "subtract", t, 6379)

@@ -1,8 +1,11 @@
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ddtrace.internal.runtime import get_runtime_id
+
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
+from ..constants import DEFAULT_SERVICE_NAME
 from .collector import ValueCollector
 from .constants import LANG
 from .constants import LANG_INTERPRETER
@@ -24,8 +27,10 @@ class TracerTagCollector(RuntimeTagCollector):
     def collect_fn(self, keys):
         ddtrace = self.modules.get("ddtrace")
 
-        # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
-        tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
+        service = DEFAULT_SERVICE_NAME
+        if ddtrace.config.service:
+            service = ddtrace.config.service
+        tags = [(SERVICE, service)]
 
         # DEV: `DD_ENV`, `DD_VERSION`, and `DD_SERVICE` get picked up automatically by
         #      dogstatsd client, but someone might configure these via `ddtrace.config`
@@ -56,7 +61,6 @@ class PlatformTagCollector(RuntimeTagCollector):
     - `lang_version``,  eg ``2.7.10``
     - ``lang`` e.g. ``Python``
     - ``tracer_version`` e.g. ``0.29.0``
-
     """
 
     required_modules = ["platform", "ddtrace"]
@@ -70,4 +74,26 @@ class PlatformTagCollector(RuntimeTagCollector):
             (LANG_VERSION, platform.python_version()),
             (TRACER_VERSION, ddtrace.__version__),
         ]
+        return tags
+
+
+class PlatformTagCollectorV2(PlatformTagCollector):
+    """Tag collector for the Python interpreter implementation.
+
+    Tags collected:
+    - ``lang_interpreter``:
+
+      * For CPython this is 'CPython'.
+      * For Pypy this is ``PyPy``
+      * For Jython this is ``Jython``
+
+    - `lang_version``,  eg ``2.7.10``
+    - ``lang`` e.g. ``Python``
+    - ``tracer_version`` e.g. ``0.29.0``
+    - ``runtime-id`` e.g. `e4724609efa84cf58424a8b1ef44b17d`
+    """
+
+    def collect_fn(self, keys):
+        tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
+        tags.append(("runtime-id", get_runtime_id()))
         return tags

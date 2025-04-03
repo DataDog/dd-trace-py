@@ -9,7 +9,7 @@ dependencies = [
     "bandit==1.7.5",
     "mypy==0.991",
     "coverage==7.3.0",
-    "envier==0.5.2",
+    "envier==0.6.1",
     "types-docutils==0.19.1.1",
     "types-protobuf==3.20.4.5",
     "types-PyYAML==6.0.12.2",
@@ -84,7 +84,7 @@ dependencies = [  # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
-    "envier==0.5.2",
+    "envier==0.6.1",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
     "bytecode",
@@ -187,6 +187,7 @@ DD_CIVISIBILITY_ITR_ENABLED = "1"
 DD_PATCH_MODULES = "unittest:false"
 CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
+DD_FAST_BUILD = "1"
 
 ## ASM Django
 
@@ -199,10 +200,6 @@ dependencies = [
     "hypothesis",
     "django{matrix:django}"
 ]
-
-[envs.appsec_threats_django.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -249,10 +246,6 @@ dependencies = [
     "flask{matrix:flask}"
 ]
 
-[envs.appsec_threats_flask.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-
 [envs.appsec_threats_flask.scripts]
 test = [
     "uname -a",
@@ -281,6 +274,75 @@ flask = ["~=2.3"]
 python = ["3.8", "3.11", "3.13"]
 flask = ["~=3.0"]
 
+## ASM IAST module
+
+[envs.appsec_iast_default]
+template = "appsec_iast_default"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "astunparse",
+    "simplejson",
+    "SQLAlchemy",
+    "psycopg2-binary~=2.9.9",
+    "pymysql",
+    "mysqlclient==2.1.1",
+    "grpcio",
+    "mysqlclient==2.1.1",
+]
+
+[envs.appsec_iast_default.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+
+[envs.appsec_iast_default.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
+]
+
+[[envs.appsec_iast_default.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+## ASM IAST memcheck
+
+[envs.appsec_iast_memcheck]
+template = "appsec_iast_memcheck"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "urllib3",
+    "pycryptodome",
+    "cryptography",
+    "psycopg2-binary~=2.9.9",
+    "pytest-memray"
+]
+
+[envs.appsec_iast_memcheck.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_iast_memcheck.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
+]
+
+[[envs.appsec_iast_memcheck.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
+
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -290,6 +352,11 @@ dependencies = [
     "pybind11",
     "clang"
 ]
+
+[envs.appsec_iast_native.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
 test = [
@@ -315,15 +382,54 @@ dependencies = [
     "virtualenv-clone"
 ]
 
+[envs.appsec_iast_packages.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
 [envs.appsec_iast_packages.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/iast_packages",
+    "python -m pytest tests/appsec/iast_packages",
 ]
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
+
+## ASM iast_tdd_propagation
+
+[envs.iast_tdd_propagation]
+template = "iast_tdd_propagation"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "flask",
+    "pycryptodome",
+    "sqlalchemy~=2.0.23",
+    "pony",
+    "aiosqlite",
+    "tortoise-orm",
+    "peewee",
+    "aiosqlite",
+]
+
+[envs.iast_tdd_propagation.env-vars]
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.iast_tdd_propagation.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest tests/appsec/iast_tdd_propagation",
+]
+
+[[envs.iast_tdd_propagation.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM appsec_integrations_django
 
@@ -340,11 +446,18 @@ dependencies = [
     "Django{matrix:django}",
 ]
 
+[envs.appsec_integrations_django.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+
 [envs.appsec_integrations_django.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -372,11 +485,17 @@ dependencies = [
     "flask{matrix:flask}",
 ]
 
+[envs.appsec_integrations_flask.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
 [envs.appsec_integrations_flask.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
@@ -416,6 +535,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
+    "python-multipart",
     "jinja2",
     "httpx<0.28.0",
     "anyio{matrix:anyio:}",
@@ -423,13 +543,16 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_fastapi.scripts]
 test = [
     "uname -a",
     "pip freeze",
-    "DD_TRACE_AGENT_URL=\"http://testagent:9126\" DD_CIVISIBILITY_ITR_ENABLED=0 DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
 ]
 
 
@@ -448,7 +571,6 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-
 ## ASM FastAPI
 
 [envs.appsec_threats_fastapi]
@@ -462,10 +584,6 @@ dependencies = [
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
-
-[envs.appsec_threats_fastapi.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.appsec_threats_fastapi.scripts]
 test = [
@@ -490,7 +608,6 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
-
 ## ASM Appsec Aggregated Leak Testing
 
 [envs.iast_aggregated_leak_testing]
@@ -507,10 +624,9 @@ dependencies = [
 ]
 
 [envs.iast_aggregated_leak_testing.env-vars]
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 DD_IAST_ENABLED = "true"
-_DD_IAST_PATCH_MODULES = "scripts.iast"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
+DD_FAST_BUILD = "0"
 
 [envs.iast_aggregated_leak_testing.scripts]
 test = [
@@ -522,8 +638,6 @@ test = [
 
 [[envs.iast_aggregated_leak_testing.matrix]]
 python = ["3.10", "3.11", "3.12"]
-
-
 
 ## pytorch profiling test
 
@@ -541,8 +655,6 @@ dependencies = [
 [envs.profiling_pytorch.env-vars]
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.profiling_pytorch.scripts]
 test = [
@@ -554,24 +666,27 @@ test = [
 [[envs.profiling_pytorch.matrix]]
 python = ["3.12"]
 
-## Unit Tests
+## Multiple OS tests
 
-[envs.ddtrace_unit_tests]
+[envs.multiple_os_tests]
 dependencies = [
     "pytest",
     "pytest-cov",
     "requests",
     "hypothesis",
     "flask",
+    "asgiref",
+    "botocore",
+    "dnspython",
 ]
 
-[envs.ddtrace_unit_tests.env-vars]
+[envs.multiple_os_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
 CMAKE_BUILD_PARALLEL_LEVEL="6"
 CARGO_BUILD_JOBS = "6"
 
-[envs.ddtrace_unit_tests.scripts]
+[envs.multiple_os_tests.scripts]
 test = [
     "uname -a",
     "pip freeze",
@@ -579,8 +694,8 @@ test = [
     "python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
 ]
 
-[[envs.ddtrace_unit_tests.matrix]]
-python = ["3.12", "3.10"]
+[[envs.multiple_os_tests.matrix]]
+python = ["3.13", "3.12", "3.10", "3.8"]
 
 # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
 # across all supported versions
@@ -600,6 +715,24 @@ test = [
 
 [[envs.dd_coverage.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+[envs.errortracking]
+template = "errortracking"
+dependencies = [
+    "flask",
+    "hypothesis",
+    "pytest",
+    "pytest-cov",
+]
+
+[envs.errortracking.scripts]
+test = [
+    "pip freeze",
+    "pytest tests/internal/errortracking",
+]
+
+[[envs.errortracking.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13"]
 
 [envs.pytest_plugin_v2]
 template = "pytest_plugin_v2"
@@ -669,8 +802,6 @@ dependencies = [
 
 [evs.selenium.env-vars]
 DD_AGENT_TRACER_URL = "9126"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
 
 [envs.selenium.scripts]
 test = [
@@ -687,3 +818,36 @@ matrix.tested_pytest_plugin_version.env-vars = [
     { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
     { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
 ]
+
+[envs.appsec_integrations_pygoat]
+template = "appsec_integrations_pygoat"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "pyyaml==6.0.1",
+]
+
+[envs.appsec_integrations_pygoat.env-vars]
+DD_CIVISIBILITY_ITR_ENABLED = "0"
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_ENABLED = "true"
+_DD_IAST_DEBUG = "false"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100"
+DD_REMOTE_CONFIGURATION_ENABLED = "true"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+DD_TRACE_AGENT_URL = "http://0.0.0.0:9126"
+DD_FAST_BUILD = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+PYTHONUNBUFFERED = "1"
+
+[envs.appsec_integrations_pygoat.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh {args:tests/appsec/integrations/pygoat_tests/}",
+]
+
+[[envs.appsec_integrations_pygoat.matrix]]
+python = ["3.10", "3.11", "3.12"]

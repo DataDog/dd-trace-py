@@ -1,4 +1,5 @@
-from mock.mock import ANY
+from unittest.mock import ANY
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -40,7 +41,7 @@ def test_header_injection_redact_excluded(header_name, header_value, iast_contex
             {
                 "evidence": {"valueParts": [{"value": header_name + ": "}, {"source": 0, "value": header_value}]},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
                 "type": VULN_HEADER_INJECTION,
             }
         ],
@@ -84,7 +85,7 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
             {
                 "evidence": {"valueParts": value_part},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
                 "type": VULN_HEADER_INJECTION,
             }
         ],

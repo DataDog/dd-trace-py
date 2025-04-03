@@ -1,9 +1,9 @@
+import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal.compat import pattern_type
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
@@ -104,7 +104,7 @@ class SamplingRule(object):
                 return False
 
         # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, pattern_type):
+        if isinstance(pattern, re.Pattern):
             try:
                 return bool(pattern.match(str(prop)))
             except (ValueError, TypeError):
@@ -207,7 +207,7 @@ class SamplingRule(object):
     def choose_matcher(self, prop):
         # We currently support the ability to pass in a function, a regular expression, or a string
         # If a string is passed in we create a GlobMatcher to handle the matching
-        if callable(prop) or isinstance(prop, pattern_type):
+        if callable(prop) or isinstance(prop, re.Pattern):
             log.error(
                 "Using methods or regular expressions for SamplingRule matching is not supported: %s ."
                 "Please move to passing in a string for Glob matching.",

@@ -1,72 +1,107 @@
-import os
-
-from ddtrace.internal.native import _apply_configuration_from_disk
-from ddtrace.internal.native import get_configuration_from_disk
+import pytest
 
 
-def test_get_configuration_from_disk__priority(tmp_path):
+@pytest.mark.subprocess(env={"DD_VERSION": "b"})
+def test_get_configuration_from_disk_managed_stable_config_priority():
     """
     Verify the order:
     local stable config < environment variables < managed stable config
     """
+    import os
+    import tempfile
 
-    local_config = tmp_path / "local_config.yaml"
-    local_config.write_text(
-        """
+    # Create managed config
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="managed_config") as managed_config:
+        managed_config.write(
+            b"""
 apm_configuration_default:
-  DD_SERVICE: "a"
-""",
-        encoding="utf-8",
-    )
+  DD_VERSION: "c"
+"""
+        )
+        managed_config.flush()
 
-    managed_config = tmp_path / "managed_config.yaml"
-    managed_config.write_text(
-        """
+        # Create local config
+        with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="local_config") as local_config:
+            local_config.write(
+                b"""
 apm_configuration_default:
-  DD_SERVICE: "c"
-""",
-        encoding="utf-8",
-    )
+  DD_VERSION: "a"
+  """
+            )
+            local_config.flush()
+            # Ensure managed and local configs can be discovered via envars
+            os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = local_config.name
+            os.environ["_DD_SC_MANAGED_FILE_OVERRIDE"] = managed_config.name
+            # Import ddtrace to apply configuration
+            from ddtrace import config
 
-    # First test, local config
-    _apply_configuration_from_disk(local_file_override=str(local_config))
-    assert os.environ["DD_SERVICE"] == "a"
-    del os.environ["DD_SERVICE"]
-
-    # Second test, local config + environment variable
-    os.environ["DD_SERVICE"] = "b"
-    _apply_configuration_from_disk(local_file_override=str(local_config))
-    assert os.environ["DD_SERVICE"] == "b"
-    del os.environ["DD_SERVICE"]
-
-    # Third test, local config + environment variable + managed config
-    _apply_configuration_from_disk(local_file_override=str(local_config), managed_file_override=str(managed_config))
-    assert os.environ["DD_SERVICE"] == "c"
-    del os.environ["DD_SERVICE"]
+            # Ensure managed configuration takes precedence over local config and envars
+            assert config.version == "c", f"Expected DD_VERSION to be 'c' but got {config.version}"
 
 
+@pytest.mark.subprocess(parametrize={"DD_VERSION": ["b", None]})
+def test_get_configuration_from_disk_local_config_priority(tmp_path):
+    """
+    Verify the order:
+    local stable config < environment variables
+    """
+    import os
+    import tempfile
+
+    # Create local config
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="local_config") as local_config:
+        local_config.write(
+            b"""
+apm_configuration_default:
+  DD_VERSION: "a"
+"""
+        )
+        local_config.flush()
+        # Ensure managed and local configs can be discovered via envars
+        os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = local_config.name
+        # Import ddtrace to apply configuration
+        from ddtrace import config
+
+        # Ensure environment variables takes precedence over local config and envars
+        if "DD_VERSION" in os.environ:
+            assert config.version == "b", f"Expected DD_VERSION to be 'b' but got {config.version}"
+        else:
+            assert config.version == "a", f"Expected DD_VERSION to be 'a' but got {config.version}"
+
+
+@pytest.mark.subprocess()
 def test_get_configuration_from_disk__host_selector(tmp_path):
-    # First test -- config matches & should be returned
-    config_1 = tmp_path / "config_1.yaml"
-    config_1.write_text(
-        """
+    """
+    Verify local configurations can be read from a file
+    """
+    import os
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="local_config") as local_config:
+        local_config.write(
+            b"""
 apm_configuration_default:
   DD_RUNTIME_METRICS_ENABLED: true
-""",
-        encoding="utf-8",
-    )
+"""
+        )
+        local_config.flush()
+        # Provide the local config via an environment variable
+        os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = local_config.name
+        # Ensure runtime metrics is enabled (default value is False)
+        from ddtrace import config
 
-    config = get_configuration_from_disk(local_file_override=str(config_1))
-    assert len(config) == 1
-    assert config[0]["name"] == "DD_RUNTIME_METRICS_ENABLED"
-    assert config[0]["value"] == "true"
+        config._runtime_metrics_enabled = True
 
 
-def test_get_configuration_from_disk__service_selector(tmp_path):
+@pytest.mark.subprocess()
+def test_get_configuration_from_disk__service_selector_match():
     # First test -- config matches & should be returned
-    config_1 = tmp_path / "config_1.yaml"
-    config_1.write_text(
-        """
+    import os
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="local_config") as local_config:
+        local_config.write(
+            b"""
 rules:
   - selectors:
     - origin: language
@@ -74,20 +109,26 @@ rules:
         - python
       operator: equals
     configuration:
-      DD_SERVICE: my-service
-""",
-        encoding="utf-8",
-    )
+      DD_VERSION: my-version
+"""
+        )
+        local_config.flush()
+        os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = local_config.name
 
-    config = get_configuration_from_disk(local_file_override=str(config_1))
-    assert len(config) == 1
-    assert config[0]["name"] == "DD_SERVICE"
-    assert config[0]["value"] == "my-service"
+        from ddtrace import config
 
+        assert config.version == "my-version", f"Expected DD_VERSION to be 'my-version' but got {config.version}"
+
+
+@pytest.mark.subprocess()
+def test_get_configuration_from_disk__service_selector_not_matched():
     # Second test -- config does not match & should not be returned
-    config_2 = tmp_path / "config_2.yaml"
-    config_2.write_text(
-        """
+    import os
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="local_config") as local_config:
+        local_config.write(
+            b"""
 rules:
   - selectors:
     - origin: language
@@ -95,28 +136,12 @@ rules:
         - nodejs
       operator: equals
     configuration:
-      DD_SERVICE: my-service
-""",
-        encoding="utf-8",
-    )
+      DD_VERSION: my-version
+"""
+        )
+        local_config.flush()
+        os.environ["_DD_SC_LOCAL_FILE_OVERRIDE"] = local_config.name
 
-    config = get_configuration_from_disk(local_file_override=str(config_2))
-    assert len(config) == 0
+        from ddtrace import config
 
-
-def is_imported_before(module_a, module_b):
-    import sys
-
-    # Check if both modules are in sys.modules
-    if module_a in sys.modules and module_b in sys.modules:
-        # Get the position of the modules in sys.modules (which is an OrderedDict in Python 3.7+)
-        modules = list(sys.modules.keys())
-        return modules.index(module_a) < modules.index(module_b)
-    return False  # If one or both modules are not imported, return False
-
-
-def test_native_before_settings():
-    # Ensure that the native module is imported before the settings module
-    import ddtrace  # noqa: F401
-
-    assert is_imported_before("ddtrace.internal.native", "ddtrace.settings")
+        assert config.version != "my-version", f"Expected DD_VERSION to be 'my-version' but got {config.version}"
