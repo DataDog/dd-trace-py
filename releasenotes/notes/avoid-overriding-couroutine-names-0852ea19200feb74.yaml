@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    asyncio: Fixes an issue where the name of a coroutine was being overridden by a ddtrace function.
