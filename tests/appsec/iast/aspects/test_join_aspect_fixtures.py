@@ -538,7 +538,7 @@ def test_propagate_ranges_with_no_context(caplog):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
 
 
 @pytest.mark.skip_iast_check_logs
@@ -557,7 +557,7 @@ def test_propagate_ranges_with_no_context_with_var(caplog):
         result = mod.do_join(string_input, it)
         assert result == "a-joiner-b-joiner-c"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
 
 
 @pytest.mark.skip_iast_check_logs
@@ -575,4 +575,4 @@ def test_propagate_ranges_with_no_context_with_equal_var(caplog):
         result = mod.do_join(string_input, [a_tainted, a_tainted, a_tainted])
         assert result == "abcdef-joiner-abcdef-joiner-abcdef"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
