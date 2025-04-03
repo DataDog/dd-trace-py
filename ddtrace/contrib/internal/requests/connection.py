@@ -3,7 +3,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -94,13 +93,6 @@ def _wrap_send(func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         span.set_tag(_SPAN_MEASURED_KEY)
-
-        # Configure trace search sample rate
-        # DEV: analytics enabled on per-session basis
-        cfg = config._get_from(instance)
-        analytics_enabled = cfg.get("analytics_enabled")
-        if analytics_enabled:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

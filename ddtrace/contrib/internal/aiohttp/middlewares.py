@@ -29,8 +29,6 @@ async def trace_middleware(app, handler):
         # application configs
         tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
-        # DEV: aiohttp is special case maintains separate configuration from config api
-        analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
         # Create a new context based on the propagated information.
 
         with core.context_with_data(
@@ -44,8 +42,6 @@ async def trace_middleware(app, handler):
             distributed_headers_config=config.aiohttp,
             distributed_headers_config_override=app[CONFIG_KEY]["distributed_tracing_enabled"],
             headers_case_sensitive=True,
-            analytics_enabled=analytics_enabled,
-            analytics_sample_rate=app[CONFIG_KEY].get("analytics_sample_rate", True),
         ) as ctx:
             req_span = ctx.span
 
@@ -165,8 +161,6 @@ def trace_app(app, tracer, service="aiohttp-web"):
         "tracer": tracer,
         "service": config._get_service(default=service),
         "distributed_tracing_enabled": None,
-        "analytics_enabled": None,
-        "analytics_sample_rate": 1.0,
     }
 
     # add the async tracer middleware as a first middleware

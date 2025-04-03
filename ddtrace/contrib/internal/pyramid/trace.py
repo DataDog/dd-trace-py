@@ -14,8 +14,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
-from .constants import SETTINGS_ANALYTICS_ENABLED
-from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
 from .constants import SETTINGS_SERVICE
 from .constants import SETTINGS_TRACE_ENABLED
@@ -81,9 +79,6 @@ def trace_tween_factory(handler, registry):
                 distributed_headers=request.headers,
                 distributed_headers_config=config.pyramid,
                 headers_case_sensitive=True,
-                # DEV: pyramid is special case maintains separate configuration from config api
-                analytics_enabled=settings.get(SETTINGS_ANALYTICS_ENABLED),
-                analytics_sample_rate=settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True),
             ) as ctx, ctx.span as req_span:
                 ctx.set_item("req_span", req_span)
                 core.dispatch("web.request.start", (ctx, config.pyramid))

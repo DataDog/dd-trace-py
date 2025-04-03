@@ -4,7 +4,6 @@ This module contains constants used across ddtrace products.
 Constants that should NOT be referenced by ddtrace users are marked with a leading underscore.
 """
 _SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
-_ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
 _SAMPLING_AGENT_DECISION = "_dd.agent_psr"
 _SAMPLING_RULE_DECISION = "_dd.rule_psr"
 _SAMPLING_LIMIT_DECISION = "_dd.limit_psr"

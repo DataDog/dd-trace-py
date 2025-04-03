@@ -96,7 +96,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
         distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
         distributed_headers_config=config.molten,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))

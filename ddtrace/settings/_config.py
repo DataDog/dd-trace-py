@@ -478,8 +478,6 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
-        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 

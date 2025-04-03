@@ -25,7 +25,6 @@ from graphql.execution import ExecutionResult
 from graphql.language.source import Source
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -221,9 +220,6 @@ def _traced_query(func, args, kwargs):
 
         # mark span as measured and set sample rate
         span.set_tag(_SPAN_MEASURED_KEY)
-        sample_rate = config.graphql.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         result = func(*args, **kwargs)
         if isinstance(result, ExecutionResult):
