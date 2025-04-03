@@ -10,6 +10,7 @@ import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -4117,6 +4118,7 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
 
+    @pytest.mark.skipif(_get_pytest_version_tuple() < (7, 0, 0), reason="Pytest 6.x does not report logs")
     def test_pytest_log_capture_does_not_break_ddtrace_logging(self):
         py_file = self.testdir.makepyfile(
             """
