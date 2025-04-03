@@ -1003,10 +1003,6 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
 
     with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
         patch_iast({"xss": True})
-        from jinja2.filters import FILTERS
-        from jinja2.filters import do_mark_safe
-
-        FILTERS["safe"] = do_mark_safe
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/index.html?iast_queryparam=test1234",

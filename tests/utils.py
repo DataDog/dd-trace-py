@@ -171,7 +171,7 @@ def override_global_config(values):
     ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    asm_originals = dict((key, getattr(ddtrace.settings.asm.config, key)) for key in asm_config_keys)
+    asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
 
     # Override from the passed in keys
     for key, value in values.items():
@@ -180,9 +180,9 @@ def override_global_config(values):
     # rebuild asm config from env vars and global config
     for key, value in values.items():
         if key in asm_config_keys:
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
-    ddtrace.settings.asm.config._eval_asm_can_be_enabled()
+    asm_config._eval_asm_can_be_enabled()
     try:
         core.dispatch("test.config.override")
         yield
@@ -191,9 +191,9 @@ def override_global_config(values):
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
 
-        ddtrace.settings.asm.config.reset()
+        asm_config.reset()
         for key, value in asm_originals.items():
-            setattr(ddtrace.settings.asm.config, key, value)
+            setattr(asm_config, key, value)
 
         ddtrace.config._reset()
         ddtrace.config._subscriptions = subscriptions
@@ -1334,11 +1334,8 @@ def _get_skipped_item(item, skip_reason):
     return item
 
 
-def _should_skip(condition=None, until: int = None):
-    if until is None:
-        until = dt.datetime(3000, 1, 1)
-    else:
-        until = dt.datetime.fromtimestamp(until)
+def _should_skip(until: int, condition=None):
+    until = dt.datetime.fromtimestamp(until)
     if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
         return True
     if condition is not None and not condition:
@@ -1346,13 +1343,13 @@ def _should_skip(condition=None, until: int = None):
     return True
 
 
-def flaky(until: int = None, condition: bool = None, reason: str = None):
+def flaky(until: int, condition: bool = None, reason: str = None):
     return skip_if_until(until, condition=condition, reason=reason)
 
 
 def skip_if_until(until: int, condition=None, reason=None):
     """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(condition=condition, until=until)
+    skip = _should_skip(until=until, condition=condition)
 
     def decorator(function_or_class):
         if not skip:

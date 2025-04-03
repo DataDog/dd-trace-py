@@ -413,6 +413,8 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None))
 
+        self._is_user_provided_service = self.service is not None
+
         self._inferred_base_service = detect_service(sys.argv)
 
         if self.service is None and in_gcp_function():
@@ -642,7 +644,10 @@ class Config(object):
         # use the inferred base service value, and instead use the default if included. If we
         # didn't do this, we would have a massive breaking change from adding inferred_base_service,
         # which would be replacing any integration defaults since service is no longer None.
-        if self.service and self.service == self._inferred_base_service:
+        # We also check if the service was user provided since an edge case may be that
+        # DD_SERVICE == inferred base service, which would force the default to be returned
+        # even though we want config.service in this case.
+        if self.service and self.service == self._inferred_base_service and not self._is_user_provided_service:
             return default if default is not None else self.service
 
         # TODO: This method can be replaced with `config.service`.

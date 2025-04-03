@@ -1,0 +1,164 @@
+import_one: &import_one
+  use_cache: False
+  include_sys_modules: False
+  imported_deps:
+    - aiohttp
+import_one_stdlib: &import_one_stdlib
+  <<: *import_one
+  imported_deps:
+    - logging
+import_one_unknown: &import_one_unknown
+  <<: *import_one
+  imported_deps:
+    - made_up_module_name_that_doesnt_exist
+import_one_cache:
+  <<: *import_one
+  use_cache: True
+import_one_stdlib_cache:
+  <<: *import_one_stdlib
+  use_cache: True
+import_one_unknown_cache:
+  <<: *import_one
+  use_cache: True
+import_many: &import_many
+  <<: *import_one
+  imported_deps:
+    - aiohttp
+    - aiosignal
+    - anthropic
+    - anyio
+    - attrs
+    - boto3
+    - botocore
+    - httpcore
+    - httpx
+    - langchain
+    - numpy
+    - openai
+    - opentracing
+    - orjson
+    - pandas
+    - pluggy
+    - pytz
+    - six
+    - tzdata
+    - urllib3
+    - vcrpy
+    - yarl
+    - zipp
+import_many_unknown: &import_many_unknown
+  <<: *import_one
+  imported_deps:
+    - vkdhddreuo
+    - ytxrdiivqn
+    - nwunnqugfn
+    - rfrmygohvb
+    - xbwiuxpkvc
+    - kntwvlgxsw
+    - htdwaabgbd
+    - sbtytehntv
+    - yksoozwdeu
+    - iylkyqtwaz
+    - gxxzmynpox
+    - tmmrarwxvw
+    - hsymhsjcdm
+    - niuoavhyjl
+    - tbgjliuzje
+    - xaftiibbee
+    - nqbprpmqmf
+    - hvdgkpcqhp
+    - kwyimfrsam
+    - chrkdaxenj
+    - uksjgwzheh
+    - hezilzavbj
+    - qqfhnyfogb
+    - morqdnjyba
+    - mgpgfnswpu
+    - qtccjvwaqd
+    - xbogvdsmfx
+    - dtshlffojt
+    - nubduwftan
+    - lumxogqtwf
+    - yexpbwevnk
+    - efibxffkaq
+    - pyhcllqhol
+    - niklokhmbz
+    - dhzybycdxt
+    - posnydtbrk
+    - drshkcybdy
+    - vgsbkpzobj
+    - uxqeteebxn
+    - wyookkhxxg
+    - finnybsqih
+    - gtdliydysv
+    - lfibrspulf
+    - auextzkcks
+    - wtfappvbom
+    - cesvtlfpar
+    - fcobjvtyqx
+    - zbkfjgfliu
+    - rkqnmrehxt
+    - ufjhfvmjpe
+    - cvrrfkronk
+    - timtmseroq
+    - sascxaxzsr
+    - hsreaxzjfl
+    - qzrualbxrw
+    - munkkwwogu
+    - zaipilmoyv
+    - gdchrmvpww
+    - ebbignpbtp
+    - xfogobyazm
+    - wkwnvirvqt
+    - yfixwsczul
+    - fuusbgqujy
+    - yjiigvgpvk
+    - efyacaicht
+    - jyhmocodtz
+    - ewchftonkf
+    - qauopafaxy
+    - mtszxfzjuh
+    - xcasjvrteo
+    - ckdtjtxpkm
+    - wnyvdueczd
+    - xarajldokg
+    - aifrpfocki
+    - zwqnrwkggf
+    - wlcwigswvq
+    - wvubwdpdjr
+    - jggghyfsyd
+    - wfjuqhpelk
+    - iwfkbhpsvt
+    - ibeikdbtex
+    - yjjeqjnedf
+    - okgxdpsosi
+    - agnzpqzgcz
+    - csildvwwrv
+    - sroinswkaa
+    - qbwhmgtepw
+    - iafalhccur
+    - jmwncfmgxj
+    - hrvmtfidat
+    - ztsdooxbft
+    - bmantrhugw
+    - nzyxcxzxlv
+    - ejoivpknor
+    - cylqvpaenu
+    - axftwwlabn
+    - kfgirmnkpn
+    - rnaodfsqtv
+    - auaemnhznh
+    - iyfgdvyqqr
+import_many_stdlib: &import_many_stdlib
+  <<: *import_many
+  include_sys_modules: True
+  imported_deps: []
+import_many_cached:
+  <<: *import_many
+  use_cache: True
+import_many_unknown_cached:
+  <<: *import_many_unknown
+  use_cache: True
+import_many_stdlib_cached:
+  <<: *import_many_stdlib
+  use_cache: True

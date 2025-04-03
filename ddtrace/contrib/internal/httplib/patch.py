@@ -5,7 +5,6 @@ import sys
 import wrapt
 
 from ddtrace import config
-from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -77,12 +76,14 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 
 def _call_asm_wrap(func, instance, *args, **kwargs):
+    from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request_asm
+
     _wrap_request_asm(func, instance, args, kwargs)
 
 
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    if asm_config._iast_enabled or asm_config._asm_enabled:
+    if asm_config._iast_enabled or (asm_config._asm_enabled and asm_config._ep_enabled):
         func_to_call = functools.partial(_call_asm_wrap, func, instance)
     else:
         func_to_call = func

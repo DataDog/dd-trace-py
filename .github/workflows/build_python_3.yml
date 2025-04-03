@@ -130,6 +130,7 @@ jobs:
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
+              yum install -y libatomic.i686
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc

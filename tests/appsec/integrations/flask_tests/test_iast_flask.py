@@ -51,10 +51,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_header_injection()
             patch_xss_injection()
             patch_json()
-            from jinja2.filters import FILTERS
-            from jinja2.filters import do_mark_safe
-
-            FILTERS["safe"] = do_mark_safe
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer._configure(api_version="v0.4", appsec_enabled=True, iast_enabled=True)
             oce.reconfigure()
@@ -1804,18 +1800,19 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
 
             return "OK", 200
 
-        if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
-            self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
-        else:
-            self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
+        with override_global_config(dict(_iast_enabled=False)):
+            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+                self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
+            else:
+                self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
 
-        resp = self.client.post("/sqli/cookies/")
-        assert resp.status_code == 200
+            resp = self.client.post("/sqli/cookies/")
+            assert resp.status_code == 200
 
-        root_span = self.pop_spans()[0]
-        assert root_span.get_metric(IAST.ENABLED) is None
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) is None
 
-        assert root_span.get_tag(IAST.JSON) is None
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):

@@ -6,15 +6,6 @@ import sys
 import textwrap
 
 
-def mac_supported_iast_version():
-    if platform.system() == "Darwin":
-        # TODO: MacOS 10.9 or lower has a old GCC version but cibuildwheel has a GCC old version in newest mac versions
-        # mac_version = [int(i) for i in mac_ver()[0].split(".")]
-        # mac_version > [10, 9]
-        return False
-    return True
-
-
 # Code need to be run in a separate subprocess to reload since reloading .so files doesn't
 # work like normal Python ones
 test_native_load_code = """
@@ -45,7 +36,7 @@ except ImportError as e:
 
 if __name__ == "__main__":
     # ASM IAST smoke test
-    if sys.version_info >= (3, 6, 0) and platform.system() != "Windows" and mac_supported_iast_version():
+    if sys.version_info >= (3, 6, 0) and platform.system() != "Windows":
         print("Running native IAST module load test...")
         test_code = textwrap.dedent(test_native_load_code)
         cmd = [sys.executable, "-c", test_code]

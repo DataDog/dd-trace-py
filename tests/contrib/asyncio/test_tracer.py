@@ -1,5 +1,7 @@
 """Ensure that the tracer works with asynchronous executions within the same ``IOLoop``."""
 import asyncio
+import os
+import re
 
 import pytest
 
@@ -208,3 +210,31 @@ def test_asyncio_scheduled_tasks_parenting(tracer):
     spans = tracer.get_spans()
     assert len(spans) == 3
     assert spans[0].trace_id == spans[1].trace_id == spans[2].trace_id
+
+
+def test_asyncio_scheduled_tasks_debug_logs(run_python_code_in_subprocess):
+    code = """
+import ddtrace
+
+ddtrace.patch(asyncio=True)
+import asyncio
+import time
+import pytest
+
+
+async def my_function():
+    time.sleep(2)
+
+if __name__ == "__main__":
+    asyncio.run(my_function())
+"""
+    env = os.environ.copy()
+    env["PYTHONASYNCIODEBUG"] = "1"
+    out, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err + out
+
+    pattern = rb"Executing <Task finished name=\'Task-1\' coro=<my_function\(\) done, "
+    rb"defined at .*/dd-trace-py/ddtrace/contrib/internal/asyncio/patch.py:.* result=None "
+    rb"created at .*/dd-trace-py/ddtrace/contrib/internal/asyncio/patch.py:.* took .* seconds"
+    match = re.match(pattern, err)
+    assert match, err

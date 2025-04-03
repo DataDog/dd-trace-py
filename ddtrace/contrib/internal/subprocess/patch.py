@@ -58,7 +58,7 @@ def del_lst_callback(name: str):
 
 
 def patch() -> List[str]:
-    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+    if not asm_config._load_modules:
         return []
     patched: List[str] = []
 
@@ -66,7 +66,7 @@ def patch() -> List[str]:
     import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
-    should_patch_fork = not trace_utils.iswrapped(os.fork)
+    should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
     spawnvef = getattr(os, "_spawnvef", None)
     should_patch_spawnvef = spawnvef is not None and not trace_utils.iswrapped(spawnvef)
 
@@ -316,10 +316,11 @@ def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
 
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
+    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+        try:
+            trace_utils.unwrap(obj, attr)
+        except AttributeError:
+            pass
 
     SubprocessCmdLine._clear_cache()
 
@@ -327,7 +328,7 @@ def unpatch() -> None:
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         if isinstance(args[0], str):
             for callback in _STR_CALLBACKS.values():
@@ -351,6 +352,8 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
@@ -366,6 +369,8 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         mode, file, func_args, _, _ = args
         if isinstance(func_args, (list, tuple, str)):
@@ -395,7 +400,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         cmd_args = args[0] if len(args) else kwargs["args"]
         if isinstance(cmd_args, (list, tuple, str)):
@@ -429,7 +434,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
-        if asm_config._bypass_instrumentation_for_waf:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
             return wrapped(*args, **kwargs)
         binary = core.get_item("subprocess_popen_binary")
 

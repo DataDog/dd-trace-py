@@ -14,6 +14,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -179,6 +180,7 @@ def test_anthropic_invoke(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(until=1742428860, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_anthropic_message_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["anthropic_message"]), _MODELS["anthropic_message"]
     model = "us." + model
@@ -259,6 +261,7 @@ def test_anthropic_message_invoke_stream(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(until=1742428860, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_invoke_stream_single_output(bedrock_client, request_vcr):
     body = json.dumps(
         {
@@ -355,6 +358,7 @@ def test_amazon_embedding(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
+@flaky(1741838400, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_embedding(bedrock_client, request_vcr):
     body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
     model = "cohere.embed-english-v3"

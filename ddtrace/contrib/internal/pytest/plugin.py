@@ -17,11 +17,14 @@ from typing import Dict  # noqa:F401
 import pytest
 
 from ddtrace import config
-from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _extract_span
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.settings.asm import config as asm_config
+
+
+if asm_config._iast_enabled:
+    from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 
 
 # pytest default settings

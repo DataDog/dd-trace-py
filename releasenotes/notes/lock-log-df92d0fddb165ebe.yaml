@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue where the profiler unnecessarily outputs log
+    messages when it was unable to record a lock acquire event.
+

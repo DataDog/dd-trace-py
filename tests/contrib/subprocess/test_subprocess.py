@@ -253,7 +253,7 @@ def test_unpatch(tracer):
         assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
 
     unpatch()
-    with override_global_config(dict(_asm_enabled=True)):
+    with override_global_config(dict(_ep_enabled=False)):
         Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
@@ -273,7 +273,7 @@ def test_unpatch(tracer):
 
 
 def test_ossystem_noappsec(tracer):
-    with override_global_config(dict(_asm_enabled=False)):
+    with override_global_config(dict(_ep_enabled=False)):
         patch()
         assert not hasattr(os.system, "__wrapped__")
         assert not hasattr(os._spawnvef, "__wrapped__")

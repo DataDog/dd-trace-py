@@ -844,7 +844,7 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
-            span._set_ctx_item(INPUT_VALUE, str(input_text))
+            span._set_ctx_item(INPUT_VALUE, safe_json(input_text))
         if output_documents is None:
             return
         try:
@@ -862,9 +862,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            span._set_ctx_item(INPUT_VALUE, str(input_value))
+            span._set_ctx_item(INPUT_VALUE, safe_json(input_value))
         if output_value is not None:
-            span._set_ctx_item(OUTPUT_VALUE, str(output_value))
+            span._set_ctx_item(OUTPUT_VALUE, safe_json(output_value))
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
