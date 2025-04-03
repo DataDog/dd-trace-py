@@ -142,7 +142,7 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
 
     assert len(spans) == len(llmobs_events) == 3
 
-     assert llmobs_events[0]["name"] == "Agent workflow"
+    assert llmobs_events[0]["name"] == "Agent workflow"
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="workflow",
@@ -178,7 +178,7 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
 
     assert len(spans) == len(llmobs_events) == 3
 
-     assert llmobs_events[0]["name"] == "Agent workflow"
+    assert llmobs_events[0]["name"] == "Agent workflow"
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="workflow",
@@ -274,7 +274,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     _assert_expected_agent_run(
-        ["Addition Agent", "Addition Agent (LLM)", "add"],
+        ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
         handoffs=[],
@@ -340,6 +340,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     _assert_expected_agent_run(
+        ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
         spans[1:6],
         llmobs_events[1:6],
         handoffs=["Summarizer"],
@@ -401,6 +402,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
     )
     _assert_expected_agent_run(
+        ["Summarizer", "Summarizer (LLM)"],
         spans[6:],
         llmobs_events[6:],
         handoffs=[],
@@ -436,6 +438,7 @@ async def test_llmobs_single_agent_with_tool_errors(
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     _assert_expected_agent_run(
+        ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
         handoffs=[],
@@ -490,6 +493,9 @@ async def test_llmobs_single_agent_with_guardrail_errors(agents, llmobs_events, 
     llmobs_events.sort(key=lambda event: event["meta"]["span.kind"])
 
     assert len(llmobs_events) == 3
+
+    for i, name in enumerate(["Simple Agent", "simple_guardrail", "Agent workflow"]):
+        assert llmobs_events[i]["name"] == name
 
     assert llmobs_events[0]["meta"]["span.kind"] == "agent"
     assert llmobs_events[1]["meta"]["span.kind"] == "task"

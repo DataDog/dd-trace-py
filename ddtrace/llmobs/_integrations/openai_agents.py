@@ -194,7 +194,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         parent = _get_nearest_llmobs_ancestor(span)
         trace_info = self._llmobs_get_trace_info(oai_span)
         if parent and trace_info and span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id:
-            span.name = _get_span_name(parent) + " (LLM)"
+            span._set_ctx_item(NAME, _get_span_name(parent) + " (LLM)")
 
         if oai_span.llmobs_model_name:
             span._set_ctx_item(MODEL_NAME, oai_span.llmobs_model_name)

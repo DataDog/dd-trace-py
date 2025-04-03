@@ -125,7 +125,7 @@ def simple_agent_with_guardrail():
 def simple_agent():
     """A simple agent with no tools or handoffs"""
     yield Agent(
-        name="simple_agent",
+        name="Simple Agent",
         instructions="You are a helpful assistant who answers questions concisely and accurately.",
     )
 

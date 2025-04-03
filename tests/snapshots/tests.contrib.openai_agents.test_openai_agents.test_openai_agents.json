@@ -25,9 +25,9 @@
     "start": 1742584741136500000
   },
      {
-       "name": "simple_agent",
+       "name": "Simple Agent",
        "service": "tests.contrib.openai_agents",
-       "resource": "simple_agent",
+       "resource": "Simple Agent",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
