@@ -74,8 +74,8 @@ jobs:
       - name: Report analysis result on PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          filePath: import_analysis.txt
-          comment_tag: import_analysis
+          file-path: import_analysis.txt
+          comment-tag: import_analysis
           mode: upsert
         if: always()
 
@@ -128,8 +128,8 @@ jobs:
       - name: "Report analysis result on PR"
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          filePath: cycles_report.txt
-          comment_tag: import_cycles
+          file-path: cycles_report.txt
+          comment-tag: import_cycles
           mode: upsert
         if: failure()
 
