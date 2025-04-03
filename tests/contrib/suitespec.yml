@@ -256,6 +256,11 @@ suites:
       - '@botocore'
       - tests/contrib/aiobotocore/*
     runner: riot
+    services:
+      - moto
+    env:
+      TEST_MOTO_PORT: '3000'
+    snapshot: true
   aiohttp:
     parallelism: 3
     paths:
@@ -284,6 +289,9 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   aiopg:
     paths:
       - '@bootstrap'
@@ -296,6 +304,9 @@ suites:
       - tests/contrib/aiopg/*
       - tests/contrib/shared_tests_async.py
     runner: riot
+    snapshot: true
+    services:
+      - postgres
   algoliasearch:
     paths:
       - '@bootstrap'
@@ -346,6 +357,8 @@ suites:
       - tests/contrib/shared_tests_async.py
     runner: riot
     snapshot: true
+    services:
+      - postgres
   asynctest:
     parallelism: 3
     paths:
@@ -405,6 +418,8 @@ suites:
     pattern: ^botocore$
     runner: riot
     snapshot: true
+    services:
+      - localstack
   bottle:
     paths:
       - '@bootstrap'
@@ -424,6 +439,10 @@ suites:
       - '@cassandra'
       - tests/contrib/cassandra/*
     runner: riot
+    snapshot: true
+    parallelism: 2
+    services:
+      - cassandra
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -463,6 +482,9 @@ suites:
       - '@consul'
       - tests/contrib/consul/*
     runner: riot
+    snapshot: true
+    services:
+      - consul
   datastreams:
     paths:
       - '@bootstrap'
@@ -798,6 +820,9 @@ suites:
       - tests/contrib/mariadb/*
       - tests/snapshots/tests.contrib.mariadb.*
     runner: riot
+    services:
+      - mariadb
+    snapshot: true
   molten:
     paths:
       - '@bootstrap'
@@ -817,6 +842,9 @@ suites:
       - '@mongo'
       - tests/contrib/mongoengine/*
     runner: riot
+    snapshot: true
+    services:
+      - mongo
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -831,6 +859,8 @@ suites:
     pattern: mysqldb$
     runner: riot
     skip: true
+    services:
+      - mysql
   opentelemetry:
     parallelism: 4
     paths:
@@ -874,6 +904,9 @@ suites:
       - tests/snapshots/tests.contrib.psycopg2.*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - postgres
+    snapshot: true
   pylibmc:
     paths:
       - '@bootstrap'
@@ -922,6 +955,9 @@ suites:
       - tests/contrib/mysql/*
       - tests/contrib/shared_tests.py
     runner: riot
+    services:
+      - mysql
+    snapshot: true
   pynamodb:
     paths:
       - '@bootstrap'
@@ -1052,6 +1088,10 @@ suites:
       - '@dbapi'
       - tests/contrib/sqlalchemy/*
     runner: riot
+    services:
+      - postgres
+      - mysql
+    snapshot: true
   starlette:
     paths:
       - '@bootstrap'
