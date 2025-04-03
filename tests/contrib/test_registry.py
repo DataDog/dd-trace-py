@@ -76,10 +76,17 @@ def test_all_internal_dirs_accounted_for(integration_names: set[str], whiteliste
 
     error_messages = []
     if unaccounted_dirs:
+        instructions = (
+            f"1. If the directory is a NEW or MISSED integration, add its name to '{REGISTRY_CSV_PATH.relative_to(PROJECT_ROOT)}'.\n"
+            f"2. If the directory is NOT an integration (e.g., internal util, common code, stdlib patch), add its name to '{WHITELIST_CSV_PATH.relative_to(PROJECT_ROOT)}'."
+        )
         error_messages.append(
-            f"The following directories in {CONTRIB_INTERNAL_DIR} "
-            f"were not found in either {REGISTRY_CSV_PATH.name} or {WHITELIST_CSV_PATH.name}:\n"
-            f"{sorted(unaccounted_dirs)}"
+            f"Unaccounted Directories Found:\n"
+            f"  The following directories exist in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}' but are NOT listed in either '{REGISTRY_CSV_PATH.name}' or '{WHITELIST_CSV_PATH.name}'.\n"
+            f"  Please update the registry files:\n"
+            f"{instructions}\n\n"
+            f"  Unaccounted directories:\n"
+            f"  - " + "\n  - ".join(sorted(unaccounted_dirs))
         )
     if missing_registry_dirs:
          error_messages.append(
