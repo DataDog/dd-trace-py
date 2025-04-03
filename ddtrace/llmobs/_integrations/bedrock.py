@@ -1,4 +1,3 @@
-import json
 import re
 from typing import Any
 from typing import Dict
@@ -16,6 +15,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.trace import Span
 
@@ -177,49 +177,6 @@ class BedrockIntegration(BaseLLMIntegration):
 
         current_message: Optional[Dict[str, Any]] = None
 
-        def get_final_message(
-            message: Dict[str, Any], text_blocks: Dict[int, str], tool_blocks: Dict[int, Dict[str, Any]]
-        ) -> Dict[str, Any]:
-            """Process a message and its content blocks into LLM Obs message format.
-
-            Args:
-                message: A message to be processed containing role and content block indices
-                text_blocks: Mapping of content block indices to their text content
-                tool_blocks: Mapping of content block indices to their tool usage data
-
-            Returns:
-                Dict containing the processed message with content and optional tool calls
-            """
-            indices = sorted(message.get("context_block_indices", []))
-            message_output = {"role": message["role"]}
-
-            text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
-            message_output.update({"content": "".join(text_contents)} if text_contents else {})
-
-            tool_calls = []
-            for idx in indices:
-                tool_block = tool_blocks.get(idx)
-                if not tool_block:
-                    continue
-                tool_call = {
-                    "name": tool_block.get("toolName", ""),
-                    "tool_id": tool_block.get("toolUseId", ""),
-                }
-                tool_input = tool_block.get("input")
-                if tool_input is not None:
-                    tool_args = {}
-                    try:
-                        tool_args = json.loads(tool_input)
-                    except (json.JSONDecodeError, ValueError):
-                        tool_args = {"input": tool_input}
-                    tool_call.update({"arguments": tool_args} if tool_args else {})
-                tool_calls.append(tool_call)
-
-            if tool_calls:
-                message_output["tool_calls"] = tool_calls
-
-            return message_output
-
         for chunk in streamed_body:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
@@ -262,12 +219,16 @@ class BedrockIntegration(BaseLLMIntegration):
                         )
 
             if "messageStop" in chunk:
-                messages.append(get_final_message(current_message, text_content_blocks, tool_content_blocks))
+                messages.append(
+                    get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+                )
                 current_message = None
 
         # Handle the case where we didn't receive an explicit message stop event
         if current_message is not None:
-            messages.append(get_final_message(current_message, text_content_blocks, tool_content_blocks))
+            messages.append(
+                get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+            )
 
         if not messages:
             messages.append({"role": "assistant", "content": ""})
