@@ -468,6 +468,11 @@ class AgentWriter(HTTPWriter):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
+
+        if agent_config.trace_native_span_events:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+            self._api_version = "v0.4"
+
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "

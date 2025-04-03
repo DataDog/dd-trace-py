@@ -107,15 +107,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/meta",
         ),
         Venv(
-            name="circleci-gen-config",
-            command="python scripts/gen_circleci_config.py {cmdargs}",
-            pys=["3"],
-            pkgs={
-                "ruamel.yaml": latest,
-                "lxml": latest,
-            },
-        ),
-        Venv(
             name="gitlab-gen-config",
             command="python scripts/gen_gitlab_config.py {cmdargs}",
             pys=["3"],
@@ -208,7 +199,7 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[

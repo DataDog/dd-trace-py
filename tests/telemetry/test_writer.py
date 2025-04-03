@@ -483,6 +483,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
         {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
+        {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},

@@ -44,7 +44,10 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.core import dispatch
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import PyTracerMetadata
+from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
@@ -67,6 +70,7 @@ from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import Config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.version import get_version
 
 
 log = get_logger(__name__)
@@ -292,6 +296,19 @@ class Tracer(object):
         config._subscribe(["_logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
+
+        metadata = PyTracerMetadata(
+            runtime_id=get_runtime_id(),
+            tracer_version=get_version(),
+            hostname=get_hostname(),
+            service_name=config.service or None,
+            service_env=config.env or None,
+            service_version=config.version or None,
+        )
+        try:
+            self._config_on_disk = store_metadata(metadata)
+        except Exception as e:
+            log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
