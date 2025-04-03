@@ -4,8 +4,8 @@ import mock
 import pytest
 
 from ddtrace import config as global_config
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.settings._config import Config
+from ddtrace.settings.integration import IntegrationConfig
 
 from ..utils import DummyTracer
 from ..utils import override_env

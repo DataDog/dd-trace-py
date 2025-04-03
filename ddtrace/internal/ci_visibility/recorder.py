@@ -84,8 +84,8 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 

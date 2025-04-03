@@ -23,8 +23,8 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.settings._config import Config
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
