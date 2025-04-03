@@ -10,7 +10,7 @@ from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
@@ -76,11 +76,12 @@ def _iast_coi(wrapped, instance, args, kwargs):
 @oce.register
 class CodeInjection(VulnerabilityBase):
     vulnerability_type = VULN_CODE_INJECTION
+    secure_mark = VulnerabilityType.CODE_INJECTION
 
 
 def _iast_report_code_injection(code_string: Text):
     increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
     _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     if asm_config.is_iast_request_enabled and CodeInjection.has_quota():
-        if is_pyobject_tainted(code_string):
+        if CodeInjection.is_valid_tainted(code_string):
             CodeInjection.report(evidence_value=code_string)
