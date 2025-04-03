@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces support for automatic instrumentation of session monitoring and blocking for Django.

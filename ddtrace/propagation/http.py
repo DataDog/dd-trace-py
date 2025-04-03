@@ -1,10 +1,10 @@
 import itertools
 import re
-import sys
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import FrozenSet  # noqa:F401
 from typing import List  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -12,24 +12,16 @@ from typing import cast  # noqa:F401
 import urllib.parse
 
 import ddtrace
-from ddtrace.trace import Span  # noqa:F401
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
-
-from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal.core import dispatch
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Context
+from ddtrace.trace import Span  # noqa:F401
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT

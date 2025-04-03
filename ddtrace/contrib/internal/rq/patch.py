@@ -1,5 +1,3 @@
-import os
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
@@ -13,13 +11,14 @@ from ddtrace.trace import Pin
 
 from ....ext import SpanKind
 from ....ext import SpanTypes
+from ....settings._config import _get_config
 from ... import trace_utils
 
 
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -27,7 +26,7 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq-worker"),
     ),
 )

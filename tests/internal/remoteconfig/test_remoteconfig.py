@@ -7,14 +7,15 @@ import sys
 from time import sleep
 
 import mock
-from mock.mock import ANY
 import pytest
 
 from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherMergeDicts
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
@@ -29,7 +30,7 @@ from tests.utils import override_global_config
 
 class RCMockPubSub(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
-    __publisher_class__ = RemoteConfigPublisherMergeDicts
+    __publisher_class__ = RemoteConfigPublisher
     __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
@@ -143,6 +144,9 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
     class MockPubsub(PubSub):
+        def __init__(self):
+            pass
+
         def stop(self, *args, **kwargs):
             pass
 
@@ -163,6 +167,9 @@ def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     remoteconfig_poller.disable()
 
     class MockPubsub(PubSub):
+        def __init__(self):
+            pass
+
         def stop(self, *args, **kwargs):
             pass
 
@@ -238,17 +245,27 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
-            assert callback.features == {
-                "config": {"asm": {"enabled": True}},
-                "metadata": {},
-                "shared_data_counter": ANY,
-            }
+            assert callback.features == [
+                Payload(
+                    metadata=ConfigMetadata(
+                        id="asm_features_activation",
+                        product_name="ASM_FEATURES",
+                        sha256_hash="0159658ab85be7207761a4111172b01558394bfc74a1fe1d314f2023f7c656db",
+                        length=24,
+                        tuf_version=0,
+                        apply_state=2,
+                        apply_error=None,
+                    ),
+                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
+                    content={"asm": {"enabled": True}},
+                )
+            ]
 
     class Callback:
-        features = {}
+        features = []
 
         def _reload_features(self, features, test_tracer=None):
-            self.features = dict(features)
+            self.features = features
 
     callback = Callback()
 
@@ -264,22 +281,32 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
-            assert callback.features == {
-                "config": {
-                    "rules_data": [
-                        {
-                            "data": [
-                                {"expiration": 1662804872, "value": "127.0.0.0"},
-                                {"expiration": 1662804872, "value": "52.80.198.1"},
-                            ],
-                            "id": "blocking_ips",
-                            "type": "ip_with_expiration",
-                        }
-                    ]
-                },
-                "metadata": {},
-                "shared_data_counter": ANY,
-            }
+            assert callback.features == [
+                Payload(
+                    metadata=ConfigMetadata(
+                        id="asm_features_activation",
+                        product_name="ASM_FEATURES",
+                        sha256_hash="b50fee2d49f34364126ecbba696c4a5cb23fa0eb76169e5ed3139222e2bdae04",
+                        length=24,
+                        tuf_version=0,
+                        apply_state=2,
+                        apply_error=None,
+                    ),
+                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
+                    content={
+                        "rules_data": [
+                            {
+                                "data": [
+                                    {"expiration": 1662804872, "value": "127.0.0.0"},
+                                    {"expiration": 1662804872, "value": "52.80.198.1"},
+                                ],
+                                "id": "blocking_ips",
+                                "type": "ip_with_expiration",
+                            }
+                        ]
+                    },
+                )
+            ]
 
     class Callback:
         features = {}
@@ -361,11 +388,21 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             mock_send_request.assert_called()
             sleep(0.5)
             assert rc._client._last_error is None
-            assert callback.features == {
-                "config": {"asm": {"enabled": True}},
-                "metadata": {},
-                "shared_data_counter": ANY,
-            }
+            assert callback.features == [
+                Payload(
+                    metadata=ConfigMetadata(
+                        id="asm_features_activation",
+                        product_name="ASM_FEATURES",
+                        sha256_hash="0159658ab85be7207761a4111172b01558394bfc74a1fe1d314f2023f7c656db",
+                        length=24,
+                        tuf_version=0,
+                        apply_state=2,
+                        apply_error=None,
+                    ),
+                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
+                    content={"asm": {"enabled": True}},
+                )
+            ]
 
 
 def test_remoteconfig_semver():
@@ -587,5 +624,6 @@ def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expect
 
     assert trace_sampling_rules == expected_config_rules
     if trace_sampling_rules is not None:
-        parsed_rules = DatadogSampler._parse_rules_from_str(trace_sampling_rules)
-        assert parsed_rules == expected_sampling_rules
+        sampler = DatadogSampler()
+        sampler.set_sampling_rules(trace_sampling_rules)
+        assert sampler.rules == expected_sampling_rules
