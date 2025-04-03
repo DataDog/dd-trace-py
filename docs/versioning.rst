@@ -13,13 +13,13 @@ Release support
    * - Release
      - :ref:`Support level<versioning_support_levels>`
      - Minimum Datadog Agent
-   * - ``<1``
+   * - ``<2``
      - :ref:`End of Life<versioning_support_eol>`
-     -
-   * - ``>=1.0,<2``
-     - :ref:`Maintenance<versioning_support_maintenance>`
      - 7.28
    * - ``>=2.0,<3``
+     - :ref:`Maintenance<versioning_support_maintenance>`
+     - 7.28
+   * - ``>=3.0``
      - :ref:`General Availability<versioning_support_ga>`
      - 7.28
 
