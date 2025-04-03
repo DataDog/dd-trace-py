@@ -26,7 +26,7 @@ jobs:
 
       - name: Old branch warning on PR
         if: env.old_branch == 'true'
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           message: |
             🚫 **This target branch is too old or unsupported. Please update the target branch to continue.**
