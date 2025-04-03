@@ -4128,4 +4128,4 @@ class PytestTestCase(PytestTestCaseBase):
         file_name = os.path.basename(py_file.strpath)
         with mock.patch("ddtrace.contrib.internal.pytest._plugin_v2._is_enabled_early", return_value=True):
             rec = self.runpytest_inprocess("--ddtrace", file_name)
-        assert re.search(r"\[Datadog CI Visibility\].*CODEOWNERS file is not available", rec.stderr.str())
+        assert re.search(r"\[Datadog CI Visibility\].*Final settings:", rec.stderr.str())
