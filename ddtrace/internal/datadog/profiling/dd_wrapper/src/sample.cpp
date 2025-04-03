@@ -6,6 +6,10 @@
 #include <chrono>
 #include <string_view>
 #include <thread>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -422,11 +426,21 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
+#ifdef _WIN32
+        // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+        LARGE_INTEGER frequency, counter;
+        QueryPerformanceFrequency(&frequency); // Frequency of the performance counter
+        QueryPerformanceCounter(&counter);     // Current value of the performance counter
+
+        // Convert to nanoseconds
+        auto monotonic_ns = (counter.QuadPart * 1'000'000'000LL) / frequency.QuadPart;
+#else
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+#endif
 
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;

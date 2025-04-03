@@ -8,6 +8,7 @@ class ProductManagerTest(ProductManager):
     def __init__(self, products) -> None:
         self._products = None
         self.__products__ = products
+        self._failed = set()
 
 
 class BaseProduct(Product):

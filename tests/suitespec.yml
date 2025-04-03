@@ -13,7 +13,6 @@ components:
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
-    - .circleci/*
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py

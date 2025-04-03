@@ -35,10 +35,14 @@ _RASP_POPEN = "rasp_Popen"
 
 def patch_common_modules():
     global _is_patched
-    # ensure that the subprocess patch is applied even after one click activation
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
+    @ModuleWatchdog.after_module_imported("subprocess")
+    def _(module):
+        # ensure that the subprocess patch is applied even after one click activation
+        subprocess_patch.patch()
+        subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+        subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
     if _is_patched:
         return
 

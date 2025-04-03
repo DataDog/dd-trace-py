@@ -1,4 +1,5 @@
 import logging
+import time
 
 import mock
 import pytest
@@ -158,7 +159,9 @@ class LoggerTestCase(BaseTestCase):
 
         # Create log record and handle it
         record = self._make_record(log)
+        first_time = time.monotonic()
         log.handle(record)
+        second_time = time.monotonic()
 
         # We passed to base Logger.handle
         call_handlers.assert_called_once_with(record)
@@ -169,8 +172,7 @@ class LoggerTestCase(BaseTestCase):
         self.assertIsInstance(logging_bucket, LoggingBucket)
 
         # The bucket entry is correct
-        expected_bucket = int(record.created / ddtrace.internal.logger._rate_limit)
-        self.assertEqual(logging_bucket.bucket, expected_bucket)
+        assert first_time <= logging_bucket.bucket <= second_time
         self.assertEqual(logging_bucket.skipped, 0)
 
     @mock.patch("logging.Logger.callHandlers")
@@ -186,7 +188,9 @@ class LoggerTestCase(BaseTestCase):
         # Create log record and handle it
         record = self._make_record(log, msg="first")
         first_record = record
+        first_time = time.monotonic()
         log.handle(first_record)
+        second_time = time.monotonic()
 
         for _ in range(100):
             record = self._make_record(log)
@@ -203,8 +207,7 @@ class LoggerTestCase(BaseTestCase):
         assert logging_bucket is not None
 
         # The bucket entry is correct
-        expected_bucket = int(first_record.created / ddtrace.internal.logger._rate_limit)
-        self.assertEqual(logging_bucket.bucket, expected_bucket)
+        assert first_time <= logging_bucket.bucket <= second_time
         self.assertEqual(logging_bucket.skipped, 100)
 
     @mock.patch("logging.Logger.callHandlers")
@@ -224,9 +227,9 @@ class LoggerTestCase(BaseTestCase):
 
         # Create a bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        bucket = int(record.created / ddtrace.internal.logger._rate_limit)
+        bucket = time.monotonic()
         # We want the time bucket to be for an older bucket
-        ddtrace.internal.logger._buckets[key] = LoggingBucket(bucket=bucket - 1, skipped=20)
+        ddtrace.internal.logger._buckets[key] = LoggingBucket(bucket=bucket - 60, skipped=20)
 
         # Handle our record
         log.handle(record)
@@ -234,9 +237,9 @@ class LoggerTestCase(BaseTestCase):
         # We passed to base Logger.handle
         call_handlers.assert_called_once_with(record)
 
-        self.assertEqual(record.msg, original_msg + ", %s additional messages skipped")
-        self.assertEqual(record.args, original_args + (20,))
-        self.assertEqual(record.getMessage(), "hello 1, 20 additional messages skipped")
+        self.assertEqual(record.msg, original_msg + " [20 skipped]")
+        self.assertEqual(record.args, original_args)
+        self.assertEqual(record.getMessage(), "hello 1 [20 skipped]")
 
     def test_logger_handle_bucket_key(self):
         """

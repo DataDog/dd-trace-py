@@ -22,3 +22,24 @@ def http_get_error(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="httppostok", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 def http_post_ok(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(
+    route="httpgettriggerarg",
+    auth_level=func.AuthLevel.ANONYMOUS,
+    methods=[func.HttpMethod.GET],
+    trigger_arg_name="reqarg",
+)
+def http_get_trigger_arg(reqarg: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.function_name(name="functionnamedecorator")
+@app.route(route="httpgetfunctionnamedecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_function_name_decorator(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(route="httpgetfunctionnamenodecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")

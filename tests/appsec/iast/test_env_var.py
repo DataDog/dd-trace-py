@@ -190,18 +190,18 @@ def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     "module_name,expected_result",
     (
         ("please_patch", iastpatch.ALLOWED_USER_ALLOWLIST),
-        ("please_patch.do_not", iastpatch.DENIED_USER_DENYLIST),
-        ("please_patch.submodule", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("please_patch.do_not", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("please_patch.submodule", iastpatch.ALLOWED_USER_ALLOWLIST),
         ("please_patch.do_not.but_yes", iastpatch.ALLOWED_USER_ALLOWLIST),
-        ("please_patch.do_not.but_yes.sub", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("please_patch.do_not.but_yes.sub", iastpatch.ALLOWED_USER_ALLOWLIST),
         ("also", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
         ("anything", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
         ("also.that", iastpatch.ALLOWED_USER_ALLOWLIST),
-        ("also.that.but", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
-        ("also.that.but.not", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
-        ("also.that.but.not.that", iastpatch.DENIED_USER_DENYLIST),
-        ("tests.appsec.iast", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
-        ("tests.appsec.iast.sub", iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST),
+        ("also.that.but", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("also.that.but.not", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("also.that.but.not.that", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("tests.appsec.iast", iastpatch.DENIED_BUILTINS_DENYLIST),
+        ("tests.appsec.iast.sub", iastpatch.DENIED_BUILTINS_DENYLIST),
         ("ddtrace.allowed", iastpatch.ALLOWED_USER_ALLOWLIST),
         ("ddtrace", iastpatch.DENIED_NOT_FOUND),
         ("ddtrace.sub", iastpatch.DENIED_NOT_FOUND),
@@ -316,10 +316,12 @@ def test_should_iast_patch_empty_lists():
 
 
 def test_should_iast_patch_max_list_size():
-    large_list = ",".join([f"module{i}" for i in range(1000)])
+    large_list = ",".join([f"module{i}." for i in range(1000)])
     os.environ[IAST.PATCH_MODULES] = large_list
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
-    assert iastpatch.should_iast_patch("module1") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("module1") == iastpatch.ALLOWED_USER_ALLOWLIST
+    assert iastpatch.should_iast_patch("module2") == iastpatch.ALLOWED_USER_ALLOWLIST
+    assert iastpatch.should_iast_patch("module2000") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
 
 
 @pytest.mark.parametrize(
@@ -327,8 +329,9 @@ def test_should_iast_patch_max_list_size():
     [
         ("module.both", "module.both.", "module.both.", iastpatch.ALLOWED_USER_ALLOWLIST),
         ("parent.child", "parent.child.", "parent.", iastpatch.ALLOWED_USER_ALLOWLIST),
-        ("parent.child", "parent.", "parent.child.", iastpatch.DENIED_USER_DENYLIST),
-        ("django.core", "django.core.", "", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("parent.child", "parent.", "parent.child.", iastpatch.ALLOWED_USER_ALLOWLIST),
+        ("parent.child2", "parent.child.", "parent.child2.", iastpatch.DENIED_USER_DENYLIST),
+        ("django.core.", "django.core.", "", iastpatch.ALLOWED_USER_ALLOWLIST),
     ],
 )
 def test_should_iast_patch_priority_conflicts(module_name, allowlist, denylist, expected_result):

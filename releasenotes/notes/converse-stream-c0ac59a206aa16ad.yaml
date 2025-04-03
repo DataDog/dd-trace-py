@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: This introduces tracing for ``converse_stream`` calls to the Bedrock Converse API. ``converse_stream`` calls are traced as
+                      LLM spans with ``max_tokens``, ``temperature`` inference parameters and input/output messages.
+  - |
+    botocore: This introduces capturing prompts, token usage, and inference parameters for ``converse_stream`` calls to the Bedrock API.

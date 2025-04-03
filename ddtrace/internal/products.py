@@ -1,6 +1,7 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from itertools import chain
 import sys
 import typing as t
 
@@ -52,6 +53,7 @@ class ProductManager:
     def __init__(self) -> None:
         self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
 
+        self._failed: t.Set[str] = set()
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
@@ -61,6 +63,7 @@ class ProductManager:
                 product: Product = product_plugin.load()
             except Exception:
                 log.exception("Failed to load product plugin '%s'", name)
+                self._failed.add(name)
                 continue
 
             # Report configuration via telemetry
@@ -77,7 +80,9 @@ class ProductManager:
         g = defaultdict(list)  # Graph of dependencies
         f: t.Dict[str, set] = {}  # Remaining dependencies for each product
 
-        for name, product in self.__products__.items():
+        # Include failed products in the graph to avoid reporting false circular
+        # dependencies when a product fails to load
+        for name, product in chain(self.__products__.items(), ((p, None) for p in self._failed)):
             product_requires = getattr(product, "requires", [])
             if not product_requires:
                 q.append(name)

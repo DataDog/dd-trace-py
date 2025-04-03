@@ -1,0 +1,28 @@
+name: Add 2.21 backport tag
+on:
+  pull_request:
+    types: [opened, reopened]
+    
+jobs:
+  add-label:
+    runs-on: ubuntu-latest
+    permissions:
+        pull-requests: write
+    steps:
+      - name: Add Label
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
+        with:
+          script: |
+            const prTitle = context.payload.pull_request.title;
+            const pattern = /^(ci:|fix:|fix\(|chore\(ci\)|fix\(ci\))/i;
+            if (!prTitle.includes("[backport ") && pattern.test(prTitle)) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: ["backport 2.21"]
+              });
+              console.log("Label added.");
+            } else {
+              console.log("Skipping label: PR does not meet conditions.");
+            }

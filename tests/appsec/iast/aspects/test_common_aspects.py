@@ -6,8 +6,8 @@ import os
 
 import pytest
 
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
 import tests.appsec.iast.fixtures.aspects.callees
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):

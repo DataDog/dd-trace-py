@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
@@ -14,6 +15,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.trace import Span
 
@@ -38,7 +40,7 @@ class BedrockIntegration(BaseLLMIntegration):
 
         ctx is a required argument of the shape:
         {
-            "resource": str, # oneof("Converse", "InvokeModel")
+            "resource": str, # oneof("Converse", "ConverseStream", "InvokeModel")
             "model_name": str,
             "model_provider": str,
             "llmobs.request_params": {"prompt": str | list[dict],
@@ -72,19 +74,25 @@ class BedrockIntegration(BaseLLMIntegration):
 
         prompt = request_params.get("prompt", "")
 
+        is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
-            self._extract_input_message_for_converse(prompt)
-            if ctx["resource"] == "Converse"
-            else self._extract_input_message(prompt)
+            self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
-            output_messages = (
-                self._extract_output_message_for_converse(response)
-                if ctx["resource"] == "Converse"
-                else self._extract_output_message(response)
-            )
+            if ctx["resource"] == "Converse":
+                output_messages = self._extract_output_message_for_converse(response)
+            elif ctx["resource"] == "ConverseStream":
+                (
+                    output_messages,
+                    additional_metadata,
+                    streamed_usage_metrics,
+                ) = self._extract_output_message_for_converse_stream(response)
+                metadata.update(additional_metadata)
+                usage_metrics.update(streamed_usage_metrics)
+            else:
+                output_messages = self._extract_output_message(response)
 
         span._set_ctx_items(
             {
@@ -143,6 +151,89 @@ class BedrockIntegration(BaseLLMIntegration):
         if not content or not isinstance(content, list):
             return default_content
         return get_messages_from_converse_content(role, content)
+
+    @staticmethod
+    def _extract_output_message_for_converse_stream(
+        streamed_body: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]]:
+        """
+        Extract output messages from streamed converse responses.
+
+        Converse stream response comes in chunks. The chunks we care about are:
+        - a message start/stop event, or
+        - a content block start/stop event (for tool calls only currently)
+        - a content block delta event (for chunks of text in a message or tool call arg)
+        - usage metric information
+
+        For more info, see bedrock converse response stream response syntax:
+        https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html#API_runtime_ConverseStream_ResponseSyntax
+        """
+        usage_metrics: Dict[str, int] = {}
+        metadata: Dict[str, str] = {}
+        messages: List[Dict[str, Any]] = []
+
+        text_content_blocks: Dict[int, str] = {}
+        tool_content_blocks: Dict[int, Dict[str, Any]] = {}
+
+        current_message: Optional[Dict[str, Any]] = None
+
+        for chunk in streamed_body:
+            if "metadata" in chunk and "usage" in chunk["metadata"]:
+                usage = chunk["metadata"]["usage"]
+                for token_type in ("input", "output", "total"):
+                    if "{}Tokens".format(token_type) in usage:
+                        usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
+
+            if "messageStart" in chunk:
+                message_data = chunk["messageStart"]
+                current_message = {"role": message_data.get("role", "assistant"), "context_block_indices": []}
+
+            # always make sure we have a current message
+            if current_message is None:
+                current_message = {"role": "assistant", "context_block_indices": []}
+
+            if "contentBlockStart" in chunk:
+                block_start = chunk["contentBlockStart"]
+                index = block_start.get("contentBlockIndex")
+
+                if index is not None:
+                    current_message["context_block_indices"].append(index)
+                    if "start" in block_start and "toolUse" in block_start["start"]:
+                        tool_content_blocks[index] = block_start["start"]["toolUse"]
+
+            if "contentBlockDelta" in chunk:
+                content_block_delta = chunk["contentBlockDelta"]
+                index = content_block_delta.get("contentBlockIndex")
+
+                if index is not None and "delta" in content_block_delta:
+                    if index not in current_message.get("context_block_indices", []):
+                        current_message["context_block_indices"].append(index)
+
+                    delta_content = content_block_delta["delta"]
+                    text_content_blocks[index] = text_content_blocks.get(index, "") + delta_content.get("text", "")
+
+                    if delta_content.get("toolUse", {}).get("input"):
+                        tool_content_blocks[index] = tool_content_blocks.get(index, {})
+                        tool_content_blocks[index]["input"] = (
+                            tool_content_blocks[index].get("input", "") + delta_content["toolUse"]["input"]
+                        )
+
+            if "messageStop" in chunk:
+                messages.append(
+                    get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+                )
+                current_message = None
+
+        # Handle the case where we didn't receive an explicit message stop event
+        if current_message is not None:
+            messages.append(
+                get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+            )
+
+        if not messages:
+            messages.append({"role": "assistant", "content": ""})
+
+        return messages, metadata, usage_metrics
 
     @staticmethod
     def _extract_input_message(prompt):

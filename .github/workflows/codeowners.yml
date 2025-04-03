@@ -16,9 +16,9 @@ jobs:
           fetch-depth: 0
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@c65cd883420fd2eb864698a825fc4162dd94482c # v44.5.7
+        uses: tj-actions/changed-files@823fcebdb31bb35fdf2229d9f769b400309430d0 # v46.0.3
       - name: Setup go
-        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
       - name: Install codeowners
         run: go install github.com/hmarr/codeowners/cmd/codeowners@latest
       - name: List owners of all changed files
@@ -29,10 +29,10 @@ jobs:
           echo "$(codeowners ${{ steps.changed-files.outputs.all_changed_files }})" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
       - name: Comment PR
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          filePath: resolved.txt
-          comment_tag: codeowners_resolved
+          file-path: resolved.txt
+          comment-tag: codeowners_resolved
           mode: upsert
           message: |
             `CODEOWNERS` have been resolved as:

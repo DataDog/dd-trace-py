@@ -22,7 +22,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import re_search_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_sub_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import re_subn_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import split_aspect
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")

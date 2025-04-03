@@ -15,13 +15,13 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-import ddtrace
-from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._config import config
+from ddtrace.version import get_version
 
 from .._encoding import packb
 from ..agent import get_connection
@@ -131,9 +131,10 @@ class DataStreamsProcessor(PeriodicService):
         self._buckets = defaultdict(
             lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
         )  # type: DefaultDict[int, Bucket]
+        self._version = get_version()
         self._headers = {
             "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": self._version,
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
@@ -297,7 +298,7 @@ class DataStreamsProcessor(PeriodicService):
             return
         raw_payload = {
             "Service": self._service,
-            "TracerVersion": ddtrace.__version__,
+            "TracerVersion": self._version,
             "Lang": "python",
             "Stats": serialized_stats,
             "Hostname": self._hostname,
