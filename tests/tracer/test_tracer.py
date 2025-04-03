@@ -1897,7 +1897,7 @@ def test_detect_agent_config_with_lambda_extension():
 def test_multiple_tracer_instances():
     import mock
 
-    import ddtrace
+    import ddtrace.trace
 
     assert ddtrace.trace.tracer is not None
     with mock.patch("ddtrace._trace.tracer.log") as log:
