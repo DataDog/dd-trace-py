@@ -114,9 +114,9 @@ config._add(
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
             service.strip()
-            for service in os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge").split(
-                ","
-            )
+            for service in os.getenv(
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
+            ).split(",")
         ),
     },
 )
@@ -195,7 +195,10 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
+    is_bedrock_converse = endpoint_name == "bedrock-runtime" and operation in ("Converse", "ConverseStream")
+    is_bedrock_invoke = endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel")
+
+    if is_bedrock_converse or is_bedrock_invoke:
         patching_fn = patched_bedrock_api_call
     else:
         patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)

@@ -4,6 +4,8 @@ from typing import Tuple
 
 from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
+from ._native import PyTracerMetadata  # noqa: F401
+from ._native import store_metadata  # noqa: F401
 
 
 def get_configuration_from_disk(

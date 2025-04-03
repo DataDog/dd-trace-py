@@ -8,7 +8,11 @@
 #include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h> // getpid
+#endif
 #include <vector>
 
 using namespace Datadog;
@@ -72,32 +76,39 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return ret;
     }
 
-    std::vector<ddog_prof_Exporter_File> files_to_send = { {
-      .name = to_slice("auto.pprof"),
-      .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-    } };
+    const ddog_prof_Exporter_File pprof_file = {
+        .name = to_slice("auto.pprof"),
+        .file = ddog_Vec_U8_as_slice(&encoded->buffer),
+    };
+
+    std::vector<ddog_prof_Exporter_File> to_compress_files;
 
     // DEV: This function is called with the profile_lock held, and the following
     // function call acquires lock on CodeProvenance.
     std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
     if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
-        files_to_send.push_back({
+        to_compress_files.reserve(1);
+        to_compress_files.push_back({
           .name = to_slice("code-provenance.json"),
           .file = to_byte_slice(json_str_opt.value()),
         });
     }
 
-    auto build_res =
-      ddog_prof_Exporter_Request_build(ddog_exporter.get(),
-                                       encoded->start,
-                                       encoded->end,
-                                       ddog_prof_Exporter_Slice_File_empty(),
-                                       { .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(files_to_send.data()),
-                                         .len = static_cast<uintptr_t>(files_to_send.size()) },
-                                       nullptr,
-                                       encoded->endpoints_stats,
-                                       nullptr,
-                                       nullptr);
+    auto build_res = ddog_prof_Exporter_Request_build(
+      ddog_exporter.get(),
+      encoded->start,
+      encoded->end,
+      // files_to_compress_and_export
+      {
+        .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
+        .len = static_cast<uintptr_t>(to_compress_files.size()),
+      },
+      // files_to_export_unmodified
+      { .ptr = &pprof_file, .len = 1 },
+      nullptr,
+      encoded->endpoints_stats,
+      nullptr,
+      nullptr);
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==

@@ -2,6 +2,7 @@ import atexit
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 
@@ -28,10 +29,12 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
+from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.settings._agent import config as agent_config
 
 
 logger = get_logger(__name__)
@@ -67,6 +70,20 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
+def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
+    """Determine whether to use agentless mode based on agent availability and capabilities."""
+    if user_defined_agentless_enabled is not None:
+        return user_defined_agentless_enabled
+
+    agent_info: Optional[Dict[str, Any]] = agent.info()
+
+    if agent_info is None:
+        return True
+
+    endpoints = agent_info.get("endpoints", [])
+    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+
+
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 
@@ -97,6 +114,7 @@ class BaseLLMObsWriter(PeriodicService):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_eval_payload([event], error="buffer_full")
                 return
             self._buffer.append(event)
 
@@ -129,9 +147,11 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.status,
                     resp.read(),
                 )
+                telemetry.record_dropped_eval_payload(events, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", len(events), self._event_type, self._url)
         except Exception:
+            telemetry.record_dropped_eval_payload(events, error="connection_error")
             logger.error(
                 "failed to send %d LLMObs %s events to %s", len(events), self._event_type, self._intake, exc_info=True
             )
@@ -198,9 +218,12 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 logger.warning(
                     "%r event buffer full (limit is %d), dropping event", self.__class__.__name__, self._buffer_limit
                 )
+                telemetry.record_dropped_span_payload(events, error="buffer_full")
                 return
             self._buffer.extend(events)
-            self.buffer_size += len(safe_json(events))
+            event_size = len(safe_json(events))
+            self.buffer_size += event_size
+            telemetry.record_span_event_size(events[0], event_size)
 
     def encode(self):
         with self._lock:
@@ -208,12 +231,20 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        """
+        Send a batch of events, where each event contains a single span in the `spans` field. This allows us to
+        fully take advantage of EVP event/payload size limits.
+        """
+        data = [
+            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            for event in events
+        ]
         try:
             enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
         except TypeError:
             logger.error("failed to encode %d LLMObs span events", len(events), exc_info=True)
+            telemetry.record_dropped_span_payload(events, error="encoding_error")
             return None, 0
         return enc_llm_events, len(events)
 
@@ -259,8 +290,10 @@ class LLMObsSpanWriter(HTTPWriter):
             headers["DD-API-KEY"] = config._dd_api_key
         else:
             clients.append(LLMObsProxiedEventClient())
-            intake_url = agent.get_trace_url()
+            intake_url = agent_config.trace_agent_url
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
+
+        self.agentless_url = agentless_url
 
         super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
@@ -301,7 +334,6 @@ class LLMObsSpanWriter(HTTPWriter):
                         self._flush_queue_with_client(client)
 
         telemetry.record_span_event_raw_size(event, raw_event_size)
-        telemetry.record_span_event_size(event, len(event), should_truncate)
         self.write([event])
 
     # Noop to make it compatible with HTTPWriter interface
@@ -314,6 +346,7 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url=self.agentless_url,
         )
 
 

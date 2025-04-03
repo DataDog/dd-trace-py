@@ -18,6 +18,10 @@ For C++, requirements vary by system, but you’ll need a C++ compiler and `cmak
 
 - On Ubuntu:
 
+  When using GCC, you need versions that have fixes for `this bug`_
+
+..  _this bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95189
+
 .. code-block:: bash
 
     sudo apt-get install build-essential cmake
@@ -200,3 +204,29 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v2.16.0:
+
+  DD_BUILD_EXT_INCLUDES:
+    type: String
+    default: ""
+
+    description: |
+        Comma separated list of ``fnmatch`` patterns for native extensions to build when installing the package from source.
+        Example: ``DD_BUILD_EXT_INCLUDES="ddtrace.internal.*" pip install -e .`` to only build native extensions found in ``ddtrace/internal/`` folder.
+
+        ``DD_BUILD_EXT_EXCLUDES`` takes precedence over ``DD_BUILD_EXT_INCLUDES``.
+
+    version_added:
+        v3.3.0:
+
+  DD_BUILD_EXT_EXCLUDES:
+    type: String
+    default: ""
+
+    description: |
+        Comma separated list of ``fnmatch`` patterns for native extensions to skip when installing the package from source.
+        Example: ``DD_BUILD_EXT_EXCLUDES="*._encoding" pip install -e .`` to build all native extensions except ``ddtrace.internal._encoding``.
+
+        ``DD_BUILD_EXT_EXCLUDES`` takes precedence over ``DD_BUILD_EXT_INCLUDES``.
+
+    version_added:
+        v3.3.0:
