@@ -5,8 +5,9 @@ from typing import Optional
 from typing import Text
 import zlib
 
-from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
+from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -51,8 +52,11 @@ def _iast_patched_module_and_patched_source(module_name, new_module_object=False
 
 
 def _iast_patched_module(module_name, new_module_object=False):
-    if _should_iast_patch(module_name):
+    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
+    iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    res = iastpatch.should_iast_patch(module_name)
+    if res >= iastpatch.ALLOWED_USER_ALLOWLIST:
         module, _ = _iast_patched_module_and_patched_source(module_name, new_module_object)
     else:
-        raise IastTestException(f"IAST Test Error: module {module_name} was excluded")
+        raise IastTestException(f"IAST Test Error: module {module_name} was excluded: {res}")
     return module
