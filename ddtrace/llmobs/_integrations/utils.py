@@ -695,3 +695,47 @@ class LLMObsTraceInfo:
     current_top_level_agent_span_id: Optional[str] = None
     input_oai_span: Optional[OaiSpanAdapter] = None
     output_oai_span: Optional[OaiSpanAdapter] = None
+
+
+def get_final_message_converse_stream_message(
+    message: Dict[str, Any], text_blocks: Dict[int, str], tool_blocks: Dict[int, Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Process a message and its content blocks into LLM Obs message format.
+
+    Args:
+        message: A message to be processed containing role and content block indices
+        text_blocks: Mapping of content block indices to their text content
+        tool_blocks: Mapping of content block indices to their tool usage data
+
+    Returns:
+        Dict containing the processed message with content and optional tool calls
+    """
+    indices = sorted(message.get("context_block_indices", []))
+    message_output = {"role": message["role"]}
+
+    text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
+    message_output.update({"content": "".join(text_contents)} if text_contents else {})
+
+    tool_calls = []
+    for idx in indices:
+        tool_block = tool_blocks.get(idx)
+        if not tool_block:
+            continue
+        tool_call = {
+            "name": tool_block.get("toolName", ""),
+            "tool_id": tool_block.get("toolUseId", ""),
+        }
+        tool_input = tool_block.get("input")
+        if tool_input is not None:
+            tool_args = {}
+            try:
+                tool_args = json.loads(tool_input)
+            except (json.JSONDecodeError, ValueError):
+                tool_args = {"input": tool_input}
+            tool_call.update({"arguments": tool_args} if tool_args else {})
+        tool_calls.append(tool_call)
+
+    if tool_calls:
+        message_output["tool_calls"] = tool_calls
+
+    return message_output

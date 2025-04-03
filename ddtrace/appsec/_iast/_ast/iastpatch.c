@@ -17,12 +17,8 @@ static char** cached_packages = NULL;
 static size_t cached_packages_count = 0;
 
 /* Static Lists */
-static size_t static_allowlist_count = 20;
-static const char* static_allowlist[] = { "attrs.",      "beautifulsoup4.", "cachetools.", "cryptography.",
-                                          "django.",     "docutils.",       "idna.",       "iniconfig.",
-                                          "jinja2.",     "lxml.",           "multidict.",  "platformdirs.",
-                                          "pygments.",   "pynacl.",         "pyparsing.",  "multipart",
-                                          "sqlalchemy.", "tomli.",          "yarl.",       "python_multipart." };
+static size_t static_allowlist_count = 5;
+static const char* static_allowlist[] = { "jinja2.", "pygments.", "multipart.", "sqlalchemy.", "python_multipart." };
 
 static size_t static_denylist_count = 145;
 static const char* static_denylist[] = { "django.apps.config.",
@@ -398,7 +394,7 @@ static int
 str_in_list(const char* needle, const char** list, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
-        if (strcmp(needle, list[i]) == 0) {
+        if (strncmp(needle, list[i], strlen(list[i])) == 0) {
             return 1;
         }
     }
@@ -511,7 +507,7 @@ is_first_party(const char* module_name)
 
     // If the first part is found in the cached packages, it's not a first-party module.
     for (size_t i = 0; i < cached_packages_count; i++) {
-        if (cached_packages[i] && strcmp(first_part, cached_packages[i]) == 0) {
+        if (cached_packages[i] && strncmp(first_part, cached_packages[i], strlen(cached_packages[i])) == 0) {
             return 0;
         }
     }
@@ -723,7 +719,7 @@ py_should_iast_patch(PyObject* self, PyObject* args)
         if (str_in_list(lower_module, static_denylist, static_denylist_count)) {
             return PyLong_FromLong(DENIED_STATIC_DENYLIST);
         }
-        return PyLong_FromLong(ALLOWED_USER_ALLOWLIST);
+        return PyLong_FromLong(ALLOWED_STATIC_ALLOWLIST);
     }
     return PyLong_FromLong(DENIED_NOT_FOUND);
 }
@@ -753,7 +749,6 @@ build_list_from_env(const char* env_var_name)
         free_list(result_list, count);
         return -1;
     }
-
 
     return 0;
 }
