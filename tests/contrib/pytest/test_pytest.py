@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import textwrap
 import typing as t
 from unittest import mock
@@ -10,7 +11,6 @@ import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.internal.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -4126,5 +4126,6 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.runpytest_inprocess("--ddtrace", file_name)
-        assert "API-provided settings" in rec.stderr.str()
+        with mock.patch("ddtrace.contrib.internal.pytest._plugin_v2._is_enabled_early", return_value=True):
+            rec = self.runpytest_inprocess("--ddtrace", file_name)
+        assert re.search(r"\[Datadog CI Visibility\].*CODEOWNERS file is not available", rec.stderr.str())
