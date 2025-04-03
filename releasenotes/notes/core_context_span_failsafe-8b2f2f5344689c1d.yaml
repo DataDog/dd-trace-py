@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves an issue where the core instrumentation could raise an uncaught exception.

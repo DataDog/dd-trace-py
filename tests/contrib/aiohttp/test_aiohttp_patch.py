@@ -3,12 +3,12 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
-from ddtrace.contrib.aiohttp import get_version
-from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.internal.aiohttp.patch import get_version
+from ddtrace.contrib.internal.aiohttp.patch import patch
 
 
 try:
-    from ddtrace.contrib.aiohttp.patch import unpatch
+    from ddtrace.contrib.internal.aiohttp.patch import unpatch
 except ImportError:
     unpatch = None
 from tests.contrib.patch import PatchTestCase

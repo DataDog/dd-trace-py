@@ -11,10 +11,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace import Pin  # noqa:F401
-    from ddtrace import Span  # noqa:F401
-    from ddtrace import Tracer  # noqa:F401
-    from ddtrace.settings import Config  # noqa:F401
+    from ddtrace.settings._config import Config  # noqa:F401
+    from ddtrace.trace import Pin  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 from urllib.parse import quote
 

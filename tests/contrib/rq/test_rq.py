@@ -6,10 +6,10 @@ import pytest
 import redis
 import rq
 
-from ddtrace import Pin
-from ddtrace.contrib.rq import get_version
-from ddtrace.contrib.rq import patch
-from ddtrace.contrib.rq import unpatch
+from ddtrace.contrib.internal.rq.patch import get_version
+from ddtrace.contrib.internal.rq.patch import patch
+from ddtrace.contrib.internal.rq.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
@@ -117,7 +117,7 @@ def test_sync_worker_config_service(queue):
 
 @snapshot(ignores=snapshot_ignores)
 def test_queue_pin_service(queue):
-    Pin.override(queue, service="my-pin-svc")
+    Pin._override(queue, service="my-pin-svc")
     job = queue.enqueue(job_add1, 10)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
@@ -128,7 +128,7 @@ def test_queue_pin_service(queue):
 def test_sync_worker_pin_service(queue):
     job = queue.enqueue(job_add1, 10)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
-    Pin.override(worker, service="my-pin-svc")
+    Pin._override(worker, service="my-pin-svc")
     worker.work(burst=True)
     assert job.result == 11
 

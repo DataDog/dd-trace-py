@@ -4,8 +4,6 @@ import sys
 import typing
 import weakref
 
-import _thread
-
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
@@ -21,31 +19,6 @@ cdef extern from "<Python.h>":
         unsigned long thread_id
 
     PyThreadState* PyThreadState_Get()
-
-
-IF UNAME_SYSNAME == "Linux":
-    from ddtrace.internal.module import ModuleWatchdog
-
-    cdef extern from "<sys/syscall.h>" nogil:
-        int __NR_gettid
-        long syscall(long number, ...)
-
-    IF PY_VERSION_HEX < 0x03080000:
-        # The native_id attribute is available in Python >= 3.8.
-        @ModuleWatchdog.after_module_imported("threading")
-        def native_id_hook(threading):
-            def bootstrap_wrapper(f, args, kwargs):
-                try:
-                    return f(*args, **kwargs)
-                finally:
-                    # DEV: args[0] == self
-                    args[0].native_id = PyLong_FromLong(syscall(__NR_gettid))
-
-            from ddtrace.internal.wrapping import wrap
-            wrap(threading.Thread._bootstrap, bootstrap_wrapper)
-
-            # Assign the native thread ID to the main thread as well
-            threading.current_thread().native_id = PyLong_FromLong(syscall(__NR_gettid))
 
 
 cpdef get_thread_by_id(thread_id):

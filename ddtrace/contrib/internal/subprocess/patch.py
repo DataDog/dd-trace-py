@@ -4,8 +4,8 @@ from fnmatch import fnmatch
 import os
 import re
 import shlex
-import subprocess  # nosec
-from threading import RLock
+from shlex import join
+from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -14,15 +14,15 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
-from ddtrace import Pin
-from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import shjoin
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -33,45 +33,71 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def patch():
-    # type: () -> List[str]
-    patched = []  # type: List[str]
-    if not asm_config._asm_enabled:
-        return patched
+_STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
+_LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
 
-    import os
 
-    if not getattr(os, "_datadog_patch", False):
+def add_str_callback(name: str, callback: Callable[[str], None]):
+    _STR_CALLBACKS[name] = callback
+
+
+def del_str_callback(name: str):
+    _STR_CALLBACKS.pop(name, None)
+
+
+def add_lst_callback(name: str, callback: Callable[[Union[List[str], str]], None]):
+    _LST_CALLBACKS[name] = callback
+
+
+def del_lst_callback(name: str):
+    _LST_CALLBACKS.pop(name, None)
+
+
+def patch() -> List[str]:
+    if not asm_config._load_modules:
+        return []
+    patched: List[str] = []
+
+    import os  # nosec
+    import subprocess  # nosec
+
+    should_patch_system = not trace_utils.iswrapped(os.system)
+    should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
+    spawnvef = getattr(os, "_spawnvef", None)
+    should_patch_spawnvef = spawnvef is not None and not trace_utils.iswrapped(spawnvef)
+
+    if should_patch_system or should_patch_fork or should_patch_spawnvef:
         Pin().onto(os)
-        trace_utils.wrap(os, "system", _traced_ossystem(os))
-        trace_utils.wrap(os, "fork", _traced_fork(os))
-
-        # all os.spawn* variants eventually use this one:
-        trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
-
+        if should_patch_system:
+            trace_utils.wrap(os, "system", _traced_ossystem(os))
+        if should_patch_fork:
+            trace_utils.wrap(os, "fork", _traced_fork(os))
+        if should_patch_spawnvef:
+            # all os.spawn* variants eventually use this one:
+            trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
         patched.append("os")
 
-    if not getattr(subprocess, "_datadog_patch", False):
+    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
+    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
+    if should_patch_Popen_init or should_patch_Popen_wait:
         Pin().onto(subprocess)
         # We store the parameters on __init__ in the context and set the tags on wait
         # (where all the Popen objects eventually arrive, unless killed before it)
-        trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
-        trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
-
-        os._datadog_patch = True
-        subprocess._datadog_patch = True
+        if should_patch_Popen_init:
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        if should_patch_Popen_wait:
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
         patched.append("subprocess")
 
     return patched
 
 
 @dataclass(eq=False)
-class SubprocessCmdLineCacheEntry(object):
+class SubprocessCmdLineCacheEntry:
     binary: Optional[str] = None
     arguments: Optional[List] = None
     truncated: bool = False
@@ -80,10 +106,10 @@ class SubprocessCmdLineCacheEntry(object):
     as_string: Optional[str] = None
 
 
-class SubprocessCmdLine(object):
+class SubprocessCmdLine:
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE = {}  # type: Dict[str, SubprocessCmdLineCacheEntry]
-    _CACHE_DEQUE = collections.deque()  # type: Deque[str]
+    _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
+    _CACHE_DEQUE: Deque[str] = collections.deque()
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -138,8 +164,7 @@ class SubprocessCmdLine(object):
     ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args, shell=False):
-        # type: (Union[str, List[str]], bool) -> None
+    def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -250,8 +275,7 @@ class SubprocessCmdLine(object):
 
         self.arguments = new_args
 
-    def truncate_string(self, str_):
-        # type: (str) -> str
+    def truncate_string(self, str_: str) -> str:
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
         if oversize <= 0:
@@ -263,11 +287,9 @@ class SubprocessCmdLine(object):
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self):
-        # type: () -> Tuple[list[str], str]
-
+    def _as_list_and_string(self) -> Tuple[List[str], str]:
         total_list = self.env_vars + [self.binary] + self.arguments
-        truncated_str = self.truncate_string(shjoin(total_list))
+        truncated_str = self.truncate_string(join(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
@@ -290,22 +312,27 @@ class SubprocessCmdLine(object):
         return str_res
 
 
-def unpatch():
-    # type: () -> None
-    trace_utils.unwrap(os, "system")
-    trace_utils.unwrap(os, "_spawnvef")
-    trace_utils.unwrap(subprocess.Popen, "__init__")
-    trace_utils.unwrap(subprocess.Popen, "wait")
+def unpatch() -> None:
+    import os  # nosec
+    import subprocess  # nosec
+
+    for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
+        try:
+            trace_utils.unwrap(obj, attr)
+        except AttributeError:
+            pass
 
     SubprocessCmdLine._clear_cache()
-
-    os._datadog_patch = False
-    subprocess._datadog_patch = False
 
 
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
+            return wrapped(*args, **kwargs)
+        if isinstance(args[0], str):
+            for callback in _STR_CALLBACKS.values():
+                callback(args[0])
         shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
@@ -325,6 +352,8 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
@@ -340,8 +369,14 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+        return wrapped(*args, **kwargs)
     try:
         mode, file, func_args, _, _ = args
+        if isinstance(func_args, (list, tuple, str)):
+            commands = [file] + list(func_args)
+            for callback in _LST_CALLBACKS.values():
+                callback(commands)
         shellcmd = SubprocessCmdLine(func_args, shell=False)
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
@@ -365,7 +400,16 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
+            return wrapped(*args, **kwargs)
         cmd_args = args[0] if len(args) else kwargs["args"]
+        if isinstance(cmd_args, (list, tuple, str)):
+            if kwargs.get("shell", False):
+                for callback in _STR_CALLBACKS.values():
+                    callback(cmd_args)
+            else:
+                for callback in _LST_CALLBACKS.values():
+                    callback(cmd_args)
         cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
         is_shell = kwargs.get("shell", False)
         shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
@@ -390,6 +434,8 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     try:
+        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
+            return wrapped(*args, **kwargs)
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:

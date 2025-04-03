@@ -5,8 +5,8 @@ import psycopg
 import pytest
 import wrapt
 
-from ddtrace.contrib.psycopg.patch import patch
-from ddtrace.contrib.psycopg.patch import unpatch
+from ddtrace.contrib.internal.psycopg.patch import patch
+from ddtrace.contrib.internal.psycopg.patch import unpatch
 
 
 @pytest.fixture(autouse=True)
@@ -67,12 +67,14 @@ def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg.connect method"""
 
     code = """
+import ddtrace.auto
+
 import psycopg
 
 import ddtrace
 from tests.contrib.config import POSTGRES_CONFIG
 
-ddtrace.patch_all()
+ddtrace._monkey._patch_all()
 
 conn = psycopg.connect(**POSTGRES_CONFIG)
 assert conn

@@ -5,10 +5,12 @@ from uuid import uuid4
 
 import mock
 
+from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import Snapshot
+from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
 
 
@@ -45,7 +47,18 @@ def test_collector_collect_enqueue_only_commit_state():
 
     c = 0
     for i in range(10):
-        mocked_signal = MockLogSignal(mock.Mock(), sys._getframe(), threading.current_thread())
+        mocked_signal = MockLogSignal(
+            create_log_function_probe(
+                probe_id="test",
+                template=None,
+                segments=[],
+                module="foo",
+                func_qname="bar",
+                evaluate_at=ProbeEvalTiming.ENTRY,
+            ),
+            sys._getframe(),
+            threading.current_thread(),
+        )
         mocked_signal.do_enter()
 
         assert mocked_signal.enter_call_count == 1

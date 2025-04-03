@@ -19,6 +19,10 @@ PROPAGATION_STYLE_ALL = (
     _PROPAGATION_STYLE_NONE,
     _PROPAGATION_STYLE_BAGGAGE,
 )
+_PROPAGATION_BEHAVIOR_CONTINUE = "continue"
+_PROPAGATION_BEHAVIOR_IGNORE = "ignore"
+_PROPAGATION_BEHAVIOR_RESTART = "restart"
+_PROPAGATION_BEHAVIOR_DEFAULT = _PROPAGATION_BEHAVIOR_CONTINUE
 W3C_TRACESTATE_KEY = "tracestate"
 W3C_TRACEPARENT_KEY = "traceparent"
 W3C_TRACESTATE_PARENT_ID_KEY = "p"
@@ -65,6 +69,7 @@ EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 MESSAGING_SYSTEM = "messaging.system"
+MESSAGING_DESTINATION_NAME = "messaging.destination.name"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
@@ -78,24 +83,36 @@ DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 
 
-class _PRIORITY_CATEGORY:
-    USER = "user"
-    RULE_DEF = "rule_default"
-    RULE_CUSTOMER = "rule_customer"
-    RULE_DYNAMIC = "rule_dynamic"
-    AUTO = "auto"
-    DEFAULT = "default"
+class SamplingMechanism(object):
+    DEFAULT = 0
+    AGENT_RATE_BY_SERVICE = 1
+    REMOTE_RATE = 2  # not used, this mechanism is deprecated
+    LOCAL_USER_TRACE_SAMPLING_RULE = 3
+    MANUAL = 4
+    APPSEC = 5
+    REMOTE_RATE_USER = 6  # not used, this mechanism is deprecated
+    REMOTE_RATE_DATADOG = 7  # not used, this mechanism is deprecated
+    SPAN_SAMPLING_RULE = 8
+    OTLP_INGEST_PROBABILISTIC_SAMPLING = 9  # not used in ddtrace
+    DATA_JOBS_MONITORING = 10  # not used in ddtrace
+    REMOTE_USER_TRACE_SAMPLING_RULE = 11
+    REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
 
 
-# intermediate mapping of priority categories to actual priority values
-# used to simplify code that selects sampling priority based on many factors
-_CATEGORY_TO_PRIORITIES = {
-    _PRIORITY_CATEGORY.USER: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_DEF: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_CUSTOMER: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_DYNAMIC: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.AUTO: (AUTO_KEEP, AUTO_REJECT),
-    _PRIORITY_CATEGORY.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+SAMPLING_MECHANISM_TO_PRIORITIES = {
+    # TODO(munir): Update mapping to include single span sampling and appsec sampling mechaisms
+    SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.MANUAL: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
 }
 _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
+
+
+# List of support values in DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED
+class EXPERIMENTAL_FEATURES:
+    # Enables submitting runtime metrics as gauges (instead of distributions)
+    RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"

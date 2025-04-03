@@ -4,9 +4,9 @@ from typing import Tuple  # noqa:F401
 import mariadb
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.mariadb import patch
-from ddtrace.contrib.mariadb import unpatch
+from ddtrace.contrib.internal.mariadb.patch import patch
+from ddtrace.contrib.internal.mariadb.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.config import MARIADB_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_dict_issuperset
@@ -39,7 +39,7 @@ def tracer():
 
 def get_connection(tracer):
     connection = mariadb.connect(**MARIADB_CONFIG)
-    Pin.override(connection, tracer=tracer)
+    Pin._override(connection, tracer=tracer)
 
     return connection
 
@@ -186,6 +186,8 @@ def test_user_specified_dd_mariadb_service_snapshot():
     When a user specifies a service for the app
         The mariadb integration should not use it.
     """
+    import ddtrace.auto  # noqa
+
     import mariadb
 
     from ddtrace import patch

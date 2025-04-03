@@ -2,14 +2,14 @@ from typing import TYPE_CHECKING  # noqa:I001
 from types import ModuleType
 import asyncpg
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 import wrapt
 
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -19,10 +19,10 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import wrap
-from ddtrace.contrib.trace_utils_async import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -117,7 +117,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
 
         # dispatch DBM

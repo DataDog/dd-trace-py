@@ -1,0 +1,52 @@
+integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
+aiobotocore,1.4.2,2.13.3,False
+aiohttp,3.8.6,3.11.10,True
+aiomysql,0.1.1,0.2.0,True
+aiopg *,1.4.0,1.4.0,True
+algoliasearch *,2.6.3,2.6.3,True
+anthropic,0.26.0,0.40.0,True
+aredis,1.1.8,1.1.8,True
+asyncpg,0.23.0,0.30.0,True
+avro,1.12.0,1.12.0,True
+boto,2.49.0,2.49.0,True
+botocore *,1.20.106,1.35.78,True
+bottle,0.12.25,0.13.2,True
+celery,4.4.7,5.4.0,True
+cherrypy,17.4.2,18.10.0,False
+coverage,7.2.7,7.4.4,False
+django *,2.2.1,5.1,True
+dramatiq,1.16.0,1.17.0,True
+falcon,3.0.1,3.1.3,True
+fastapi,0.64.0,0.115.6,True
+flask,0.12.5,3.0.3,True
+gevent,20.12.1,24.11.1,True
+httpx,0.15.4,0.28.1,True
+jinja2,2.10.3,3.1.4,True
+kombu,4.2.2.post1,5.4.2,False
+langchain,0.0.192,0.3.10,True
+logbook,1.0.0,1.7.0.post0,False
+loguru,0.4.1,0.7.3,False
+mako,1.1.6,1.3.5,True
+mariadb,1.0.11,1.1.11,True
+molten,1.0.2,1.0.2,True
+mongoengine,0.29.1,0.29.1,True
+openai *,0.26.5,1.57.2,True
+protobuf,3.8.0,5.28.3,False
+pylibmc,1.6.3,1.6.3,True
+pymemcache,3.4.4,4.0.0,True
+pymongo,3.8.0,4.10.1,True
+pymysql,0.10.1,1.1.1,True
+pynamodb *,5.5.1,5.5.1,True
+pyodbc,4.0.39,5.2.0,True
+pyramid,1.10.8,2.0.2,True
+redis,2.10.6,5.2.1,True
+requests,2.20.1,2.32.3,True
+sanic,20.12.7,24.6.0,True
+sqlalchemy,1.2.19,2.0.36,False
+starlette,0.13.6,0.41.3,True
+structlog,20.2.0,24.4.0,False
+tornado *,4.5.3,6.4,False
+urllib3,1.24.3,2.2.3,False
+valkey,6.0.0,6.0.2,True
+vertexai,1.71.1,1.71.1,True
+yaaredis,2.0.4,3.0.0,True

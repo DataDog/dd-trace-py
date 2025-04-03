@@ -1,25 +1,28 @@
 ---
 components:
   anthropic:
-    - ddtrace/contrib/anthropic/*
+    - ddtrace/contrib/_anthropic.py
     - ddtrace/contrib/internal/anthropic/*
   google_generativeai:
-    - ddtrace/contrib/google_generativeai/*
+    - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
   vertexai:
-    - ddtrace/contrib/vertexai/*
+    - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
   langchain:
-    - ddtrace/contrib/langchain/*
+    - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
   llmobs:
     - ddtrace/llmobs/*
   openai:
-    - ddtrace/contrib/openai/*
+    - ddtrace/contrib/_openai.py
     - ddtrace/contrib/internal/openai/*
+  langgraph:
+    - ddtrace/contrib/_langgraph.py
+    - ddtrace/contrib/internal/langgraph/*
 suites:
   anthropic:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -33,6 +36,7 @@ suites:
     runner: riot
     snapshot: true
   google_generativeai:
+    parallelism: 1
     paths:
     - '@bootstrap'
     - '@core'
@@ -45,6 +49,7 @@ suites:
     runner: riot
     snapshot: true
   vertexai:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -90,5 +95,18 @@ suites:
       - '@llmobs'
       - tests/contrib/openai/*
       - tests/snapshots/tests.contrib.openai.*
+    runner: riot
+    snapshot: true
+  langgraph:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@langgraph'
+      - '@requests'
+      - '@llmobs'
+      - tests/contrib/langgraph/*
     runner: riot
     snapshot: true

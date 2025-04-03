@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: Deprecates ``ddtrace.filters.FilterRequestsOnUrl``. Spans should be filtered/sampled using DD_TRACE_SAMPLING_RULES configuration.

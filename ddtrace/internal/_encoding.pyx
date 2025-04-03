@@ -19,10 +19,11 @@ from ._utils cimport PyBytesLike_Check
 # DEV: This only occurs because there is a `constants.py` module
 #   in both `ddtrace` and `ddtrace.internal`
 
-from ..constants import ORIGIN_KEY
+from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
+from ..settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
@@ -49,6 +50,7 @@ cdef extern from "pack.h":
     int msgpack_pack_bin(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
+    int msgpack_pack_uint8(msgpack_packer* pk, stdint.uint8_t d)
     int msgpack_pack_uint32(msgpack_packer* pk, stdint.uint32_t d)
     int msgpack_pack_uint64(msgpack_packer* pk, stdint.uint64_t d)
     int msgpack_pack_int32(msgpack_packer* pk, stdint.int32_t d)
@@ -101,23 +103,22 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
         ret = msgpack_pack_raw_body(pk, bs, l)
     return ret
 
+cdef inline int pack_bool(msgpack_packer *pk, bint n) except? -1:
+    if n:
+        return msgpack_pack_true(pk)
+    return msgpack_pack_false(pk)
 
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
         return msgpack_pack_nil(pk)
 
     if PyLong_Check(n):
-        # PyInt_Check(long) is True for Python 3.
-        # So we should test long before int.
         try:
             if n > 0:
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
             raise OverflowError("Integer value out of range")
-
-    if PyInt_Check(n):
-        return msgpack_pack_long(pk, <long> n)
 
     if PyFloat_Check(n):
         return msgpack_pack_double(pk, <double> n)
@@ -553,6 +554,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 
 cdef class MsgpackEncoderV04(MsgpackEncoderBase):
+    cdef bint top_level_span_event_encoding
+
+    def __cinit__(self, size_t max_size, size_t max_item_size):
+        self.top_level_span_event_encoding = agent_config.trace_native_span_events
+
     cpdef flush(self):
         with self._lock:
             try:
@@ -615,6 +621,57 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
         return 0
+
+    cdef inline int _pack_span_events(self, list span_events) except? -1:
+        cdef int ret
+        cdef int L
+        cdef str attr_k
+        cdef object attr_v
+        cdef object event
+        ret = msgpack_pack_array(&self.pk, len(span_events))
+        if ret != 0:
+            return ret
+
+        for event in span_events:
+            L = 2 + bool(event.attributes)
+            ret = msgpack_pack_map(&self.pk, L)
+            if ret != 0:
+                return ret
+
+            ret = pack_bytes(&self.pk, <char*> b"name", 4)
+            if ret != 0:
+                return ret
+
+            ret = pack_text(&self.pk, event.name)
+            if ret != 0:
+                return ret
+
+            ret = pack_bytes(&self.pk, <char*> b"time_unix_nano", 14)
+            if ret != 0:
+                return ret
+
+            ret = pack_number(&self.pk, event.time_unix_nano)
+            if ret != 0:
+                return ret
+
+            if event.attributes:
+                ret = pack_bytes(&self.pk, <char*> b"attributes", 10)
+                if ret != 0:
+                    return ret
+
+                ret = msgpack_pack_map(&self.pk, len(event.attributes))
+                if ret != 0:
+                    return ret
+
+                for attr_k, attr_v in event.attributes.items():
+                    ret = pack_text(&self.pk, attr_k)
+                    if ret != 0:
+                        return ret
+
+                    ret = self.pack_span_event_attributes(attr_v)
+                    if ret != 0:
+                        return ret
+        return ret
 
     cdef inline int _pack_meta(self, object meta, char *dd_origin, str span_events) except? -1:
         cdef Py_ssize_t L
@@ -684,13 +741,20 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
         has_span_events = <bint> (len(span._events) > 0)
-        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or has_span_events)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
+        has_meta = <bint> (
+            len(span._meta) > 0
+            or dd_origin is not NULL
+            or (not self.top_level_span_event_encoding and has_span_events)
+        )
 
+        # do not include in meta
         L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+        if self.top_level_span_event_encoding:
+            L += has_span_events
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -776,13 +840,21 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
+            if has_span_events and self.top_level_span_event_encoding:
+                ret = pack_bytes(&self.pk, <char *> b"span_events", 11)
+                if ret != 0:
+                    return ret
+                ret = self._pack_span_events(span._events)
+                if ret != 0:
+                    return ret
+
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0:
                     return ret
 
                 span_events = ""
-                if has_span_events:
+                if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
                 ret = self._pack_meta(span._meta, <char *> dd_origin, span_events)
                 if ret != 0:
@@ -817,6 +889,84 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
 
         return ret
 
+    cdef int pack_span_event_attributes(self, object attr, int depth=0) except ? -1:
+        cdef int ret
+        cdef object elt
+
+        ret = msgpack_pack_map(&self.pk, 2)
+        if ret != 0:
+            return ret
+        ret = pack_bytes(&self.pk, <char*> b"type", 4)
+        if ret != 0:
+            return ret
+
+        if isinstance(attr, str):
+            ret = msgpack_pack_uint8(&self.pk, 0)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"string_value", 12)
+            if ret != 0:
+                return ret
+            ret = pack_text(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, bool):
+            ret = msgpack_pack_uint8(&self.pk, 1)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"bool_value", 10)
+            if ret != 0:
+                return ret
+            ret = pack_bool(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, int):
+            ret = msgpack_pack_uint8(&self.pk, 2)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"int_value", 9)
+            if ret != 0:
+                return ret
+            ret = pack_number(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, float):
+            ret = msgpack_pack_uint8(&self.pk, 3)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"double_value", 12)
+            if ret != 0:
+                return ret
+            ret = pack_number(&self.pk, attr)
+            if ret != 0:
+                return ret
+        elif isinstance(attr, list):
+            if depth != 0:
+                raise ValueError("Nested list found; cannot encode")
+            ret = msgpack_pack_uint8(&self.pk, 4)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"array_value", 11)
+            if ret != 0:
+                return ret
+            ret = msgpack_pack_map(&self.pk, 1)
+            if ret != 0:
+                return ret
+            ret = pack_bytes(&self.pk, <char*> b"values", 6)
+            if ret != 0:
+                return ret
+            ret = msgpack_pack_array(&self.pk, len(attr))
+            if ret != 0:
+                return ret
+
+            for elt in attr:
+                ret = self.pack_span_event_attributes(elt, depth+1)
+                if ret != 0:
+                    return ret
+        else:
+            raise ValueError(f"Unsupported type for SpanEvent attribute: {type(attr)}")
+
+        return ret
 
 cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef MsgpackStringTable _st
@@ -1024,8 +1174,6 @@ cdef class Packer(object):
             if o is None:
                 ret = msgpack_pack_nil(&self.pk)
             elif PyLong_CheckExact(o):
-                # PyInt_Check(long) is True for Python 3.
-                # So we should test long before int.
                 try:
                     if o > 0:
                         ullval = o
@@ -1040,9 +1188,6 @@ cdef class Packer(object):
                         continue
                     else:
                         raise OverflowError("Integer value out of range")
-            elif PyInt_CheckExact(o):
-                longval = o
-                ret = msgpack_pack_long(&self.pk, longval)
             elif PyFloat_CheckExact(o):
                 dval = o
                 ret = msgpack_pack_double(&self.pk, dval)

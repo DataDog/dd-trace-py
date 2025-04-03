@@ -19,8 +19,6 @@
       "bedrock.request.truncate": "",
       "bedrock.response.duration": "271",
       "bedrock.response.id": "0e9cb5ab-1fef-46eb-8e2c-773f0f60f39d",
-      "bedrock.usage.completion_tokens": "",
-      "bedrock.usage.prompt_tokens": "7",
       "language": "python",
       "runtime-id": "c02c555fdac14227bee7b37a0c304534"
     },
@@ -29,6 +27,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "bedrock.response.embedding_length": 1024,
+      "bedrock.response.usage.prompt_tokens": 7,
       "process_id": 61336
     },
     "duration": 630192000,

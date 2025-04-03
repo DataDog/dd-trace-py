@@ -3,8 +3,8 @@ from flask import Flask
 import pytest
 from redis.exceptions import ConnectionError
 
-from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
+from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
+from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache
 from ddtrace.ext import net
 from tests.utils import TracerTestCase
 

@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67aba53d00000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.messages.0.0.content": "[{'type': 'text', 'text': 'What\u2019s in this image?'}, {'type': 'image_url', 'image_url': {'url': 'https://upload.wikimedia.org/wik...",
+      "langchain.request.messages.0.0.message_type": "HumanMessage",
+      "langchain.request.model": "gpt-4o",
+      "langchain.request.openai.parameters.max_completion_tokens": "256",
+      "langchain.request.openai.parameters.model": "gpt-4o",
+      "langchain.request.openai.parameters.model_name": "gpt-4o",
+      "langchain.request.openai.parameters.stream": "False",
+      "langchain.request.openai.parameters.temperature": "0.0",
+      "langchain.request.provider": "openai",
+      "langchain.request.type": "chat_model",
+      "langchain.response.completions.0.0.content": "The image shows a scenic landscape with a wooden boardwalk path leading through a lush green field. The sky is blue with scatter...",
+      "langchain.response.completions.0.0.message_type": "AIMessage",
+      "language": "python",
+      "runtime-id": "75ba8641aebf4d7cab7c2f6ea6a07135"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "langchain.tokens.completion_tokens": 56,
+      "langchain.tokens.prompt_tokens": 1151,
+      "langchain.tokens.total_tokens": 1207,
+      "process_id": 91283
+    },
+    "duration": 8350000,
+    "start": 1739302205360887000
+  }]]

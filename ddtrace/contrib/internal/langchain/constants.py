@@ -80,7 +80,3 @@ agent_output_parser_classes = {
 }
 
 API_KEY = "langchain.request.api_key"
-MODEL = "langchain.request.model"
-COMPLETION_TOKENS = "langchain.tokens.completion_tokens"
-PROMPT_TOKENS = "langchain.tokens.prompt_tokens"
-TOTAL_COST = "langchain.tokens.total_cost"

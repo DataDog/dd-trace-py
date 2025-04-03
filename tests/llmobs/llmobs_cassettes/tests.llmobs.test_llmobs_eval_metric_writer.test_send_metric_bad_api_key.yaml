@@ -1,15 +1,16 @@
 interactions:
 - request:
-    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
-      "12345678901", "trace_id": "98765432101", "metric_type": "categorical", "categorical_value":
-      "very", "label": "toxicity", "ml_app": "dummy-ml-app", "timestamp_ms": 1724249500253}]}}}'
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678901", "trace_id": "98765432101"}}, "metric_type":
+      "categorical", "categorical_value": "very", "label": "toxicity", "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1732568297307}]}}}'
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
   response:
     body:
       string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
@@ -21,7 +22,7 @@ interactions:
       content-type:
       - application/json
       date:
-      - Wed, 21 Aug 2024 14:11:40 GMT
+      - Mon, 25 Nov 2024 20:58:17 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       x-content-type-options:

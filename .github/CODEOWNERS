@@ -42,13 +42,13 @@ docs/                               @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
 tests/suitespec.yml                 @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
+scripts/bump_ddtrace.py             @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
 tests/opentelemetry                 @DataDog/apm-core-python
 tests/opentracer                    @DataDog/apm-core-python
-tests/runtime                       @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
@@ -58,6 +58,10 @@ ddtrace/contrib/pytest                                @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_bdd                            @DataDog/ci-app-libraries
 ddtrace/contrib/pytest_benchmark                      @DataDog/ci-app-libraries
 ddtrace/contrib/unittest                              @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
+ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/pytest                                  @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
@@ -110,16 +114,17 @@ benchmarks/base/aspects_benchmarks_generate.py @DataDog/asm-python
 ddtrace/appsec/                     @DataDog/asm-python
 ddtrace/settings/asm.py             @DataDog/asm-python
 ddtrace/contrib/subprocess/         @DataDog/asm-python
+ddtrace/contrib/internal/subprocess/         @DataDog/asm-python
 ddtrace/contrib/flask_login/        @DataDog/asm-python
 ddtrace/contrib/webbrowser          @DataDog/asm-python
 ddtrace/contrib/urllib              @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
+ddtrace/internal/appsec/            @DataDog/asm-python
+ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
-tests/contrib/django/django_app/appsec_urls.py @DataDog/asm-python
-tests/contrib/django/test_django_appsec.py  @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 scripts/iast/*                      @DataDog/asm-python
@@ -146,15 +151,19 @@ ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observabilit
 ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                       @DataDog/ml-observability
 ddtrace/contrib/vertexai                                @DataDog/ml-observability
+ddtrace/contrib/langgraph                               @DataDog/ml-observability
+ddtrace/contrib/internal/langgraph                      @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock.py                  @DataDog/ml-observability
 tests/contrib/botocore/test_bedrock_llmobs.py           @DataDog/ml-observability
+tests/contrib/botocore/bedrock_utils.py                 @DataDog/ml-observability
 tests/contrib/botocore/bedrock_cassettes                @DataDog/ml-observability
 tests/contrib/anthropic                                 @DataDog/ml-observability
 tests/contrib/google_generativeai                       @DataDog/ml-observability
 tests/contrib/vertexai                                  @DataDog/ml-observability
+tests/contrib/langgraph                                 @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
@@ -162,23 +171,32 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # API SDK
+ddtrace/trace/                                     @DataDog/apm-sdk-api-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
 ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 ddtrace/filters.py                                 @DataDog/apm-sdk-api-python
+ddtrace/provider.py                                @DataDog/apm-sdk-api-python
 ddtrace/pin.py                                     @DataDog/apm-sdk-api-python
 ddtrace/sampler.py                                 @DataDog/apm-sdk-api-python
 ddtrace/sampling_rule.py                           @DataDog/apm-sdk-api-python
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
 ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
-ddttace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
+ddtrace/runtime/                                   @DataDog/apm-sdk-api-python
+ddtrace/internal/runtime/                          @DataDog/apm-sdk-api-python
+ddtrace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-api-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-api-python
+tests/runtime/                                     @DataDog/apm-sdk-api-python
 tests/test_sampling.py                             @DataDog/apm-sdk-api-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-api-python
 tests/opentelemetry/                               @DataDog/apm-sdk-api-python
 tests/tracer/                                      @DataDog/apm-sdk-api-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+
+# Serverless
+tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless
+tests/contrib/aws_lambda            @DataDog/apm-serverless

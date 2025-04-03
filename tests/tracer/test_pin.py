@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import pytest
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 
 
 class PinTestCase(TestCase):

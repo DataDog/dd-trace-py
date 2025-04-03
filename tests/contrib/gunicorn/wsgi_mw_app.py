@@ -10,18 +10,14 @@ if os.getenv("_DD_TEST_IMPORT_AUTO"):
 
 import json
 
-from ddtrace import tracer
-from ddtrace.contrib.wsgi import DDWSGIMiddleware
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.profiling import bootstrap
 import ddtrace.profiling.auto  # noqa:F401
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer.configure(trace_processors=[PingFilter()])
 
 SCHEDULER_SENTINEL = -1
 assert bootstrap.profiler._scheduler._last_export not in (None, SCHEDULER_SENTINEL)

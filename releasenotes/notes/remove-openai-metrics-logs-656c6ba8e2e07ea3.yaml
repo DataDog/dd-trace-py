@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    openai: Removes prompt-completion log sampling from the OpenAI integration. To continue logging prompt completions,
+     enable LLM Observability.
+  - |
+    openai: Removes integration metrics from the OpenAI integration. To continue tracking operational metrics from the
+     OpenAI integration, enable LLM Observability or use trace metrics instead.

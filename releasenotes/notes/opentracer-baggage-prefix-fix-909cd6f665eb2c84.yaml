@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    baggage: Fixed an issue where `ot-baggage` headers in wsgi apps were not properly recognized due to the `http_` header prefix. This ensures consistent baggage propagation in wsgi compatible web frameworks.

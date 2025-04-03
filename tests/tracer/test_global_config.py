@@ -1,12 +1,11 @@
-import os
 from unittest import TestCase
 
 import mock
 import pytest
 
 from ddtrace import config as global_config
-from ddtrace.settings import Config
-from ddtrace.settings.config import _parse_propagation_styles
+from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._config import Config
 
 from ..utils import DummyTracer
 from ..utils import override_env
@@ -17,6 +16,7 @@ class GlobalConfigTestCase(TestCase):
 
     def setUp(self):
         self.config = Config()
+        self.config.web = IntegrationConfig(self.config, "web")
         self.tracer = DummyTracer()
 
     def test_registration(self):
@@ -49,9 +49,19 @@ class GlobalConfigTestCase(TestCase):
         # that is not available is retrieved in the configuration
         # object
         with pytest.raises(KeyError) as e:
-            self.config.new_integration["some_key"]
+            self.config.web["some_key"]
 
         assert isinstance(e.value, KeyError)
+
+    def test_missing_integration(self):
+        with pytest.raises(AttributeError) as e:
+            self.config.integration_that_does_not_exist
+
+        assert isinstance(e.value, AttributeError)
+        assert e.value.args[0] == (
+            "<class 'ddtrace.settings._config.Config'> object has no attribute "
+            "integration_that_does_not_exist, integration_that_does_not_exist is not a valid configuration"
+        )
 
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module
@@ -282,10 +292,3 @@ class GlobalConfigTestCase(TestCase):
         with override_env(dict(DD_SERVICE_MAPPING="foobar:bar,snafu:foo")):
             c = Config()
             assert c.service_mapping == {"foobar": "bar", "snafu": "foo"}
-
-    def test_parse_propagation_styles_b3_deprecation(capsys):
-        with pytest.warns(
-            DeprecationWarning, match='Using DD_TRACE_PROPAGATION_STYLE="b3 single header" is deprecated'
-        ), override_env(dict(DD_TRACE_PROPAGATION_STYLE="b3 single header")):
-            style = _parse_propagation_styles(os.environ["DD_TRACE_PROPAGATION_STYLE"])
-            assert style == ["b3"]

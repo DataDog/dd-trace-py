@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    tracing: Ensures the ddtrace library does not use deprecated APIs internally.
+    Deprecation warnings should only be logged when the user's code is using deprecated APIs.

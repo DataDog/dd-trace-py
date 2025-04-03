@@ -39,7 +39,7 @@ def pkg_lxml_view():
 def pkg_lxml_propagation_view():
     from lxml import etree
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

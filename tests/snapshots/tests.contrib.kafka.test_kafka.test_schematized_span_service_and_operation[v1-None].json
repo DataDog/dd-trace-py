@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "67c62bbd00000000",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.group_id": "test_group",
@@ -19,9 +19,10 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_schematized_span_service_and_operation_v1-None",
       "language": "python",
+      "messaging.destination.name": "test_schematized_span_service_and_operation_v1-None",
       "messaging.system": "kafka",
-      "pathway.hash": "10641095583789865155",
-      "runtime-id": "fa90321c568441f8ad13c05bd0606f04",
+      "pathway.hash": "3560172775124928698",
+      "runtime-id": "d499acdbcae846dd9b04767030073a6a",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -29,12 +30,12 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "kafka.message_offset": -1,
+      "kafka.message_offset": 2,
       "kafka.partition": 0,
-      "process_id": 26934
+      "process_id": 20876
     },
-    "duration": 237602000,
-    "start": 1699562240252521000
+    "duration": 3612050000,
+    "start": 1741040570828304000
   }],
 [
   {
@@ -48,7 +49,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "67c62bba00000000",
       "_dd.peer.service.source": "messaging.kafka.bootstrap.servers",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
@@ -56,11 +57,12 @@
       "kafka.tombstone": "False",
       "kafka.topic": "test_schematized_span_service_and_operation_v1-None",
       "language": "python",
-      "messaging.kafka.bootstrap.servers": "localhost:29092",
+      "messaging.destination.name": "test_schematized_span_service_and_operation_v1-None",
+      "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
-      "pathway.hash": "14375380592702851367",
-      "peer.service": "localhost:29092",
-      "runtime-id": "fa90321c568441f8ad13c05bd0606f04",
+      "pathway.hash": "6484381005006725885",
+      "peer.service": "127.0.0.1:29092",
+      "runtime-id": "d499acdbcae846dd9b04767030073a6a",
       "span.kind": "producer"
     },
     "metrics": {
@@ -69,8 +71,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "kafka.partition": -1,
-      "process_id": 26934
+      "process_id": 20876
     },
-    "duration": 324000,
-    "start": 1699562234171743000
+    "duration": 4152000,
+    "start": 1741040570611176000
   }]]

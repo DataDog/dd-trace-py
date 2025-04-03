@@ -5,8 +5,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -22,9 +20,12 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -53,8 +54,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
-            submit_to_llmobs = True
+        base_url = kwargs.get("base_url", None)
+        submit_to_llmobs = self.is_default_base_url(str(base_url) if base_url else None) and (
+            operation_id.endswith("Completion") or operation_id == "createEmbedding"
+        )
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -78,64 +81,29 @@ class OpenAIIntegration(BaseLLMIntegration):
                     span.set_tag_str("openai.organization.id", v or "")
                 else:
                     span.set_tag_str("openai.%s" % attr, str(v))
-        span.set_tag_str("openai.request.client", "AzureOpenAI" if self._is_azure_openai(span) else "OpenAI")
+        client = "OpenAI"
+        if self._is_provider(span, "azure"):
+            client = "AzureOpenAI"
+        elif self._is_provider(span, "deepseek"):
+            client = "Deepseek"
+        span.set_tag_str("openai.request.client", client)
 
     @staticmethod
-    def _is_azure_openai(span):
-        """Check if the traced operation is an AzureOpenAI operation using the request's base URL."""
+    def _is_provider(span, provider):
+        """Check if the traced operation is from the given provider."""
         base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
         if not base_url or not isinstance(base_url, str):
             return False
-        return "azure" in base_url.lower()
-
-    @classmethod
-    def _logs_tags(cls, span: Span) -> str:
-        tags = (
-            "env:%s,version:%s,openai.request.endpoint:%s,openai.request.method:%s,openai.request.model:%s,openai.organization.name:%s,"
-            "openai.user.api_key:%s"
-            % (  # noqa: E501
-                (config.env or ""),
-                (config.version or ""),
-                (span.get_tag("openai.request.endpoint") or ""),
-                (span.get_tag("openai.request.method") or ""),
-                (span.get_tag("openai.request.model") or ""),
-                (span.get_tag("openai.organization.name") or ""),
-                (span.get_tag("openai.user.api_key") or ""),
-            )
-        )
-        return tags
-
-    @classmethod
-    def _metrics_tags(cls, span: Span) -> List[str]:
-        model_name = span.get_tag("openai.request.model") or ""
-        tags = [
-            "version:%s" % (config.version or ""),
-            "env:%s" % (config.env or ""),
-            "service:%s" % (span.service or ""),
-            "openai.request.model:%s" % model_name,
-            "model:%s" % model_name,
-            "openai.request.endpoint:%s" % (span.get_tag("openai.request.endpoint") or ""),
-            "openai.request.method:%s" % (span.get_tag("openai.request.method") or ""),
-            "openai.organization.id:%s" % (span.get_tag("openai.organization.id") or ""),
-            "openai.organization.name:%s" % (span.get_tag("openai.organization.name") or ""),
-            "openai.user.api_key:%s" % (span.get_tag("openai.user.api_key") or ""),
-            "error:%d" % span.error,
-        ]
-        err_type = span.get_tag("error.type")
-        if err_type:
-            tags.append("error_type:%s" % err_type)
-        return tags
+        return provider.lower() in base_url.lower()
 
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage or not self.metrics_enabled:
+        if not usage:
             return
-        tags = ["openai.estimated:false"]
         for token_type in ("prompt", "completion", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-            self.metric(span, "dist", "tokens.%s" % token_type, num_tokens, tags=tags)
 
     def _llmobs_set_tags(
         self,
@@ -148,7 +116,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = "azure_openai" if self._is_azure_openai(span) else "openai"
+
+        model_provider = "openai"
+        if self._is_provider(span, "azure"):
+            model_provider = "azure_openai"
+        elif self._is_provider(span, "deepseek"):
+            model_provider = "deepseek"
+
         if operation == "completion":
             self._llmobs_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
@@ -275,12 +249,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
-        prompt_tokens = span.get_metric("openai.response.usage.prompt_tokens")
-        completion_tokens = span.get_metric("openai.response.usage.completion_tokens")
-        if prompt_tokens is None or completion_tokens is None:
-            return {}
-        return {
-            INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-            OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-            TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
-        }
+        return get_llmobs_metrics_tags("openai", span)
+
+    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
+        return is_openai_default_base_url(base_url)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: Resolves formatting errors in the bedrock integration when parsing request model IDs, which can now accept AWS ARNs. 

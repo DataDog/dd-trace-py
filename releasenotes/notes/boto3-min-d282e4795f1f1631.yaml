@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    single-step instrumentation: Removes ``boto3`` from the minimum versions list to avoid blocking SSI on ``boto3`` version.

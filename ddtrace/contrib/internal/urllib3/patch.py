@@ -1,19 +1,16 @@
 import os
+from urllib import parse
 
 import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -22,9 +19,9 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 # Ports which, if set, will not be used in hostnames/service names
@@ -54,14 +51,20 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    if hasattr(urllib3, "_request_methods"):
-        _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
-    else:
-        # Old version before https://github.com/urllib3/urllib3/pull/2398
-        _w("urllib3.request", "RequestMethods.request", _wrap_request)
+    if asm_config._load_modules:
+        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
+
+        if hasattr(urllib3, "_request_methods"):
+            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
+        else:
+            # Old version before https://github.com/urllib3/urllib3/pull/2398
+            _w("urllib3.request", "RequestMethods.request", _wrap_request)
     Pin().onto(urllib3.connectionpool.HTTPConnectionPool)
 
     if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+        from ddtrace.appsec._iast.constants import VULN_SSRF
+
         _set_metric_iast_instrumented_sink(VULN_SSRF)
 
 

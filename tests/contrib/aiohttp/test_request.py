@@ -3,7 +3,7 @@ import threading
 from urllib import request
 
 from ddtrace import config
-from ddtrace.contrib.aiohttp.middlewares import trace_app
+from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from tests.utils import assert_is_measured
 from tests.utils import override_global_config
 
@@ -29,6 +29,33 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     assert "aiohttp-web" == request_span.service
     assert "aiohttp.request" == request_span.name
     assert "GET /" == request_span.resource
+
+
+async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client, loop):
+    config.aiohttp.disable_stream_timing_for_mem_leak = True
+    try:
+        app, tracer = patched_app_tracer
+        client = await aiohttp_client(app)
+        # it should create a root span when there is a handler hit
+        # with the proper tags
+        request = await client.request("GET", "/")
+        assert 200 == request.status
+        await request.text()
+        # the trace is created
+        traces = tracer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        request_span = traces[0][0]
+        assert_is_measured(request_span)
+
+        # request
+        assert "aiohttp-web" == request_span.service
+        assert "aiohttp.request" == request_span.name
+        assert "GET /" == request_span.resource
+    except Exception:
+        raise
+    finally:
+        config.aiohttp.disable_stream_timing_for_mem_leak = False
 
 
 async def test_stream_request(patched_app_tracer, aiohttp_client, loop):

@@ -19,13 +19,13 @@ jobs:
     outputs:
       include: ${{steps.set-matrix.outputs.include}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: '3.8'
-      - run: pip install cibuildwheel==2.16.5
+      - run: pip install cibuildwheel==2.22.0
       - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
@@ -34,8 +34,9 @@ jobs:
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
             } | jq -sc
           )
           echo $MATRIX_INCLUDE
@@ -46,17 +47,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.only }}
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: matrix.os != 'arm-4core-linux'
         name: Install Python
         with:
@@ -77,13 +79,13 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
           platforms: all
 
       - name: Build wheels arm64
         if: always() && matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.16.5 --only ${{ matrix.only }}
+        run: /home/runner/.local/bin/pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -101,23 +103,24 @@ jobs:
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
             for w in ./tempwheelhouse/*.whl; do
-              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
-            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
         if: always() && matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@d04cacbc9866d432033b1d09142936e6a0e2121a # v2.23.2
         with:
           only: ${{ matrix.only }}
         env:
@@ -127,27 +130,33 @@ jobs:
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
+              yum install -y libatomic.i686
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
           CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
           CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24
+          # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
+          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+          # See: https://stackoverflow.com/a/65402241
+          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
             mkdir ./tempwheelhouse &&
             unzip -l {wheel} | grep '\.so' &&
             auditwheel repair -w ./tempwheelhouse {wheel} &&
             for w in ./tempwheelhouse/*.whl; do
-              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx
+              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
               mv $w {dest_dir}
             done &&
             rm -rf ./tempwheelhouse
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx &&
-            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
+            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS:
             choco install -y 7zip &&
-            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx &&
+            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
             move "{wheel}" "{dest_dir}"
+          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
@@ -158,7 +167,7 @@ jobs:
         run: |
           chcp 65001 #set code page to utf-8
           echo "ARTIFACT_NAME=${{ matrix.only }}"  >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl

@@ -1,13 +1,11 @@
-import sys
-
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils_side_effects import MagicMethodsException
 
 
@@ -160,10 +158,7 @@ def test_bytearray_side_effects():
 
 
 def test_bytearray_side_effects_none():
-    if sys.version_info < (3, 8):
-        msg = "'NoneType' object is not iterable"
-    else:
-        msg = "cannot convert 'NoneType' object to bytearray"
+    msg = "cannot convert 'NoneType' object to bytearray"
 
     with pytest.raises(TypeError, match=msg):
         bytearray(None)

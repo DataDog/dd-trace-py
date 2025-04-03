@@ -9,6 +9,8 @@ aioredis
 algolia
 algoliasearch
 analytics
+anthropic
+Anthropic
 AnyCallable
 api
 app
@@ -29,6 +31,8 @@ autopatching
 autoreload
 autoreloading
 aws
+AWS
+ARN
 backend
 backends
 backport
@@ -297,6 +301,7 @@ urls
 username
 uvicorn
 uWSGI
+valkey
 vendored
 versioned
 vertexai

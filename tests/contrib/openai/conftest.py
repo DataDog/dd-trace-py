@@ -7,11 +7,11 @@ from typing import Optional  # noqa:F401
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace import patch
-from ddtrace.contrib.openai.patch import unpatch
-from ddtrace.filters import TraceFilter
+from ddtrace.contrib.internal.openai.patch import patch
+from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
+from ddtrace.trace import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_config
@@ -19,7 +19,7 @@ from tests.utils import override_global_config
 
 
 if TYPE_CHECKING:
-    from ddtrace import Span  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
 
 
 def pytest_configure(config):
@@ -34,7 +34,7 @@ def api_key_in_env():
 @pytest.fixture
 def request_api_key(api_key_in_env, openai_api_key):
     """
-    OpenAI allows both using an env var or a specified param for the API key, so this fixture specifies the API key
+    OpenAI allows both using an env var or client param for the API key, so this fixture specifies the API key
     (or None) to be used in the actual request param. If the API key is set as an env var, this should return None
     to make sure the env var will be used.
     """
@@ -71,14 +71,6 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
 
 
 @pytest.fixture
-def azure_openai(openai):
-    openai.api_type = "azure"
-    openai.api_version = "2023-05-15"
-    openai.api_base = "https://test-openai.openai.azure.com/"
-    yield openai
-
-
-@pytest.fixture
 def azure_openai_config(openai):
     config = {
         "api_version": "2023-07-01-preview",
@@ -98,34 +90,6 @@ class FilterOrg(TraceFilter):
             if span.get_tag("organization"):
                 span.set_tag_str("organization", "not-a-real-org")
         return trace
-
-
-@pytest.fixture(scope="session")
-def mock_metrics():
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.get_dogstatsd_client")
-    try:
-        DogStatsdMock = patcher.start()
-        m = mock.MagicMock()
-        DogStatsdMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
-@pytest.fixture(scope="session")
-def mock_logs():
-    """
-    Note that this fixture must be ordered BEFORE mock_tracer as it needs to patch the log writer
-    before it is instantiated.
-    """
-    patcher = mock.patch("ddtrace.llmobs._integrations.base.V2LogWriter")
-    try:
-        V2LogWriterMock = patcher.start()
-        m = mock.MagicMock()
-        V2LogWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
 
 
 @pytest.fixture()
@@ -165,28 +129,25 @@ def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, o
             if api_key_in_env:
                 openai.api_key = openai_api_key
             openai.organization = openai_organization
-            patch(openai=True)
+            patch()
             yield
             unpatch()
 
 
 @pytest.fixture
-def snapshot_tracer(openai, patch_openai, mock_logs, mock_metrics):
+def snapshot_tracer(openai, patch_openai):
     pin = Pin.get_from(openai)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+    pin.tracer.configure(trace_processors=[FilterOrg()])
 
     yield pin.tracer
 
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_metrics):
+def mock_tracer(ddtrace_global_config, openai, patch_openai):
     pin = Pin.get_from(openai)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(openai, tracer=mock_tracer)
-    pin.tracer.configure(settings={"FILTERS": [FilterOrg()]})
+    pin._override(openai, tracer=mock_tracer)
+    pin.tracer.configure(trace_processors=[FilterOrg()])
 
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use to mock tracer.
@@ -195,6 +156,4 @@ def mock_tracer(ddtrace_global_config, openai, patch_openai, mock_logs, mock_met
 
     yield mock_tracer
 
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
     LLMObs.disable()

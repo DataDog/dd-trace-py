@@ -48,11 +48,27 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
-        return self
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                self._extract_token_chunk(chunk)
+                yield chunk
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
 
     def __next__(self):
         try:
             chunk = self.__wrapped__.__next__()
+            self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopIteration:
@@ -60,13 +76,30 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
+
+    def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+            return
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
+        if not getattr(choice, "finish_reason", None):
+            # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
+            return
+        try:
+            # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
+            # so we consume it and extract the token usage metadata before it reaches the user.
+            usage_chunk = self.__wrapped__.__next__()
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopIteration, GeneratorExit):
+            return
 
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
@@ -77,12 +110,28 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
-    def __aiter__(self):
-        return self
+    async def __aiter__(self):
+        exception_raised = False
+        try:
+            async for chunk in self.__wrapped__:
+                await self._extract_token_chunk(chunk)
+                yield chunk
+                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
 
     async def __anext__(self):
         try:
             chunk = await self.__wrapped__.__anext__()
+            await self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
             return chunk
         except StopAsyncIteration:
@@ -90,13 +139,27 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
+
+    async def _extract_token_chunk(self, chunk):
+        """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
+        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+            return
+        choices = getattr(chunk, "choices")
+        if not choices:
+            return
+        choice = choices[0]
+        if not getattr(choice, "finish_reason", None):
+            return
+        try:
+            usage_chunk = await self.__wrapped__.__anext__()
+            self._streamed_chunks[0].insert(0, usage_chunk)
+        except (StopAsyncIteration, GeneratorExit):
+            return
 
 
 def _compute_token_count(content, model):
@@ -207,7 +270,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
             formatted_completions = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, integration, formatted_completions, prompts, request_messages, kwargs)
+        _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
         operation = "completion" if is_completion else "chat"
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
@@ -312,8 +375,8 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion responses, and submit them as integration metrics.
+def _set_token_metrics(span, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion responses.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
@@ -332,11 +395,6 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
     span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
     span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
     span.set_metric("openai.response.usage.total_tokens", total_tokens)
-
-    tags = ["openai.estimated:true"] if estimated else None
-    integration.metric(span, "dist", "tokens.prompt", prompt_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.completion", completion_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.total", total_tokens, tags=tags)
 
 
 def _compute_prompt_tokens(model_name, prompts=None, messages=None):

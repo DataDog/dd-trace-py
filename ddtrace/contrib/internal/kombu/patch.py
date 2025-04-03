@@ -6,8 +6,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 
 # project
 from ddtrace.contrib import trace_utils
@@ -22,8 +22,8 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -117,7 +117,7 @@ def traced_receive(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
-        s.set_tag(SPAN_MEASURED_KEY)
+        s.set_tag(_SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
@@ -147,7 +147,7 @@ def traced_publish(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-        s.set_tag(SPAN_MEASURED_KEY)
+        s.set_tag(_SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag_str(kombux.EXCHANGE, exchange_name)

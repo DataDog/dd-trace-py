@@ -8,7 +8,7 @@ class Tracer(bm.Scenario):
     def run(self):
         # configure global tracer to drop traces rather than encoded and sent to
         # an agent
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         utils.drop_traces(tracer)
         utils.drop_telemetry_events()

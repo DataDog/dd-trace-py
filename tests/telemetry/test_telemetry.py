@@ -147,18 +147,14 @@ def test_app_started_error_handled_exception(test_agent_session, run_python_code
 import logging
 logging.basicConfig()
 
-from ddtrace import tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import tracer
+from ddtrace.trace import TraceFilter
 
 class FailingFilture(TraceFilter):
     def process_trace(self, trace):
        raise Exception("Exception raised in trace filter")
 
-tracer.configure(
-    settings={
-        "FILTERS": [FailingFilture()],
-    }
-)
+tracer.configure(trace_processors=[FailingFilture()])
 
 # generate and encode span to trigger sampling failure
 tracer.trace("hello").finish()
@@ -243,14 +239,12 @@ patch(raise_errors=False, sqlite3=True)
     _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
 
     assert status == 0, stderr
-    expected_stderr = b"failed to import"
-    assert expected_stderr in stderr
+    assert b"failed to enable ddtrace support for sqlite3" in stderr
 
     integrations_events = test_agent_session.get_events("app-integrations-change", subprocess=True)
     assert len(integrations_events) == 1
     assert (
-        integrations_events[0]["payload"]["integrations"][0]["error"]
-        == "failed to import ddtrace module 'ddtrace.contrib.sqlite3' when patching on import"
+        integrations_events[0]["payload"]["integrations"][0]["error"] == "module 'sqlite3' has no attribute 'connect'"
     )
 
     # Get metric containing the integration error
@@ -331,7 +325,7 @@ def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_
     env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
 
     code = """
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 # We want to import the telemetry module even when telemetry is disabled.
 import sys

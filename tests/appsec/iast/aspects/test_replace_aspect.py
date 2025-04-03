@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
@@ -28,7 +29,7 @@ def _test_replace_result(
     should_be_tainted_replstr,
     str_type,
 ):
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         if str_type == bytes:
             origstr = str_type(origstr, encoding="utf-8")
             substr = str_type(substr, encoding="utf-8")

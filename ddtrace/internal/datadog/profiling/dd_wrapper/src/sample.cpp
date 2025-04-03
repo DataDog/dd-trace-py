@@ -6,6 +6,10 @@
 #include <chrono>
 #include <string_view>
 #include <thread>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -61,7 +65,7 @@ Datadog::Sample::profile_clear_state()
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
     name = string_storage.insert(name);
     filename = string_storage.insert(filename);
 
@@ -71,8 +75,11 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
           .name = to_slice(name),
+          .name_id = { 0 },
           .system_name = {}, // No support for system_name in Python
+          .system_name_id = { 0 },
           .filename = to_slice(filename),
+          .filename_id = { 0 },
           .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,
@@ -408,7 +415,6 @@ Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
     return true;
 }
 
-
 bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
@@ -420,11 +426,21 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
+#ifdef _WIN32
+        // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+        LARGE_INTEGER frequency, counter;
+        QueryPerformanceFrequency(&frequency); // Frequency of the performance counter
+        QueryPerformanceCounter(&counter);     // Current value of the performance counter
+
+        // Convert to nanoseconds
+        auto monotonic_ns = (counter.QuadPart * 1'000'000'000LL) / frequency.QuadPart;
+#else
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+#endif
 
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;

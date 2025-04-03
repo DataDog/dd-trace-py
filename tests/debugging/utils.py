@@ -1,3 +1,5 @@
+import uuid
+
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -16,6 +18,7 @@ from ddtrace.debugging._probe.model import SpanDecorationLineProbe
 from ddtrace.debugging._probe.model import SpanDecorationTargetSpan
 from ddtrace.debugging._probe.model import SpanFunctionProbe
 from ddtrace.debugging._probe.model import StringTemplate
+from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._redaction import DDRedactedExpression
 
 
@@ -114,6 +117,16 @@ def span_decoration_probe_defaults(f):
     return _wrapper
 
 
+def trigger_probe_defaults(f):
+    def _wrapper(*args, **kwargs):
+        kwargs.setdefault("session_id", str(uuid.uuid4))
+        kwargs.setdefault("level", 0)
+        kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
+        return f(*args, **kwargs)
+
+    return _wrapper
+
+
 @create_probe_defaults
 @probe_conditional_defaults
 @snapshot_probe_defaults
@@ -177,3 +190,10 @@ def create_span_decoration_line_probe(**kwargs):
 @span_decoration_probe_defaults
 def create_span_decoration_function_probe(**kwargs):
     return SpanDecorationFunctionProbe(**kwargs)
+
+
+@create_probe_defaults
+@probe_conditional_defaults
+@trigger_probe_defaults
+def create_trigger_function_probe(**kwargs):
+    return TriggerFunctionProbe(**kwargs)

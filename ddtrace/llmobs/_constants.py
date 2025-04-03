@@ -13,7 +13,6 @@ MODEL_PROVIDER = "_ml_obs.meta.model_provider"
 INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
 INPUT_VALUE = "_ml_obs.meta.input.value"
-INPUT_PARAMETERS = "_ml_obs.meta.input.parameters"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
 OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
@@ -21,7 +20,9 @@ OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
-    "Span started while LLMObs is disabled." " Spans will not be sent to LLM Observability."
+    "Span started with LLMObs disabled."
+    " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."
+    " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
@@ -46,13 +47,15 @@ AGENTLESS_ENDPOINT = "api/v2/llmobs"
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
 
+ROOT_PARENT_ID = "undefined"
+
 # Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
 # Used to differentiate traces of Datadog-run operations vs user-application operations.
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
-# The ml app of all ragas traces have this prefix that we use to detect
-# whether a span is generated from the ragas evaluation itself.
-RAGAS_ML_APP_PREFIX = "dd-ragas"
+# All ragas traces have this context item set so we can differentiate
+# spans generated from the ragas integration vs user application spans.
+IS_EVALUATION_SPAN = "_ml_obs.evaluation_span"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
@@ -61,3 +64,8 @@ INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
 FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
 EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
 EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
+
+SPAN_LINKS = "_ml_obs.span_links"
+NAME = "_ml_obs.name"
+DECORATOR = "_ml_obs.decorator"
+INTEGRATION = "_ml_obs.integration"

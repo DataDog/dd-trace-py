@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+import time
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
@@ -22,7 +23,6 @@ from typing import cast
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace._trace.tracer import Tracer
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedContextWrappedFunction
@@ -43,7 +43,6 @@ from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -55,6 +54,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)
@@ -160,13 +160,6 @@ class DebuggerWrappingContext(WrappingContext):
         return bool(self.probes)
 
     def _open_signals(self) -> None:
-        frame = self.__frame__
-        assert frame is not None  # nosec
-
-        thread = threading.current_thread()
-
-        signal: Optional[Signal] = None
-
         # Group probes on the basis of whether they create new context.
         context_creators: List[Probe] = []
         context_consumers: List[Probe] = []
@@ -175,39 +168,47 @@ class DebuggerWrappingContext(WrappingContext):
 
         signals: Deque[Signal] = deque()
 
-        # Trigger the context creators first, so that the new context can be
-        # consumed by the consumers.
-        for probe in chain(context_creators, context_consumers):
-            # Because new context might be created, we need to recompute it
-            # for each probe.
-            trace_context = self._tracer.current_trace_context()
+        try:
+            frame = self.__frame__
+            thread = threading.current_thread()
 
-            try:
-                signal = Signal.from_probe(
-                    probe,
-                    frame=frame,
-                    thread=thread,
-                    trace_context=trace_context,
-                    meter=self._probe_meter,
-                )
-            except TypeError:
-                log.error("Unsupported probe type: %s", type(probe))
-                continue
+            # Trigger the context creators first, so that the new context can be
+            # consumed by the consumers.
+            for probe in chain(context_creators, context_consumers):
+                try:
+                    signal = Signal.from_probe(
+                        probe,
+                        frame=frame,
+                        thread=thread,
+                        # Because new context might be created, we need to
+                        # recompute it for each probe.
+                        trace_context=self._tracer.current_trace_context(),
+                        meter=self._probe_meter,
+                    )
+                except TypeError:
+                    log.error("Unsupported probe type: %s", type(probe))
+                    continue
 
-            try:
-                signal.do_enter()
-            except Exception:
-                log.exception("Failed to enter signal %r", signal)
-                continue
-            signals.append(signal)
-
-        # Save state on the wrapping context
-        self.set("start_time", compat.monotonic_ns())
-        self.set("signals", signals)
+                try:
+                    signal.do_enter()
+                except Exception:
+                    log.exception("Failed to enter signal %r", signal)
+                    continue
+                signals.append(signal)
+        finally:
+            # Save state on the wrapping context
+            self.set("start_time", time.monotonic_ns())
+            self.set("signals", signals)
 
     def _close_signals(self, retval=None, exc_info=(None, None, None)) -> None:
-        end_time = compat.monotonic_ns()
-        signals = cast(Deque[Signal], self.get("signals"))
+        end_time = time.monotonic_ns()
+
+        try:
+            signals = cast(Deque[Signal], self.get("signals"))
+        except KeyError:
+            log.error("Signal contexts were not opened for function probe over %s", self.__wrapped__)
+            return
+
         while signals:
             # Open probe signals are ordered, with those that have created new
             # tracing context first. We need to finalize them in reverse order,

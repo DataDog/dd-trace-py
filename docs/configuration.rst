@@ -10,6 +10,12 @@ see specific integration documentation for more details.
 
 The following environment variables for the tracer are supported:
 
+Common Configurations
+---------------------
+
+For common configuration variables (not language specific), see `Configure the Datadog Tracing Library`_.
+
+
 Unified Service Tagging
 -----------------------
 
@@ -114,7 +120,7 @@ Traces
 
    DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED:
      type: Boolean
-     default: False
+     default: True
      
      description: |
          This configuration enables the generation of 128 bit trace ids.
@@ -176,18 +182,6 @@ Traces
          Enables AWS response payload tagging when set to ``"all"`` or a valid comma-separated list of ``JSONPath``\s.
       version_added:
          v2.17.0:
-
-   DD_TRACE_ENABLED:
-     type: Boolean
-     default: True
-     
-     description: |
-         Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
-         generated.
-     
-     version_added:
-       v0.41.0: |
-           Formerly named ``DATADOG_TRACE_ENABLED``
 
    DD_TRACE_HEADER_TAGS:
      description: |
@@ -284,7 +278,7 @@ Traces
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
@@ -363,7 +357,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``b3``, ``tracecontext``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, extraction is disabled.
@@ -374,6 +368,26 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+   DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT:
+     default: |
+         ``continue``
+     
+     description: |
+         String for how to handle incoming request headers that are extracted for propagation of trace info.
+
+         The supported values are ``continue``, ``restart``, and ``ignore``.
+
+         After extracting the headers for propagation, this configuration determines what is done with them.
+
+         The default value is ``continue`` which always propagates valid headers.
+         ``ignore`` ignores all incoming headers and ``restart`` turns the first extracted valid propagation header 
+         into a span link and propagates baggage if present.
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="ignore"`` to ignore all incoming headers and to start a root span without a parent.
+
+     version_added:
+       v2.20.0:
+
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
          ``tracecontext,datadog``
@@ -383,7 +397,7 @@ Trace Context propagation
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``,``b3``, ``tracecontext``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
          When ``none`` is the only propagator listed, injection is disabled.
@@ -470,6 +484,11 @@ AppSec
      type: Integer
      default: 2
      description: Number of requests analyzed at the same time.
+
+   DD_IAST_DEDUPLICATION_ENABLED:
+     type: Integer
+     default: True
+     description: Avoid sending vulnerabilities in the span if they have already been reported in the last hour.
 
    DD_IAST_REDACTION_ENABLED:
      type: Boolean
@@ -563,10 +582,10 @@ Test Visibility
      default: True
      
      description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog
-        `Intelligent Test Runner <https://docs.datadoghq.com/intelligent_test_runner/>_`. Setting the variable to
-        ``false`` will skip querying the API and disable code coverage
-        collection and test skipping.
+        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
+        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
+        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
+        test skipping.
      
      version_added:
         v1.13.0:
@@ -670,9 +689,9 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
+         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
 
-         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
+         If a tag value is not supplied the value will be an empty string.
      
      version_added:
        v0.38.0: Comma separated support added
@@ -798,6 +817,7 @@ Sampling
      version_added:
         v0.33.0:
         v2.15.0: Only applied when DD_TRACE_SAMPLE_RATE, DD_TRACE_SAMPLING_RULES, or DD_SPAN_SAMPLING_RULE are set.
+        v3.0.0: Only applied when DD_TRACE_SAMPLING_RULES or DD_SPAN_SAMPLING_RULE are set.
 
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
@@ -819,11 +839,6 @@ Other
 
 .. ddtrace-configuration-options::
 
-   DD_COMPILE_DEBUG:
-     type: Boolean
-     default: False
-     description: Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
-
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
@@ -839,6 +854,25 @@ Other
          When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+     type: Boolean
+     default: False
+     version_added:
+       v3.2.0: Adds initial support
+
+     description: |
+         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
+     type: string
+     version_added:
+       v3.2.0: Adds initial support and support for enabling experimental runtime metrics. 
+     default: ""
+
+     description: |
+         Enables support for experimental ddtrace configurations. The supported configurations are: ``DD_RUNTIME_METRICS_ENABLED``.
 
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
@@ -879,8 +913,9 @@ Other
       version_added:
          v1.15.0:
 
-
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+.. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
 
 
 Profiling
@@ -906,3 +941,9 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+
+
+Live Debugging
+--------------
+
+.. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig

@@ -1,0 +1,138 @@
+[[
+  {
+    "name": "graphql.parse",
+    "service": "graphql",
+    "resource": "graphql.parse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.graphql",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679b976d00000000",
+      "component": "graphql",
+      "graphql.source": "type Query { fail: String }",
+      "language": "python",
+      "runtime-id": "596dfe80a9184851a69f62836436abe5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 27630
+    },
+    "duration": 257000,
+    "start": 1738250093732371000
+  }],
+[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "query { fail }",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "tests.contrib.graphql",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679b976d00000000",
+      "component": "graphql",
+      "error.message": "'NoneType' object has no attribute 'name'\n\nGraphQL request:3:7\n2 |     query {\n3 |       fail\n  |       ^\n4 |     }",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_graphql-core~320_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 521, in execute_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 243, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphql/test_graphql.py\", line 104, in <lambda>\n    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])\ngraphql.error.graphql_error.GraphQLError: 'NoneType' object has no attribute 'name'\n\nGraphQL request:3:7\n2 |     query {\n3 |       fail\n  |       ^\n4 |     }\n",
+      "error.type": "graphql.error.graphql_error.GraphQLError",
+      "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738250093735707000, \"attributes\": {\"message\": \"'NoneType' object has no attribute 'name'\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_graphql-core~320_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 521, in execute_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 243, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphql/test_graphql.py\\\", line 104, in <lambda>\\n    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])\\ngraphql.error.graphql_error.GraphQLError: 'NoneType' object has no attribute 'name'\\n\\nGraphQL request:3:7\\n2 |     query {\\n3 |       fail\\n  |       ^\\n4 |     }\\n\", \"path\": \"fail\"}}]",
+      "language": "python",
+      "runtime-id": "596dfe80a9184851a69f62836436abe5"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 27630
+    },
+    "duration": 1681000,
+    "start": 1738250093734027000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphql",
+         "component": "graphql",
+         "graphql.source": "query { fail }"
+       },
+       "duration": 128000,
+       "start": 1738250093734164000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphql",
+         "component": "graphql",
+         "graphql.source": "query { fail }"
+       },
+       "duration": 493000,
+       "start": 1738250093734336000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "query { fail }",
+       "trace_id": 1,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "_dd.base_service": "tests.contrib.graphql",
+         "component": "graphql",
+         "error.message": "'NoneType' object has no attribute 'name'\n\nGraphQL request:3:7\n2 |     query {\n3 |       fail\n  |       ^\n4 |     }",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_graphql-core~320_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\", line 521, in execute_field\n    result = resolve_fn(source, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 243, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphql/test_graphql.py\", line 104, in <lambda>\n    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])\ngraphql.error.graphql_error.GraphQLError: 'NoneType' object has no attribute 'name'\n\nGraphQL request:3:7\n2 |     query {\n3 |       fail\n  |       ^\n4 |     }\n",
+         "error.type": "graphql.error.graphql_error.GraphQLError",
+         "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738250093735623000, \"attributes\": {\"message\": \"'NoneType' object has no attribute 'name'\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"3:7\", \"stacktrace\": \"Traceback (most recent call last):\\n  File \\\"/Users/quinna.halim/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_graphql-core~320_pytest-randomly/lib/python3.10/site-packages/graphql/execution/execute.py\\\", line 521, in execute_field\\n    result = resolve_fn(source, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\\\", line 243, in _resolver_middleware\\n    return next_middleware(root, info, **args)\\n  File \\\"/Users/quinna.halim/dd-trace-py/tests/contrib/graphql/test_graphql.py\\\", line 104, in <lambda>\\n    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])\\ngraphql.error.graphql_error.GraphQLError: 'NoneType' object has no attribute 'name'\\n\\nGraphQL request:3:7\\n2 |     query {\\n3 |       fail\\n  |       ^\\n4 |     }\\n\", \"path\": \"fail\"}}]",
+         "graphql.operation.type": "query",
+         "graphql.source": "query { fail }"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 761000,
+       "start": 1738250093734863000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "fail",
+          "trace_id": 1,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "error": 1,
+          "meta": {
+            "_dd.base_service": "tests.contrib.graphql",
+            "component": "graphql",
+            "error.message": "'NoneType' object has no attribute 'name'",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/quinna.halim/dd-trace-py/ddtrace/contrib/internal/graphql/patch.py\", line 243, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/quinna.halim/dd-trace-py/tests/contrib/graphql/test_graphql.py\", line 104, in <lambda>\n    result = graphql_sync(test_schema, query, root_value=None, field_resolver=lambda _type, _field: resolvers[_type.name][_field.name])\nAttributeError: 'NoneType' object has no attribute 'name'\n",
+            "error.type": "builtins.AttributeError"
+          },
+          "duration": 424000,
+          "start": 1738250093734961000
+        }]]

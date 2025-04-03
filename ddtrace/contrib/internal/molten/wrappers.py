@@ -1,14 +1,15 @@
 import molten
 import wrapt
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.trace import Pin
 
 
 MOLTEN_ROUTE = "molten.route"
@@ -107,16 +108,17 @@ class WrapperRouter(wrapt.ObjectProxy):
                 route.method,
                 route.template,
             )
-            root_span = pin.tracer.current_root_span()
-            root_span.resource = resource
+
+            molten_span = core.get_item("req_span")
+            molten_span.resource = resource
 
             # if no root route set make sure we record it based on this resolved
             # route
-            if root_span:
-                if not root_span.get_tag(MOLTEN_ROUTE):
-                    root_span.set_tag(MOLTEN_ROUTE, route.name)
-                if not root_span.get_tag(http.ROUTE):
-                    root_span.set_tag_str(http.ROUTE, route.template)
+            if molten_span:
+                if not molten_span.get_tag(MOLTEN_ROUTE):
+                    molten_span.set_tag(MOLTEN_ROUTE, route.name)
+                if not molten_span.get_tag(http.ROUTE):
+                    molten_span.set_tag_str(http.ROUTE, route.template)
 
             return route, params
 

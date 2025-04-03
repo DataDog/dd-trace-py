@@ -159,7 +159,7 @@ class TestTestVisibilityAPIClientBase:
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
-    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
+    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
     default_configurations = {
         "os.architecture": "arm64",
@@ -327,7 +327,7 @@ class TestTestVisibilityAPIClientBase:
                 "runtime.version": "11.5.2",
             }
             mock_civisibility._git_client = mock.Mock(spec=CIVisibilityGitClient)
-            mock_civisibility.tracer = mock.Mock(spec=ddtrace.Tracer)
+            mock_civisibility.tracer = mock.Mock(spec=ddtrace.trace.Tracer)
             mock_civisibility.tracer._agent_url = "http://notahost:1234"
 
         return mock_civisibility

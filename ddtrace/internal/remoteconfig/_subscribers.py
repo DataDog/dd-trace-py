@@ -1,27 +1,23 @@
 import os
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Callable
+from typing import Sequence
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.remoteconfig.utils import get_poll_interval_seconds
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Optional  # noqa:F401
-
-    from ddtrace import Tracer  # noqa:F401
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
-    from ddtrace.internal.remoteconfig._connectors import SharedDataType  # noqa:F401
+from ddtrace.internal.remoteconfig import Payload
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.remoteconfig._connectors import SharedDataType
 
 
 log = get_logger(__name__)
 
 
 class RemoteConfigSubscriber(PeriodicService):
-    def __init__(self, data_connector, callback, name):
-        # type: (PublisherSubscriberConnector, Callable, str) -> None
-        super().__init__(get_poll_interval_seconds() / 2)
+    def __init__(
+        self, data_connector: PublisherSubscriberConnector, callback: Callable[[Sequence[Payload]], None], name: str
+    ) -> None:
+        super().__init__(config._remote_config_poll_interval / 2)
 
         self._data_connector = data_connector
         self._callback = callback
@@ -29,16 +25,14 @@ class RemoteConfigSubscriber(PeriodicService):
 
         log.debug("[PID %d] %s initialized", os.getpid(), self)
 
-    def _exec_callback(self, data, test_tracer=None):
-        # type: (SharedDataType, Optional[Tracer]) -> None
+    def _exec_callback(self, data: SharedDataType) -> None:
         if data:
             log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
-            self._callback(data, test_tracer=test_tracer)
+            self._callback(data)
 
-    def _get_data_from_connector_and_exec(self, test_tracer=None):
-        # type: (Optional[Tracer]) -> None
+    def _get_data_from_connector_and_exec(self) -> None:
         data = self._data_connector.read()
-        self._exec_callback(data, test_tracer=test_tracer)
+        self._exec_callback(data)
 
     def periodic(self):
         try:

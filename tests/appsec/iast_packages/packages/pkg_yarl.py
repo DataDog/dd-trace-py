@@ -44,7 +44,7 @@ def pkg_yarl_view():
 def pkg_yarl_propagation_view():
     from yarl import URL
 
-    from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

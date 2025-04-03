@@ -1,8 +1,8 @@
 from unittest import TestCase
 
 from ddtrace import config
-from ddtrace.pin import Pin
 from ddtrace.settings import IntegrationConfig
+from ddtrace.trace import Pin
 
 
 class InstanceConfigTestCase(TestCase):
@@ -22,47 +22,47 @@ class InstanceConfigTestCase(TestCase):
 
     def test_configuration_get_from(self):
         # ensure a dictionary is returned
-        cfg = config.get_from(self.Klass)
+        cfg = config._get_from(self.Klass)
         assert isinstance(cfg, dict)
 
     def test_configuration_get_from_twice(self):
         # ensure the configuration is the same if `get_from` is used
         # in the same instance
         instance = self.Klass()
-        cfg1 = config.get_from(instance)
-        cfg2 = config.get_from(instance)
+        cfg1 = config._get_from(instance)
+        cfg2 = config._get_from(instance)
         assert cfg1 is cfg2
 
     def test_configuration_set(self):
         # ensure the configuration can be updated in the Pin
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         cfg["distributed_tracing"] = True
-        assert config.get_from(instance)["distributed_tracing"] is True
+        assert config._get_from(instance)["distributed_tracing"] is True
 
     def test_global_configuration_inheritance(self):
         # ensure global configuration is inherited when it's set
-        cfg = config.get_from(self.Klass)
+        cfg = config._get_from(self.Klass)
         cfg["distributed_tracing"] = True
         instance = self.Klass()
-        assert config.get_from(instance)["distributed_tracing"] is True
+        assert config._get_from(instance)["distributed_tracing"] is True
 
     def test_configuration_override_instance(self):
         # ensure instance configuration doesn't override global settings
-        global_cfg = config.get_from(self.Klass)
+        global_cfg = config._get_from(self.Klass)
         global_cfg["distributed_tracing"] = True
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         cfg["distributed_tracing"] = False
-        assert config.get_from(self.Klass)["distributed_tracing"] is True
-        assert config.get_from(instance)["distributed_tracing"] is False
+        assert config._get_from(self.Klass)["distributed_tracing"] is True
+        assert config._get_from(instance)["distributed_tracing"] is False
 
     def test_service_name_for_pin(self):
         # ensure for backward compatibility that changing the service
         # name via the Pin object also updates integration config
         Pin(service="intake").onto(self.Klass)
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         assert cfg["service_name"] == "intake"
 
     def test_service_attribute_priority(self):
@@ -73,7 +73,7 @@ class InstanceConfigTestCase(TestCase):
         }
         Pin(service="service", _config=global_config).onto(self.Klass)
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         assert cfg["service_name"] == "service"
 
     def test_configuration_copy(self):
@@ -83,7 +83,7 @@ class InstanceConfigTestCase(TestCase):
         }
         Pin(service="service", _config=global_config).onto(self.Klass)
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         cfg["service_name"] = "metrics"
         assert global_config["service_name"] == "service"
 
@@ -98,7 +98,7 @@ class InstanceConfigTestCase(TestCase):
         global_config["service_name"] = "metrics"
         # use the Pin via `get_from`
         instance = self.Klass()
-        cfg = config.get_from(instance)
+        cfg = config._get_from(instance)
         # it should have users updated value
         assert cfg["service_name"] == "metrics"
 

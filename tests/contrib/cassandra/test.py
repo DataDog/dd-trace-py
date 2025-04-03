@@ -9,16 +9,16 @@ from cassandra.query import BatchStatement
 from cassandra.query import SimpleStatement
 import mock
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.cassandra.patch import patch
-from ddtrace.contrib.cassandra.patch import unpatch
-from ddtrace.contrib.cassandra.session import SERVICE
+from ddtrace.contrib.internal.cassandra.patch import patch
+from ddtrace.contrib.internal.cassandra.patch import unpatch
+from ddtrace.contrib.internal.cassandra.session import SERVICE
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -360,7 +360,7 @@ class TestCassPatchDefault(unittest.TestCase, CassandraBase):
 
     def _traced_session(self):
         tracer = DummyTracer()
-        Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
+        Pin.get_from(self.cluster)._clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
 
@@ -379,7 +379,9 @@ class TestCassPatchAll(TestCassPatchDefault):
     def _traced_session(self):
         tracer = DummyTracer()
         # pin the global Cluster to test if they will conflict
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
+        pin = Pin(service=self.TEST_SERVICE)
+        pin._tracer = tracer
+        pin.onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
 
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
@@ -403,7 +405,9 @@ class TestCassPatchOne(TestCassPatchDefault):
         Pin(service="not-%s" % self.TEST_SERVICE).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
 
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(self.cluster)
+        pin = Pin(service=self.TEST_SERVICE)
+        pin._tracer = tracer
+        pin.onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
     def test_patch_unpatch(self):
@@ -412,7 +416,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         patch()
 
         tracer = DummyTracer()
-        Pin.get_from(Cluster).clone(tracer=tracer).onto(Cluster)
+        Pin.get_from(Cluster)._clone(tracer=tracer).onto(Cluster)
 
         session = Cluster(port=CASSANDRA_CONFIG["port"]).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
@@ -432,7 +436,7 @@ class TestCassPatchOne(TestCassPatchDefault):
 
         # Test patch again
         patch()
-        Pin.get_from(Cluster).clone(tracer=tracer).onto(Cluster)
+        Pin.get_from(Cluster)._clone(tracer=tracer).onto(Cluster)
 
         session = Cluster(port=CASSANDRA_CONFIG["port"]).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
@@ -454,7 +458,7 @@ class TestCassandraConfig(TracerTestCase):
         patch()
         self.tracer = DummyTracer()
         self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
-        Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
+        Pin.get_from(self.cluster)._clone(tracer=self.tracer).onto(self.cluster)
         self.session = self.cluster.connect(self.TEST_KEYSPACE)
 
     def tearDown(self):

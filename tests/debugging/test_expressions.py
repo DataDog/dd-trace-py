@@ -74,6 +74,10 @@ class CustomDict(dict):
         ({"eq": [{"ref": "hits"}, None]}, {"hits": None}, True),
         ({"substring": [{"ref": "payload"}, 4, 7]}, {"payload": "hello world"}, "hello world"[4:7]),
         ({"any": [{"ref": "collection"}, {"isEmpty": {"ref": "@it"}}]}, {"collection": ["foo", "bar", ""]}, True),
+        ({"any": [{"ref": "coll"}, {"isEmpty": {"ref": "@value"}}]}, {"coll": {0: "foo", 1: "bar", 2: ""}}, True),
+        ({"any": [{"ref": "coll"}, {"isEmpty": {"ref": "@value"}}]}, {"coll": {0: "foo", 1: "bar", 2: "baz"}}, False),
+        ({"any": [{"ref": "coll"}, {"isEmpty": {"ref": "@key"}}]}, {"coll": {"foo": 0, "bar": 1, "": 2}}, True),
+        ({"any": [{"ref": "coll"}, {"isEmpty": {"ref": "@key"}}]}, {"coll": {"foo": 0, "bar": 1, "baz": 2}}, False),
         ({"startsWith": [{"ref": "local_string"}, "hello"]}, {"local_string": "hello world!"}, True),
         ({"startsWith": [{"ref": "local_string"}, "world"]}, {"local_string": "hello world!"}, False),
         (
@@ -90,6 +94,16 @@ class CustomDict(dict):
             {"filter": [{"ref": "collection"}, {"not": {"isEmpty": {"ref": "@it"}}}]},
             {"collection": {"foo", "bar", ""}},
             {"foo", "bar"},
+        ),
+        (
+            {"filter": [{"ref": "collection"}, {"not": {"isEmpty": {"ref": "@value"}}}]},
+            {"collection": {1: "foo", 2: "bar", 3: ""}},
+            {1: "foo", 2: "bar"},
+        ),
+        (
+            {"filter": [{"ref": "collection"}, {"not": {"isEmpty": {"ref": "@key"}}}]},
+            {"collection": {"foo": 1, "bar": 2, "": 3}},
+            {"foo": 1, "bar": 2},
         ),
         ({"contains": [{"ref": "payload"}, "hello"]}, {"payload": CustomObject("contains")}, SideEffect),
         (

@@ -2,10 +2,9 @@ import contextlib
 
 import pymongo
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -15,6 +14,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
+from ddtrace.trace import Pin
 
 from ....internal.schema import schematize_service_name
 
@@ -129,7 +129,7 @@ def traced_get_socket(func, args, kwargs):
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
             # Ensure the pin used on the traced mongo client is passed down to the socket instance
             # (via the server instance)
             Pin.get_from(instance).onto(sock_info)

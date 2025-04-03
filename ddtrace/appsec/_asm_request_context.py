@@ -1,42 +1,53 @@
 import functools
 import json
 import re
-import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Set
 from typing import Union
 from urllib import parse
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.appsec._utils import add_context_log
+from ddtrace.appsec._constants import Constant_Class
+from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
-from ddtrace.internal.logger import get_logger
+import ddtrace.internal.logger as ddlogger
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Span
 
 
-if TYPE_CHECKING:
-    from ddtrace.appsec._ddwaf import DDWaf_info
-    from ddtrace.appsec._ddwaf import DDWaf_result
+logger = ddlogger.get_logger(__name__)
 
-log = get_logger(__name__)
+
+class WARNING_TAGS(metaclass=Constant_Class):
+    ASM_ENV_NO_SPAN = "asm_context::ASM_Environment::no_span"
+    SET_BLOCKED_NO_ASM_CONTEXT = "asm_context::set_blocked::no_active_context"
+    SET_WAF_INFO_NO_ASM_CONTEXT = "asm_context::set_waf_info::no_active_context"
+    CALL_WAF_CALLBACK_NOT_SET = "asm_context::call_waf_callback::not_set"
+    BLOCK_REQUEST_NOT_CALLABLE = "asm_context::block_request::not_callable"
+    GET_DATA_SENT_NO_ASM_CONTEXT = "asm_context::get_data_sent::no_active_context"
+    STORE_WAF_RESULTS_NO_ASM_CONTEXT = "asm_context::store_waf_results_data::no_active_context"
+
+
+# limit warnings to one per day per process
+for _, tag in WARNING_TAGS:
+    ddlogger.set_tag_rate_limit(tag, ddlogger.DAY)
+
+log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
+
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
 _ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
@@ -45,7 +56,6 @@ _TELEMETRY: Literal["telemetry"] = "telemetry"
 _CONTEXT_CALL: Literal["context"] = "context"
 _WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
-_TELEMETRY_WAF_RESULTS: Literal["t_waf_results"] = "t_waf_results"
 
 
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
@@ -59,7 +69,7 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         self.root = not in_asm_context()
         if self.root:
@@ -67,34 +77,22 @@ class ASM_Environment:
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
         context_span = span or core.get_span() or tracer.current_span()
         if context_span is None:
-            info = add_context_log(log, "appsec.asm_context.warning::ASM_Environment::no_span")
-            log.warning(info)
-            context_span = tracer.trace("asm.context")
+            logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
+            context_span = tracer.trace("sdk.request")
         self.span: Span = context_span
-        self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
+        if self.span.name.endswith(".request"):
+            self.framework = self.span.name[:-8]
+        else:
+            self.framework = self.span.name
+        self.framework = self.framework.lower().replace(" ", "_")
+        self.waf_info: Optional[Callable[[], DDWaf_info]] = None
         self.waf_addresses: Dict[str, Any] = {}
         self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
-        self.telemetry: Dict[str, Any] = {
-            _TELEMETRY_WAF_RESULTS: {
-                "blocked": False,
-                "triggered": False,
-                "timeout": False,
-                "version": None,
-                "duration": 0.0,
-                "total_duration": 0.0,
-                "rasp": {
-                    "sum_eval": 0,
-                    "duration": 0.0,
-                    "total_duration": 0.0,
-                    "eval": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
-                    "match": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
-                    "timeout": {t: 0 for _, t in EXPLOIT_PREVENTION.TYPE},
-                },
-            }
-        }
+        self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: Set[str] = set()
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
+        self.finalized: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -117,6 +115,13 @@ def get_blocked() -> Dict[str, Any]:
     if env is None:
         return {}
     return env.blocked or {}
+
+
+def get_framework() -> str:
+    env = _get_asm_context()
+    if env is None:
+        return ""
+    return env.framework
 
 
 def _use_html(headers) -> bool:
@@ -160,8 +165,7 @@ def set_blocked(blocked: Dict[str, Any]) -> None:
     blocked = blocked.copy()
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, "appsec.asm_context.warning::set_blocked::no_active_context")
-        log.warning(info)
+        logger.warning(WARNING_TAGS.SET_BLOCKED_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
         return
     _ctype_from_headers(blocked, get_headers())
     env.blocked = blocked
@@ -172,9 +176,11 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
+    from ddtrace.appsec._metrics import DDWAF_VERSION
+
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
 
         current_span = tracer.current_span()
         if current_span is None:
@@ -193,41 +199,56 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         else:
             root_span.set_tag(APPSEC.JSON, json.dumps({"triggers": report_list}, separators=(",", ":")))
         env.waf_triggers = []
-    telemetry_results = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
-    if telemetry_results:
-        from ddtrace.appsec._metrics import DDWAF_VERSION
+    telemetry_results: Telemetry_result = env.telemetry
 
-        root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
-        if telemetry_results["total_duration"]:
-            update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results["duration"])
-            telemetry_results["duration"] = 0.0
-            update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results["total_duration"])
-            telemetry_results["total_duration"] = 0.0
-        if telemetry_results["rasp"]["sum_eval"]:
-            update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results["rasp"]["duration"])
-            telemetry_results["rasp"]["duration"] = 0.0
-            update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results["rasp"]["total_duration"])
-            telemetry_results["rasp"]["total_duration"] = 0.0
-            update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results["rasp"]["sum_eval"])
-            telemetry_results["rasp"]["sum_eval"] = 0
+    root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+    if telemetry_results.total_duration:
+        update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results.duration)
+        telemetry_results.duration = 0.0
+        update_span_metrics(root_span, APPSEC.WAF_DURATION_EXT, telemetry_results.total_duration)
+        telemetry_results.total_duration = 0.0
+    if telemetry_results.timeout:
+        update_span_metrics(root_span, APPSEC.WAF_TIMEOUTS, telemetry_results.timeout)
+    rasp_timeouts = sum(telemetry_results.rasp.timeout.values())
+    if rasp_timeouts:
+        update_span_metrics(root_span, APPSEC.RASP_TIMEOUTS, rasp_timeouts)
+    if telemetry_results.rasp.sum_eval:
+        update_span_metrics(root_span, APPSEC.RASP_DURATION, telemetry_results.rasp.duration)
+        update_span_metrics(root_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
+        update_span_metrics(root_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
+    if telemetry_results.truncation.string_length:
+        root_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
+    if telemetry_results.truncation.container_size:
+        root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results.truncation.container_size))
+    if telemetry_results.truncation.container_depth:
+        root_span.set_metric(APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results.truncation.container_depth))
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
-    callbacks = GLOBAL_CALLBACKS[_CONTEXT_CALL] + env.callbacks[_CONTEXT_CALL]
-    for function in callbacks:
+    if env.finalized:
+        return
+    env.finalized = True
+    for function in GLOBAL_CALLBACKS[_CONTEXT_CALL]:
         function(env)
     flush_waf_triggers(env)
-    if env.waf_info:
-        info = env.waf_info()
-        try:
-            if info.errors:
-                env.span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
-                log.debug("appsec.asm_context.debug::finalize_asm_env::waf_errors::%s", info.errors)
-            env.span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-            env.span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-            env.span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
-        except Exception:
-            log.debug("appsec.asm_context.debug::finalize_asm_env::exception::%s", exc_info=True)
+    for function in env.callbacks[_CONTEXT_CALL]:
+        function(env)
+    root_span = env.span._local_root or env.span
+    if root_span:
+        if env.waf_info:
+            info = env.waf_info()
+            try:
+                if info.errors:
+                    root_span.set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
+                    logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
+                root_span.set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
+                root_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
+                root_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+            except Exception:
+                logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
+        if asm_config._rc_client_id is not None:
+            root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -235,8 +256,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
 def set_value(category: str, address: str, value: Any) -> None:
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, f"appsec.asm_context.debug::set_value::no_active_context::{category}::{address}")
-        log.debug(info)
+        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
+        logger.debug("asm_context::set_value::no_active_context", extra=extra, stack_info=True)
         return
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
@@ -272,8 +293,8 @@ def set_waf_address(address: str, value: Any) -> None:
 def get_value(category: str, address: str, default: Any = None) -> Any:
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, f"appsec.asm_context.debug::get_value::no_active_context::{category}::{address}")
-        log.debug(info)
+        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
+        logger.debug("asm_context::get_value::no_active_context", extra=extra, stack_info=True)
         return default
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
@@ -307,24 +328,22 @@ def set_waf_callback(value) -> None:
     set_value(_CALLBACKS, _WAF_CALL, value)
 
 
-def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
+def set_waf_info(info: Callable[[], DDWaf_info]) -> None:
     env = _get_asm_context()
     if env is None:
-        info_str = add_context_log(log, "appsec.asm_context.warning::set_waf_info::no_active_context")
-        log.warning(info_str)
+        logger.warning(WARNING_TAGS.SET_WAF_INFO_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
         return
     env.waf_info = info
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
+def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[DDWaf_result]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
     if callback:
         return callback(custom_data, **kwargs)
     else:
-        info = add_context_log(log, "appsec.asm_context.warning::call_waf_callback::not_set")
-        log.warning(info)
+        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
         return None
 
 
@@ -377,15 +396,13 @@ def block_request() -> None:
     if _callable:
         _callable()
     else:
-        info = add_context_log(log, "appsec.asm_context.debug::block_request::no_callable")
-        log.debug(info)
+        logger.warning(WARNING_TAGS.BLOCK_REQUEST_NOT_CALLABLE, extra=log_extra, stack_info=True)
 
 
 def get_data_sent() -> Set[str]:
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, "appsec.asm_context.debug::get_data_sent::no_asm_context")
-        log.debug(info)
+        logger.warning(WARNING_TAGS.GET_DATA_SENT_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
         return set()
     return env.addresses_sent
 
@@ -404,36 +421,53 @@ def asm_request_context_set(
 
 def set_waf_telemetry_results(
     rules_version: Optional[str],
-    is_triggered: bool,
     is_blocked: bool,
-    is_timeout: bool,
+    waf_results: DDWaf_result,
     rule_type: Optional[str],
-    duration: float,
-    total_duration: float,
+    is_sampled: bool,
 ) -> None:
-    result = get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
-    if result is not None:
-        if rule_type is None:
-            # Request Blocking telemetry
-            result["triggered"] |= is_triggered
-            result["blocked"] |= is_blocked
-            result["timeout"] |= is_timeout
-            if rules_version is not None:
-                result["version"] = rules_version
-            result["duration"] += duration
-            result["total_duration"] += total_duration
+    env = _get_asm_context()
+    if env is None:
+        return
+    result: Telemetry_result = env.telemetry
+    is_triggered = bool(waf_results.data)
+    from ddtrace.appsec._metrics import _report_waf_truncations
+
+    result.rate_limited |= is_sampled
+    if waf_results.return_code:
+        if result.error:
+            result.error = max(result.error, waf_results.return_code)
         else:
-            # Exploit Prevention telemetry
-            result["rasp"]["sum_eval"] += 1
-            result["rasp"]["eval"][rule_type] += 1
-            result["rasp"]["match"][rule_type] += int(is_triggered)
-            result["rasp"]["timeout"][rule_type] += int(is_timeout)
-            result["rasp"]["duration"] += duration
-            result["rasp"]["total_duration"] += total_duration
+            result.error = waf_results.return_code
+    _report_waf_truncations(waf_results.truncation)
+    for key in ["container_size", "container_depth", "string_length"]:
+        res = getattr(waf_results.truncation, key)
+        if isinstance(res, int):
+            getattr(result.truncation, key).append(res)
+    if rule_type is None:
+        # Request Blocking telemetry
+        result.triggered |= is_triggered
+        result.blocked |= is_blocked
+        result.timeout += waf_results.timeout
+        if rules_version is not None:
+            result.version = rules_version
+        result.duration += waf_results.runtime
+        result.total_duration += waf_results.total_runtime
+    else:
+        # Exploit Prevention telemetry
+        result.rasp.sum_eval += 1
+        result.rasp.eval[rule_type] += 1
+        result.rasp.match[rule_type] += int(is_triggered)
+        result.rasp.timeout[rule_type] += int(waf_results.timeout)
+        result.rasp.duration += waf_results.runtime
+        result.rasp.total_duration += waf_results.total_runtime
 
 
-def get_waf_telemetry_results() -> Optional[Dict[str, Any]]:
-    return get_value(_TELEMETRY, _TELEMETRY_WAF_RESULTS)
+def get_waf_telemetry_results() -> Optional[Telemetry_result]:
+    env = _get_asm_context()
+    if env:
+        return env.telemetry
+    return None
 
 
 def store_waf_results_data(data) -> None:
@@ -441,8 +475,7 @@ def store_waf_results_data(data) -> None:
         return
     env = _get_asm_context()
     if env is None:
-        info = add_context_log(log, "appsec.asm_context.warning::store_waf_results_data::no_asm_context")
-        log.warning(info)
+        logger.warning(WARNING_TAGS.STORE_WAF_RESULTS_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
         return
     for d in data:
         d["span_id"] = env.span.span_id
@@ -459,8 +492,6 @@ def start_context(span: Span):
             core.get_local_item("headers_case_sensitive"),
             core.get_local_item("block_request_callable"),
         )
-    elif asm_config._iast_enabled:
-        core.set_item(_ASM_CONTEXT, ASM_Environment())
 
 
 def end_context(span: Span):
@@ -476,63 +507,20 @@ def _on_context_ended(ctx):
 
 
 def _on_wrapped_view(kwargs):
-    return_value = [None, None]
+    callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
     if asm_config._asm_enabled and in_asm_context():
-        log.debug("Flask WAF call for Suspicious Request Blocking on request")
+        logger.debug("asm_context::flask::srb_on_request_param", extra=log_extra)
         if kwargs:
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
         call_waf_callback()
         if is_blocked():
             callback_block = get_value(_CALLBACKS, "flask_block")
-            return_value[0] = callback_block
-
-    # If IAST is enabled, taint the Flask function kwargs (path parameters)
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-    if _is_iast_enabled() and kwargs:
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-
-        if not is_iast_request_enabled():
-            return return_value
-
-        _kwargs = {}
-        for k, v in kwargs.items():
-            _kwargs[k] = taint_pyobject(
-                pyobject=v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-            )
-        return_value[1] = _kwargs
-    return return_value
-
-
-def _on_set_request_tags(request, span, flask_config):
-    from ddtrace.appsec._iast._utils import _is_iast_enabled
-
-    if _is_iast_enabled():
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-        from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-        from ddtrace.appsec._iast._taint_tracking import OriginType
-        from ddtrace.appsec._iast._taint_utils import taint_structure
-
-        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
-        _set_metric_iast_instrumented_source(OriginType.COOKIE)
-
-        if not is_iast_request_enabled():
-            return
-
-        request.cookies = taint_structure(
-            request.cookies,
-            OriginType.COOKIE_NAME,
-            OriginType.COOKIE,
-            override_pyobject_tainted=True,
-        )
+    return callback_block
 
 
 def _on_pre_tracedrequest(ctx):
     current_span = ctx.span
-    _on_set_request_tags(ctx.get_item("flask_request"), current_span, ctx.get_item("flask_config"))
     block_request_callable = ctx.get_item("block_request_callable")
     if asm_config._asm_enabled:
         set_block_request_callable(functools.partial(block_request_callable, current_span))
@@ -559,8 +547,8 @@ def _set_headers_and_response(response, headers, *_):
 def _call_waf_first(integration, *_):
     if not asm_config._asm_enabled:
         return
-
-    log.debug("%s WAF call for Suspicious Request Blocking on request", integration)
+    info = f"{integration}::srb_on_request"
+    logger.debug(info, extra=log_extra)
     result = call_waf_callback()
     return result.derivatives if result is not None else None
 
@@ -568,8 +556,8 @@ def _call_waf_first(integration, *_):
 def _call_waf(integration, *_):
     if not asm_config._asm_enabled:
         return
-
-    log.debug("%s WAF call for Suspicious Request Blocking on response", integration)
+    info = f"{integration}::srb_on_response"
+    logger.debug(info, extra=log_extra)
     result = call_waf_callback()
     return result.derivatives if result is not None else None
 
@@ -589,11 +577,13 @@ def _get_headers_if_appsec():
 
 def asm_listen():
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._trace_utils import listen as trace_listen
 
     listen()
+    trace_listen()
 
     core.on("flask.finalize_request.post", _set_headers_and_response)
-    core.on("flask.wrapped_view", _on_wrapped_view, "callback_and_args")
+    core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
     core.on("flask.start_response", _call_waf_first, "waf")
@@ -603,7 +593,6 @@ def asm_listen():
     core.on("django.after_request_headers", _get_headers_if_appsec, "headers")
     core.on("django.extract_body", _get_headers_if_appsec, "headers")
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
-    core.on("flask.set_request_tags", _on_set_request_tags)
 
     core.on("asgi.start_request", _call_waf_first)
     core.on("asgi.start_response", _call_waf)

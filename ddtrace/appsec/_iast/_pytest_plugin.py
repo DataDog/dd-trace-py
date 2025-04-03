@@ -4,9 +4,9 @@ import json
 from typing import List
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._utils import _is_iast_enabled
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -20,13 +20,15 @@ class VulnerabilityFoundInTest(Vulnerability):
 try:
     import pytest
 
-    @pytest.fixture(autouse=_is_iast_enabled())
+    @pytest.fixture(autouse=asm_config._iast_enabled)
     def ddtrace_iast(request, ddspan):
         """
         Extract the vulnerabilities discovered in tests.
         Optionally output the test as failed if vulnerabilities are found.
         """
         yield
+        if ddspan is None:
+            return
         data = ddspan.get_tag(IAST.JSON)
         if not data:
             return
@@ -70,7 +72,7 @@ def extract_code_snippet(filepath, line_number, context=3):
 
 
 def print_iast_report(terminalreporter):
-    if not _is_iast_enabled():
+    if not asm_config._iast_enabled:
         return
 
     if not vuln_data:

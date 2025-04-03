@@ -13,14 +13,12 @@ from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 import wrapt
 
-from ddtrace import Pin  # noqa:F401
-from ddtrace import Span  # noqa:F401
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
@@ -30,6 +28,8 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import Pin  # noqa:F401
+from ddtrace.trace import Span  # noqa:F401
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
@@ -191,7 +191,7 @@ def _create_span(pin, method, invocation_metadata, method_kind):
     # set span.kind to the type of operation being performed
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
 
     set_grpc_method_meta(span, method, method_kind)
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)

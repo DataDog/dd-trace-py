@@ -7,12 +7,12 @@ import typing
 
 import wrapt
 
-from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
+from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)

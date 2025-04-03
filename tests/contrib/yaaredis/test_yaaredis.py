@@ -6,9 +6,9 @@ import pytest
 from wrapt import ObjectProxy
 import yaaredis
 
-from ddtrace import Pin
-from ddtrace.contrib.yaaredis.patch import patch
-from ddtrace.contrib.yaaredis.patch import unpatch
+from ddtrace.contrib.internal.yaaredis.patch import patch
+from ddtrace.contrib.internal.yaaredis.patch import unpatch
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
 
@@ -115,7 +115,7 @@ async def test_pipeline_immediate(snapshot_context, traced_yaaredis):
 async def test_meta_override(tracer, test_spans, traced_yaaredis):
     pin = Pin.get_from(traced_yaaredis)
     assert pin is not None
-    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(traced_yaaredis)
+    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(traced_yaaredis)
 
     await traced_yaaredis.get("cheese")
     test_spans.assert_trace_count(1)
@@ -130,7 +130,7 @@ async def test_meta_override(tracer, test_spans, traced_yaaredis):
 @pytest.mark.asyncio
 async def test_service_name(tracer, test_spans, traced_yaaredis):
     service = str(uuid.uuid4())
-    Pin.override(traced_yaaredis, service=service, tracer=tracer)
+    Pin._override(traced_yaaredis, service=service, tracer=tracer)
 
     await traced_yaaredis.set("cheese", "1")
     test_spans.assert_trace_count(1)
@@ -142,7 +142,7 @@ async def test_service_name(tracer, test_spans, traced_yaaredis):
 async def test_service_name_config(tracer, test_spans, traced_yaaredis):
     service = str(uuid.uuid4())
     with override_config("yaaredis", dict(service=service)):
-        Pin.override(traced_yaaredis, tracer=tracer)
+        Pin._override(traced_yaaredis, tracer=tracer)
         await traced_yaaredis.set("cheese", "1")
         test_spans.assert_trace_count(1)
         test_spans.assert_span_count(1)
@@ -204,6 +204,8 @@ if __name__ == "__main__":
 @pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
+    import ddtrace.auto  # noqa
+
     import asyncio
 
     import yaaredis

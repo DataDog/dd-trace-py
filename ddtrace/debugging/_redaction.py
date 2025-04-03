@@ -41,7 +41,6 @@ REDACTED_IDENTIFIERS = (
             "dburl",
             "encryptionkey",
             "encryptionkeyid",
-            "env",
             "geolocation",
             "gpgkey",
             "ipaddress",

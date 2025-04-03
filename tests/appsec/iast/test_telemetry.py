@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
@@ -14,20 +12,22 @@ from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
-from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
-from ddtrace.contrib.sqlalchemy import patch as sqli_sqlalchemy_patch
-from ddtrace.contrib.sqlite3 import patch as sqli_sqlite3_patch
+from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqli_sqlalchemy_patch
+from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -35,7 +35,7 @@ from tests.utils import override_global_config
 
 def _assert_instrumented_sink(telemetry_writer, vuln_type):
     metrics_result = telemetry_writer._namespace._metrics_data
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
     assert [metric.name for metric in generate_metrics.values()] == ["instrumented.sink"]
     assert [metric._tags for metric in generate_metrics.values()] == [(("vulnerability_type", vuln_type),)]
@@ -84,7 +84,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
 
         metrics_result = telemetry_writer._namespace._metrics_data
 
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST].values()
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value].values()
     assert len(generate_metrics) == 1
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
@@ -102,15 +102,6 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
     _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
 
 
-def test_metric_instrumented_path_traversal(no_request_sampling, telemetry_writer):
-    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    unpatch_common_modules()
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
-        patch_common_modules()
-
-    _assert_instrumented_sink(telemetry_writer, VULN_PATH_TRAVERSAL)
-
-
 def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
     header_injection_unpatch()
@@ -118,6 +109,15 @@ def test_metric_instrumented_header_injection(no_request_sampling, telemetry_wri
         header_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
+
+
+def test_metric_instrumented_code_injection(no_request_sampling, telemetry_writer):
+    # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
+    code_injection_unpatch()
+    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+        code_injection_patch()
+
+    _assert_instrumented_sink(telemetry_writer, VULN_CODE_INJECTION)
 
 
 def test_metric_instrumented_sqli_sqlite3(no_request_sampling, telemetry_writer):
@@ -139,7 +139,7 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
     metrics_result = telemetry_writer._namespace._metrics_data
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
     filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
@@ -163,7 +163,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
 
     metrics_result = telemetry_writer._namespace._metrics_data
 
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE_TAG_IAST]
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
     filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]

@@ -9,12 +9,12 @@ from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.redis_utils import ROW_RETURNING_COMMANDS
-from ddtrace.contrib.redis_utils import _run_redis_command_async
-from ddtrace.contrib.redis_utils import determine_row_count
+from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
+from ddtrace.contrib.internal.redis_utils import determine_row_count
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -27,7 +27,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -149,7 +149,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
 
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
@@ -225,7 +225,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
             }
         )
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         span.set_tag_str(redisx.RAWCMD, cmds_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
         # set analytics sample rate if enabled

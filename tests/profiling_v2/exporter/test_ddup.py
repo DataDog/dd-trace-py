@@ -57,11 +57,7 @@ def test_tags_propagated_when_libdd_enabled():
 
     ddup.config.assert_called()
 
-    if sys.version_info >= (3, 8):
-        tags = ddup.config.call_args.kwargs["tags"]
-    else:
-        # Until Python 3.7, call_args didn't have kwargs attribute
-        tags = ddup.config.call_args[1]["tags"]
+    tags = ddup.config.call_args.kwargs["tags"]
 
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security (IAST): This introduces Code Security support to PyMySQL and MySQLDB integrations.

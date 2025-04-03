@@ -1,4 +1,4 @@
-from ddtrace import Pin
+from ddtrace.trace import Pin
 
 
 # DBM Shared Tests
@@ -72,8 +72,8 @@ def _test_dbm_propagation_comment_pin_service_name_override(
     """tests if dbm comment is set in mysql"""
     db_name = config["db"]
 
-    Pin.override(conn, service="pin-service-name-override", tracer=tracer)
-    Pin.override(cursor, service="pin-service-name-override", tracer=tracer)
+    Pin._override(conn, service="pin-service-name-override", tracer=tracer)
+    Pin._override(cursor, service="pin-service-name-override", tracer=tracer)
 
     dbm_comment = (
         f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"

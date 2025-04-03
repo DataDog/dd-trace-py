@@ -6,7 +6,7 @@ jobs:
   require-checklist:
     runs-on: ubuntu-latest
     steps:
-      - uses: mheap/require-checklist-action@v2
+      - uses: mheap/require-checklist-action@efef3b1b39d03d12be5ce427c15064f287ba5843 # v2.4.0
         with:
           # require a checklist to be present in the PR description
           requireChecklist: true

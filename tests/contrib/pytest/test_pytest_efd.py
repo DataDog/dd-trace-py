@@ -7,15 +7,16 @@ are checked.
 - The session object is patched to never be a faulty session, by default.
 """
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
-from tests.ci_visibility.util import _fetch_unique_tests_side_effect
+from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
@@ -107,7 +108,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
             return_value=_KNOWN_TEST_IDS,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -116,10 +117,6 @@ class PytestEFDTestCase(PytestTestCaseBase):
             ),
         ):
             yield
-            from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-            if CIVisibility.enabled:
-                CIVisibility.disable()
 
     def test_pytest_efd_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
@@ -139,8 +136,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
-            side_effect=_fetch_unique_tests_side_effect(set()),
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            side_effect=_fetch_known_tests_side_effect(set()),
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
@@ -289,3 +286,17 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
         assert rec.ret == 1
         assert len(spans) == 7
+
+    def test_pytest_efd_junit_xml(self):
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+        assert rec.ret == 1
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "7"
+        assert test_suite.attrib["failures"] == "3"

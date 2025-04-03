@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    openai: Introduces automatic extraction of token usage from streamed chat completions. 
+    Unless ``stream_options: {"include_usage": False}`` is explicitly set on your streamed chat completion request, 
+    the OpenAI integration will add ``stream_options: {"include_usage": True}`` to your request and automatically extract the token usage chunk from the streamed response.

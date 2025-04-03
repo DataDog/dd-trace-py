@@ -50,7 +50,7 @@ def test_obfuscation_querystring_pattern_env_var(
             "-c",
             (
                 """import re;from ddtrace import config;
-from ddtrace.settings.config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT;
+from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT;
 assert config._obfuscation_query_string_pattern == %s;
 assert config._global_query_string_obfuscation_disabled == %s;
 assert config._http_tag_query_string == %s

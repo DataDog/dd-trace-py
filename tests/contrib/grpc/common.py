@@ -2,10 +2,10 @@ import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
 from grpc.framework.foundation import logging_pool
 
-from ddtrace import Pin
-from ddtrace.contrib.grpc import constants
-from ddtrace.contrib.grpc import patch
-from ddtrace.contrib.grpc import unpatch
+from ddtrace.contrib.internal.grpc import constants
+from ddtrace.contrib.internal.grpc.patch import patch
+from ddtrace.contrib.internal.grpc.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from .hello_pb2_grpc import add_HelloServicer_to_server
@@ -20,8 +20,8 @@ class GrpcBaseTestCase(TracerTestCase):
     def setUp(self):
         super(GrpcBaseTestCase, self).setUp()
         patch()
-        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
+        Pin._override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
         self._start_server()
 
     def tearDown(self):

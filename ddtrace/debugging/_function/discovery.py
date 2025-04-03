@@ -30,6 +30,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import collect_code_objects
+from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
 
 
@@ -141,13 +142,11 @@ class _FunctionCodePair:
         self.code = function.__code__ if function is not None else code
 
     def resolve(self) -> FullyNamedFunction:
-        import gc
-
         if self.function is not None:
             return cast(FullyNamedFunction, self.function)
 
         code = self.code
-        functions = [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+        functions = functions_for_code(code)
         n = len(functions)
         if n == 0:
             msg = f"Cannot resolve code object to function: {code}"
@@ -159,7 +158,8 @@ class _FunctionCodePair:
             msg = f"Multiple functions found for code object {code}"
             raise ValueError(msg)
 
-        f = cast(FullyNamedFunction, functions[0])
+        self.function = _f = functions[0]
+        f = cast(FullyNamedFunction, _f)
         f.__fullname__ = f"{f.__module__}.{f.__qualname__}"
 
         return f
@@ -254,6 +254,7 @@ class FunctionDiscovery(defaultdict):
         if hasattr(module, "__dd_code__"):
             for code in module.__dd_code__:
                 fcp = _FunctionCodePair(code=code)
+
                 if PYTHON_VERSION_INFO >= (3, 11):
                     # From this version of Python we can derive the qualified
                     # name of the function directly from the code object.
@@ -261,13 +262,18 @@ class FunctionDiscovery(defaultdict):
                     self._fullname_index[fullname] = fcp
                 else:
                     self._name_index[code.co_name].append(fcp)
+
                 for lineno in linenos(code):
-                    self[lineno].append(_FunctionCodePair(code=code))
+                    self[lineno].append(fcp)
         else:
             # If the module was already loaded we don't have its code object
             seen_functions = set()
             for _, fcp in self._fullname_index.items():
-                function = fcp.resolve()
+                try:
+                    function = fcp.resolve()
+                except ValueError:
+                    continue
+
                 if (
                     function not in seen_functions
                     and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
@@ -309,6 +315,8 @@ class FunctionDiscovery(defaultdict):
         fullname = f"{self._module.__name__}.{qualname}"
         try:
             return self._fullname_index[fullname].resolve()
+        except ValueError:
+            pass
         except KeyError:
             if PYTHON_VERSION_INFO < (3, 11):
                 # Check if any code objects whose names match the last part of
@@ -333,7 +341,7 @@ class FunctionDiscovery(defaultdict):
                                     return f
                             except ValueError:
                                 pass
-            raise ValueError("Function '%s' not found" % fullname)
+        raise ValueError("Function '%s' not found" % fullname)
 
     @classmethod
     def from_module(cls, module: ModuleType) -> "FunctionDiscovery":

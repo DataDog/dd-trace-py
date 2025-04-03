@@ -5,4 +5,4 @@ import ddtrace
 
 @pytest.fixture
 def tracer():
-    return ddtrace.Tracer()
+    return ddtrace.trace.tracer

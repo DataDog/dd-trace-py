@@ -45,7 +45,6 @@ def find_statement_for_line(node, line):
             if found_node is not None:
                 return found_node
 
-    # TODO: support nocover in Python 3.7
     if not hasattr(node, "end_lineno"):
         return None
 

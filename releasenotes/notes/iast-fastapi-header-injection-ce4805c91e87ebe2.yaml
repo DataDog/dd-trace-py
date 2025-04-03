@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Code Security: add support for Header Injection vulnerability sink point.

@@ -29,5 +29,5 @@ feat/fix/docs/refactor/ci(xxx): commit title here
 # mysqlpython, openai, opentelemetry, opentracer, profile, psycopg, pylibmc, pymemcache,
 # pymongo, pymysql, pynamodb, pyodbc, pyramid, pytest, redis, rediscluster, requests, rq,
 # sanic, snowflake, sourcecode, sqlalchemy, starlette, stdlib, structlog, subprocess,
-# telemetry, test_logging, tornado, tracer, unittest, urllib3, vendor, vertica, wsgi,
+# telemetry, test_logging, tornado, tracer, unittest, urllib3, valkey, vendor, vertica, wsgi,
 # yaaredis

@@ -1,9 +1,9 @@
 from datetime import datetime
+import time
 from types import TracebackType
 from typing import Optional
 from typing import Type  # noqa:F401
 
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 
 
@@ -46,7 +46,7 @@ class StopWatch(object):
     def start(self):
         # type: () -> StopWatch
         """Starts the watch."""
-        self._started_at = compat.monotonic()
+        self._started_at = time.monotonic()
         return self
 
     def elapsed(self) -> float:
@@ -59,7 +59,7 @@ class StopWatch(object):
         if self._started_at is None:
             raise RuntimeError("Can not get the elapsed time of a stopwatch" " if it has not been started/stopped")
         if self._stopped_at is None:
-            now = compat.monotonic()
+            now = time.monotonic()
         else:
             now = self._stopped_at
         return now - self._started_at
@@ -81,7 +81,7 @@ class StopWatch(object):
         """Stops the watch."""
         if self._started_at is None:
             raise RuntimeError("Can not stop a stopwatch that has not been" " started")
-        self._stopped_at = compat.monotonic()
+        self._stopped_at = time.monotonic()
         return self
 
 
@@ -89,7 +89,7 @@ class HourGlass(object):
     """An implementation of an hourglass."""
 
     def __init__(self, duration: float) -> None:
-        t = compat.monotonic()
+        t = time.monotonic()
 
         self._duration = duration
         self._started_at = t - duration
@@ -99,7 +99,7 @@ class HourGlass(object):
 
     def turn(self) -> None:
         """Turn the hourglass."""
-        t = compat.monotonic()
+        t = time.monotonic()
         top_0 = self._end_at - self._started_at
         bottom = self._duration - top_0 + min(t - self._started_at, top_0)
 
@@ -119,7 +119,7 @@ class HourGlass(object):
 
     def _trickling(self):
         # type: () -> bool
-        if compat.monotonic() < self._end_at:
+        if time.monotonic() < self._end_at:
             return True
 
         # No longer trickling, so we change state

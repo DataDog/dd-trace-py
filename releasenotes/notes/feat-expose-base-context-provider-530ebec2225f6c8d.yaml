@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: Moves ``ddtrace.provider.BaseContextProvider`` to ``ddtrace.trace.BaseContextProvider``. 
+    The ``ddtrace.provider`` module is deprecated and will be removed in v3.0.0.

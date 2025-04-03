@@ -12,6 +12,9 @@ on:
 jobs:
   build-and-publish:
     uses: ./.github/workflows/build-and-publish-image.yml
+    permissions:
+      contents: read
+      packages: write
     with:
       tags: 'ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:${{ github.sha }},ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest'
       platforms: 'linux/386'

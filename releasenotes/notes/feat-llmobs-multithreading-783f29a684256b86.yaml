@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Introduces automatic distributed tracing support for LLM Observability traces involving the ``concurrent.futures.thread`` module.

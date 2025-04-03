@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing(celery): Fixes an issue where ``celery.apply`` spans from Celery prerun got closed too soon leading to span tags being missing.

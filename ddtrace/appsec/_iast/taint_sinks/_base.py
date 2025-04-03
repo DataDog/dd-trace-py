@@ -3,15 +3,15 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Text
+from typing import Tuple
 
-from ddtrace import tracer
+from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import LFUCache
+from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
-from ..._deduplications import deduplication
 from .._iast_request_context import get_iast_reporter
-from .._iast_request_context import is_iast_request_enabled
 from .._iast_request_context import set_iast_reporter
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
@@ -28,6 +28,9 @@ CWD = os.path.abspath(os.getcwd())
 
 
 class taint_sink_deduplication(deduplication):
+    def _check_deduplication(self):
+        return asm_config._iast_deduplication_enabled
+
     def _extract(self, args):
         # We skip positions 0 and 1 because they represent the 'cls' and 'span' respectively
         return args[2:]
@@ -47,12 +50,6 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
-    _redacted_report_cache = LFUCache()
-
-    @classmethod
-    def _reset_cache_for_testing(cls):
-        """Reset the redacted reports and deduplication cache. For testing purposes only."""
-        cls._redacted_report_cache.clear()
 
     @classmethod
     def wrap(cls, func: Callable) -> Callable:
@@ -60,10 +57,10 @@ class VulnerabilityBase(Operation):
             """Get the current root Span and attach it to the wrapped function. We need the span to report the
             vulnerability and update the context with the report information.
             """
-            if not is_iast_request_enabled():
+            if not asm_config.is_iast_request_enabled:
                 if _is_iast_debug_enabled():
                     log.debug(
-                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
+                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
                         "is outside the context"
                     )
                 return wrapped(*args, **kwargs)
@@ -76,11 +73,21 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     @taint_sink_deduplication
-    def _prepare_report(cls, vulnerability_type, evidence, file_name, line_number):
-        if not is_iast_request_enabled():
+    def _prepare_report(
+        cls,
+        vulnerability_type,
+        evidence,
+        file_name,
+        line_number,
+        function_name: Text = "",
+        class_name: Text = "",
+        *args,
+        **kwargs,
+    ) -> bool:
+        if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
-                    "[IAST] VulnerabilityBase._prepare_report. "
+                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
                     "No request quota or this vulnerability is outside the context"
                 )
             return False
@@ -102,7 +109,9 @@ class VulnerabilityBase(Operation):
         vulnerability = Vulnerability(
             type=vulnerability_type,
             evidence=evidence,
-            location=Location(path=file_name, line=line_number, spanId=span_id),
+            location=Location(
+                path=file_name, line=line_number, spanId=span_id, method=function_name, class_name=class_name
+            ),
         )
         if report:
             report.vulnerabilities.add(vulnerability)
@@ -115,35 +124,64 @@ class VulnerabilityBase(Operation):
         return True
 
     @classmethod
+    def _compute_file_line(cls) -> Tuple[Optional[Text], Optional[int], Optional[Text], Optional[Text]]:
+        file_name = line_number = function_name = class_name = None
+
+        frame_info = get_info_frame(CWD)
+        if not frame_info or frame_info[0] in ("", -1):
+            return file_name, line_number, function_name, class_name
+
+        file_name, line_number, function_name, class_name = frame_info
+
+        if file_name.startswith(CWD):
+            file_name = os.path.relpath(file_name, start=CWD)
+
+        if not cls.is_not_reported(file_name, line_number):
+            return None, None, None, None
+
+        return file_name, line_number, function_name, class_name
+
+    @classmethod
+    def _create_evidence_and_report(
+        cls,
+        vulnerability_type: Text,
+        evidence_value: Text = "",
+        dialect: Optional[Text] = None,
+        file_name: Optional[Text] = None,
+        line_number: Optional[int] = None,
+        function_name: Optional[Text] = None,
+        class_name: Optional[Text] = None,
+        *args,
+        **kwargs,
+    ):
+        if isinstance(evidence_value, (str, bytes, bytearray)):
+            evidence = Evidence(value=evidence_value, dialect=dialect)
+        else:
+            log.debug("Unexpected evidence_value type: %s", type(evidence_value))
+            evidence = Evidence(value="", dialect=dialect)
+        return cls._prepare_report(
+            vulnerability_type, evidence, file_name, line_number, function_name, class_name, *args, **kwargs
+        )
+
+    @classmethod
     def report(cls, evidence_value: Text = "", dialect: Optional[Text] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-        # TODO: type of evidence_value will be Text. We wait to finish the redaction refactor.
         if cls.acquire_quota():
-            file_name = None
-            line_number = None
+            file_name = line_number = function_name = class_name = None
 
-            skip_location = getattr(cls, "skip_location", False)
-            if not skip_location:
-                frame_info = get_info_frame(CWD)
-                if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
-                    return None
-
-                file_name, line_number = frame_info
-
-                # Remove CWD prefix
-                if file_name.startswith(CWD):
-                    file_name = os.path.relpath(file_name, start=CWD)
-
-                if not cls.is_not_reported(file_name, line_number):
+            if getattr(cls, "skip_location", False):
+                if not cls.is_not_reported(cls.vulnerability_type, 0):
                     return
-            # Evidence is a string in weak cipher, weak hash and weak randomness
-            if isinstance(evidence_value, (str, bytes, bytearray)):
-                evidence = Evidence(value=evidence_value, dialect=dialect)
             else:
-                log.debug("Unexpected evidence_value type: %s", type(evidence_value))
-                evidence = Evidence(value="", dialect=dialect)
+                file_name, line_number, function_name, class_name = cls._compute_file_line()
+                if file_name is None:
+                    cls.increment_quota()
+                    return
 
-            result = cls._prepare_report(cls.vulnerability_type, evidence, file_name, line_number)
+            # Evidence is a string in weak cipher, weak hash and weak randomness
+            result = cls._create_evidence_and_report(
+                cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
+            )
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
             # we need to restore the quota
             if not result:

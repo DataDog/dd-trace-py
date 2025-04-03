@@ -1,22 +1,18 @@
 import os
 import sqlite3
+import subprocess
 from typing import Optional
 
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
-
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer.configure(trace_processors=[PingFilter()])
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -59,7 +55,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 
@@ -126,13 +122,33 @@ def rasp(endpoint: str):
                 res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
-    elif endpoint == "command_injection":
-        res = ["command_injection endpoint"]
+    elif endpoint == "shell_injection":
+        res = ["shell_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    if param.startswith("cmdsys"):
+                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    else:
+                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return "<\\br>\n".join(res)
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
+        for param in query_params:
+            if param.startswith("cmda"):
+                cmd = query_params[param]
+                try:
+                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            elif param.startswith("cmds"):
+                cmd = query_params[param]
+                try:
+                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
@@ -167,22 +183,24 @@ def login_user():
                 return USERS[username]["id"]
             else:
                 appsec_trace_utils.track_user_login_failure_event(
-                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto"
+                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto", login=username
                 )
                 return None
         appsec_trace_utils.track_user_login_failure_event(
-            tracer, user_id=username, exists=False, login_events_mode="auto"
+            tracer, user_id=username, exists=False, login_events_mode="auto", login=username
         )
         return None
 
-    def login(user_id: str) -> None:
+    def login(user_id: str, login: str) -> None:
         """login user"""
-        appsec_trace_utils.track_user_login_success_event(tracer, user_id=user_id, login_events_mode="auto")
+        appsec_trace_utils.track_user_login_success_event(
+            tracer, user_id=user_id, login_events_mode="auto", login=login
+        )
 
     username = request.args.get("username")
     password = request.args.get("password")
     user_id = authenticate(username=username, password=password)
     if user_id is not None:
-        login(user_id)
+        login(user_id, username)
         return "OK"
     return "login failure", 401

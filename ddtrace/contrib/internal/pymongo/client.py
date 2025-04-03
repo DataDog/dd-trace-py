@@ -10,11 +10,10 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -26,6 +25,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import Pin
 
 from .parse import parse_msg
 from .parse import parse_query
@@ -61,7 +61,7 @@ def _trace_mongo_client_init(func, args, kwargs):
         pin.onto(client._topology)
 
     def __getddpin__(client):
-        return ddtrace.Pin.get_from(client._topology)
+        return ddtrace.trace.Pin.get_from(client._topology)
 
     # Set a pin on the mongoclient pin on the topology object
     # This allows us to pass the same pin to the server objects
@@ -103,7 +103,7 @@ def _trace_topology_select_server(func, args, kwargs):
     # Ensure the pin used on the traced mongo client is passed down to the topology instance
     # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
-    pin = ddtrace.Pin.get_from(topology_instance)
+    pin = ddtrace.trace.Pin.get_from(topology_instance)
 
     if pin is not None:
         pin.onto(server)
@@ -125,7 +125,7 @@ def _datadog_trace_operation(operation, wrapped):
             log.exception("error parsing query")
 
     # Gets the pin from the mogno client (through the topology object)
-    pin = ddtrace.Pin.get_from(wrapped)
+    pin = ddtrace.trace.Pin.get_from(wrapped)
     # if we couldn't parse or shouldn't trace the message, just go.
     if not cmd or not pin or not pin.enabled():
         return None
@@ -141,7 +141,7 @@ def _datadog_trace_operation(operation, wrapped):
     # set span.kind to the operation type being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tag_str(mongox.DB, cmd.db)
     span.set_tag_str(mongox.COLLECTION, cmd.coll)
     span.set_tag_str(db.SYSTEM, mongox.SERVICE)
@@ -220,7 +220,7 @@ def _trace_socket_command(func, args, kwargs):
     except Exception:
         log.exception("error parsing spec. skipping trace")
 
-    pin = ddtrace.Pin.get_from(socket_instance)
+    pin = ddtrace.trace.Pin.get_from(socket_instance)
     # skip tracing if we don't have a piece of data we need
     if not dbname or not cmd or not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -239,7 +239,7 @@ def _trace_socket_write_command(func, args, kwargs):
     except Exception:
         log.exception("error parsing msg")
 
-    pin = ddtrace.Pin.get_from(socket_instance)
+    pin = ddtrace.trace.Pin.get_from(socket_instance)
     # if we couldn't parse it, don't try to trace it.
     if not cmd or not pin or not pin.enabled():
         return func(*args, **kwargs)
@@ -252,7 +252,7 @@ def _trace_socket_write_command(func, args, kwargs):
 
 
 def _trace_cmd(cmd, socket_instance, address):
-    pin = ddtrace.Pin.get_from(socket_instance)
+    pin = ddtrace.trace.Pin.get_from(socket_instance)
     s = pin.tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
@@ -265,7 +265,7 @@ def _trace_cmd(cmd, socket_instance, address):
     # set span.kind to the type of operation being performed
     s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    s.set_tag(SPAN_MEASURED_KEY)
+    s.set_tag(_SPAN_MEASURED_KEY)
     if cmd.db:
         s.set_tag_str(mongox.DB, cmd.db)
     if cmd:
@@ -324,10 +324,10 @@ def _set_query_metadata(span, cmd):
     """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        span.set_tag("mongodb.query", nq)
         # needed to dump json so we don't get unicode
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
+        span.set_tag("mongodb.query", q)
         span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
     else:
         span.resource = "{} {}".format(cmd.name, cmd.coll)

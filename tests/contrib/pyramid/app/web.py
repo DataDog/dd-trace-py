@@ -6,7 +6,7 @@ from pyramid.httpexceptions import HTTPNotFound
 from pyramid.renderers import render_to_response
 from pyramid.response import Response
 
-from ddtrace.contrib.pyramid import trace_pyramid
+from ddtrace.contrib.internal.pyramid.trace import trace_pyramid
 
 
 def create_app(settings, instrument):

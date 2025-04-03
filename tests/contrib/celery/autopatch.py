@@ -1,4 +1,4 @@
-from ddtrace import Pin
+from ddtrace.trace import Pin
 
 
 if __name__ == "__main__":

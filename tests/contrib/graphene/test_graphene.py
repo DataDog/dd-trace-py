@@ -1,8 +1,9 @@
 import graphene
+import graphql
 import pytest
 
-from ddtrace.contrib.graphql import patch
-from ddtrace.contrib.graphql import unpatch
+from ddtrace.contrib.internal.graphql.patch import patch
+from ddtrace.contrib.internal.graphql.patch import unpatch
 from tests.utils import override_config
 
 
@@ -24,6 +25,23 @@ class FailingQuery(graphene.ObjectType):
 
     def resolve_patron(root, info):
         raise Exception("exception was raised in a graphene query")
+
+
+class Query(graphene.ObjectType):
+    user = graphene.String(id=graphene.ID())
+
+    def resolve_user(self, info, id):  # noqa: A002
+        if id != "123":
+            raise graphql.error.GraphQLError(
+                "User not found",
+                extensions={
+                    "code": "USER_NOT_FOUND",
+                    "timestamp": "2025-01-30T12:34:56Z",
+                    "status": 404,
+                    "retryable": False,
+                },
+            )
+        return "John Doe"
 
 
 @pytest.fixture(autouse=True)
@@ -94,8 +112,26 @@ async def test_schema_execute_async_with_resolvers(test_schema, test_source_str,
     assert result.data == {"patron": {"id": "1", "name": "Syrus", "age": 27}}
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_GRAPHQL_ERROR_EXTENSIONS="code, status"))
+@pytest.mark.snapshot(ignores=["meta.events", "meta.error.stack"])
+def test_schema_failing_extensions(test_schema, test_source_str, enable_graphql_resolvers):
+    import ddtrace.auto  # noqa
+
+    import graphene
+
+    from ddtrace.contrib.internal.graphql.patch import patch
+    from tests.contrib.graphene.test_graphene import Query
+
+    patch()
+
+    schema = graphene.Schema(query=Query)
+    query_string = '{ user(id: "999") }'
+    result = schema.execute(query_string)
+    assert result.errors
+
+
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
+    ignores=["meta.error.stack", "meta.events"], variants={"v2": graphene.VERSION < (3,), "": graphene.VERSION >= (3,)}
 )
 def test_schema_failing_execute(failing_schema, test_source_str, enable_graphql_resolvers):
     result = failing_schema.execute(test_source_str)

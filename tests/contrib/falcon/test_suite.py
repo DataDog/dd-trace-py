@@ -1,10 +1,13 @@
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.falcon.patch import FALCON_VERSION
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.falcon.patch import FALCON_VERSION
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 class FalconTestMixin(object):
@@ -226,7 +229,8 @@ class FalconTestCase(FalconTestMixin):
         """OpenTracing version of test_200."""
         writer = self.tracer._writer
         ot_tracer = init_tracer("my_svc", self.tracer)
-        ot_tracer._dd_tracer.configure(writer=writer)
+        ot_tracer._dd_tracer._writer = writer
+        ot_tracer._dd_tracer._recreate()
 
         with ot_tracer.start_active_span("ot_span"):
             out = self.make_test_call("/200", expected_status_code=200)
@@ -284,3 +288,59 @@ class FalconTestCase(FalconTestMixin):
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_inferred_spans_api_gateway_default(self):
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+        for setting_enabled in [False, True]:
+            for test_headers in [headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/200",
+                        "status": 200,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.Resource200",
+                    },
+                    {
+                        "endpoint": "/exception",
+                        "status": 500,
+                        "resource_name": "GET tests.contrib.falcon.app.resources.ResourceException",
+                    },
+                ]:
+                    with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                        self.make_test_call(test_endpoint["endpoint"], headers=test_headers)
+                        traces = self.tracer.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+
+                            assert len(traces) == 1
+                            assert len(traces[0]) == 2
+
+                            assert_web_and_inferred_aws_api_gateway_span_data(
+                                aws_gateway_span,
+                                web_span,
+                                web_span_name="falcon.request",
+                                web_span_component="falcon",
+                                web_span_service_name="falcon",
+                                web_span_resource=test_endpoint["resource_name"],
+                                api_gateway_service_name="local",
+                                api_gateway_resource="GET /",
+                                method="GET",
+                                status_code=test_endpoint["status"],
+                                url="local/",
+                                start=1736973768.0,
+                                is_distributed=False,
+                                distributed_trace_id=1,
+                                distributed_parent_id=2,
+                                distributed_sampling_priority=USER_KEEP,
+                            )
+
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None

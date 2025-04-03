@@ -9,12 +9,12 @@ from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateCo
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 config._add(

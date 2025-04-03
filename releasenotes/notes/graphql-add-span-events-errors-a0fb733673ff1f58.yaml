@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    graphql: Add span events on GraphQL error spans, allowing multiple errors to be surfaced on the span.

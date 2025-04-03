@@ -1,180 +1,167 @@
+"""
+Logging utilities for internal use.
+Usage:
+    import ddtrace.internal.logger as logger
+    ddlog = logger.get_logger(__name__)
+
+    # Otherwise default is set to 1 minute or DD_TRACE_LOGGING_RATE
+    logger.set_tag_rate_limit("waf::init", logger.HOUR)
+
+    # "product" is required, but other keys are optional as well as kwargs exc_info and stack_info
+    # supported keys are
+    # product: product or integration name. Required
+    # more_info : more information to be logged after the main tag. Default is empty string
+    # stack_limit: limit the stack trace to this depth for stack_info. Default is 0 (0 is no limit)
+    # exec_limit: limit the stack trace to this depth for exec_info. Default is 1, only the top level (0 is no limit)
+
+    info = # format the info string
+    ddlog.debug('waf::init', extra={"product": "appsec", "stack_limit": 4, "more_info": info}, stack_info=True)
+    # This will log the message only once per hour, counting the number of skipped messages, using "waf::init" as the
+    # tag to keep track of the rate limit
+    # Different log levels can be used, the rate limit is shared between all invocations and all levels for the same tag
+
+    # example result
+    DEBUG appsec::waf::init[some more info] 1 additional messages skipped
+    (followed by the 4 first levels of the stack trace)
+
+    Legacy support:
+    if extra is not used or product is absent, the log will be treated as legacy and will be logged as is using
+    filename and line number of the log call
+
+"""
+
 import collections
 import logging
 import os
-import typing
-from typing import Optional  # noqa:F401
-from typing import cast  # noqa:F401
+import time
+import traceback
+from typing import DefaultDict
+from typing import Tuple
+from typing import Union
 
 
-if typing.TYPE_CHECKING:
-    from typing import Any  # noqa:F401
-    from typing import DefaultDict  # noqa:F401
-    from typing import Tuple  # noqa:F401
+SECOND = 1
+MINUTE = 60 * SECOND
+HOUR = 60 * MINUTE
+DAY = 24 * HOUR
 
 
-def get_logger(name):
-    # type: (str) -> DDLogger
+def get_logger(name: str) -> logging.Logger:
     """
-    Retrieve or create a ``DDLogger`` instance.
+    Retrieve or create a ``Logger`` instance with consistent behavior for internal use.
 
-    This function mirrors the behavior of `logging.getLogger`.
+    Configure all loggers with a rate limiter filter to prevent excessive logging.
 
-    If no logger with the provided name has been fetched before then
-    a new one is created.
-
-    If a previous logger has been created then it is returned.
-
-    DEV: We do not want to mess with `logging.setLoggerClass()`
-         That will totally mess with the user's loggers, we want
-         just our own, selective loggers to be DDLoggers
-
-    :param name: The name of the logger to fetch or create
-    :type name: str
-    :return: The logger instance
-    :rtype: ``DDLogger``
     """
-    # DEV: `logging.Logger.manager` refers to the single root `logging.Manager` instance
-    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa:E501
-    manager = logging.Logger.manager
+    logger = logging.getLogger(name)
+    # addFilter will only add the filter if it is not already present
+    logger.addFilter(log_filter)
+    return logger
 
-    # If the logger does not exist yet, create it
-    # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
-    # DEV: This is a simplified version of `logging.Manager.getLogger`
-    #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa:E501
-    # DEV: _fixupParents could be adding a placeholder, we want to replace it if that's the case
-    if name in manager.loggerDict:
-        logger = manager.loggerDict[name]
-        if isinstance(manager.loggerDict[name], logging.PlaceHolder):
-            placeholder = logger
-            logger = DDLogger(name=name)
-            manager.loggerDict[name] = logger
-            # DEV: `_fixupChildren` and `_fixupParents` have been around for awhile,
-            # DEV: but add the `hasattr` guard... just in case.
-            if hasattr(manager, "_fixupChildren"):
-                manager._fixupChildren(placeholder, logger)
-            if hasattr(manager, "_fixupParents"):
-                manager._fixupParents(logger)
+
+_RATE_LIMITS = {}
+
+
+def set_tag_rate_limit(tag: str, rate: int) -> None:
+    """
+    Set the rate limit for a specific tag.
+
+    """
+    _RATE_LIMITS[tag] = rate
+
+
+# Class used for keeping track of a log lines current time bucket and the number of log lines skipped
+class LoggingBucket:
+    def __init__(self, bucket: float, skipped: int):
+        self.bucket = bucket
+        self.skipped = skipped
+
+    def __repr__(self):
+        return f"LoggingBucket({self.bucket}, {self.skipped})"
+
+    def is_sampled(self, record: logging.LogRecord, rate: float) -> bool:
+        """
+        Determine if the log line should be sampled based on the rate limit.
+        """
+        current = time.monotonic()
+        if current - self.bucket >= rate:
+            self.bucket = current
+            record.skipped = self.skipped
+            self.skipped = 0
+            return True
+        self.skipped += 1
+        return False
+
+
+# Dict to keep track of the current time bucket per name/level/pathname/lineno
+
+_MINF = float("-inf")
+
+key_type = Union[Tuple[str, int, str, int], str]
+_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
+
+# Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
+# Allow configuring via `DD_TRACE_LOGGING_RATE`
+# DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
+_rate_limit = int(os.getenv("DD_TRACE_LOGGING_RATE", default=60))
+
+
+def log_filter(record: logging.LogRecord) -> bool:
+    """
+    Function used to determine if a log record should be outputted or not (True = output, False = skip).
+
+    This function will:
+      - Rate limit log records based on the logger name, record level, filename, and line number
+    """
+    logger = logging.getLogger(record.name)
+    rate_limit = _RATE_LIMITS.get(record.msg, _rate_limit)
+    # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+    # If the logger is set to debug, then do not apply any limits to any log
+    if not rate_limit or logger.getEffectiveLevel() == logging.DEBUG:
+        must_be_propagated = True
     else:
-        logger = DDLogger(name=name)
-        manager.loggerDict[name] = logger
-        if hasattr(manager, "_fixupParents"):
-            manager._fixupParents(logger)
-
-    # Return our logger
-    return cast(DDLogger, logger)
-
-
-def hasHandlers(self):
-    # type: (DDLogger) -> bool
-    """
-    See if this logger has any handlers configured.
-    Loop through all handlers for this logger and its parents in the
-    logger hierarchy. Return True if a handler was found, else False.
-    Stop searching up the hierarchy whenever a logger with the "propagate"
-    attribute set to zero is found - that will be the last logger which
-    is checked for the existence of handlers.
-
-    https://github.com/python/cpython/blob/8f192d12af82c4dc40730bf59814f6a68f68f950/Lib/logging/__init__.py#L1629
-    """
-    c = self
-    rv = False
-    while c:
-        if c.handlers:
-            rv = True
-            break
-        if not c.propagate:
-            break
-        else:
-            c = c.parent  # type: ignore
-    return rv
-
-
-class DDLogger(logging.Logger):
-    """
-    Custom rate limited logger used by ``ddtrace``
-
-    This logger class is used to rate limit the output of
-    log messages from within the ``ddtrace`` package.
-    """
-
-    # Named tuple used for keeping track of a log lines current time bucket and the number of log lines skipped
-    LoggingBucket = collections.namedtuple("LoggingBucket", ("bucket", "skipped"))
-
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
-        """Constructor for ``DDLogger``"""
-        super(DDLogger, self).__init__(*args, **kwargs)
-
-        # Dict to keep track of the current time bucket per name/level/pathname/lineno
-        self.buckets = collections.defaultdict(
-            lambda: DDLogger.LoggingBucket(0, 0)
-        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
-
-        # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
-        # Allow configuring via `DD_TRACE_LOGGING_RATE`
-        # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
-        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
-
-        if rate_limit is not None:
-            self.rate_limit = int(rate_limit)
-        else:
-            self.rate_limit = 60
-
-    def handle(self, record):
-        # type: (logging.LogRecord) -> None
-        """
-        Function used to call the handlers for a log line.
-
-        This implementation will first determine if this log line should
-        be logged or rate limited, and then call the base ``logging.Logger.handle``
-        function if it should be logged
-
-        DEV: This method has all of it's code inlined to reduce on functions calls
-
-        :param record: The log record being logged
-        :type record: ``logging.LogRecord``
-        """
-        if record.levelno >= logging.ERROR:
-            # avoid circular import
-            from ddtrace.internal import telemetry
-
-            # currently we only have one error code
-            full_file_name = os.path.join(record.pathname, record.filename)
-            telemetry.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
-
-        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
-        # If the logging is in debug, then do not apply any limits to any log
-        if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
-            super(DDLogger, self).handle(record)
-            return
-
-        # Allow 1 log record by name/level/pathname/lineno every X seconds
-        # DEV: current unix time / rate (e.g. 300 seconds) = time bucket
-        #      int(1546615098.8404942 / 300) = 515538
-        # DEV: LogRecord `created` is a unix timestamp/float
-        # DEV: LogRecord has `levelname` and `levelno`, we want `levelno` e.g. `logging.DEBUG = 10`
-        current_bucket = int(record.created / self.rate_limit)
-
-        # Limit based on logger name, record level, filename, and line number
-        #   ('ddtrace.writer', 'DEBUG', '../site-packages/ddtrace/writer.py', 137)
+        # Allow 1 log record by pathname/lineno every X seconds or message/levelno for product logs
         # This way each unique log message can get logged at least once per time period
-        # DEV: LogRecord has `levelname` and `levelno`, we want `levelno` e.g. `logging.DEBUG = 10`
-        key = (record.name, record.levelno, record.pathname, record.lineno)
-
-        # Only log this message if the time bucket has changed from the previous time we ran
-        logging_bucket = self.buckets[key]
-        if logging_bucket.bucket != current_bucket:
-            # Append count of skipped messages if we have skipped some since our last logging
-            if logging_bucket.skipped:
-                record.msg = "{}, %s additional messages skipped".format(record.msg)
-                record.args = record.args + (logging_bucket.skipped,)  # type: ignore
-
-            # Reset our bucket
-            self.buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)
-
-            # Call the base handle to actually log this record
-            super(DDLogger, self).handle(record)
+        if hasattr(record, "product"):
+            key: key_type = record.msg
         else:
-            # Increment the count of records we have skipped
-            # DEV: `self.buckets[key]` is a tuple which is immutable so recreate instead
-            self.buckets[key] = DDLogger.LoggingBucket(logging_bucket.bucket, logging_bucket.skipped + 1)
+            key = (record.name, record.levelno, record.pathname, record.lineno)
+        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+        # If the logger is set to debug, then do not apply any limits to any log
+        # Only log this message if the time bucket allows it
+        must_be_propagated = _buckets[key].is_sampled(record, rate_limit)
+    if must_be_propagated:
+        skipped = record.__dict__.pop("skipped", 0)
+        if skipped:
+            skip_str = f" [{skipped} skipped]"
+        else:
+            skip_str = ""
+        product = record.__dict__.pop("product", None)
+        # new syntax
+        if product:
+            more_info = record.__dict__.pop("more_info", "")
+            stack_limit = record.__dict__.pop("stack_limit", 0)
+            exec_limit = record.__dict__.pop("exec_limit", 1)
+            # format the stacks if they are present with the right depth
+            if stack_limit and record.stack_info:
+                record.stack_info = format_stack(record.stack_info, stack_limit)
+            string_buffer = [f"{product}::{record.msg}{more_info}{skip_str}"]
+            if record.stack_info:
+                string_buffer.append(record.stack_info)
+            if record.exc_info:
+                string_buffer.extend(traceback.format_exception(record.exc_info[1], limit=exec_limit or None))
+            record.msg = "\n".join(string_buffer)
+            # clean the record for any subsequent handlers
+            record.stack_info = None
+            record.exc_info = None
+        else:
+            record.msg = f"{record.msg}{skip_str}"
+    return must_be_propagated
+
+
+def format_stack(stack_info, limit) -> str:
+    stack = stack_info.split("\n")
+    if len(stack) <= limit * 2 + 1:
+        return stack_info
+    stack_str = "\n".join(stack[-2 * limit :])
+    return f"{stack[0]}\n{stack_str}"

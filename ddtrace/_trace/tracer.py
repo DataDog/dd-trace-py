@@ -1,22 +1,22 @@
 import functools
+from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
 from os import environ
 from os import getpid
+import sys
 from threading import RLock
-from typing import Any
+from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Set
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import _hooks
-from ddtrace import config
+from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -24,15 +24,15 @@ from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
+from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
-from ddtrace.filters import TraceFilter
-from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
 from ddtrace.internal import debug
@@ -41,8 +41,12 @@ from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.core import dispatch
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import PyTracerMetadata
+from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
@@ -53,35 +57,32 @@ from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BasePrioritySampler
-from ddtrace.sampler import BaseSampler
-from ddtrace.sampler import DatadogSampler
-from ddtrace.settings import Config
+from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._config import Config
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.version import get_version
 
 
 log = get_logger(__name__)
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
-
-
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
+if TYPE_CHECKING:
+    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-def _start_appsec_processor() -> Optional[Any]:
+
+def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -103,26 +104,25 @@ def _start_appsec_processor() -> Optional[Any]:
 
 
 def _default_span_processors_factory(
-    trace_filters: List[TraceFilter],
+    trace_filters: List[TraceProcessor],
     trace_writer: TraceWriter,
     partial_flush_enabled: bool,
     partial_flush_min_spans: int,
-    appsec_enabled: bool,
-    iast_enabled: bool,
     compute_stats_enabled: bool,
     single_span_sampling_rules: List[SpanSamplingRule],
     agent_url: str,
-    trace_sampler: BaseSampler,
+    trace_sampler: DatadogSampler,
     profiling_span_processor: EndpointCallCounterProcessor,
-    apm_opt_out: bool = False,
-) -> Tuple[List[SpanProcessor], Optional[Any], List[SpanProcessor]]:
+) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], List[SpanProcessor]]:
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors: List[TraceProcessor] = []
     trace_processors += [
         PeerServiceProcessor(_ps_config),
         BaseServiceProcessor(),
-        TraceSamplingProcessor(compute_stats_enabled, trace_sampler, single_span_sampling_rules, apm_opt_out),
+        TraceSamplingProcessor(
+            compute_stats_enabled, trace_sampler, single_span_sampling_rules, asm_config._apm_opt_out
+        ),
         TraceTagsProcessor(),
     ]
     trace_processors += trace_filters
@@ -131,7 +131,7 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if asm_config._asm_libddwaf_available:
-        if appsec_enabled:
+        if asm_config._asm_enabled:
             if asm_config._api_security_enabled:
                 from ddtrace.appsec._api_security.api_manager import APIManager
 
@@ -153,7 +153,7 @@ def _default_span_processors_factory(
     else:
         appsec_processor = None
 
-    if iast_enabled:
+    if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
@@ -191,75 +191,66 @@ class Tracer(object):
     If you're running an application that will serve a single trace per thread,
     you can use the global tracer instance::
 
-        from ddtrace import tracer
+        from ddtrace.trace import tracer
         trace = tracer.trace('app.request', 'web-server').finish()
     """
 
     SHUTDOWN_TIMEOUT = 5
+    _instance = None
 
-    def __init__(
-        self,
-        url: Optional[str] = None,
-        dogstatsd_url: Optional[str] = None,
-        context_provider: Optional[DefaultContextProvider] = None,
-    ) -> None:
+    def __init__(self) -> None:
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
-
-        :param url: The Datadog agent URL.
-        :param dogstatsd_url: The DogStatsD URL.
         """
 
-        maybe_start_serverless_mini_agent()
+        # Do not set self._instance if this is a subclass of Tracer. Here we only want
+        # to reference the global instance.
+        if type(self) is Tracer:
+            if Tracer._instance is None:
+                Tracer._instance = self
+            else:
+                log.error(
+                    "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
+                )
 
-        self._filters: List[TraceFilter] = []
+        self._user_trace_processors: List[TraceProcessor] = []
 
         # globally set tags
         self._tags = config.tags.copy()
-
-        # collection of services seen, used for runtime metrics tags
-        # a buffer for service info so we don't perpetually send the same things
-        self._services: Set[str] = set()
-        if config.service:
-            self._services.add(config.service)
 
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
 
         self.enabled = config._tracing_enabled
-        self.context_provider = context_provider or DefaultContextProvider()
-        # _user_sampler is the backup in case we need to revert from remote config to local
-        self._user_sampler: Optional[BaseSampler] = DatadogSampler()
-        self._asm_enabled = asm_config._asm_enabled
-        self._iast_enabled = asm_config._iast_enabled
-        self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._apm_opt_out = (self._asm_enabled or self._iast_enabled) and self._appsec_standalone_enabled
-        if self._apm_opt_out:
+        self.context_provider: BaseContextProvider = DefaultContextProvider()
+        self._dogstatsd_url = agent_config.dogstatsd_url
+        if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
             # for the backend to consider the service as alive.
-            self._sampler: BaseSampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
         else:
-            self._sampler: BaseSampler = DatadogSampler()
+            self._sampler = DatadogSampler()
         self._compute_stats = config._trace_compute_stats
-        self._agent_url: str = agent.get_trace_url() if url is None else url
+        self._agent_url: str = agent_config.trace_agent_url
         verify_url(self._agent_url)
 
-        if self._use_log_writer() and url is None:
+        if self._use_log_writer():
             writer: TraceWriter = LogWriter()
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 sync_mode=self._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"} if (self._compute_stats or self._apm_opt_out) else {},
-                report_metrics=not self._apm_opt_out,
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (self._compute_stats or asm_config._apm_opt_out)
+                else {},
+                report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
@@ -267,21 +258,17 @@ class Tracer(object):
         self._partial_flush_enabled = config._partial_flush_enabled
         self._partial_flush_min_spans = config._partial_flush_min_spans
         # Direct link to the appsec processor
-        self._appsec_processor = None
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._filters,
+            self._user_trace_processors,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._asm_enabled,
-            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-            self._apm_opt_out,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -291,18 +278,37 @@ class Tracer(object):
             self.data_streams_processor = DataStreamsProcessor(self._agent_url)
             register_on_exit_signal(self._atexit)
 
-        self._hooks = _hooks.Hooks()
-        atexit.register(self._atexit)
+        self._hooks = Hooks()
         forksafe.register_before_fork(self._sample_before_fork)
-        forksafe.register(self._child_after_fork)
+
+        # Non-global tracers require that we still register these hooks, until
+        # their usage is fully deprecated. The global one will be managed by the
+        # product protocol. We also need to register these hooks if the library
+        # was not bootstrapped correctly.
+        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            atexit.register(self._atexit)
+            forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        config._subscribe(["_trace_sample_rate", "_trace_sampling_rules"], self._on_global_config_update)
+        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
         config._subscribe(["_logs_injection"], self._on_global_config_update)
         config._subscribe(["tags"], self._on_global_config_update)
         config._subscribe(["_tracing_enabled"], self._on_global_config_update)
+
+        metadata = PyTracerMetadata(
+            runtime_id=get_runtime_id(),
+            tracer_version=get_version(),
+            hostname=get_hostname(),
+            service_name=config.service or None,
+            service_env=config.env or None,
+            service_version=config.version or None,
+        )
+        try:
+            self._config_on_disk = store_metadata(metadata)
+        except Exception as e:
+            log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -318,28 +324,6 @@ class Tracer(object):
             self._sampler.sample(span)
         else:
             log.error("No sampler available to sample span")
-
-    @property
-    def sampler(self):
-        deprecate(
-            "tracer.sampler is deprecated and will be removed.",
-            message="To manually sample call tracer.sample(span) instead.",
-            category=DDTraceDeprecationWarning,
-        )
-        return self._sampler
-
-    @sampler.setter
-    def sampler(self, value):
-        deprecate(
-            "Setting a custom sampler is deprecated and will be removed.",
-            message="""Please use DD_TRACE_SAMPLING_RULES to configure the sampler instead:
-    https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_TRACE_SAMPLING_RULES""",
-            category=DDTraceDeprecationWarning,
-        )
-        if self._apm_opt_out:
-            log.warning("Cannot set a custom sampler with Standalone ASM mode")
-            return
-        self._sampler = value
 
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
@@ -408,7 +392,7 @@ class Tracer(object):
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        if active is None and (self.enabled or self._apm_opt_out):
+        if active is None and (self.enabled or asm_config._apm_opt_out):
             active = self.context_provider.active()
 
         if isinstance(active, Span) and active.service:
@@ -430,193 +414,68 @@ class Tracer(object):
             "env": config.env or "",
         }
 
-    # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(
         self,
-        enabled: Optional[bool] = None,
-        hostname: Optional[str] = None,
-        port: Optional[int] = None,
-        uds_path: Optional[str] = None,
-        https: Optional[bool] = None,
-        sampler: Optional[BaseSampler] = None,
-        context_provider: Optional[DefaultContextProvider] = None,
-        wrap_executor: Optional[Callable] = None,
-        priority_sampling: Optional[bool] = None,
-        settings: Optional[Dict[str, Any]] = None,
-        dogstatsd_url: Optional[str] = None,
-        writer: Optional[TraceWriter] = None,
-        partial_flush_enabled: Optional[bool] = None,
-        partial_flush_min_spans: Optional[int] = None,
-        api_version: Optional[str] = None,
+        context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
         iast_enabled: Optional[bool] = None,
-        appsec_standalone_enabled: Optional[bool] = None,
+        apm_tracing_disabled: Optional[bool] = None,
+        trace_processors: Optional[List[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
-        :param str hostname: Hostname running the Trace Agent
-        :param int port: Port of the Trace Agent
-        :param str uds_path: The Unix Domain Socket path of the agent.
-        :param bool https: Whether to use HTTPS or HTTP.
-        :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
-            doesn't need to be changed from the default value
-        :param object wrap_executor: callable that is used when a function is decorated with
-            ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
-            from the default value
-        :param priority_sampling: This argument is deprecated and will be removed in a future version.
-        :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
+            doesn't need to be changed from the default value.
+        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
+        :param bool iast_enabled: Enables IAST support for the tracer
+        :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
+        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+           Trace processors are used to modify and filter traces based on certain criteria.
         """
-        if enabled is not None:
-            self.enabled = enabled
-
-        if priority_sampling is not None:
-            deprecate(
-                "Configuring priority sampling on tracing clients is deprecated",
-                version="3.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-
-        if settings is not None:
-            self._filters = settings.get("FILTERS") or self._filters
-
-        if partial_flush_enabled is not None:
-            self._partial_flush_enabled = partial_flush_enabled
-
-        if partial_flush_min_spans is not None:
-            self._partial_flush_min_spans = partial_flush_min_spans
 
         if appsec_enabled is not None:
-            self._asm_enabled = asm_config._asm_enabled = appsec_enabled
+            asm_config._asm_enabled = appsec_enabled
 
         if iast_enabled is not None:
-            self._iast_enabled = asm_config._iast_enabled = iast_enabled
+            asm_config._iast_enabled = iast_enabled
 
-        if appsec_standalone_enabled is not None:
-            self._appsec_standalone_enabled = asm_config._appsec_standalone_enabled = appsec_standalone_enabled
+        if apm_tracing_disabled is not None:
+            asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
-        if self._appsec_standalone_enabled and (self._asm_enabled or self._iast_enabled):
-            self._apm_opt_out = True
+        if asm_config._apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             # Update the rate limiter to 1 trace per minute when tracing is disabled
-            if isinstance(sampler, DatadogSampler):
-                sampler._rate_limit_always_on = True
-                sampler.limiter.rate_limit = 1
-                sampler.limiter.time_window = 60e9
-            else:
-                if sampler is not None:
-                    log.warning(
-                        "Overriding sampler: %s, a DatadogSampler must be used in ASM Standalone mode",
-                        sampler.__class__,
-                    )
-                sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self._sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
-
-        if sampler is not None:
-            self._sampler = sampler
-            self._user_sampler = self._sampler
-
-        self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
-
-        if any(x is not None for x in [hostname, port, uds_path, https]):
-            # If any of the parts of the URL have updated, merge them with
-            # the previous writer values.
-            prev_url_parsed = compat.parse.urlparse(self._agent_url)
-
-            if uds_path is not None:
-                if hostname is None and prev_url_parsed.scheme == "unix":
-                    hostname = prev_url_parsed.hostname
-                new_url = "unix://%s%s" % (hostname or "", uds_path)
-            else:
-                if https is None:
-                    https = prev_url_parsed.scheme == "https"
-                if hostname is None:
-                    hostname = prev_url_parsed.hostname or ""
-                if port is None:
-                    port = prev_url_parsed.port
-                scheme = "https" if https else "http"
-                new_url = "%s://%s:%s" % (scheme, hostname, port)
-            verify_url(new_url)
-            self._agent_url = new_url
-        else:
-            new_url = None
 
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled
 
-        try:
-            self._writer.stop()
-        except ServiceStatusError:
-            # It's possible the writer never got started
-            pass
-
-        if writer is not None:
-            self._writer = writer
-        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url, appsec_enabled]):
-            if self._asm_enabled:
-                api_version = "v0.4"
-            self._writer = AgentWriter(
-                self._agent_url,
-                dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                sync_mode=self._use_sync_mode(),
-                api_version=api_version,
-                # if apm opt out, neither agent or tracer should compute the stats
-                headers=(
-                    {"Datadog-Client-Computed-Stats": "yes"} if (compute_stats_enabled or self._apm_opt_out) else {}
-                ),
-                report_metrics=not self._apm_opt_out,
-                response_callback=self._agent_response_callback,
-            )
-        elif writer is None and isinstance(self._writer, LogWriter):
-            # No need to do anything for the LogWriter.
-            pass
         if isinstance(self._writer, AgentWriter):
+            if appsec_enabled:
+                self._writer._api_version = "v0.4"
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
+
+        if trace_processors:
+            self._user_trace_processors = trace_processors
 
         if any(
             x is not None
             for x in [
-                partial_flush_min_spans,
-                partial_flush_enabled,
-                writer,
-                dogstatsd_url,
-                hostname,
-                port,
-                https,
-                uds_path,
-                api_version,
-                sampler,
-                settings.get("FILTERS") if settings is not None else None,
+                trace_processors,
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
             ]
         ):
-            self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-                self._filters,
-                self._writer,
-                self._partial_flush_enabled,
-                self._partial_flush_min_spans,
-                self._asm_enabled,
-                self._iast_enabled,
-                self._compute_stats,
-                self._single_span_sampling_rules,
-                self._agent_url,
-                self._sampler,
-                self._endpoint_call_counter_span_processor,
-                self._apm_opt_out,
-            )
+            self._recreate()
 
         if context_provider is not None:
             self.context_provider = context_provider
-
-        if wrap_executor is not None:
-            self._wrap_executor = wrap_executor
 
         self._generate_diagnostic_logs()
 
@@ -626,12 +485,11 @@ class Tracer(object):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            if isinstance(self._sampler, BasePrioritySampler):
-                self._sampler.update_rate_by_service_sample_rates(
-                    resp.rate_by_service,
-                )
-        except ValueError:
-            log.error("sample_rate is negative, cannot update the rate samplers")
+            self._sampler.update_rate_by_service_sample_rates(
+                resp.rate_by_service,
+            )
+        except ValueError as e:
+            log.error("Failed to set agent service sample rates: %s", str(e))
 
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
@@ -654,31 +512,33 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
+        self._recreate()
+        self._new_process = True
 
-        # Assume that the services of the child are not necessarily a subset of those
-        # of the parent.
-        self._services = set()
-        if config.service:
-            self._services.add(config.service)
-
+    def _recreate(self):
+        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+        # Stop the writer.
+        # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
+        try:
+            self._writer.stop()
+        except ServiceStatusError:
+            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
+            # the writer before that point will raise a ServiceStatusError.
+            pass
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
+        # Recreate the trace and span processors
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
-            self._filters,
+            self._user_trace_processors,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
-            self._asm_enabled,
-            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
             self._sampler,
             self._endpoint_call_counter_span_processor,
-            self._apm_opt_out,
         )
-
-        self._new_process = True
 
     def _start_span_after_shutdown(
         self,
@@ -746,13 +606,7 @@ class Tracer(object):
             # strong span reference (which will never be finished) is replaced
             # with a context representing the span.
             if isinstance(child_of, Span):
-                new_ctx = Context(
-                    sampling_priority=child_of.context.sampling_priority,
-                    span_id=child_of.span_id,
-                    trace_id=child_of.trace_id,
-                    is_remote=False,
-                )
-
+                new_ctx = child_of.context
                 # If the child_of span was active then activate the new context
                 # containing it so that the strong span referenced is removed
                 # from the execution.
@@ -789,8 +643,7 @@ class Tracer(object):
         service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent else []
-
-        if trace_id:
+        if trace_id or links or context._baggage:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
@@ -827,7 +680,7 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
+                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
@@ -855,16 +708,12 @@ class Tracer(object):
         if activate:
             self.context_provider.activate(span)
 
-        # update set of services handled by tracer
-        if service and service not in self._services and self._is_span_internal(span):
-            self._services.add(service)
-
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or self._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_start(span)
         self._hooks.emit(self.__class__.start_span, span)
-
+        dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -877,9 +726,11 @@ class Tracer(object):
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or self._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, self._deferred_processors):
                 p.on_span_finish(span)
+
+        dispatch("trace.span_finish", (span,))
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
@@ -955,18 +806,23 @@ class Tracer(object):
         )
 
     def current_root_span(self) -> Optional[Span]:
-        """Returns the root span of the current execution.
+        """Returns the local root span of the current execution/process.
 
-        This is useful for attaching information related to the trace as a
-        whole without needing to add to child spans.
+        Note: This cannot be used to access the true root span of the trace
+        in a distributed tracing setup if the actual root span occurred in
+        another execution/process.
+
+        This is useful for attaching information to the local root span
+        of the current execution/process, which is often also service
+        entry span.
 
         For example::
 
-            # get the root span
-            root_span = tracer.current_root_span()
+            # get the local root span
+            local_root_span = tracer.current_root_span()
             # set the host just once on the root span
-            if root_span:
-                root_span.set_tag('host', '127.0.0.1')
+            if local_root_span:
+                local_root_span.set_tag('host', '127.0.0.1')
         """
         span = self.current_span()
         if span is None:
@@ -1005,9 +861,6 @@ class Tracer(object):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
-        If a ``wrap_executor`` callable has been provided in the ``Tracer.configure()``
-        method, it will be called instead of the default one when the function
-        decorator is invoked.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
@@ -1051,7 +904,7 @@ class Tracer(object):
             # detect if the the given function is a coroutine to use the
             # right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if compat.iscoroutinefunction(f):
+            if iscoroutinefunction(f):
                 # call the async factory that creates a tracing decorator capable
                 # to await the coroutine execution before finishing the span. This
                 # code is used for compatibility reasons to prevent Syntax errors
@@ -1115,10 +968,14 @@ class Tracer(object):
             for processor in chain(span_processors, SpanProcessor.__processors__, deferred_processors):
                 if hasattr(processor, "shutdown"):
                     processor.shutdown(timeout)
-
-            atexit.unregister(self._atexit)
-            forksafe.unregister(self._child_after_fork)
             forksafe.unregister_before_fork(self._sample_before_fork)
+            # Non-global tracers require that we still register these hooks,
+            # until their usage is fully deprecated. The global one will be
+            # managed by the product protocol. We also need to register these
+            # hooks if the library was not bootstrapped correctly.
+            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+                atexit.unregister(self._atexit)
+                forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
@@ -1160,14 +1017,10 @@ class Tracer(object):
         """
         return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
-    @staticmethod
-    def _is_span_internal(span):
-        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
-
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
-        if "_trace_sample_rate" in items and "_trace_sampling_rules" in items:
-            self._handle_sampler_update(cfg)
+        if "_trace_sampling_rules" in items:
+            self._sampler.set_sampling_rules(cfg._trace_sampling_rules)
 
         if "tags" in items:
             self._tags = cfg.tags.copy()
@@ -1183,48 +1036,10 @@ class Tracer(object):
 
         if "_logs_injection" in items:
             if config._logs_injection:
-                from ddtrace.contrib.logging import patch
+                from ddtrace.contrib.internal.logging.patch import patch
 
                 patch()
             else:
-                from ddtrace.contrib.logging import unpatch
+                from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
-
-    def _handle_sampler_update(self, cfg: Config) -> None:
-        if (
-            cfg._get_source("_trace_sample_rate") != "remote_config"
-            and cfg._get_source("_trace_sampling_rules") != "remote_config"
-            and self._user_sampler
-        ):
-            # if we get empty configs from rc for both sample rate and rules, we should revert to the user sampler
-            self.sampler = self._user_sampler
-            return
-
-        if cfg._get_source("_trace_sample_rate") != "remote_config" and self._user_sampler:
-            try:
-                sample_rate = self._user_sampler.default_sample_rate  # type: ignore[attr-defined]
-            except AttributeError:
-                log.debug("Custom non-DatadogSampler is being used, cannot pull default sample rate")
-                sample_rate = None
-        elif cfg._get_source("_trace_sample_rate") != "default":
-            sample_rate = cfg._trace_sample_rate
-        else:
-            sample_rate = None
-
-        if cfg._get_source("_trace_sampling_rules") != "remote_config" and self._user_sampler:
-            try:
-                sampling_rules = self._user_sampler.rules  # type: ignore[attr-defined]
-                # we need to chop off the default_sample_rate rule so the new sample_rate can be applied
-                sampling_rules = sampling_rules[:-1]
-            except AttributeError:
-                log.debug("Custom non-DatadogSampler is being used, cannot pull sampling rules")
-                sampling_rules = None
-        elif cfg._get_source("_trace_sampling_rules") != "default":
-            sampling_rules = DatadogSampler._parse_rules_from_str(cfg._trace_sampling_rules)
-        else:
-            sampling_rules = None
-
-        sampler = DatadogSampler(rules=sampling_rules, default_sample_rate=sample_rate)
-
-        self._sampler = sampler

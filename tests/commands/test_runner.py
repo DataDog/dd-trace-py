@@ -144,7 +144,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_patch_modules_from_env(self):
         """
-        DD_PATCH_MODULES overrides the defaults for patch_all()
+        DD_PATCH_MODULES overrides the defaults for _patch_all()
         """
         with self.override_env(
             env=dict(
@@ -229,6 +229,7 @@ class DdtraceRunTest(BaseTestCase):
         assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default

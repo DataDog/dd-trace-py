@@ -11,13 +11,11 @@ from typing import List  # noqa:F401
 import pytest
 
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.contrib.flask.patch import flask_version
+from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.retry import RetryError
 import tests.appsec.rules as rules
-from tests.contrib.flask.test_flask_appsec import _ALLOWED_USER
-from tests.contrib.flask.test_flask_appsec import _BLOCKED_USER
 from tests.webclient import Client
 
 
@@ -26,6 +24,9 @@ DEFAULT_HEADERS = {
 }
 
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
+
+_BLOCKED_USER = "123456"
+_ALLOWED_USER = "111111"
 
 
 @pytest.fixture

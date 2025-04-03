@@ -20,6 +20,8 @@ LOG = logging.getLogger(__name__)
 
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
+
 
 @callonce
 def get_distributions():
@@ -45,18 +47,21 @@ def get_distributions():
     return pkgs
 
 
-@callonce
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    global _PACKAGE_DISTRIBUTIONS
+    if _PACKAGE_DISTRIBUTIONS is None:
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
 
-    # Prefer the official API if available, otherwise fallback to the vendored version
-    if hasattr(importlib_metadata, "packages_distributions"):
-        return importlib_metadata.packages_distributions()
-    return _packages_distributions()
+        # Prefer the official API if available, otherwise fallback to the vendored version
+        if hasattr(importlib_metadata, "packages_distributions"):
+            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+        else:
+            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+    return _PACKAGE_DISTRIBUTIONS
 
 
 @cached(maxsize=1024)
@@ -72,10 +77,12 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     pkgs = get_package_distributions()
     while names == []:
         try:
-            return (
-                module_name,
-                importlib_metadata.distribution(module_name).version,
-            )
+            package = importlib_metadata.distribution(module_name)
+            metadata = package.metadata
+            name = metadata["name"]
+            version = metadata["version"]
+            if name and version:
+                return (name, version)
         except Exception:  # nosec
             pass
         names = pkgs.get(module_name, [])
@@ -139,6 +146,13 @@ def _root_module(path: Path) -> str:
             return _effective_root(min_relative_path, t.cast(Path, max_parent_path))
         except IndexError:
             pass
+
+    # Bazel runfiles support: we assume that these paths look like
+    # /some/path.runfiles/.../site-packages/<root_module>/...
+    if any(p.suffix == ".runfiles" for p in path.parents):
+        for s in path.parents:
+            if s.parent.name == "site-packages":
+                return s.name
 
     msg = f"Could not find root module for path {path}"
     raise ValueError(msg)

@@ -1,7 +1,11 @@
+import sys
+
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+
+
+PY = sys.version_info[:2]
 
 
 # -----------------------------------------------------------------------------
@@ -536,96 +540,6 @@ elif PY >= (3, 8):
             return_value
         """
     )
-
-elif PY >= (3, 7):
-    COROUTINE_ASSEMBLY.parse(
-        r"""
-            get_awaitable
-            load_const                      None
-            yield_from
-        """
-    )
-
-    ASYNC_GEN_ASSEMBLY.parse(
-        r"""
-        setup_except                        @stopiter
-            dup_top
-            store_fast                      $__ddgen
-            load_attr                       $asend
-            store_fast                      $__ddgensend
-            load_fast                       $__ddgen
-            load_attr                       $__anext__
-            call_function                   0
-
-        loop:
-            get_awaitable
-            load_const                      None
-            yield_from
-
-        yield:
-        setup_except                        @genexit
-            yield_value
-        pop_block
-            load_fast                       $__ddgensend
-            rot_two
-            call_function                   1
-            jump_absolute                   @loop
-
-        genexit:
-            dup_top
-            load_const                      GeneratorExit
-            compare_op                      asm.Compare.EXC_MATCH
-            pop_jump_if_false               @exc
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                       $__ddgen
-            load_attr                       $aclose
-            call_function                   0
-            get_awaitable
-            load_const                      None
-            yield_from
-        pop_except
-            return_value
-
-        exc:
-            pop_top
-            pop_top
-            pop_top
-            pop_top
-            load_fast                       $__ddgen
-            load_attr                       $athrow
-            load_const                      sys.exc_info
-            call_function                   0
-            call_function_ex                0
-            get_awaitable
-            load_const                      None
-            yield_from
-            store_fast                      $__value
-        pop_except
-            load_fast                       $__value
-            jump_absolute                   @yield
-
-        stopiter:
-            dup_top
-            load_const                      StopAsyncIteration
-            compare_op                      asm.Compare.EXC_MATCH
-            pop_jump_if_false               @propagate
-            pop_top
-            pop_top
-            pop_top
-            pop_except
-            load_const                      None
-            return_value
-
-        propagate:
-        end_finally
-            load_const                      None
-            return_value
-        """
-    )
-
 
 else:
     msg = "No async wrapping support for Python %d.%d" % PY[:2]

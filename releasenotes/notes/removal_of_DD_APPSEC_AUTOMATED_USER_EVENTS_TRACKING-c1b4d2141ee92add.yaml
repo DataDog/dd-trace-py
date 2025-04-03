@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    ASM: deprecated env var DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING is now removed.
+    Please use the new env var DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE instead.

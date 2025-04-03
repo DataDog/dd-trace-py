@@ -9,12 +9,13 @@ from pymemcache.exceptions import MemcacheUnknownError
 import pytest
 import wrapt
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.pymemcache.client import WrappedClient
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.contrib.internal.pymemcache.client import WrappedClient
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+# project
+from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config
@@ -262,7 +263,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
 
     def test_service_name_override(self):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        Pin.override(client, service="testsvcname")
+        Pin._override(client, service="testsvcname")
         client.set(b"key", b"value", noreply=False)
         result = client.get(b"key")
         assert _str(result) == "value"
@@ -279,7 +280,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         from pymemcache.client.hash import HashClient
 
         tracer = DummyTracer()
-        Pin.override(pymemcache, tracer=tracer)
+        Pin._override(pymemcache, tracer=tracer)
         self.client = HashClient([(TEST_HOST, TEST_PORT)], **kwargs)
 
         class _MockClient(Client):
@@ -319,7 +320,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         assert len(client.clients) == 1
         for _c in client.clients.values():
-            Pin.override(_c, service="testsvcname")
+            Pin._override(_c, service="testsvcname")
         client.set(b"key", b"value", noreply=False)
         result = client.get(b"key")
         assert _str(result) == "value"
@@ -331,7 +332,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
     def test_service_name_override_hashclient_pooling(self):
         client = self.make_client([b""], use_pooling=True)
-        Pin.override(client, service="testsvcname")
+        Pin._override(client, service="testsvcname")
         client.set(b"key", b"value")
         assert len(client.clients) == 1
         spans = self.get_spans()
@@ -350,7 +351,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
     def make_client(self, mock_socket_values, **kwargs):
         tracer = DummyTracer()
-        Pin.override(pymemcache, tracer=tracer)
+        Pin._override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
         return self.client
@@ -364,7 +365,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
 
     def test_override_parent_pin(self):
         """Test that the service set on `pymemcache` is used for Clients."""
-        Pin.override(pymemcache, service="mysvc")
+        Pin._override(pymemcache, service="mysvc")
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 
@@ -377,7 +378,7 @@ class PymemcacheClientConfiguration(TracerTestCase):
     def test_override_client_pin(self):
         """Test that the service set on `pymemcache` is used for Clients."""
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
-        Pin.override(client, service="mysvc2")
+        Pin._override(client, service="mysvc2")
 
         client.set(b"key", b"value", noreply=False)
 

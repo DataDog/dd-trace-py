@@ -12,7 +12,7 @@ from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_IAST
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -36,7 +36,7 @@ def metric_verbosity(lvl):
             try:
                 return f
             except Exception:
-                log.warning("[IAST] Error reporting metrics", exc_info=True)
+                log.warning("iast::metrics::error::metric_verbosity", exc_info=True)
         return lambda: None  # noqa: E731
 
     return wrapper
@@ -65,7 +65,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         }
         telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
-        log.warning("[IAST] Error reporting logs metrics", exc_info=True)
+        log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
@@ -73,19 +73,19 @@ def _set_metric_iast_instrumented_source(source_type):
     from ._taint_tracking import origin_to_str
 
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.source", 1, (("source_type", origin_to_str(source_type)),)
+        TELEMETRY_NAMESPACE.IAST, "instrumented.source", 1, (("source_type", origin_to_str(source_type)),)
     )
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 def _set_metric_iast_instrumented_propagation():
-    telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.propagation", 1)
+    telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "instrumented.propagation", 1)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 def _set_metric_iast_instrumented_sink(vulnerability_type, counter=1):
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_IAST, "instrumented.sink", counter, (("vulnerability_type", vulnerability_type),)
+        TELEMETRY_NAMESPACE.IAST, "instrumented.sink", counter, (("vulnerability_type", vulnerability_type),)
     )
 
 
@@ -94,14 +94,14 @@ def _set_metric_iast_executed_source(source_type):
     from ._taint_tracking import origin_to_str
 
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_IAST, "executed.source", 1, (("source_type", origin_to_str(source_type)),)
+        TELEMETRY_NAMESPACE.IAST, "executed.source", 1, (("source_type", origin_to_str(source_type)),)
     )
 
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_executed_sink(vulnerability_type):
     telemetry.telemetry_writer.add_count_metric(
-        TELEMETRY_NAMESPACE_TAG_IAST, "executed.sink", 1, (("vulnerability_type", vulnerability_type),)
+        TELEMETRY_NAMESPACE.IAST, "executed.sink", 1, (("vulnerability_type", vulnerability_type),)
     )
 
 
@@ -115,9 +115,7 @@ def _request_tainted():
 def _set_metric_iast_request_tainted():
     total_objects_tainted = _request_tainted()
     if total_objects_tainted > 0:
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE_TAG_IAST, "request.tainted", total_objects_tainted
-        )
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 
 
 def _set_span_tag_iast_request_tainted(span):

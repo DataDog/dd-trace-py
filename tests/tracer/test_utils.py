@@ -7,7 +7,6 @@ import unittest
 import mock
 import pytest
 
-from ddtrace._trace.context import Context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -21,6 +20,7 @@ from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.trace import Context
 
 
 class TestUtils(unittest.TestCase):
@@ -48,67 +48,25 @@ _LOG_ERROR_FAIL_SEPARATOR = (
 
 
 @pytest.mark.parametrize(
-    "tag_str,expected_tags,error_calls",
+    "tag_str,expected_tags",
     [
-        ("", dict(), None),
-        ("key:val", dict(key="val"), None),
-        ("key:val,key2:val2", dict(key="val", key2="val2"), None),
-        ("key:val,key2:val2,key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
-        ("key:val key2:val2 key3:1234.23", dict(key="val", key2="val2", key3="1234.23"), None),
-        ("key: val", dict(key=" val"), None),
-        (
-            "key key: val",
-            {"key": "", "val": ""},
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key key: val")],
-        ),
-        ("key: val,key2:val2", dict(key=" val", key2="val2"), None),
-        (" key: val,key2:val2", {"key": " val", "key2": "val2"}, None),
-        ("key key2:val1", {"key": "", "key2": "val1"}, None),
-        ("key:val key2:val:2", {"key": "val", "key2": "val:2"}, None),
-        (
-            "key:val,key2:val2 key3:1234.23",
-            dict(),
-            [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key:val,key2:val2 key3:1234.23")],
-        ),
-        (
-            "key:val key2:val2 key3: ",
-            {"key": "val", "key2": "val2"},
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key3:", "key:val key2:val2 key3:")],
-        ),
-        (
-            "key:val key2:val 2",
-            {"2": "", "key": "val", "key2": "val"},
-            None,
-        ),
-        (
-            "key: val key2:val2 key3:val3",
-            {"key2": "val2", "key3": "val3", "val": ""},
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key: val key2:val2 key3:val3")],
-        ),
-        (
-            "key:,key3:val1,",
-            {"key3": "val1"},
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key:,key3:val1")],
-        ),
-        (",", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "")]),
-        (":,:", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, ":,:")]),
-        ("key,key2:val1", {"key": "", "key2": "val1"}, None),
-        ("key2:val1:", {"key2": "val1:"}, None),
-        ("key,key2,key3", {"key": "", "key2": "", "key3": ""}, None),
-        ("key key2 key3", {"key": "", "key2": "", "key3": ""}, None),
-        ("foo:bar,foo:baz", dict(foo="baz"), None),
-        ("hash:asd url:https://github.com/foo/bar", dict(hash="asd", url="https://github.com/foo/bar"), None),
+        ("key1:value1,key2:value2", {"key1": "value1", "key2": "value2"}),
+        ("key1:value1 key2:value2", {"key1": "value1", "key2": "value2"}),
+        ("env:test aKey:aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal", "bKey": "bVal", "cKey": ""}),
+        ("env:test,aKey:aVal,bKey:bVal,cKey:", {"env": "test", "aKey": "aVal", "bKey": "bVal", "cKey": ""}),
+        ("env:test,aKey:aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal bKey:bVal cKey:"}),
+        ("env:test     bKey :bVal dKey: dVal cKey:", {"env": "test", "bKey": "", "dKey": "", "dVal": "", "cKey": ""}),
+        ("env :test, aKey : aVal bKey:bVal cKey:", {"env": "test", "aKey": "aVal bKey:bVal cKey:"}),
+        ("env:keyWithA:Semicolon bKey:bVal cKey", {"env": "keyWithA:Semicolon", "bKey": "bVal", "cKey": ""}),
+        ("env:keyWith:  , ,   Lots:Of:Semicolons ", {"env": "keyWith:", "Lots": "Of:Semicolons"}),
+        ("a:b,c,d", {"a": "b", "c": "", "d": ""}),
+        ("a,1", {"a": "", "1": ""}),
+        ("a:b:c:d", {"a": "b:c:d"}),
+        ("hash:asd url:https://github.com/foo/bar", dict(hash="asd", url="https://github.com/foo/bar")),
     ],
 )
-def test_parse_env_tags(tag_str, expected_tags, error_calls):
-    with mock.patch("ddtrace.internal.utils.formats.log") as log:
-        tags = parse_tags_str(tag_str)
-        assert tags == expected_tags
-        if error_calls:
-            assert log.error.call_count == len(error_calls), log.error.call_args_list
-            log.error.assert_has_calls(error_calls)
-        else:
-            assert log.error.call_count == 0, log.error.call_args_list
+def test_parse_env_tags(tag_str, expected_tags):
+    assert parse_tags_str(tag_str) == expected_tags, tag_str
 
 
 @pytest.mark.parametrize(

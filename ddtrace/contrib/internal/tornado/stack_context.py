@@ -3,7 +3,7 @@ from tornado.ioloop import IOLoop
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace.span import Span
+from ddtrace.trace import Span
 
 
 # tornado.stack_context deprecated in Tornado 5 removed in Tornado 6

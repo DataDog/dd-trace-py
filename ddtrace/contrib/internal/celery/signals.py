@@ -3,11 +3,10 @@ from urllib.parse import urlparse
 from celery import current_app
 from celery import registry
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery import constants as c
 from ddtrace.contrib.internal.celery.utils import attach_span
@@ -24,6 +23,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -54,9 +54,6 @@ def trace_prerun(*args, **kwargs):
     service = config.celery["worker_service_name"]
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
-    # Store an item called "prerun span" in case task_postrun doesn't get called
-    core.set_item("prerun_span", span)
-
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
@@ -68,7 +65,7 @@ def trace_prerun(*args, **kwargs):
     if rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -142,7 +139,7 @@ def trace_before_publish(*args, **kwargs):
     if rate is not None:
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
-    span.set_tag(SPAN_MEASURED_KEY)
+    span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)
@@ -182,26 +179,31 @@ def trace_after_publish(*args, **kwargs):
     span = retrieve_span(task, task_id, is_publish=True)
     if span is None:
         return
+
+    broker_url = current_app.conf.broker_url
+
+    # If broker_url is a list (multiple brokers configured)
+    # Use the first broker URL from the list
+    if isinstance(broker_url, list):
+        broker_url = broker_url[0]
+
+    if broker_url == "memory://":
+        host = broker_url
     else:
-        broker_url = current_app.conf.broker_url
+        parsed_url = urlparse(broker_url)
 
-        if broker_url == "memory://":
-            host = broker_url
-        else:
-            parsed_url = urlparse(broker_url)
+        host = None
+        if parsed_url.hostname:
+            host = parsed_url.hostname
 
-            host = None
-            if parsed_url.hostname:
-                host = parsed_url.hostname
+        if parsed_url.port:
+            span.set_metric(net.TARGET_PORT, parsed_url.port)
 
-            if parsed_url.port:
-                span.set_metric(net.TARGET_PORT, parsed_url.port)
+    if host:
+        span.set_tag_str(net.TARGET_HOST, host)
 
-        if host:
-            span.set_tag_str(net.TARGET_HOST, host)
-
-        span.finish()
-        detach_span(task, task_id, is_publish=True)
+    span.finish()
+    detach_span(task, task_id, is_publish=True)
 
 
 def trace_failure(*args, **kwargs):

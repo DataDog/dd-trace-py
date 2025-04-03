@@ -2,10 +2,10 @@ from enum import Enum
 import functools
 
 from ddtrace.internal.ci_visibility.constants import SUITE
-from ddtrace.internal.ci_visibility.telemetry.constants import CIVISIBILITY_TELEMETRY_NAMESPACE as _NAMESPACE
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -40,18 +40,24 @@ def _enforce_event_is_test_or_suite(func):
 @_enforce_event_is_test_or_suite
 def record_itr_skipped(event_type: EVENT_TYPES):
     log.debug("Recording itr skipped telemetry for %s", event_type)
-    telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.SKIPPED, 1, (("event_type", event_type.value),))
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.SKIPPED, 1, (("event_type", event_type.value),)
+    )
 
 
 @_enforce_event_is_test_or_suite
 def record_itr_unskippable(event_type: EVENT_TYPES):
     log.debug("Recording itr unskippable telemetry for %s", event_type)
-    telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.UNSKIPPABLE, 1, (("event_type", event_type.value),))
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.UNSKIPPABLE, 1, (("event_type", event_type.value),)
+    )
 
 
 def record_itr_forced_run(event_type: EVENT_TYPES):
     log.debug("Recording itr forced run telemetry for %s", event_type)
-    telemetry_writer.add_count_metric(_NAMESPACE, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),))
+    telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY, ITR_TELEMETRY.FORCED_RUN, 1, (("event_type", event_type.value),)
+    )
 
 
 def record_skippable_count(skippable_count: int, skipping_level: str):
@@ -60,4 +66,4 @@ def record_skippable_count(skippable_count: int, skipping_level: str):
         if skipping_level == SUITE
         else SKIPPABLE_TESTS_TELEMETRY.RESPONSE_TESTS
     )
-    telemetry_writer.add_count_metric(_NAMESPACE, skippable_count_metric, skippable_count)
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.CIVISIBILITY, skippable_count_metric, skippable_count)

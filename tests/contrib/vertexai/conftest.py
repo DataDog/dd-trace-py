@@ -2,10 +2,10 @@ import mock
 from mock import PropertyMock
 import pytest
 
-from ddtrace.contrib.vertexai import patch
-from ddtrace.contrib.vertexai import unpatch
+from ddtrace.contrib.internal.vertexai.patch import patch
+from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.contrib.vertexai.utils import MockAsyncPredictionServiceClient
 from tests.contrib.vertexai.utils import MockPredictionServiceClient
 from tests.utils import DummyTracer
@@ -43,12 +43,12 @@ def mock_tracer(ddtrace_global_config, vertexai):
     try:
         pin = Pin.get_from(vertexai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin.override(vertexai, tracer=mock_tracer)
+        pin._override(vertexai, tracer=mock_tracer)
         pin.tracer.configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False, agentless_enabled=False)
         yield mock_tracer
     except Exception:
         yield

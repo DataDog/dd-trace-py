@@ -17,9 +17,9 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -33,8 +33,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
-from ddtrace.pin import Pin
-from ddtrace.settings.config import Config
+from ddtrace.settings._config import Config
+from ddtrace.trace import Pin
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -113,7 +113,10 @@ config._add(
             os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})
+            service.strip()
+            for service in os.getenv(
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
+            ).split(",")
         ),
     },
 )
@@ -192,7 +195,10 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
+    is_bedrock_converse = endpoint_name == "bedrock-runtime" and operation in ("Converse", "ConverseStream")
+    is_bedrock_invoke = endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel")
+
+    if is_bedrock_converse or is_bedrock_invoke:
         patching_fn = patched_bedrock_api_call
     else:
         patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
