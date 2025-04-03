@@ -97,7 +97,9 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None):
+    def _run_with_test_tracer(
+        self, *args, method="inline_run", mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None
+    ):
         """Execute test script with test tracer."""
 
         class CIVisibilityPlugin:
@@ -129,7 +131,15 @@ class PytestTestCaseBase(TracerTestCase):
             _test_env.update(extra_env)
 
         with _ci_override_env(_test_env, replace_os_env=True):
-            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+            method = getattr(self.testdir, method)
+            return method("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+
+    def inline_run(self, *args, **kwargs):
+        """Execute test script with test tracer."""
+        return self._run_with_test_tracer(*args, **kwargs, method="inline_run")
+
+    def runpytest_inprocess(self, *args, **kwargs):
+        return self._run_with_test_tracer(*args, **kwargs, method="runpytest_inprocess")
 
     def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""
@@ -4109,17 +4119,12 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
 
     def test_pytest_log_capture_does_not_break_ddtrace_logging(self):
-        class DummyTracerWithShutdownError(DummyTracer):
-            def shutdown(self):
-                breakpoint()
-                raise Exception("error during shutdown")
-
-        self.tracer = DummyTracerWithShutdownError()
-        py_file = self.testdir.makepyfile("""
+        py_file = self.testdir.makepyfile(
+            """
             def test_ok():
                 assert True
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run("--ddtrace", file_name)
-        breakpoint()
+        rec = self.runpytest_inprocess("--ddtrace", file_name)
+        assert "API-provided settings" in rec.stderr.str()
