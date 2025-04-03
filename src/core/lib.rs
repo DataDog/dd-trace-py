@@ -1,5 +1,5 @@
+#[allow(clippy::useless_conversion)]
 mod ddsketch;
-
 use pyo3::prelude::*;
 
 #[pymodule]
