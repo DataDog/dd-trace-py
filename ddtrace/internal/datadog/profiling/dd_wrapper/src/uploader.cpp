@@ -8,7 +8,11 @@
 #include <optional>
 #include <sstream>  // ostringstream
 #include <string.h> // strerror
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h> // getpid
+#endif
 #include <vector>
 
 using namespace Datadog;
