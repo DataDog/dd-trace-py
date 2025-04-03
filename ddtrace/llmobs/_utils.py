@@ -240,6 +240,7 @@ class ToolCallTracker:
     def on_llm_tool_choice(
         self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
     ) -> None:
+        print("TRIGGERED")
         tool_call = ToolCall(
             tool_id=tool_id,
             tool_name=tool_name,
