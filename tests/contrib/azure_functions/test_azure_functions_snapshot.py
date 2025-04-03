@@ -62,3 +62,8 @@ def test_http_post_ok(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post("/api/httppostok", headers=DEFAULT_HEADERS, data={"key": "val"}).status_code == 200
     )
+
+
+@pytest.mark.snapshot
+def test_http_get_trigger_arg(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgettriggerarg", headers=DEFAULT_HEADERS).status_code == 200
