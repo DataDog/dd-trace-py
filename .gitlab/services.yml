@@ -120,3 +120,6 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
+  azurite:
+    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
+    alias: azurite

@@ -145,6 +145,12 @@ services:
           - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"
+    azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+            - "127.0.0.1:10000:10000"
+            - "127.0.0.1:10001:10001"
+            - "127.0.0.1:10002:10002"
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile

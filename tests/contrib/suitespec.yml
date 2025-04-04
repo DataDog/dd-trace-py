@@ -415,6 +415,8 @@ suites:
       - tests/snapshots/tests.contrib.azure_functions.*
     runner: riot
     snapshot: true
+    services:
+      - azurite
   botocore:
     parallelism: 11
     paths:
