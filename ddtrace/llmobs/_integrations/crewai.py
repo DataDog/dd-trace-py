@@ -175,7 +175,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 NAME: agent_role if agent_role else "CrewAI Agent",
                 METADATA: {"description": agent_goal, "backstory": agent_backstory},
                 INPUT_VALUE: {"context": context, "input": task_description},
-                SPAN_LINKS: curr_span_links + [span_link]
+                SPAN_LINKS: curr_span_links + [span_link],
             }
         )
         if span.error:
