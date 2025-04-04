@@ -6,6 +6,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 
+from ..settings._agent import config as agent_config  # noqa:F401
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
@@ -85,6 +86,9 @@ class _EncoderBase(object):
 
         if span._links:
             d["span_links"] = [link.to_dict() for link in span._links]
+
+        if span._events and agent_config.trace_native_span_events:
+            d["span_events"] = [dict(event) for event in span._events]
 
         return d
 

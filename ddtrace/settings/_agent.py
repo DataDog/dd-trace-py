@@ -141,6 +141,14 @@ class AgentConfig(DDConfig):
         help_type="Int",
         help="Stores the port of the agent",
     )
+
+    trace_native_span_events = DDConfig.v(
+        bool,
+        "trace_native_span_events",
+        default=False,
+        help_type="Boolean",
+        help="Stores whether native span events are enabled",
+    )
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
     # Effective DogStatsD URL (this is the one that will be used)
