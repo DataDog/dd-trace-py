@@ -4,6 +4,7 @@ Class based views used for Django tests.
 
 import hashlib
 import os
+import shlex
 from typing import Any
 
 from django.db import connection
@@ -295,6 +296,14 @@ def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
     os.system("dir -l " + value)
+
+    return HttpResponse("OK", status=200)
+
+
+def command_injection_secure_mark(request):
+    value = request.body.decode()
+    # label iast_command_injection
+    os.system("dir -l " + shlex.quote(value))
 
     return HttpResponse("OK", status=200)
 

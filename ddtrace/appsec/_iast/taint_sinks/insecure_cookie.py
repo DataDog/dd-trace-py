@@ -12,6 +12,7 @@ from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -22,17 +23,19 @@ from ddtrace.settings.asm import config as asm_config
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    scrub_evidence = False
+    secure_mark = VulnerabilityType.INSECURE_COOKIE
 
 
 @oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
+    secure_mark = VulnerabilityType.NO_HTTPONLY_COOKIE
 
 
 @oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
+    secure_mark = VulnerabilityType.NO_SAMESITE_COOKIE
 
 
 @oce.register

@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
@@ -23,6 +24,7 @@ log = get_logger(__name__)
 @oce.register
 class XSS(VulnerabilityBase):
     vulnerability_type = VULN_XSS
+    secure_mark = VulnerabilityType.XSS
 
 
 def get_version() -> Text:

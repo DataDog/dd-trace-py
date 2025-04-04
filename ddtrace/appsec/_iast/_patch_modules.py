@@ -34,13 +34,6 @@ def patch_iast(patch_modules=IAST_PATCH):
             cmdi_sanitizer,
         )
     )
-    when_imported("shlex")(
-        lambda _: try_wrap_function_wrapper(
-            "shlex",
-            "split",
-            cmdi_sanitizer,
-        )
-    )
     when_imported("psycopg2.adapt")(
         lambda _: try_wrap_function_wrapper(
             "psycopg2.adapt",
