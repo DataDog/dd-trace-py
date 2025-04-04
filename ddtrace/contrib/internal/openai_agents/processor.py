@@ -55,7 +55,10 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"oai_trace": trace_adapter},
         )
-        self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
+        trace_info = self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
+        if trace_info:
+            trace_info.output_oai_span = None
+            trace_info.input_oai_span = None
         self._integration.oai_to_llmobs_span.pop(trace_adapter.trace_id, None)
         trace_root_span.finish()
 
