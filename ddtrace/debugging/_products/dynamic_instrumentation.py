@@ -1,11 +1,5 @@
 import enum
 
-# We need to make sure that remote configuration adapters are loaded before the
-# main application starts. This is to make sure that we make all the necessary
-# interactions with the multiprocessing module. If the main application uses
-# gevent, the module reloading mechanism might cause the multiprocessing module
-# to misbehave with errors like "TypeError: this type has no size".
-# import ddtrace.debugging._probe.remoteconfig  # noqa
 from ddtrace.settings.dynamic_instrumentation import config
 
 
