@@ -1,6 +1,6 @@
 import agents
 from agents.tracing import add_trace_processor
-from agents.tracing import set_trace_processors
+
 from ddtrace import config
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
 from ddtrace.contrib.internal.openai_agents.processor import disable_processor
@@ -31,7 +31,7 @@ def patch():
 
     enable_processor()
 
-    set_trace_processors([LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents))])
+    add_trace_processor(LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents)))
 
 
 def unpatch():
@@ -42,6 +42,5 @@ def unpatch():
         return
 
     disable_processor()
-    set_trace_processors([])
 
     agents._datadog_patch = False
