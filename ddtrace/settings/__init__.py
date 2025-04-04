@@ -1,4 +1,4 @@
-from ddtrace.vendor.debtcollector import deprecate
+from ..vendor.debtcollector import deprecate
 
 from .._hooks import Hooks
 from .exceptions import ConfigException
