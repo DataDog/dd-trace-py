@@ -524,7 +524,6 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_INJECT_WAS_ATTEMPTED", "origin": "default", "value": False},
-        {"name": "_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
         {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
